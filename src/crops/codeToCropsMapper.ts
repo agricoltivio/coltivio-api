@@ -19,7 +19,7 @@ export function mapCodesToCrops(
     },
   };
   for (const code of codes) {
-    const isDefined = cropCodes.includes(code);
+    const isDefined = usageCodes.includes(code);
     // @ts-ignore
     const name: string = t(`crops.codes.${isDefined ? code.toString() : "-1"}`);
     if (!cropsByName[name]) {
@@ -158,7 +158,7 @@ function mapCodeToCategory(code: number): CropCreateInput["category"] {
   }
 }
 
-const cropCodes = [
+const usageCodes = [
   501, 502, 504, 505, 506, 507, 508, 510, 511, 512, 513, 514, 515, 516, 519,
   520, 521, 522, 523, 524, 525, 526, 527, 528, 529, 531, 534, 536, 537, 538,
   539, 540, 541, 543, 544, 545, 546, 548, 551, 552, 553, 554, 556, 557, 559,
