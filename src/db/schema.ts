@@ -978,7 +978,7 @@ export const insertPlotSchema = createInsertSchema(plots)
   .merge(
     z.object({
       geometry: multiPolygonSchema,
-      cuttingDate: ez.dateIn().optional(),
+      cuttingDate: ez.dateIn().nullable().optional(),
       cropId: z.string(),
     })
   );
