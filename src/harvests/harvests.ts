@@ -1,0 +1,347 @@
+import { and, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
+import { z } from "zod";
+import { RlsDb } from "../db/db";
+import * as tables from "../db/schema";
+import { MultiPolygon } from "../geo/geojson";
+import { Plot } from "../plots/plots";
+
+export type Harvest = Omit<typeof tables.harvests.$inferSelect, "geometry"> & {
+  geometry: MultiPolygon;
+  crop: typeof tables.crops.$inferSelect;
+  machinery: typeof tables.harvestingMachinery.$inferSelect | null;
+  plot: Omit<Plot, "cropRotations">;
+};
+
+export type HarvestCreateInput = {
+  date: Date;
+  plotId: string;
+  cropId: string;
+  conservationMethod: z.infer<typeof tables.conservationMethodEnumSchema>;
+  processingType: z.infer<typeof tables.processingTypeEnumSchema>;
+  producedUnits: number;
+  kilosPerUnit: number;
+  createdBy: string;
+  harvestCount?: number | null;
+  machineConfigId?: string;
+  additionalNotes?: string | null;
+};
+export type HarvestsBatchCreateInput = {
+  date: Date;
+  cropId: string;
+  conservationMethod: z.infer<typeof tables.conservationMethodEnumSchema>;
+  processingType: z.infer<typeof tables.processingTypeEnumSchema>;
+  kilosPerUnit: number;
+  createdBy: string;
+  harvestCount?: number | null;
+  machineryId?: string;
+  additionalNotes?: string | null;
+  plots: {
+    plotId: string;
+    geometry: MultiPolygon;
+    size: number;
+    producedUnits: number;
+  }[];
+};
+export type HarvestUpdateInput = Partial<HarvestCreateInput>;
+
+interface ProducedQuantity {
+  totalAmountInKilos: number;
+  forageName: string;
+  conservationMethod: string;
+  producedUnits: {
+    processingMethod: string;
+    totalAmountInKilos: number;
+    totalProducedUnits: number;
+  }[];
+}
+
+interface MonthlyHarvest {
+  year: number;
+  month: number;
+  producedQuantities: ProducedQuantity[];
+}
+
+export interface HarvestSummary {
+  monthlyHarvests: MonthlyHarvest[];
+}
+
+export function harvestsApi(rlsDb: RlsDb) {
+  return {
+    async createHarvests({
+      plots,
+      ...base
+    }: HarvestsBatchCreateInput): Promise<Harvest[]> {
+      const result = await rlsDb.rls(async (tx) => {
+        const harvests = await tx
+          .insert(tables.harvests)
+          .values(
+            plots.map((plot) => ({
+              ...tables.farmIdColumnValue,
+              ...base,
+              ...plot,
+              geometry: sql<MultiPolygon>`ST_GeomFromGeoJSON(${JSON.stringify(plot.geometry)})`,
+            }))
+          )
+          .returning({
+            id: tables.harvests.id,
+          });
+
+        return harvests;
+      });
+      return this.getHarvestsByIds(result.map((harvest) => harvest.id))!;
+    },
+    async deleteHarvest(id: string): Promise<void> {
+      return rlsDb.rls(async (tx) => {
+        await tx.delete(tables.harvests).where(eq(tables.harvests.id, id));
+      });
+    },
+    async getHarvestsByIds(ids: string[]): Promise<Harvest[]> {
+      return rlsDb.rls(async (tx) => {
+        return tx.query.harvests.findMany({
+          where: inArray(tables.harvests.id, ids),
+          with: {
+            crop: true,
+            machinery: true,
+            plot: {
+              extras: {
+                geometry:
+                  sql<MultiPolygon>`ST_AsGeoJSON(${tables.harvests.geometry})::json`.as(
+                    "geometry"
+                  ),
+              },
+            },
+          },
+          extras: {
+            geometry:
+              sql<MultiPolygon>`ST_AsGeoJSON(${tables.harvests.geometry})::json`.as(
+                "geometry"
+              ),
+          },
+        });
+      });
+    },
+    async getHarvestById(id: string): Promise<Harvest | undefined> {
+      return rlsDb.rls(async (tx) => {
+        return tx.query.harvests.findFirst({
+          where: eq(tables.harvests.id, id),
+          with: {
+            crop: true,
+            machinery: true,
+            plot: {
+              extras: {
+                geometry:
+                  sql<MultiPolygon>`ST_AsGeoJSON(${tables.harvests.geometry})::json`.as(
+                    "geometry"
+                  ),
+              },
+            },
+          },
+          extras: {
+            geometry:
+              sql<MultiPolygon>`ST_AsGeoJSON(${tables.harvests.geometry})::json`.as(
+                "geometry"
+              ),
+          },
+        });
+      });
+    },
+    async getHarvestsForFarm(
+      farmId: string,
+      fromDate: Date,
+      toDate: Date
+    ): Promise<Harvest[]> {
+      return rlsDb.rls(async (tx) => {
+        return tx.query.harvests.findMany({
+          where: and(
+            eq(tables.harvests.farmId, farmId),
+            and(
+              gte(tables.harvests.date, fromDate),
+              lte(tables.harvests.date, toDate)
+            )
+          ),
+          with: {
+            crop: true,
+            machinery: true,
+            plot: {
+              extras: {
+                geometry:
+                  sql<MultiPolygon>`ST_AsGeoJSON(${tables.harvests.geometry})::json`.as(
+                    "geometry"
+                  ),
+              },
+            },
+          },
+          extras: {
+            geometry:
+              sql<MultiPolygon>`ST_AsGeoJSON(${tables.harvests.geometry})::json`.as(
+                "geometry"
+              ),
+          },
+          orderBy: [desc(tables.harvests.date)],
+        });
+      });
+    },
+    async getHarvestsForPlot(plotId: string): Promise<Omit<Harvest, "plot">[]> {
+      return rlsDb.rls(async (tx) => {
+        return tx.query.harvests.findMany({
+          where: eq(tables.harvests.plotId, plotId),
+          with: {
+            crop: true,
+            machinery: true,
+          },
+          extras: {
+            geometry:
+              sql<MultiPolygon>`ST_AsGeoJSON(${tables.harvests.geometry})::json`.as(
+                "geometry"
+              ),
+          },
+          orderBy: [desc(tables.harvests.date)],
+        });
+      });
+    },
+
+    async getHarvestYears(): Promise<string[]> {
+      return rlsDb.rls(async (tx) => {
+        const result = await tx.query.harvests.findMany({
+          columns: {
+            date: true,
+          },
+          orderBy: [desc(tables.harvests.date)],
+        });
+        return Array.from(
+          new Set(
+            result.map((application) =>
+              application.date.getFullYear().toString()
+            )
+          )
+        );
+      });
+    },
+    async getHarvestSummaryForFarm(farmId: string): Promise<HarvestSummary> {
+      return rlsDb.rls(async (tx) => {
+        const results = await tx.query.harvests.findMany({
+          where: eq(tables.harvests.farmId, farmId),
+          columns: {
+            geometry: false,
+          },
+          with: {
+            crop: true,
+          },
+        });
+
+        return mapToMonthlySummaries(results);
+      });
+    },
+    async getHarvestSummaryForPlot(plotId: string): Promise<HarvestSummary> {
+      return rlsDb.rls(async (tx) => {
+        const results = await tx.query.harvests.findMany({
+          where: eq(tables.harvests.plotId, plotId),
+          columns: {
+            geometry: false,
+          },
+          with: {
+            crop: true,
+          },
+        });
+
+        return mapToMonthlySummaries(results);
+      });
+    },
+  };
+
+  function mapToMonthlySummaries(
+    harvests: Omit<Harvest, "machinery" | "geometry" | "plot">[]
+  ): HarvestSummary {
+    const monthlyHarvests = harvests.reduce<
+      Record<
+        string,
+        {
+          year: number;
+          month: number;
+          producedQuantities: Record<
+            string,
+            {
+              totalAmountInKilos: number;
+              forageName: string;
+              conservationMethod: string;
+              producedUnits: {
+                [processingMethod: string]: {
+                  processingMethod: string;
+                  totalAmountInKilos: number;
+                  totalProducedUnits: number;
+                };
+              };
+            }
+          >;
+        }
+      >
+    >((acc, harvest) => {
+      const date = harvest.date;
+      const year = date.getFullYear();
+      const month = date.getMonth(); // getMonth() is zero-based
+      const forageKey = `${harvest.crop.name}-${harvest.conservationMethod}`;
+
+      const key = `${year}-${month}`;
+      if (!acc[key]) {
+        acc[key] = {
+          year,
+          month,
+          producedQuantities: {},
+        };
+      }
+
+      if (!acc[key].producedQuantities[forageKey]) {
+        acc[key].producedQuantities[forageKey] = {
+          forageName: harvest.crop.name,
+          totalAmountInKilos: 0,
+          conservationMethod: harvest.conservationMethod,
+          producedUnits: {},
+        };
+      }
+
+      if (
+        !acc[key].producedQuantities[forageKey].producedUnits[
+          harvest.processingType
+        ]
+      ) {
+        acc[key].producedQuantities[forageKey].producedUnits[
+          harvest.processingType
+        ] = {
+          processingMethod: harvest.processingType,
+          totalAmountInKilos: 0,
+          totalProducedUnits: 0,
+        };
+      }
+
+      acc[key].producedQuantities[forageKey].totalAmountInKilos +=
+        harvest.producedUnits * harvest.kilosPerUnit;
+      acc[key].producedQuantities[forageKey].producedUnits[
+        harvest.processingType
+      ].totalAmountInKilos += harvest.producedUnits * harvest.kilosPerUnit;
+      acc[key].producedQuantities[forageKey].producedUnits[
+        harvest.processingType
+      ].totalProducedUnits += harvest.producedUnits;
+
+      return acc;
+    }, {});
+
+    return {
+      monthlyHarvests: Object.values(monthlyHarvests)
+        .map((monthlyHarvest) => ({
+          ...monthlyHarvest,
+          producedQuantities: Object.values(
+            monthlyHarvest.producedQuantities
+          ).map((producedQuantity) => ({
+            ...producedQuantity,
+            producedUnits: Object.values(producedQuantity.producedUnits),
+          })),
+        }))
+        .sort((a, b) => {
+          if (a.year === b.year) {
+            return a.month - b.month;
+          }
+          return a.year - b.year;
+        }),
+    };
+  }
+}

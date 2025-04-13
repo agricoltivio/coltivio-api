@@ -1,0 +1,338 @@
+import { and, asc, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
+import { z } from "zod";
+import { RlsDb } from "../db/db";
+import {
+  farmIdColumnValue,
+  fertilizerSpreaders,
+  fertilizerApplications,
+  fertilizers,
+  plots,
+  fertilizerUnitSchema,
+  fertilizationMethodSchema,
+} from "../db/schema";
+import { MultiPolygon } from "../geo/geojson";
+
+export type FertilizerUnit = z.infer<typeof fertilizerUnitSchema>;
+export type FertilizationMethod = z.infer<typeof fertilizationMethodSchema>;
+
+type CreateFertilizerApplicationInput = {
+  plotId: string;
+  date: Date;
+  createdBy: string;
+  unit: FertilizerUnit;
+  method: FertilizationMethod;
+  fertilizerId: string;
+  amountPerApplication: number;
+  numberOfApplications: number;
+  spreaderId?: string;
+  geometry: MultiPolygon;
+  size: number;
+  additionalNotes?: string;
+};
+export type FertilizerApplicationApplicationBatchCreateInput = {
+  date: Date;
+  createdBy: string;
+  unit: FertilizerUnit;
+  method: FertilizationMethod;
+  fertilizerId: string;
+  amountPerApplication: number;
+  spreaderId?: string;
+  additionalNotes?: string;
+  plots: {
+    plotId: string;
+    geometry: MultiPolygon;
+    size: number;
+    numberOfApplications: number;
+  }[];
+};
+
+type FertilizerApplication = Omit<
+  typeof fertilizerApplications.$inferSelect,
+  "geometry"
+> & {
+  geometry: MultiPolygon;
+  spreader: typeof fertilizerSpreaders.$inferSelect | null;
+  fertilizer: typeof fertilizers.$inferSelect;
+  plot: Pick<typeof plots.$inferSelect, "id" | "name" | "description">;
+};
+
+interface AppliedFertilizer {
+  totalAmount: number;
+  fertilizerName: string;
+  unit: FertilizerUnit;
+}
+interface MonthlyApplication {
+  year: number;
+  month: number;
+  appliedFertilizers: AppliedFertilizer[];
+}
+
+export interface FertilizationApplicationSummary {
+  monthlyApplications: MonthlyApplication[];
+}
+
+export function fertilizerApplicationsApi(rlsDb: RlsDb) {
+  return {
+    async createFertilizerApplications({
+      plots,
+      ...base
+    }: FertilizerApplicationApplicationBatchCreateInput): Promise<
+      FertilizerApplication[]
+    > {
+      const result = await rlsDb.rls(async (tx) => {
+        return tx
+          .insert(fertilizerApplications)
+          .values(
+            plots.map((plot) => ({
+              ...farmIdColumnValue,
+              ...base,
+              ...plot,
+              geometry: sql<MultiPolygon>`ST_GeomFromGeoJSON(${JSON.stringify(plot.geometry)})`,
+            }))
+          )
+          .returning({ id: fertilizerApplications.id });
+      });
+      return this.getFertilizerApplicationsByIds(
+        result.map((application) => application.id)
+      )!;
+    },
+    async getFertilizerApplicationsByIds(
+      ids: string[]
+    ): Promise<FertilizerApplication[]> {
+      return rlsDb.rls(async (tx) => {
+        return tx.query.fertilizerApplications.findMany({
+          where: inArray(fertilizerApplications.id, ids),
+          with: {
+            fertilizer: true,
+            spreader: true,
+            plot: {
+              columns: {
+                id: true,
+                name: true,
+                description: true,
+              },
+            },
+          },
+          extras: {
+            geometry:
+              sql<MultiPolygon>`ST_AsGeoJSON(${fertilizerApplications.geometry})::json`.as(
+                "geometry"
+              ),
+          },
+        });
+      });
+    },
+
+    async getFertilizerApplicationById(
+      id: string
+    ): Promise<FertilizerApplication | undefined> {
+      return rlsDb.rls(async (tx) => {
+        return tx.query.fertilizerApplications.findFirst({
+          where: eq(fertilizerApplications.id, id),
+          with: {
+            fertilizer: true,
+            spreader: true,
+            plot: {
+              columns: {
+                id: true,
+                name: true,
+                description: true,
+              },
+            },
+          },
+          extras: {
+            geometry:
+              sql<MultiPolygon>`ST_AsGeoJSON(${fertilizerApplications.geometry})::json`.as(
+                "geometry"
+              ),
+          },
+        });
+      });
+    },
+
+    async getFertilizerApplicationsForFarm(
+      farmId: string,
+      fromDate: Date,
+      toDate: Date
+    ): Promise<FertilizerApplication[]> {
+      return rlsDb.rls(async (tx) => {
+        return tx.query.fertilizerApplications.findMany({
+          where: and(
+            eq(fertilizerApplications.farmId, farmId),
+            and(
+              gte(fertilizerApplications.date, fromDate),
+              lte(fertilizerApplications.date, toDate)
+            )
+          ),
+          with: {
+            plot: {
+              columns: {
+                id: true,
+                name: true,
+                description: true,
+              },
+            },
+            fertilizer: true,
+            spreader: true,
+          },
+          extras: {
+            geometry:
+              sql<MultiPolygon>`ST_AsGeoJSON(${fertilizerApplications.geometry})::json`.as(
+                "geometry"
+              ),
+          },
+          orderBy: [desc(fertilizerApplications.date)],
+        });
+      });
+    },
+
+    async getFertilizerApplicationsForPlot(
+      plotId: string
+    ): Promise<Omit<FertilizerApplication, "plot">[]> {
+      return rlsDb.rls(async (tx) => {
+        return tx.query.fertilizerApplications.findMany({
+          where: eq(fertilizerApplications.plotId, plotId),
+          with: {
+            fertilizer: true,
+            spreader: true,
+          },
+          extras: {
+            geometry:
+              sql<MultiPolygon>`ST_AsGeoJSON(${fertilizerApplications.geometry})::json`.as(
+                "geometry"
+              ),
+          },
+          orderBy: [desc(fertilizerApplications.date)],
+        });
+      });
+    },
+
+    async deleteFertilizerApplication(id: string): Promise<void> {
+      await rlsDb.rls(async (tx) => {
+        await tx
+          .delete(fertilizerApplications)
+          .where(eq(fertilizerApplications.id, id));
+      });
+    },
+
+    async getFertilizerApplicationYears(): Promise<string[]> {
+      return rlsDb.rls(async (tx) => {
+        const result = await tx.query.fertilizerApplications.findMany({
+          columns: {
+            date: true,
+          },
+          orderBy: [desc(fertilizerApplications.date)],
+        });
+
+        return Array.from(
+          new Set(
+            result.map((application) =>
+              application.date.getFullYear().toString()
+            )
+          )
+        );
+      });
+    },
+
+    async getFertilizerApplicationSummaryForFarm(
+      farmId: string
+    ): Promise<FertilizationApplicationSummary> {
+      // return { monthlyApplications: [] };
+      return rlsDb.rls(async (tx) => {
+        const result = await tx.query.fertilizerApplications.findMany({
+          where: eq(fertilizerApplications.farmId, farmId),
+          columns: {
+            numberOfApplications: true,
+            amountPerApplication: true,
+            unit: true,
+            date: true,
+          },
+          with: {
+            fertilizer: {
+              columns: {
+                name: true,
+              },
+            },
+          },
+        });
+        return mapToMonthlySummary(result);
+      });
+    },
+    async getFertilizerApplicationSummaryForPlot(
+      plotId: string
+    ): Promise<FertilizationApplicationSummary> {
+      return rlsDb.rls(async (tx) => {
+        const result = await tx.query.fertilizerApplications.findMany({
+          where: eq(fertilizerApplications.plotId, plotId),
+          columns: {
+            numberOfApplications: true,
+            amountPerApplication: true,
+            unit: true,
+            date: true,
+          },
+          with: {
+            fertilizer: {
+              columns: {
+                name: true,
+              },
+            },
+          },
+        });
+        return mapToMonthlySummary(result);
+      });
+    },
+  };
+
+  function mapToMonthlySummary(
+    result: {
+      unit: FertilizerUnit;
+      numberOfApplications: number;
+      amountPerApplication: number;
+      date: Date;
+      fertilizer: { name: string };
+    }[]
+  ) {
+    const applications = result.reduce<{
+      [key: string]: {
+        month: number;
+        year: number;
+        appliedFertilizers: Record<
+          string,
+          { totalAmount: number; unit: FertilizerUnit; fertilizerName: string }
+        >;
+      };
+    }>((acc, application) => {
+      const date = application.date;
+      const year = date.getFullYear();
+      const month = date.getMonth(); // getMonth() is zero-based
+      const fertilizerName = application.fertilizer.name;
+
+      const key = `${year}-${month}`;
+      if (!acc[key]) {
+        acc[key] = {
+          month,
+          year,
+          appliedFertilizers: {
+            [fertilizerName]: {
+              totalAmount: 0,
+              unit: application.unit,
+              fertilizerName,
+            },
+          },
+        };
+      }
+      acc[key].appliedFertilizers[fertilizerName].totalAmount +=
+        application.numberOfApplications * application.amountPerApplication;
+      return acc;
+    }, {});
+    return {
+      monthlyApplications: Object.values(applications).map(
+        ({ year, month, appliedFertilizers }) => ({
+          year,
+          month,
+          appliedFertilizers: Object.values(appliedFertilizers),
+        })
+      ),
+    };
+  }
+}

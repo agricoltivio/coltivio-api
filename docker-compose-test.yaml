@@ -1,0 +1,16 @@
+version: "3.7"
+services:
+  postgres:
+    build: ./docker
+    restart: always
+    container_name: pastorino-integration-tests
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=postgres
+      - APP_USER=app
+      - APP_PASSWORD=s3cret
+      - APP_DB=test
+    ports:
+      - "6003:5432"
+    command: ["postgres", "-c", "log_statement=all"]

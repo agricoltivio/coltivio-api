@@ -1,0 +1,30 @@
+{
+  "ts-node": {
+    // It is faster to skip typechecking.
+    // Remove if you want ts-node to do typechecking.
+    // "transpileOnly": true,
+
+    "files": true,
+
+    "compilerOptions": {
+      // compilerOptions specified here will override those declared below,
+      // but *only* in ts-node.  Useful if you want ts-node and tsc to use
+      // different options with a single tsconfig.json.
+    }
+  },
+  "compilerOptions": {
+    "rootDirs": ["src"],
+    "outDir": "dist",
+    // "lib": ["es2020"],
+    // "target": "es2020",
+    "target": "es6",
+    // "module": "esnext",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "types": ["node"],
+    "strict": true,
+    "strictNullChecks": true,
+    "resolveJsonModule": true
+  }
+}

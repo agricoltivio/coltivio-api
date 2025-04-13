@@ -1,0 +1,47 @@
+import { eq } from "drizzle-orm";
+import { RlsDb } from "../db/db";
+import { profiles } from "../db/schema";
+import { supabase } from "../supabase/supabase";
+
+export type NewUser = typeof profiles.$inferInsert;
+export type UpdatedUser = Partial<NewUser>;
+export type User = typeof profiles.$inferSelect;
+
+export function usersApi(authDb: RlsDb) {
+  return {
+    async createUser(newUser: NewUser): Promise<User> {
+      return authDb.rls(async (tx) => {
+        const [user] = await tx.insert(profiles).values(newUser).returning();
+        return user;
+      });
+    },
+    async getUserById(id: string): Promise<User> {
+      return authDb.rls(async (tx) => {
+        const [user] = await tx
+          .select()
+          .from(profiles)
+          .where(eq(profiles.id, id));
+        if (!user) {
+          throw new Error(`User with id ${id} not found`);
+        }
+        return user;
+      });
+    },
+    async updateUser(id: string, updatedUser: UpdatedUser): Promise<User> {
+      return authDb.rls(async (tx) => {
+        const [user] = await tx
+          .update(profiles)
+          .set(updatedUser)
+          .where(eq(profiles.id, id))
+          .returning();
+        return user;
+      });
+    },
+    async deleteUser(id: string) {
+      await authDb.rls(async (tx) => {
+        await tx.delete(profiles).where(eq(profiles.id, id));
+        await supabase.auth.admin.deleteUser(id);
+      });
+    },
+  };
+}

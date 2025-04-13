@@ -1,0 +1,1 @@
+ALTER TABLE "crops" ADD COLUMN "natural_meadow" boolean DEFAULT false NOT NULL;

@@ -1,0 +1,22 @@
+**Coltivio Public License (Based on AGPL-3.0)**
+
+This software is licensed under the **Coltivio Public License**, which is based on the GNU Affero General Public License (AGPL-3.0) with additional restrictions to prevent commercial use.
+
+### **Permissions**
+
+- You may use, modify, and distribute this software freely, provided that you comply with the terms of this license.
+- You must disclose the source code of any modifications and derivative works under the same license.
+- Hosting and running the software as a service is permitted as long as it is **not for commercial purposes**.
+
+### **Restrictions**
+
+- **No Commercial Use**: You may not use this software or its derivatives for commercial purposes, including but not limited to selling, licensing, or offering paid services based on this software.
+- **No Proprietary Derivatives**: Any modified or extended version must remain open-source under this license.
+- **Trademark Use**: The name "Coltivio" and any related branding may not be used without explicit permission from the nonprofit organization managing the project.
+
+### **Enforcement & Contributions**
+
+- Any violation of these terms will result in an immediate termination of your rights to use, modify, or distribute the software.
+- Contributions to this project are welcome, but by contributing, you agree that your work will be licensed under this same license.
+
+For more details, refer to the full text of the **GNU AGPL-3.0**: https://www.gnu.org/licenses/agpl-3.0.html.
