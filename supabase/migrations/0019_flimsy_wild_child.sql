@@ -1,0 +1,1 @@
+ALTER TABLE "crops" DROP COLUMN IF EXISTS "natural_meadow";

@@ -64,7 +64,6 @@ export function farmsApi(rlsDb: RlsDb, t: TFunction) {
                 farmId: createdFarm.id,
                 name: t("crops.natural_meadow"),
                 category: "grass",
-                naturalMeadow: true,
               },
             ])
             .returning();

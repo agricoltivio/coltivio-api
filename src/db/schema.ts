@@ -492,13 +492,13 @@ export const plots = pgTable(
         onDelete: "cascade",
       }),
     name: text().notNull(),
-    description: text(),
     localId: text(), // parcel number
     usage: integer(),
     additionalUsages: text(),
     cuttingDate: date({ mode: "date" }),
     geometry: polygon().notNull(),
     size: integer().notNull(),
+    additionalNotes: text(),
   },
 
   (table) => [
@@ -556,7 +556,6 @@ export const crops = pgTable(
         onDelete: "cascade",
       }),
     name: text().notNull(),
-    naturalMeadow: boolean().notNull().default(false),
     category: cropCategory().notNull(),
     variety: text(),
     usageCodes: integer().array().notNull().default([]),

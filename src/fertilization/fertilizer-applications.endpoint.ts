@@ -13,7 +13,6 @@ const fertilizerApplicationResponseSchema =
       plot: z.object({
         id: z.string(),
         name: z.string(),
-        description: z.string().nullable(),
       }),
       spreader: tables.selectFertilizerSpreaderSchema.nullable(),
       fertilizer: tables.selectFertilizerSchema,

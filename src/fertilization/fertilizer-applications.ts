@@ -53,7 +53,7 @@ type FertilizerApplication = Omit<
   geometry: MultiPolygon;
   spreader: typeof fertilizerSpreaders.$inferSelect | null;
   fertilizer: typeof fertilizers.$inferSelect;
-  plot: Pick<typeof plots.$inferSelect, "id" | "name" | "description">;
+  plot: Pick<typeof plots.$inferSelect, "id" | "name">;
 };
 
 interface AppliedFertilizer {
@@ -109,7 +109,6 @@ export function fertilizerApplicationsApi(rlsDb: RlsDb) {
               columns: {
                 id: true,
                 name: true,
-                description: true,
               },
             },
           },
@@ -136,7 +135,6 @@ export function fertilizerApplicationsApi(rlsDb: RlsDb) {
               columns: {
                 id: true,
                 name: true,
-                description: true,
               },
             },
           },
@@ -169,7 +167,6 @@ export function fertilizerApplicationsApi(rlsDb: RlsDb) {
               columns: {
                 id: true,
                 name: true,
-                description: true,
               },
             },
             fertilizer: true,

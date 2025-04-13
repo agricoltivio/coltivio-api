@@ -25,7 +25,7 @@ export type CropProtectionApplicationBatchCreateInput = {
   createdBy: string;
   dateTime: Date;
   method: CropProtectionApplication["method"];
-  equipmentId: string;
+  equipmentId?: string;
   unit: CropProtectionApplication["unit"];
   additionalNotes?: string;
   productId: string;

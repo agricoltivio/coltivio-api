@@ -131,7 +131,7 @@ export const createCropProtectionApplicationsEndpoint =
     input: z.object({
       method: z.enum(tables.cropProtectionApplicationMehtod.enumValues),
       dateTime: ez.dateIn(),
-      equipmentId: z.string(),
+      equipmentId: z.string().optional(),
       productId: z.string(),
       unit: z.enum(tables.cropProtectionUnit.enumValues),
       additionalNotes: z.string().optional(),

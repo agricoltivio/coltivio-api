@@ -127,6 +127,20 @@
       "when": 1744535687019,
       "tag": "0017_hard_rattler",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1744548388477,
+      "tag": "0018_graceful_patch",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1744553570012,
+      "tag": "0019_flimsy_wild_child",
+      "breakpoints": true
     }
   ]
 }

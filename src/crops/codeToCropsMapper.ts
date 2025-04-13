@@ -14,7 +14,6 @@ export function mapCodesToCrops(
     [t("crops.natural_meadow")]: {
       name: t("crops.natural_meadow"),
       category: "grass",
-      naturalMeadow: true,
       usageCodes: new Set<number>(),
     },
   };
@@ -26,7 +25,6 @@ export function mapCodesToCrops(
       cropsByName[name] = {
         name,
         category: mapCodeToCategory(code),
-        naturalMeadow: false,
         usageCodes: new Set([code]),
       };
     } else {
