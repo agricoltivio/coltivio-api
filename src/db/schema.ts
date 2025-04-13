@@ -49,7 +49,7 @@ export const federalFarmPlots = pgTable(
     usage: integer().notNull(),
     additionalUsages: text("a_usages"),
     area: integer().notNull(),
-    cutDate: text(),
+    cuttingDate: date("cut_date", { mode: "date" }),
     canton: text().notNull(),
     geometry: polygon().notNull(),
   },
@@ -496,7 +496,7 @@ export const plots = pgTable(
     localId: text(), // parcel number
     usage: integer(),
     additionalUsages: text(),
-    cuttingDate: text(),
+    cuttingDate: date({ mode: "date" }),
     geometry: polygon().notNull(),
     size: integer().notNull(),
   },
@@ -965,19 +965,30 @@ export const updateCropRotationSchema = insertCropRotationSchema
   .merge(idSchema);
 
 export const selectPlotSchema = createSelectSchema(plots)
-  .omit({ geometry: true })
+  .omit({ geometry: true, cuttingDate: true })
   .merge(
     z.object({
       geometry: multiPolygonSchema,
+      cuttingDate: ez.dateOut().nullable(),
       cropRotations: z.array(selectCropRotationSchema),
     })
   );
 export const insertPlotSchema = createInsertSchema(plots)
-  .omit({ geometry: true })
+  .omit({ geometry: true, cuttingDate: true })
   .merge(
     z.object({
       geometry: multiPolygonSchema,
+      cuttingDate: ez.dateIn().optional(),
       cropId: z.string(),
     })
   );
 export const updatePlotSchema = insertPlotSchema.partial().merge(idSchema);
+
+export const selectFederalFarmPlotSchema = createSelectSchema(federalFarmPlots)
+  .omit({ geometry: true, cuttingDate: true })
+  .merge(
+    z.object({
+      geometry: multiPolygonSchema,
+      cuttingDate: ez.dateOut().nullable(),
+    })
+  );

@@ -1,0 +1,1 @@
+ALTER TABLE "plots" ALTER COLUMN "cutting_date" SET DATA TYPE date USING cutting_date::date;

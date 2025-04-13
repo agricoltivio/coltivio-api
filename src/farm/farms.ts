@@ -23,14 +23,6 @@ export type FarmCreateInput = {
   federalId?: string;
   tvdNumber?: string;
   location: Point;
-  street?: string;
-  zip?: string;
-  city?: string;
-  parcelGisIds: number[];
-  createParcelPlots: boolean;
-  customPlots: PlotCreateInput[];
-  fertilizers: FertilizerCreateInput[];
-  crops: CropCreateInput[];
 };
 
 export function farmsApi(rlsDb: RlsDb, t: TFunction) {
@@ -46,7 +38,6 @@ export function farmsApi(rlsDb: RlsDb, t: TFunction) {
     },
     async createFarm(userId: string, farm: FarmCreateInput) {
       // we need to bypass rls because farm is not yet created, so the returning statement would fail
-      // we dont take plots with usage codes 921, 922, 923, 924, 926, 927, 928 (trees)
       return rlsDb.admin.transaction(async (tx) => {
         const { location, ...rest } = farm;
         const [createdFarm] = await tx
@@ -88,7 +79,6 @@ export function farmsApi(rlsDb: RlsDb, t: TFunction) {
             .from(tables.federalFarmPlots)
             .where(eq(tables.federalFarmPlots.federalFarmId, farm.federalId))
             .orderBy(tables.federalFarmPlots.localId);
-          // .where(inArray(tables.federalParcels.gisId, farm.parcelGisIds));
 
           // copy parcels from federal parcels
 
@@ -113,25 +103,18 @@ export function farmsApi(rlsDb: RlsDb, t: TFunction) {
           //   }))
           // );
 
-          const plotsToCreate = [
-            ...farm.customPlots.map((plot) => ({
-              ...plot,
+          const plotsToCreate = federalFarmPlots.map((plot, index) => {
+            return {
               farmId: createdFarm.id,
+              name: plot.localId ?? `${index + 1}`,
+              size: plot.area,
+              localId: plot.localId,
+              usage: plot.usage,
+              additionalUsages: plot.additionalUsages,
+              cuttingDate: plot.cuttingDate,
               geometry: sql`ST_GeomFromGeoJSON(${JSON.stringify(plot.geometry)})`,
-            })),
-            ...(farm.createParcelPlots
-              ? federalFarmPlots.map((plot, index) => ({
-                  farmId: createdFarm.id,
-                  name: plot.localId ?? `${index + 1}`,
-                  size: plot.area,
-                  localId: plot.localId,
-                  usage: plot.usage,
-                  additionalUsages: plot.additionalUsages,
-                  cuttingDate: plot.cutDate,
-                  geometry: sql`ST_GeomFromGeoJSON(${JSON.stringify(plot.geometry)})`,
-                }))
-              : []),
-          ];
+            };
+          });
 
           const plots = await tx
             .insert(tables.plots)
@@ -163,16 +146,6 @@ export function farmsApi(rlsDb: RlsDb, t: TFunction) {
           }));
 
           await tx.insert(tables.cropRotations).values(cropRotationInputs);
-        }
-
-        // create fertilizers
-        if (farm.fertilizers.length > 0) {
-          await tx.insert(tables.fertilizers).values(
-            farm.fertilizers.map((fertilizer) => ({
-              farmId: createdFarm.id,
-              ...fertilizer,
-            }))
-          );
         }
 
         return createdFarm;
