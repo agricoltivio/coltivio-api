@@ -19,6 +19,11 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Prepare Database
 
+### enable extensions
+
+- postgis
+- pg_trgm
+
 ### Create trigger functio to set farm id in current settigs when creating a farm
 
 ```sql

@@ -140,8 +140,10 @@ import {
   updateCropProtectionProductEndpoint,
 } from "./crop-protection/crop-protection-products.endpoint";
 import { generateFieldCalendarReport } from "./reports/field-calendar-reports.endpoint";
+import { healthEndpoint } from "./chore/chore.endpoint";
 
 export const routing: Routing = {
+  healthz: healthEndpoint,
   v1: {
     layers: {
       plots: {
