@@ -361,6 +361,7 @@ export function fieldCalendarReportsApi(
           sheet.getCell(`A${rowIndex}`).font = { bold: true, size: 24 };
           rowIndex += 3;
 
+          let plotIndex = 0;
           for (const plot of plots) {
             // if (
             //   plot.harvests.length === 0 &&
@@ -411,7 +412,8 @@ export function fieldCalendarReportsApi(
             const addSection = <T>(
               title: string,
               headers: Array<{ key: keyof T; value: string }>,
-              data: T[]
+              data: T[],
+              index: number
             ) => {
               if (data.length > 0) {
                 sheet.getCell(`A${rowIndex}`).value = title;
@@ -425,7 +427,7 @@ export function fieldCalendarReportsApi(
                   headers.map((header) => entry[header.key] || "")
                 );
                 sheet.addTable({
-                  name: `${title}_${name}`,
+                  name: `${title}_${name}_${index}`,
                   ref: `A${rowIndex}`,
                   headerRow: true,
                   style: { showRowStripes: true },
@@ -437,7 +439,7 @@ export function fieldCalendarReportsApi(
                 rowIndex += tableRows.length + 3;
               }
             };
-            if (cropRotations && plot.cropRotations.length > 0) {
+            if (cropRotations) {
               addSection(
                 t("crop_rotations.crop_rotation"),
                 [
@@ -449,11 +451,12 @@ export function fieldCalendarReportsApi(
                   fromDate: cropRotation.fromDate.toLocaleDateString(locale),
                   toDate: cropRotation.toDate?.toLocaleDateString(locale),
                   crop: cropRotation.crop.name,
-                }))
+                })),
+                plotIndex
               );
             }
 
-            if (tillages && plot.tillages.length > 0) {
+            if (tillages) {
               addSection(
                 t("tillages.tillage"),
                 [
@@ -469,14 +472,12 @@ export function fieldCalendarReportsApi(
                   reason: t(`tillages.reasons.${tillage.reason}`),
                   action: t(`tillages.actions.${tillage.action}`),
                   equipment: tillage.equipment?.name,
-                }))
+                })),
+                plotIndex
               );
             }
 
-            if (
-              fertilizerApplications &&
-              plot.fertilizerApplications.length > 0
-            ) {
+            if (fertilizerApplications) {
               addSection(
                 t("fertilizer_applications.fertilizer_application"),
                 [
@@ -512,14 +513,12 @@ export function fieldCalendarReportsApi(
                   total:
                     application.amountPerApplication *
                     application.numberOfApplications,
-                }))
+                })),
+                plotIndex
               );
             }
 
-            if (
-              cropProtectionApplications &&
-              plot.cropProtectionApplications.length > 0
-            ) {
+            if (cropProtectionApplications) {
               addSection(
                 t("crop_protections.crop_protection"),
                 [
@@ -558,11 +557,12 @@ export function fieldCalendarReportsApi(
                   total:
                     application.amountPerApplication *
                     application.numberOfApplications,
-                }))
+                })),
+                plotIndex
               );
             }
 
-            if (harvests && plot.harvests.length > 0) {
+            if (harvests) {
               addSection(
                 t("harvests.harvest"),
                 [
@@ -605,9 +605,11 @@ export function fieldCalendarReportsApi(
                   producedUnits: harvest.producedUnits,
                   kilosPerUnit: harvest.kilosPerUnit,
                   totalKilos: harvest.producedUnits * harvest.kilosPerUnit,
-                }))
+                })),
+                plotIndex
               );
             }
+            plotIndex++;
           }
         }
 
@@ -619,18 +621,22 @@ export function fieldCalendarReportsApi(
         // await workbook.xlsx.writeFile(
         //   `${t("file_name", { fromDate: fromDate.toLocaleDateString(locale), toDate: toDate.toLocaleDateString(locale) })}.xlsx`
         // );
-        await txEmailApi.sendTransacEmail({
-          sender: { email: "noreply@app.coltivio.ch", name: "Coltivio" },
-          to: [{ email: user.email, name: user.fullName || undefined }],
-          subject: fileName,
-          htmlContent: `<p>${t("field_calendar_report.mail_content", { fromDate: fromDate.toLocaleDateString(locale), toDate: toDate.toLocaleDateString(locale) })}</p>`,
-          attachment: [
-            {
-              content: attachement,
-              name: fileName,
-            },
-          ],
-        });
+        try {
+          await txEmailApi.sendTransacEmail({
+            sender: { email: "noreply@app.coltivio.ch", name: "Coltivio" },
+            to: [{ email: user.email, name: user.fullName || undefined }],
+            subject: fileName,
+            htmlContent: `<p>${t("field_calendar_report.mail_content", { fromDate: fromDate.toLocaleDateString(locale), toDate: toDate.toLocaleDateString(locale) })}</p>`,
+            attachment: [
+              {
+                content: attachement,
+                name: fileName,
+              },
+            ],
+          });
+        } catch (error) {
+          console.error(error);
+        }
         return;
       });
     },

@@ -39,6 +39,8 @@ begin
   return new;
 end;
 $$ language plpgsql security definer;
+
+
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute procedure public.handle_new_user();
@@ -80,7 +82,7 @@ $$;
 ```bash
 # parcels layer
 # cd to folder with the .shp file parcels
-ogr2ogr -f "PostgreSQL" PG:"dbname=postgres user=postgres password=postgres host=127.0.0.1 port=54322" farm_plots.shp -nln 'federal_farm_plots' -nlt PROMOTE_TO_MULTI -lco GEOMETRY_NAME=geometry -lco FID=id
+ogr2ogr -f "PostgreSQL" PG:"dbname=postgres user=postgres password=postgres host=127.0.0.1 port=54322" farm_plots.shp -nln 'federal_farm_plots' -nlt PROMOTE_TO_MULTI -lco GEOMETRY_NAME=geometry
 ```
 
 - seed database with 2 test users `yarn db:seed`
