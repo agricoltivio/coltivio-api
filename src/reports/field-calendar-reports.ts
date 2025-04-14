@@ -619,7 +619,7 @@ export function fieldCalendarReportsApi(
         // await workbook.xlsx.writeFile(
         //   `${t("file_name", { fromDate: fromDate.toLocaleDateString(locale), toDate: toDate.toLocaleDateString(locale) })}.xlsx`
         // );
-        await txEmailApi.sendTransacEmail({
+        const result = await txEmailApi.sendTransacEmail({
           sender: { email: "noreply@app.coltivio.ch", name: "Coltivio" },
           to: [{ email: user.email, name: user.fullName || undefined }],
           subject: fileName,
