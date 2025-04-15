@@ -7,7 +7,7 @@
   "author": "cudba",
   "license": "ISC",
   "scripts": {
-    "compile": "tsc",
+    "compile": "tsc && yarn sentry:sourcemaps",
     "start": "ts-node src/index.ts",
     "codegen": "graphql-codegen --config codegen.ts",
     "docker:up": "docker-compose up -d",
@@ -18,12 +18,14 @@
     "db:push": "npx drizzle-kit push",
     "db:generate": "npx drizzle-kit generate",
     "db:migrate": "npx drizzle-kit migrate",
-    "fix": "ts-node ./to_geojson.ts"
+    "fix": "ts-node ./to_geojson.ts",
+    "sentry:sourcemaps": "sentry-cli sourcemaps inject --org agricoltivio --project node-express ./dist && sentry-cli sourcemaps upload --org agricoltivio --project node-express ./dist"
   },
   "dependencies": {
     "@getbrevo/brevo": "^2.2.0",
     "@mapbox/geojson-area": "^0.2.2",
     "@nbelyh/exceljs": "^4.3.2",
+    "@sentry/cli": "^2.43.0",
     "@sentry/node": "^9.12.0",
     "@supabase/supabase-js": "^2.46.2",
     "axios": "^1.8.4",

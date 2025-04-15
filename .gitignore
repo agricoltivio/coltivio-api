@@ -133,3 +133,5 @@ dist
 .pnp.*
 
 __generated__
+# Sentry Config File
+.sentryclirc

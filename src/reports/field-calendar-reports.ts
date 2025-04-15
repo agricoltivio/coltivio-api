@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/node";
 import { and, desc, eq, gte, lte } from "drizzle-orm";
 import ExcelJS from "exceljs";
 import { TFunction } from "i18next";
@@ -636,6 +637,7 @@ export function fieldCalendarReportsApi(
           });
         } catch (error) {
           console.error(error);
+          Sentry.captureException(error);
         }
         return;
       });
