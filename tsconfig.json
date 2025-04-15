@@ -29,6 +29,7 @@
     "strict": true,
     "strictNullChecks": true,
     "resolveJsonModule": true,
+    "skipLibCheck": true,
     "sourceMap": true,
     "inlineSources": true,
 
