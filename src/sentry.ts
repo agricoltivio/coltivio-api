@@ -9,6 +9,9 @@ import { z } from "zod";
 
 Sentry.init({
   dsn: "https://8b18180562cf0566d687b290646bc3ed@o4509156353638400.ingest.de.sentry.io/4509156391911504",
+  enabled:
+    process.env.NODE_ENV === "development" ||
+    process.env.NODE_ENV === "production",
 });
 
 export const sentryResultHandler = new ResultHandler({
