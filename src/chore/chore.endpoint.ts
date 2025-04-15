@@ -7,7 +7,6 @@ export const healthEndpoint = defaultEndpointsFactory.build({
   input: z.object({}),
   output: z.object({ status: z.string() }),
   handler: async () => {
-    Sentry.captureException(new Error("test error"));
     return { status: "ok" };
   },
 });
