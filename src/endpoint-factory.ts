@@ -46,6 +46,8 @@ export const supabaseAuthMiddleware = new Middleware({
   },
 });
 
+const sentryEndpointFactory = new EndpointFactory();
+
 export const publicEndpointFactory = defaultEndpointsFactory.addMiddleware(
   new Middleware({
     input: z.object({}),

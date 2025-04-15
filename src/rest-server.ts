@@ -36,6 +36,7 @@ const config = createConfig({
     app.use(i18nextMiddleware.handle(i18next));
   },
   cors: true,
+  compression: { threshold: "1kb" },
   logger: { level: "debug", color: true },
 });
 
