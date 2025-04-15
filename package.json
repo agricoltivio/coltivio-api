@@ -21,7 +21,6 @@
     "fix": "ts-node ./to_geojson.ts"
   },
   "dependencies": {
-    "@aws-sdk/client-cognito-identity-provider": "^3.678.0",
     "@getbrevo/brevo": "^2.2.0",
     "@mapbox/geojson-area": "^0.2.2",
     "@nbelyh/exceljs": "^4.3.2",
@@ -32,8 +31,8 @@
     "drizzle-orm": "^0.36.4",
     "drizzle-zod": "^0.5.1",
     "exceljs": "^4.4.0",
-    "express": "^5.0.1",
-    "express-zod-api": "^21.1.0",
+    "express": "^5.1.0",
+    "express-zod-api": "^23.0.0",
     "http-errors": "^2.0.0",
     "i18next": "^24.2.3",
     "i18next-http-middleware": "^3.7.1",
