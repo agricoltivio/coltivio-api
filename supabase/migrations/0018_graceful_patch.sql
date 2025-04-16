@@ -1,1 +1,0 @@
-ALTER TABLE "plots" RENAME COLUMN "description" TO "additional_notes";

@@ -90,6 +90,10 @@ $$;
 ogr2ogr -f "PostgreSQL" PG:"dbname=postgres user=postgres password=postgres host=127.0.0.1 port=54322" farm_plots.shp -nln 'federal_farm_plots' -nlt PROMOTE_TO_MULTI -lco GEOMETRY_NAME=geometry
 ```
 
+```bash
+PGPASSWORD='...' ogr2ogr -f "PostgreSQL" PG:"dbname=postgres user=postgres.glwbgunhlsnemrtnuirl host=aws-0-eu-central-1.pooler.supabase.com port=5432" farm_plots_gr.shp -nln 'federal_farm_plots' -nlt PROMOTE_TO_MULTI -lco GEOMETRY_NAME=geometry -progress
+```
+
 - seed database with 2 test users `yarn db:seed`
 - start server with `yarn start`
 - see documentation under at `http://localhost:8000/docs`

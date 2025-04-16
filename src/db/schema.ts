@@ -43,7 +43,7 @@ const extensions = pgSchema("extensions");
 export const federalFarmPlots = pgTable(
   "federal_farm_plots",
   {
-    id: uuid().primaryKey().defaultRandom(),
+    id: integer().primaryKey(),
     federalFarmId: text("farm_id").notNull(),
     localId: text(),
     usage: integer().notNull(),
@@ -57,34 +57,6 @@ export const federalFarmPlots = pgTable(
   (table) => [
     index("federal_farm_plots_geometries_idx").using("gist", table.geometry),
     index("federal_farm_id_idx").using(
-      "gin",
-      table.federalFarmId.op("gin_trgm_ops")
-    ),
-    pgPolicy("authenticated users can read", {
-      as: "permissive",
-      to: authenticatedRole,
-      for: "select",
-      using: sql`true`,
-    }),
-  ]
-).enableRLS();
-
-export const federalParcels = pgTable(
-  "federal_parcels",
-  {
-    id: uuid().primaryKey().defaultRandom(),
-    gisId: integer().notNull().unique(),
-    // shp files only allow 10character property names
-    federalFarmId: text("fed_farm").notNull(),
-    area: integer().notNull(),
-    communalId: text("commun_id").notNull(),
-    geometry: polygon().notNull(),
-    sourceGisIds: varchar("source_ids", { length: 254 }).notNull(),
-  },
-
-  (table) => [
-    index("federal_parcel_geometries_idx").using("gist", table.geometry),
-    index("federal_farm_ids_idx").using(
       "gin",
       table.federalFarmId.op("gin_trgm_ops")
     ),

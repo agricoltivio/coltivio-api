@@ -23,14 +23,6 @@ import {
   getPlotsWithinRadiusOfPointEndpoint,
 } from "./layer/layer.endpoint";
 import {
-  copyFromFederalParcelsEndpoint,
-  createParcelsEndpoint,
-  deleteParcelEndpoint,
-  getFarmParcelsEndpoint,
-  getParcelByIdEndpoint,
-  updateParcelEndpoint,
-} from "./parcels/parcels.endpoint";
-import {
   getFarmUsersEndpoint,
   getMyUserProfileEndpoint,
   getUserProfileByIdEndpoint,
@@ -194,22 +186,22 @@ export const routing: Routing = {
         },
       },
     },
-    parcels: {
-      "": new DependsOnMethod({
-        get: getFarmParcelsEndpoint,
-        post: createParcelsEndpoint,
-      }),
-      copy: copyFromFederalParcelsEndpoint,
-      byId: {
-        ":parcelId": {
-          "": new DependsOnMethod({
-            get: getParcelByIdEndpoint,
-            delete: deleteParcelEndpoint,
-            patch: updateParcelEndpoint,
-          }),
-        },
-      },
-    },
+    // parcels: {
+    //   "": new DependsOnMethod({
+    //     get: getFarmParcelsEndpoint,
+    //     post: createParcelsEndpoint,
+    //   }),
+    //   copy: copyFromFederalParcelsEndpoint,
+    //   byId: {
+    //     ":parcelId": {
+    //       "": new DependsOnMethod({
+    //         get: getParcelByIdEndpoint,
+    //         delete: deleteParcelEndpoint,
+    //         patch: updateParcelEndpoint,
+    //       }),
+    //     },
+    //   },
+    // },
     plots: {
       "": new DependsOnMethod({
         get: getFarmPlotsEndpoint,

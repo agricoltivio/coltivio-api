@@ -1,1 +1,0 @@
-ALTER TABLE "plots" ALTER COLUMN "name" SET NOT NULL;

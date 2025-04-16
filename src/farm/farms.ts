@@ -73,7 +73,7 @@ export function farmsApi(rlsDb: RlsDb, t: TFunction) {
           const federalFarmPlots = await tx
             .select({
               ...getTableColumns(tables.federalFarmPlots),
-              geometry: sql<MultiPolygon>`ST_AsGeoJSON(${tables.federalParcels.geometry})::json`,
+              geometry: sql<MultiPolygon>`ST_AsGeoJSON(${tables.federalFarmPlots.geometry})::json`,
             })
             .from(tables.federalFarmPlots)
             .where(eq(tables.federalFarmPlots.federalFarmId, farm.federalId))
