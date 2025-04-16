@@ -1,1 +1,0 @@
-ALTER TABLE "federal_farm_plots" ALTER COLUMN "cut_date" SET DATA TYPE date USING cut_date::date;

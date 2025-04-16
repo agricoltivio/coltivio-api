@@ -5,6 +5,7 @@ import {
   getMessageFromError,
   ResultHandler,
 } from "express-zod-api";
+import createHttpError, { HttpError } from "http-errors";
 import { z } from "zod";
 
 Sentry.init({
@@ -22,8 +23,10 @@ export const sentryResultHandler = new ResultHandler({
   negative: z.object({ error: z.string() }),
   handler: ({ error, input, output, request, response, logger }) => {
     if (error) {
-      const { statusCode } = ensureHttpError(error);
-      if (statusCode >= 500) {
+      const httpError = ensureHttpError(error);
+      !httpError.expose &&
+        logger.error("Server side error", { error, url: request.url, input });
+      if (httpError.statusCode >= 500) {
         captureException(error, {
           extra: {
             input,
@@ -36,9 +39,16 @@ export const sentryResultHandler = new ResultHandler({
           },
         });
       }
-      const message = getMessageFromError(error);
-      return void response.status(statusCode).json({ error: message });
+      const message = getPublicErrorMessage(httpError);
+      return void response
+        .status(httpError.statusCode)
+        .json({ error: message });
     }
     response.status(200).json({ data: output });
   },
 });
+
+const getPublicErrorMessage = (error: HttpError): string =>
+  process.env.NODE_ENV === "production" && !error.expose
+    ? createHttpError(error.statusCode).message // default message for that code
+    : error.message;
