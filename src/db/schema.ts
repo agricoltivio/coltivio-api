@@ -697,6 +697,9 @@ export const fertilizers = pgTable(
     description: text(),
     type: fertilizerType().notNull(),
     unit: fertilizerUnit().notNull(),
+    defaultSpreaderId: uuid().references(() => fertilizerSpreaders.id, {
+      onDelete: "set null",
+    }),
     // nitrogenPerUnit: real(),
     // phosphorusPerUnit: real(),
     // potassiumPerUnit: real(),
@@ -718,6 +721,10 @@ export const fertilizerRelations = relations(fertilizers, ({ one, many }) => ({
   }),
   fertilizerSpreaders: many(fertilizerSpreaders),
   fertilizerApplications: many(fertilizerApplications),
+  defaultSpreader: one(fertilizerSpreaders, {
+    fields: [fertilizers.defaultSpreaderId],
+    references: [fertilizerSpreaders.id],
+  }),
 }));
 
 export const fertilizerApplications = pgTable(

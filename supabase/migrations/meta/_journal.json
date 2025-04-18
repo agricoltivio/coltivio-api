@@ -15,6 +15,13 @@
       "when": 1744737599717,
       "tag": "0001_crazy_stranger",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1744960770783,
+      "tag": "0002_silly_iron_fist",
+      "breakpoints": true
     }
   ]
 }
