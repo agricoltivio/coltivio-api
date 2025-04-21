@@ -318,8 +318,17 @@ export function fertilizerApplicationsApi(rlsDb: RlsDb) {
           },
         };
       }
-      acc[key].appliedFertilizers[fertilizerName].totalAmount +=
-        application.numberOfApplications * application.amountPerApplication;
+      if (!acc[key].appliedFertilizers[fertilizerName]) {
+        acc[key].appliedFertilizers[fertilizerName] = {
+          totalAmount:
+            application.numberOfApplications * application.amountPerApplication,
+          unit: application.unit,
+          fertilizerName,
+        };
+      } else {
+        acc[key].appliedFertilizers[fertilizerName].totalAmount +=
+          application.numberOfApplications * application.amountPerApplication;
+      }
       return acc;
     }, {});
     return {

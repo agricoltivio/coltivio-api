@@ -314,7 +314,9 @@ export const tillages = pgTable(
     size: integer().notNull(),
     reason: tillageReason().notNull(),
     action: tillageAction().notNull(),
-    equipmentId: uuid().references(() => tillageEquipment.id),
+    equipmentId: uuid().references(() => tillageEquipment.id, {
+      onDelete: "set null",
+    }),
     date: date({ mode: "date" }).notNull(),
     additionalNotes: text(),
   },
@@ -358,6 +360,9 @@ export const cropProtectionProducts = pgTable(
     name: text().notNull(),
     unit: cropProtectionUnit().notNull(),
     description: text(),
+    defaultEquipmentId: uuid().references(() => cropProtectionEquipment.id, {
+      onDelete: "set null",
+    }),
   },
   (table) => [
     pgPolicy("only farm members", {
@@ -414,7 +419,9 @@ export const cropProtectionApplications = pgTable(
       .notNull()
       .references(() => plots.id, { onDelete: "cascade" }),
     dateTime: timestamp().notNull(),
-    equipmentId: uuid().references(() => cropProtectionEquipment.id),
+    equipmentId: uuid().references(() => cropProtectionEquipment.id, {
+      onDelete: "set null",
+    }),
     productId: uuid()
       .notNull()
       .references(() => cropProtectionProducts.id),

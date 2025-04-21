@@ -13,7 +13,7 @@
     "docker:up": "docker-compose up -d",
     "docker:down": "docker-compose down",
     "test": "jest -i",
-    "generate:openapi": "ts-node ./scripts/generate-openapi-docs.ts",
+    "generate:api-types": "ts-node ./scripts/generate-openapi-docs.ts",
     "db:seed": "ts-node ./src/db/seed.ts",
     "db:push": "npx drizzle-kit push",
     "db:generate": "npx drizzle-kit generate",

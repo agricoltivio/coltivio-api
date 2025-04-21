@@ -17,6 +17,7 @@ export type TillageBatchCreateInput = {
   date: Date;
   reason: Tillage["reason"];
   action: Tillage["action"];
+  additionalNotes?: string;
   equipmentId?: string;
   plots: {
     plotId: string;
