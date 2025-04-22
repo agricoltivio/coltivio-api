@@ -300,9 +300,17 @@ function mapToMonthlySummary(
           },
         },
       };
+    } else if (!acc[key].appliedCropProtections[product.id]) {
+      acc[key].appliedCropProtections[product.id] = {
+        totalAmount:
+          application.numberOfApplications * application.amountPerApplication,
+        unit: application.unit,
+        productName: product.name,
+      };
+    } else {
+      acc[key].appliedCropProtections[product.id].totalAmount +=
+        application.numberOfApplications * application.amountPerApplication;
     }
-    acc[key].appliedCropProtections[product.id].totalAmount +=
-      application.numberOfApplications * application.amountPerApplication;
     return acc;
   }, {});
   return {
