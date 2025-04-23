@@ -24,8 +24,11 @@ export const sentryResultHandler = new ResultHandler({
   handler: ({ error, input, output, request, response, logger }) => {
     if (error) {
       const httpError = ensureHttpError(error);
-      !httpError.expose &&
+      if (!httpError.expose) {
         logger.error("Server side error", { error, url: request.url, input });
+      } else {
+        logger.debug("Client side error", { error, url: request.url, input });
+      }
       if (httpError.statusCode >= 500) {
         captureException(error, {
           extra: {

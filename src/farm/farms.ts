@@ -20,8 +20,8 @@ const farmSelectColumns = {
 export type FarmCreateInput = {
   name: string;
   address: string;
-  federalId?: string;
-  tvdNumber?: string;
+  federalId?: string | null;
+  tvdNumber?: string | null;
   location: Point;
 };
 

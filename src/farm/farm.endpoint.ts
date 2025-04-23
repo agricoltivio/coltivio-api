@@ -24,7 +24,7 @@ export const createFarmEndpoint = authenticatedEndpointFactory.build({
   method: "post",
   input: z.object({
     name: z.string(),
-    federalId: z.string().optional(),
+    federalId: z.string().optional().nullable(),
     address: z.string(),
     location: tables.pointSchema,
   }),
