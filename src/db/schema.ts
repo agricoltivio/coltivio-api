@@ -75,6 +75,7 @@ export const profiles = pgTable(
     id: uuid().primaryKey().notNull(),
     email: text().notNull().unique(),
     fullName: text(),
+    emailVerified: boolean().notNull().default(false),
     farmId: uuid().references(() => farms.id, { onDelete: "set null" }),
   },
   (table) => [
