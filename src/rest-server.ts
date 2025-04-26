@@ -26,7 +26,7 @@ i18next
 
 const config = createConfig({
   http: {
-    listen: 8000, // port, UNIX socket or options
+    listen: process.env.PORT || 8000, // port, UNIX socket or options
   },
   beforeRouting: ({ app, getLogger }) => {
     getLogger().info(
@@ -36,6 +36,7 @@ const config = createConfig({
     app.use(i18nextMiddleware.handle(i18next));
   },
   cors: true,
+  compression: { threshold: "1kb" },
   logger: { level: "debug", color: true },
 });
 

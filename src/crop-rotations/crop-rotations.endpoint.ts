@@ -63,10 +63,6 @@ export const getCropRotationsForFarmEndpoint = farmEndpointFactory.build({
       .dateIn()
       .optional()
       .default(new Date(5000, 0, 1).toISOString()),
-    skipNaturalMeadows: z
-      .string()
-      .transform((value) => value === "true")
-      .default("true"),
   }),
   output: z.object({
     result: z.array(
@@ -79,8 +75,7 @@ export const getCropRotationsForFarmEndpoint = farmEndpointFactory.build({
   handler: async ({ input, options: { cropRotations, farmId } }) => {
     const result = await cropRotations.getCropRotationsForFarm(
       input.fromDate,
-      input.toDate,
-      input.skipNaturalMeadows
+      input.toDate
     );
     return {
       result,

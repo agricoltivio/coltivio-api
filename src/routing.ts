@@ -23,14 +23,6 @@ import {
   getPlotsWithinRadiusOfPointEndpoint,
 } from "./layer/layer.endpoint";
 import {
-  copyFromFederalParcelsEndpoint,
-  createParcelsEndpoint,
-  deleteParcelEndpoint,
-  getFarmParcelsEndpoint,
-  getParcelByIdEndpoint,
-  updateParcelEndpoint,
-} from "./parcels/parcels.endpoint";
-import {
   getFarmUsersEndpoint,
   getMyUserProfileEndpoint,
   getUserProfileByIdEndpoint,
@@ -140,8 +132,10 @@ import {
   updateCropProtectionProductEndpoint,
 } from "./crop-protection/crop-protection-products.endpoint";
 import { generateFieldCalendarReport } from "./reports/field-calendar-reports.endpoint";
+import { healthEndpoint } from "./chore/chore.endpoint";
 
 export const routing: Routing = {
+  healthz: healthEndpoint,
   v1: {
     layers: {
       plots: {
@@ -192,22 +186,22 @@ export const routing: Routing = {
         },
       },
     },
-    parcels: {
-      "": new DependsOnMethod({
-        get: getFarmParcelsEndpoint,
-        post: createParcelsEndpoint,
-      }),
-      copy: copyFromFederalParcelsEndpoint,
-      byId: {
-        ":parcelId": {
-          "": new DependsOnMethod({
-            get: getParcelByIdEndpoint,
-            delete: deleteParcelEndpoint,
-            patch: updateParcelEndpoint,
-          }),
-        },
-      },
-    },
+    // parcels: {
+    //   "": new DependsOnMethod({
+    //     get: getFarmParcelsEndpoint,
+    //     post: createParcelsEndpoint,
+    //   }),
+    //   copy: copyFromFederalParcelsEndpoint,
+    //   byId: {
+    //     ":parcelId": {
+    //       "": new DependsOnMethod({
+    //         get: getParcelByIdEndpoint,
+    //         delete: deleteParcelEndpoint,
+    //         patch: updateParcelEndpoint,
+    //       }),
+    //     },
+    //   },
+    // },
     plots: {
       "": new DependsOnMethod({
         get: getFarmPlotsEndpoint,

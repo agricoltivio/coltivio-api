@@ -1,11 +1,13 @@
 {
-  "file_name": "Feldkalender {{fromDate}} - {{toDate}}",
-  "mail_content": "Dein Feldkalender findest du im Anhang",
-  "sheet_titles": {
-    "main": "Feldkalender {{fromDate}} - {{toDate}}",
-    "main_short": "Gesamtübersicht",
-    "per_plot": "Feldkalender {{fromDate}} - {{toDate}}",
-    "per_plot_short": "Pro Schlag"
+  "field_calendar_report": {
+    "file_name": "Feldkalender {{fromDate}} - {{toDate}}",
+    "mail_content": "Dein Feldkalender für den Zeitraum {{fromDate}} - {{toDate}} findest du im Anhang",
+    "sheet_titles": {
+      "main": "Feldkalender {{fromDate}} - {{toDate}}",
+      "main_short": "Gesamtübersicht",
+      "per_plot": "Feldkalender {{fromDate}} - {{toDate}}",
+      "per_plot_short": "Pro Schlag"
+    }
   },
   "common": {
     "size_ha": "Fläche (ha)",

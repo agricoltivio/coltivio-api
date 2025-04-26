@@ -43,12 +43,10 @@ export const getFarmUsersEndpoint = farmEndpointFactory.build({
 
 export const updateUserProfileEndpoint = authenticatedEndpointFactory.build({
   method: "patch",
-  input: tables.updateUserSchema
-    .omit({ id: true })
-    .extend({ userId: z.string() }),
+  input: tables.updateUserSchema.omit({ id: true }),
   output: tables.selectUserSchema,
   handler: async ({ input, options }) => {
-    return options.users.updateUser(input.userId, input);
+    return options.users.updateUser(options.user.id, input);
   },
 });
 

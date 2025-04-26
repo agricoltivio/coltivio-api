@@ -1,4 +1,8 @@
-import { defaultEndpointsFactory, Middleware } from "express-zod-api";
+import {
+  defaultEndpointsFactory,
+  EndpointsFactory,
+  Middleware,
+} from "express-zod-api";
 import createHttpError from "http-errors";
 import { jwtDecode } from "jwt-decode";
 import { z } from "zod";
@@ -7,6 +11,7 @@ import { adminDrizzle, rlsDb } from "./db/db";
 import { supabase, SupabaseToken } from "./supabase/supabase";
 import * as tables from "./db/schema";
 import { eq } from "drizzle-orm";
+import { sentryResultHandler } from "./sentry";
 
 export const supabaseAuthMiddleware = new Middleware({
   security: {
@@ -46,7 +51,9 @@ export const supabaseAuthMiddleware = new Middleware({
   },
 });
 
-export const publicEndpointFactory = defaultEndpointsFactory.addMiddleware(
+const sentryEndpointFactory = new EndpointsFactory(sentryResultHandler);
+
+export const publicEndpointFactory = sentryEndpointFactory.addMiddleware(
   new Middleware({
     input: z.object({}),
     handler: async ({ input: {}, request, logger }) => {

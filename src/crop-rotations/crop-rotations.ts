@@ -77,8 +77,7 @@ export function cropRotationsApi(rlsDb: RlsDb) {
 
     async getCropRotationsForFarm(
       fromDate: Date,
-      toDate: Date,
-      skipNaturalMeadow: boolean
+      toDate: Date
     ): Promise<CropRotationWithPlotName[]> {
       return rlsDb.rls(async (tx) => {
         // return tx.query.cropRotations.findMany({
@@ -95,28 +94,18 @@ export function cropRotationsApi(rlsDb: RlsDb) {
         //   },
         //   orderBy: desc(cropRotations.fromDate),
         // });
-        let condition;
-        if (skipNaturalMeadow) {
-          condition = and(
-            ne(crops.naturalMeadow, true),
-            and(
-              gte(cropRotations.fromDate, fromDate),
-              lte(cropRotations.fromDate, toDate)
-            )
-          );
-        } else {
-          condition = and(
-            gte(cropRotations.fromDate, fromDate),
-            lte(cropRotations.fromDate, toDate)
-          );
-        }
 
         const results = await tx
           .select()
           .from(cropRotations)
           .leftJoin(crops, eq(crops.id, cropRotations.cropId))
           .leftJoin(plots, eq(plots.id, cropRotations.plotId))
-          .where(condition)
+          .where(
+            and(
+              gte(cropRotations.fromDate, fromDate),
+              lte(cropRotations.fromDate, toDate)
+            )
+          )
           .orderBy(desc(cropRotations.fromDate));
 
         return results.map(({ crop_rotations, crops, plots }) => ({

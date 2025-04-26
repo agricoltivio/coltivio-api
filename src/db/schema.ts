@@ -43,13 +43,13 @@ const extensions = pgSchema("extensions");
 export const federalFarmPlots = pgTable(
   "federal_farm_plots",
   {
-    id: uuid().primaryKey().defaultRandom(),
+    id: integer().primaryKey(),
     federalFarmId: text("farm_id").notNull(),
     localId: text(),
     usage: integer().notNull(),
     additionalUsages: text("a_usages"),
     area: integer().notNull(),
-    cutDate: text(),
+    cuttingDate: date("cut_date", { mode: "date" }),
     canton: text().notNull(),
     geometry: polygon().notNull(),
   },
@@ -69,40 +69,13 @@ export const federalFarmPlots = pgTable(
   ]
 ).enableRLS();
 
-export const federalParcels = pgTable(
-  "federal_parcels",
-  {
-    id: uuid().primaryKey().defaultRandom(),
-    gisId: integer().notNull().unique(),
-    // shp files only allow 10character property names
-    federalFarmId: text("fed_farm").notNull(),
-    area: integer().notNull(),
-    communalId: text("commun_id").notNull(),
-    geometry: polygon().notNull(),
-    sourceGisIds: varchar("source_ids", { length: 254 }).notNull(),
-  },
-
-  (table) => [
-    index("federal_parcel_geometries_idx").using("gist", table.geometry),
-    index("federal_farm_ids_idx").using(
-      "gin",
-      table.federalFarmId.op("gin_trgm_ops")
-    ),
-    pgPolicy("authenticated users can read", {
-      as: "permissive",
-      to: authenticatedRole,
-      for: "select",
-      using: sql`true`,
-    }),
-  ]
-).enableRLS();
-
 export const profiles = pgTable(
   "profiles",
   {
     id: uuid().primaryKey().notNull(),
     email: text().notNull().unique(),
     fullName: text(),
+    emailVerified: boolean().notNull().default(false),
     farmId: uuid().references(() => farms.id, { onDelete: "set null" }),
   },
   (table) => [
@@ -342,7 +315,9 @@ export const tillages = pgTable(
     size: integer().notNull(),
     reason: tillageReason().notNull(),
     action: tillageAction().notNull(),
-    equipmentId: uuid().references(() => tillageEquipment.id),
+    equipmentId: uuid().references(() => tillageEquipment.id, {
+      onDelete: "set null",
+    }),
     date: date({ mode: "date" }).notNull(),
     additionalNotes: text(),
   },
@@ -386,6 +361,9 @@ export const cropProtectionProducts = pgTable(
     name: text().notNull(),
     unit: cropProtectionUnit().notNull(),
     description: text(),
+    defaultEquipmentId: uuid().references(() => cropProtectionEquipment.id, {
+      onDelete: "set null",
+    }),
   },
   (table) => [
     pgPolicy("only farm members", {
@@ -442,7 +420,9 @@ export const cropProtectionApplications = pgTable(
       .notNull()
       .references(() => plots.id, { onDelete: "cascade" }),
     dateTime: timestamp().notNull(),
-    equipmentId: uuid().references(() => cropProtectionEquipment.id),
+    equipmentId: uuid().references(() => cropProtectionEquipment.id, {
+      onDelete: "set null",
+    }),
     productId: uuid()
       .notNull()
       .references(() => cropProtectionProducts.id),
@@ -492,13 +472,13 @@ export const plots = pgTable(
         onDelete: "cascade",
       }),
     name: text().notNull(),
-    description: text(),
     localId: text(), // parcel number
     usage: integer(),
     additionalUsages: text(),
-    cuttingDate: text(),
+    cuttingDate: date({ mode: "date" }),
     geometry: polygon().notNull(),
     size: integer().notNull(),
+    additionalNotes: text(),
   },
 
   (table) => [
@@ -556,7 +536,6 @@ export const crops = pgTable(
         onDelete: "cascade",
       }),
     name: text().notNull(),
-    naturalMeadow: boolean().notNull().default(false),
     category: cropCategory().notNull(),
     variety: text(),
     usageCodes: integer().array().notNull().default([]),
@@ -726,6 +705,9 @@ export const fertilizers = pgTable(
     description: text(),
     type: fertilizerType().notNull(),
     unit: fertilizerUnit().notNull(),
+    defaultSpreaderId: uuid().references(() => fertilizerSpreaders.id, {
+      onDelete: "set null",
+    }),
     // nitrogenPerUnit: real(),
     // phosphorusPerUnit: real(),
     // potassiumPerUnit: real(),
@@ -747,6 +729,10 @@ export const fertilizerRelations = relations(fertilizers, ({ one, many }) => ({
   }),
   fertilizerSpreaders: many(fertilizerSpreaders),
   fertilizerApplications: many(fertilizerApplications),
+  defaultSpreader: one(fertilizerSpreaders, {
+    fields: [fertilizers.defaultSpreaderId],
+    references: [fertilizerSpreaders.id],
+  }),
 }));
 
 export const fertilizerApplications = pgTable(
@@ -965,19 +951,30 @@ export const updateCropRotationSchema = insertCropRotationSchema
   .merge(idSchema);
 
 export const selectPlotSchema = createSelectSchema(plots)
-  .omit({ geometry: true })
+  .omit({ geometry: true, cuttingDate: true })
   .merge(
     z.object({
       geometry: multiPolygonSchema,
+      cuttingDate: ez.dateOut().nullable(),
       cropRotations: z.array(selectCropRotationSchema),
     })
   );
 export const insertPlotSchema = createInsertSchema(plots)
-  .omit({ geometry: true })
+  .omit({ geometry: true, cuttingDate: true })
   .merge(
     z.object({
       geometry: multiPolygonSchema,
+      cuttingDate: ez.dateIn().nullable().optional(),
       cropId: z.string(),
     })
   );
 export const updatePlotSchema = insertPlotSchema.partial().merge(idSchema);
+
+export const selectFederalFarmPlotSchema = createSelectSchema(federalFarmPlots)
+  .omit({ geometry: true, cuttingDate: true })
+  .merge(
+    z.object({
+      geometry: multiPolygonSchema,
+      cuttingDate: ez.dateOut().nullable(),
+    })
+  );

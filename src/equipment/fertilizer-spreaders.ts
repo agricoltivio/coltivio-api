@@ -55,6 +55,18 @@ export function fertilizerSpreaderApi(rlsDb: RlsDb) {
       data: FertilizerSpreaderUpdateInput
     ): Promise<FertilizerSpreader> {
       const result = await rlsDb.rls(async (tx) => {
+        // we need to remove this spreader as default when the unit changes
+        const currentUnit = await tx.query.fertilizerSpreaders.findFirst({
+          where: eq(fertilizerSpreaders.id, id),
+          columns: { unit: true },
+        });
+        if (data.unit != null && currentUnit?.unit !== data.unit) {
+          await tx
+            .update(fertilizers)
+            .set({ defaultSpreaderId: null })
+            .where(eq(fertilizers.defaultSpreaderId, id));
+        }
+
         const [fertilizerSpreader] = await tx
           .update(fertilizerSpreaders)
           .set(data)

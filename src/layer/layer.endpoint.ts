@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { authenticatedEndpointFactory } from "../endpoint-factory";
 import { BBox } from "../geo/geojson";
+import { selectFederalFarmPlotSchema } from "../db/schema";
 
 interface ParcelLayerPolygon {
   id: string;
@@ -27,13 +28,6 @@ const MultiPolygonSchema = z.object({
   coordinates: z.array(z.array(z.array(z.array(z.number())))),
 });
 
-const FederalFarmPlotsSchema = z.object({
-  id: z.string(),
-  federalFarmId: z.string(),
-  localId: z.string().nullable(),
-  geometry: MultiPolygonSchema,
-});
-
 const BoundingBoxSchema = z.object({
   xmin: z.string().transform((value) => parseFloat(value)),
   ymin: z.string().transform((value) => parseFloat(value)),
@@ -46,7 +40,7 @@ export const getPlotsLayerForBoundingBoxEndpoint =
     method: "get",
     input: BoundingBoxSchema,
     output: z.object({
-      result: FederalFarmPlotsSchema.array(),
+      result: selectFederalFarmPlotSchema.array(),
       count: z.number(),
       bbox: z.tuple([z.number(), z.number(), z.number(), z.number()]),
       // bbox: z.object({
@@ -81,7 +75,7 @@ export const getPlotsForFederalFarmIdEndpoint =
     method: "get",
     input: z.object({ federalFarmId: z.string() }),
     output: z.object({
-      result: FederalFarmPlotsSchema.array(),
+      result: selectFederalFarmPlotSchema.array(),
       count: z.number(),
     }),
     handler: async ({
@@ -105,7 +99,7 @@ export const getFarmAndNearbyPlotsEndpoint = authenticatedEndpointFactory.build(
       buffer: z.number().optional(),
     }),
     output: z.object({
-      result: FederalFarmPlotsSchema.array(),
+      result: selectFederalFarmPlotSchema.array(),
       count: z.number(),
     }),
     handler: async ({
@@ -132,7 +126,7 @@ export const getPlotsWithinRadiusOfPointEndpoint =
       radiusInKm: z.string().transform((value) => parseInt(value)),
     }),
     output: z.object({
-      result: FederalFarmPlotsSchema.array(),
+      result: selectFederalFarmPlotSchema.array(),
       count: z.number(),
     }),
     handler: async ({

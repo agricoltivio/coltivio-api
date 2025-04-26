@@ -24,19 +24,9 @@ export const createFarmEndpoint = authenticatedEndpointFactory.build({
   method: "post",
   input: z.object({
     name: z.string(),
-    federalId: z.string(),
+    federalId: z.string().optional().nullable(),
     address: z.string(),
     location: tables.pointSchema,
-    tvdNumber: z.string().optional(),
-    parcelGisIds: z.array(z.number()),
-    createParcelPlots: z.boolean().optional().default(true),
-    customPlots: tables.insertPlotSchema
-      .omit({ farmId: true, id: true })
-      .array(),
-    fertilizers: tables.insertFertilizerSchema
-      .omit({ farmId: true, id: true })
-      .array(),
-    crops: tables.insertCropSchema.omit({ farmId: true, id: true }).array(),
   }),
   output: tables.selectFarmSchema,
   handler: async ({ input, options }) => {

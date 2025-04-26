@@ -100,6 +100,7 @@ export const createTillagesEndpoint = farmEndpointFactory.build({
     reason: z.enum(tables.tillageReason.enumValues),
     action: z.enum(tables.tillageAction.enumValues),
     date: ez.dateIn(),
+    additionalNotes: z.string().optional(),
     equipmentId: z.string().optional(),
     plots: z
       .object({
