@@ -5,36 +5,15 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1744737310432,
-      "tag": "0000_brown_husk",
+      "when": 1745673906261,
+      "tag": "0000_configure_federal_farm_plots",
       "breakpoints": true
     },
     {
       "idx": 1,
       "version": "7",
-      "when": 1744737599717,
-      "tag": "0001_crazy_stranger",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1744960770783,
-      "tag": "0002_silly_iron_fist",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1745222199006,
-      "tag": "0003_complete_gwen_stacy",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1745502414591,
-      "tag": "0004_short_vengeance",
+      "when": 1745674109373,
+      "tag": "0001_initial_tables",
       "breakpoints": true
     }
   ]

@@ -1,123 +1,15 @@
 {
-  "id": "14de170e-2122-4f49-9a8d-05bd5ed85e6a",
+  "id": "a3c762c4-2801-4076-a277-f1e6427e6cb6",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
-  "tables": {
-    "public.federal_farm_plots": {
-      "name": "federal_farm_plots",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "integer",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "farm_id": {
-          "name": "farm_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "local_id": {
-          "name": "local_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "usage": {
-          "name": "usage",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "a_usages": {
-          "name": "a_usages",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "area": {
-          "name": "area",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "cut_date": {
-          "name": "cut_date",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "canton": {
-          "name": "canton",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "geometry": {
-          "name": "geometry",
-          "type": "geometry(MultiPolygon,4326)",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "federal_farm_plots_geometries_idx": {
-          "name": "federal_farm_plots_geometries_idx",
-          "columns": [
-            {
-              "expression": "geometry",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "gist",
-          "with": {}
-        },
-        "federal_farm_id_idx": {
-          "name": "federal_farm_id_idx",
-          "columns": [
-            {
-              "expression": "farm_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last",
-              "opclass": "gin_trgm_ops"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "gin",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {
-        "authenticated users can read": {
-          "name": "authenticated users can read",
-          "as": "PERMISSIVE",
-          "for": "SELECT",
-          "to": ["authenticated"],
-          "using": "true"
-        }
-      },
-      "checkConstraints": {},
-      "isRLSEnabled": true
-    }
-  },
+  "tables": {},
   "enums": {},
   "schemas": {},
+  "views": {},
   "sequences": {},
   "roles": {},
   "policies": {},
-  "views": {},
   "_meta": {
     "columns": {},
     "schemas": {},

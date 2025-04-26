@@ -9,7 +9,7 @@ CREATE TYPE "public"."forage_processing_type" AS ENUM('none', 'square_bale', 'ro
 CREATE TYPE "public"."tillage_action" AS ENUM('plowing', 'tilling', 'harrowing', 'rolling', 'rotavating', 'weed_harrowing', 'hoeing', 'flame_weeding', 'other');--> statement-breakpoint
 CREATE TYPE "public"."tillage_reason" AS ENUM('weed_control', 'soil_loosening', 'other');--> statement-breakpoint
 CREATE TYPE "public"."user_role" AS ENUM('ADMIN', 'USER', 'CONTRACTOR');--> statement-breakpoint
-CREATE TABLE IF NOT EXISTS "crop_protection_applications" (
+CREATE TABLE "crop_protection_applications" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"farm_id" uuid NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL,
@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS "crop_protection_applications" (
 );
 --> statement-breakpoint
 ALTER TABLE "crop_protection_applications" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
-CREATE TABLE IF NOT EXISTS "crop_protection_equipment" (
+CREATE TABLE "crop_protection_equipment" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"farm_id" uuid NOT NULL,
 	"name" text NOT NULL,
@@ -39,16 +39,17 @@ CREATE TABLE IF NOT EXISTS "crop_protection_equipment" (
 );
 --> statement-breakpoint
 ALTER TABLE "crop_protection_equipment" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
-CREATE TABLE IF NOT EXISTS "crop_protection_products" (
+CREATE TABLE "crop_protection_products" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"farm_id" uuid NOT NULL,
 	"name" text NOT NULL,
 	"unit" "crop_protection_unit" NOT NULL,
-	"description" text
+	"description" text,
+	"default_equipment_id" uuid
 );
 --> statement-breakpoint
 ALTER TABLE "crop_protection_products" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
-CREATE TABLE IF NOT EXISTS "crop_rotations" (
+CREATE TABLE "crop_rotations" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"farm_id" uuid NOT NULL,
 	"plot_id" uuid NOT NULL,
@@ -59,7 +60,7 @@ CREATE TABLE IF NOT EXISTS "crop_rotations" (
 );
 --> statement-breakpoint
 ALTER TABLE "crop_rotations" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
-CREATE TABLE IF NOT EXISTS "crops" (
+CREATE TABLE "crops" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"farm_id" uuid NOT NULL,
 	"name" text NOT NULL,
@@ -70,7 +71,7 @@ CREATE TABLE IF NOT EXISTS "crops" (
 );
 --> statement-breakpoint
 ALTER TABLE "crops" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
-CREATE TABLE IF NOT EXISTS "farms" (
+CREATE TABLE "farms" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"federal_id" text,
 	"tvd_id" text,
@@ -80,7 +81,7 @@ CREATE TABLE IF NOT EXISTS "farms" (
 );
 --> statement-breakpoint
 ALTER TABLE "farms" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
-CREATE TABLE IF NOT EXISTS "fertilizer_applications" (
+CREATE TABLE "fertilizer_applications" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"farm_id" uuid NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL,
@@ -99,7 +100,7 @@ CREATE TABLE IF NOT EXISTS "fertilizer_applications" (
 );
 --> statement-breakpoint
 ALTER TABLE "fertilizer_applications" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
-CREATE TABLE IF NOT EXISTS "fertilizer_spreaders" (
+CREATE TABLE "fertilizer_spreaders" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"farm_id" uuid NOT NULL,
 	"name" text NOT NULL,
@@ -109,17 +110,18 @@ CREATE TABLE IF NOT EXISTS "fertilizer_spreaders" (
 );
 --> statement-breakpoint
 ALTER TABLE "fertilizer_spreaders" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
-CREATE TABLE IF NOT EXISTS "fertilizers" (
+CREATE TABLE "fertilizers" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"farm_id" uuid NOT NULL,
 	"name" text NOT NULL,
 	"description" text,
 	"type" "fertilizer_type" NOT NULL,
-	"unit" "fertilizer_unit" NOT NULL
+	"unit" "fertilizer_unit" NOT NULL,
+	"default_spreader_id" uuid
 );
 --> statement-breakpoint
 ALTER TABLE "fertilizers" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
-CREATE TABLE IF NOT EXISTS "harvesting_machinery" (
+CREATE TABLE "harvesting_machinery" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"farm_id" uuid NOT NULL,
 	"name" text NOT NULL,
@@ -130,7 +132,7 @@ CREATE TABLE IF NOT EXISTS "harvesting_machinery" (
 );
 --> statement-breakpoint
 ALTER TABLE "harvesting_machinery" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
-CREATE TABLE IF NOT EXISTS "forage_harvests" (
+CREATE TABLE "forage_harvests" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"farm_id" uuid NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL,
@@ -150,7 +152,7 @@ CREATE TABLE IF NOT EXISTS "forage_harvests" (
 );
 --> statement-breakpoint
 ALTER TABLE "forage_harvests" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
-CREATE TABLE IF NOT EXISTS "parcels" (
+CREATE TABLE "parcels" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"farm_id" uuid NOT NULL,
 	"communal_id" text NOT NULL,
@@ -160,7 +162,7 @@ CREATE TABLE IF NOT EXISTS "parcels" (
 );
 --> statement-breakpoint
 ALTER TABLE "parcels" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
-CREATE TABLE IF NOT EXISTS "plots" (
+CREATE TABLE "plots" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"farm_id" uuid NOT NULL,
 	"name" text NOT NULL,
@@ -174,16 +176,17 @@ CREATE TABLE IF NOT EXISTS "plots" (
 );
 --> statement-breakpoint
 ALTER TABLE "plots" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
-CREATE TABLE IF NOT EXISTS "profiles" (
+CREATE TABLE "profiles" (
 	"id" uuid PRIMARY KEY NOT NULL,
 	"email" text NOT NULL,
 	"full_name" text,
+	"email_verified" boolean DEFAULT false NOT NULL,
 	"farm_id" uuid,
 	CONSTRAINT "profiles_email_unique" UNIQUE("email")
 );
 --> statement-breakpoint
 ALTER TABLE "profiles" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
-CREATE TABLE IF NOT EXISTS "tillage_equipment" (
+CREATE TABLE "tillage_equipment" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"farm_id" uuid NOT NULL,
 	"name" text NOT NULL,
@@ -192,7 +195,7 @@ CREATE TABLE IF NOT EXISTS "tillage_equipment" (
 );
 --> statement-breakpoint
 ALTER TABLE "tillage_equipment" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
-CREATE TABLE IF NOT EXISTS "tillages" (
+CREATE TABLE "tillages" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"farm_id" uuid NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL,
@@ -208,207 +211,44 @@ CREATE TABLE IF NOT EXISTS "tillages" (
 );
 --> statement-breakpoint
 ALTER TABLE "tillages" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
-DO $$ BEGIN
- ALTER TABLE "crop_protection_applications" ADD CONSTRAINT "crop_protection_applications_farm_id_farms_id_fk" FOREIGN KEY ("farm_id") REFERENCES "public"."farms"("id") ON DELETE cascade ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
---> statement-breakpoint
-DO $$ BEGIN
- ALTER TABLE "crop_protection_applications" ADD CONSTRAINT "crop_protection_applications_created_by_profiles_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."profiles"("id") ON DELETE set null ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
---> statement-breakpoint
-DO $$ BEGIN
- ALTER TABLE "crop_protection_applications" ADD CONSTRAINT "crop_protection_applications_plot_id_plots_id_fk" FOREIGN KEY ("plot_id") REFERENCES "public"."plots"("id") ON DELETE cascade ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
---> statement-breakpoint
-DO $$ BEGIN
- ALTER TABLE "crop_protection_applications" ADD CONSTRAINT "crop_protection_applications_equipment_id_crop_protection_equipment_id_fk" FOREIGN KEY ("equipment_id") REFERENCES "public"."crop_protection_equipment"("id") ON DELETE no action ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
---> statement-breakpoint
-DO $$ BEGIN
- ALTER TABLE "crop_protection_applications" ADD CONSTRAINT "crop_protection_applications_product_id_crop_protection_products_id_fk" FOREIGN KEY ("product_id") REFERENCES "public"."crop_protection_products"("id") ON DELETE no action ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
---> statement-breakpoint
-DO $$ BEGIN
- ALTER TABLE "crop_protection_equipment" ADD CONSTRAINT "crop_protection_equipment_farm_id_farms_id_fk" FOREIGN KEY ("farm_id") REFERENCES "public"."farms"("id") ON DELETE cascade ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
---> statement-breakpoint
-DO $$ BEGIN
- ALTER TABLE "crop_protection_products" ADD CONSTRAINT "crop_protection_products_farm_id_farms_id_fk" FOREIGN KEY ("farm_id") REFERENCES "public"."farms"("id") ON DELETE cascade ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
---> statement-breakpoint
-DO $$ BEGIN
- ALTER TABLE "crop_rotations" ADD CONSTRAINT "crop_rotations_farm_id_farms_id_fk" FOREIGN KEY ("farm_id") REFERENCES "public"."farms"("id") ON DELETE cascade ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
---> statement-breakpoint
-DO $$ BEGIN
- ALTER TABLE "crop_rotations" ADD CONSTRAINT "crop_rotations_plot_id_plots_id_fk" FOREIGN KEY ("plot_id") REFERENCES "public"."plots"("id") ON DELETE cascade ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
---> statement-breakpoint
-DO $$ BEGIN
- ALTER TABLE "crop_rotations" ADD CONSTRAINT "crop_rotations_crop_id_crops_id_fk" FOREIGN KEY ("crop_id") REFERENCES "public"."crops"("id") ON DELETE no action ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
---> statement-breakpoint
-DO $$ BEGIN
- ALTER TABLE "crops" ADD CONSTRAINT "crops_farm_id_farms_id_fk" FOREIGN KEY ("farm_id") REFERENCES "public"."farms"("id") ON DELETE cascade ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
---> statement-breakpoint
-DO $$ BEGIN
- ALTER TABLE "fertilizer_applications" ADD CONSTRAINT "fertilizer_applications_farm_id_farms_id_fk" FOREIGN KEY ("farm_id") REFERENCES "public"."farms"("id") ON DELETE cascade ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
---> statement-breakpoint
-DO $$ BEGIN
- ALTER TABLE "fertilizer_applications" ADD CONSTRAINT "fertilizer_applications_created_by_profiles_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."profiles"("id") ON DELETE no action ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
---> statement-breakpoint
-DO $$ BEGIN
- ALTER TABLE "fertilizer_applications" ADD CONSTRAINT "fertilizer_applications_plot_id_plots_id_fk" FOREIGN KEY ("plot_id") REFERENCES "public"."plots"("id") ON DELETE cascade ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
---> statement-breakpoint
-DO $$ BEGIN
- ALTER TABLE "fertilizer_applications" ADD CONSTRAINT "fertilizer_applications_fertilizer_id_fertilizers_id_fk" FOREIGN KEY ("fertilizer_id") REFERENCES "public"."fertilizers"("id") ON DELETE no action ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
---> statement-breakpoint
-DO $$ BEGIN
- ALTER TABLE "fertilizer_applications" ADD CONSTRAINT "fertilizer_applications_spreader_id_fertilizer_spreaders_id_fk" FOREIGN KEY ("spreader_id") REFERENCES "public"."fertilizer_spreaders"("id") ON DELETE set null ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
---> statement-breakpoint
-DO $$ BEGIN
- ALTER TABLE "fertilizer_spreaders" ADD CONSTRAINT "fertilizer_spreaders_farm_id_farms_id_fk" FOREIGN KEY ("farm_id") REFERENCES "public"."farms"("id") ON DELETE cascade ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
---> statement-breakpoint
-DO $$ BEGIN
- ALTER TABLE "fertilizers" ADD CONSTRAINT "fertilizers_farm_id_farms_id_fk" FOREIGN KEY ("farm_id") REFERENCES "public"."farms"("id") ON DELETE cascade ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
---> statement-breakpoint
-DO $$ BEGIN
- ALTER TABLE "harvesting_machinery" ADD CONSTRAINT "harvesting_machinery_farm_id_farms_id_fk" FOREIGN KEY ("farm_id") REFERENCES "public"."farms"("id") ON DELETE cascade ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
---> statement-breakpoint
-DO $$ BEGIN
- ALTER TABLE "forage_harvests" ADD CONSTRAINT "forage_harvests_farm_id_farms_id_fk" FOREIGN KEY ("farm_id") REFERENCES "public"."farms"("id") ON DELETE cascade ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
---> statement-breakpoint
-DO $$ BEGIN
- ALTER TABLE "forage_harvests" ADD CONSTRAINT "forage_harvests_created_by_profiles_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."profiles"("id") ON DELETE set null ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
---> statement-breakpoint
-DO $$ BEGIN
- ALTER TABLE "forage_harvests" ADD CONSTRAINT "forage_harvests_plot_id_plots_id_fk" FOREIGN KEY ("plot_id") REFERENCES "public"."plots"("id") ON DELETE cascade ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
---> statement-breakpoint
-DO $$ BEGIN
- ALTER TABLE "forage_harvests" ADD CONSTRAINT "forage_harvests_crop_id_crops_id_fk" FOREIGN KEY ("crop_id") REFERENCES "public"."crops"("id") ON DELETE no action ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
---> statement-breakpoint
-DO $$ BEGIN
- ALTER TABLE "forage_harvests" ADD CONSTRAINT "forage_harvests_machinery_id_harvesting_machinery_id_fk" FOREIGN KEY ("machinery_id") REFERENCES "public"."harvesting_machinery"("id") ON DELETE set null ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
---> statement-breakpoint
-DO $$ BEGIN
- ALTER TABLE "parcels" ADD CONSTRAINT "parcels_farm_id_farms_id_fk" FOREIGN KEY ("farm_id") REFERENCES "public"."farms"("id") ON DELETE cascade ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
---> statement-breakpoint
-DO $$ BEGIN
- ALTER TABLE "plots" ADD CONSTRAINT "plots_farm_id_farms_id_fk" FOREIGN KEY ("farm_id") REFERENCES "public"."farms"("id") ON DELETE cascade ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
---> statement-breakpoint
-DO $$ BEGIN
- ALTER TABLE "profiles" ADD CONSTRAINT "profiles_farm_id_farms_id_fk" FOREIGN KEY ("farm_id") REFERENCES "public"."farms"("id") ON DELETE set null ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
---> statement-breakpoint
-DO $$ BEGIN
- ALTER TABLE "profiles" ADD CONSTRAINT "profiles_id_fk" FOREIGN KEY ("id") REFERENCES "auth"."users"("id") ON DELETE cascade ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
---> statement-breakpoint
-DO $$ BEGIN
- ALTER TABLE "tillage_equipment" ADD CONSTRAINT "tillage_equipment_farm_id_farms_id_fk" FOREIGN KEY ("farm_id") REFERENCES "public"."farms"("id") ON DELETE cascade ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
---> statement-breakpoint
-DO $$ BEGIN
- ALTER TABLE "tillages" ADD CONSTRAINT "tillages_farm_id_farms_id_fk" FOREIGN KEY ("farm_id") REFERENCES "public"."farms"("id") ON DELETE cascade ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
---> statement-breakpoint
-DO $$ BEGIN
- ALTER TABLE "tillages" ADD CONSTRAINT "tillages_created_by_profiles_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."profiles"("id") ON DELETE set null ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
---> statement-breakpoint
-DO $$ BEGIN
- ALTER TABLE "tillages" ADD CONSTRAINT "tillages_plot_id_plots_id_fk" FOREIGN KEY ("plot_id") REFERENCES "public"."plots"("id") ON DELETE cascade ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
---> statement-breakpoint
-DO $$ BEGIN
- ALTER TABLE "tillages" ADD CONSTRAINT "tillages_equipment_id_tillage_equipment_id_fk" FOREIGN KEY ("equipment_id") REFERENCES "public"."tillage_equipment"("id") ON DELETE no action ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
---> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "parcel_geometries_idx" ON "parcels" USING gist ("geometry");--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "parcel_gisid_idx" ON "parcels" USING btree ("gis_id");--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "plot_geometries_idx" ON "plots" USING gist ("geometry");--> statement-breakpoint
+ALTER TABLE "crop_protection_applications" ADD CONSTRAINT "crop_protection_applications_farm_id_farms_id_fk" FOREIGN KEY ("farm_id") REFERENCES "public"."farms"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "crop_protection_applications" ADD CONSTRAINT "crop_protection_applications_created_by_profiles_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."profiles"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "crop_protection_applications" ADD CONSTRAINT "crop_protection_applications_plot_id_plots_id_fk" FOREIGN KEY ("plot_id") REFERENCES "public"."plots"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "crop_protection_applications" ADD CONSTRAINT "crop_protection_applications_equipment_id_crop_protection_equipment_id_fk" FOREIGN KEY ("equipment_id") REFERENCES "public"."crop_protection_equipment"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "crop_protection_applications" ADD CONSTRAINT "crop_protection_applications_product_id_crop_protection_products_id_fk" FOREIGN KEY ("product_id") REFERENCES "public"."crop_protection_products"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "crop_protection_equipment" ADD CONSTRAINT "crop_protection_equipment_farm_id_farms_id_fk" FOREIGN KEY ("farm_id") REFERENCES "public"."farms"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "crop_protection_products" ADD CONSTRAINT "crop_protection_products_farm_id_farms_id_fk" FOREIGN KEY ("farm_id") REFERENCES "public"."farms"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "crop_protection_products" ADD CONSTRAINT "crop_protection_products_default_equipment_id_crop_protection_equipment_id_fk" FOREIGN KEY ("default_equipment_id") REFERENCES "public"."crop_protection_equipment"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "crop_rotations" ADD CONSTRAINT "crop_rotations_farm_id_farms_id_fk" FOREIGN KEY ("farm_id") REFERENCES "public"."farms"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "crop_rotations" ADD CONSTRAINT "crop_rotations_plot_id_plots_id_fk" FOREIGN KEY ("plot_id") REFERENCES "public"."plots"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "crop_rotations" ADD CONSTRAINT "crop_rotations_crop_id_crops_id_fk" FOREIGN KEY ("crop_id") REFERENCES "public"."crops"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "crops" ADD CONSTRAINT "crops_farm_id_farms_id_fk" FOREIGN KEY ("farm_id") REFERENCES "public"."farms"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "fertilizer_applications" ADD CONSTRAINT "fertilizer_applications_farm_id_farms_id_fk" FOREIGN KEY ("farm_id") REFERENCES "public"."farms"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "fertilizer_applications" ADD CONSTRAINT "fertilizer_applications_created_by_profiles_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."profiles"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "fertilizer_applications" ADD CONSTRAINT "fertilizer_applications_plot_id_plots_id_fk" FOREIGN KEY ("plot_id") REFERENCES "public"."plots"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "fertilizer_applications" ADD CONSTRAINT "fertilizer_applications_fertilizer_id_fertilizers_id_fk" FOREIGN KEY ("fertilizer_id") REFERENCES "public"."fertilizers"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "fertilizer_applications" ADD CONSTRAINT "fertilizer_applications_spreader_id_fertilizer_spreaders_id_fk" FOREIGN KEY ("spreader_id") REFERENCES "public"."fertilizer_spreaders"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "fertilizer_spreaders" ADD CONSTRAINT "fertilizer_spreaders_farm_id_farms_id_fk" FOREIGN KEY ("farm_id") REFERENCES "public"."farms"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "fertilizers" ADD CONSTRAINT "fertilizers_farm_id_farms_id_fk" FOREIGN KEY ("farm_id") REFERENCES "public"."farms"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "fertilizers" ADD CONSTRAINT "fertilizers_default_spreader_id_fertilizer_spreaders_id_fk" FOREIGN KEY ("default_spreader_id") REFERENCES "public"."fertilizer_spreaders"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "harvesting_machinery" ADD CONSTRAINT "harvesting_machinery_farm_id_farms_id_fk" FOREIGN KEY ("farm_id") REFERENCES "public"."farms"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "forage_harvests" ADD CONSTRAINT "forage_harvests_farm_id_farms_id_fk" FOREIGN KEY ("farm_id") REFERENCES "public"."farms"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "forage_harvests" ADD CONSTRAINT "forage_harvests_created_by_profiles_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."profiles"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "forage_harvests" ADD CONSTRAINT "forage_harvests_plot_id_plots_id_fk" FOREIGN KEY ("plot_id") REFERENCES "public"."plots"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "forage_harvests" ADD CONSTRAINT "forage_harvests_crop_id_crops_id_fk" FOREIGN KEY ("crop_id") REFERENCES "public"."crops"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "forage_harvests" ADD CONSTRAINT "forage_harvests_machinery_id_harvesting_machinery_id_fk" FOREIGN KEY ("machinery_id") REFERENCES "public"."harvesting_machinery"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "parcels" ADD CONSTRAINT "parcels_farm_id_farms_id_fk" FOREIGN KEY ("farm_id") REFERENCES "public"."farms"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "plots" ADD CONSTRAINT "plots_farm_id_farms_id_fk" FOREIGN KEY ("farm_id") REFERENCES "public"."farms"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "profiles" ADD CONSTRAINT "profiles_farm_id_farms_id_fk" FOREIGN KEY ("farm_id") REFERENCES "public"."farms"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "profiles" ADD CONSTRAINT "profiles_id_fk" FOREIGN KEY ("id") REFERENCES "auth"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "tillage_equipment" ADD CONSTRAINT "tillage_equipment_farm_id_farms_id_fk" FOREIGN KEY ("farm_id") REFERENCES "public"."farms"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "tillages" ADD CONSTRAINT "tillages_farm_id_farms_id_fk" FOREIGN KEY ("farm_id") REFERENCES "public"."farms"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "tillages" ADD CONSTRAINT "tillages_created_by_profiles_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."profiles"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "tillages" ADD CONSTRAINT "tillages_plot_id_plots_id_fk" FOREIGN KEY ("plot_id") REFERENCES "public"."plots"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "tillages" ADD CONSTRAINT "tillages_equipment_id_tillage_equipment_id_fk" FOREIGN KEY ("equipment_id") REFERENCES "public"."tillage_equipment"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "parcel_geometries_idx" ON "parcels" USING gist ("geometry");--> statement-breakpoint
+CREATE INDEX "parcel_gisid_idx" ON "parcels" USING btree ("gis_id");--> statement-breakpoint
+CREATE INDEX "plot_geometries_idx" ON "plots" USING gist ("geometry");--> statement-breakpoint
 CREATE POLICY "only farm members" ON "crop_protection_applications" AS PERMISSIVE FOR ALL TO "authenticated" USING ("crop_protection_applications"."farm_id" = farm_id()) WITH CHECK ("crop_protection_applications"."farm_id" = farm_id());--> statement-breakpoint
 CREATE POLICY "only farm members" ON "crop_protection_equipment" AS PERMISSIVE FOR ALL TO "authenticated" USING ("crop_protection_equipment"."farm_id" = farm_id()) WITH CHECK ("crop_protection_equipment"."farm_id" = farm_id());--> statement-breakpoint
 CREATE POLICY "only farm members" ON "crop_protection_products" AS PERMISSIVE FOR ALL TO "authenticated" USING ("crop_protection_products"."farm_id" = farm_id()) WITH CHECK ("crop_protection_products"."farm_id" = farm_id());--> statement-breakpoint

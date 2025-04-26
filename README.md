@@ -84,7 +84,15 @@ $$;
 ```bash
 # parcels layer
 # cd to folder with the .shp file parcels
-ogr2ogr -f "PostgreSQL" PG:"dbname=postgres user=postgres password=postgres host=127.0.0.1 port=54322" farm_plots.shp -nln 'federal_farm_plots' -nlt PROMOTE_TO_MULTI -lco GEOMETRY_NAME=geometry -lco FID=id -progress -overwrite
+PGPASSWORD='postgres' ogr2ogr -f "PostgreSQL" PG:"dbname=postgres user=postgres host=127.0.0.1 port=54322" farm_plots.shp -nln 'federal_farm_plots' -nlt PROMOTE_TO_MULTI -lco GEOMETRY_NAME=geometry -lco FID=id -progress -overwrite
+```
+
+## Create initial migration for federal_farm_plots table
+
+```sql
+ALTER TABLE "federal_farm_plots" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "federal_farm_id_idx" ON "federal_farm_plots" USING gin ("farm_id" gin_trgm_ops);--> statement-breakpoint
+CREATE POLICY "authenticated users can read" ON "federal_farm_plots" AS PERMISSIVE FOR SELECT TO "authenticated" USING (true);
 ```
 
 - start server with `yarn start`

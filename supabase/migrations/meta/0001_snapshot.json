@@ -1,6 +1,6 @@
 {
-  "id": "bc144926-c8f9-4aa9-abca-2328426a12f0",
-  "prevId": "14de170e-2122-4f49-9a8d-05bd5ed85e6a",
+  "id": "8567b61a-be67-403e-98ef-091acbf19979",
+  "prevId": "a3c762c4-2801-4076-a277-f1e6427e6cb6",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -109,8 +109,12 @@
           "name": "crop_protection_applications_farm_id_farms_id_fk",
           "tableFrom": "crop_protection_applications",
           "tableTo": "farms",
-          "columnsFrom": ["farm_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "farm_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -118,8 +122,12 @@
           "name": "crop_protection_applications_created_by_profiles_id_fk",
           "tableFrom": "crop_protection_applications",
           "tableTo": "profiles",
-          "columnsFrom": ["created_by"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -127,8 +135,12 @@
           "name": "crop_protection_applications_plot_id_plots_id_fk",
           "tableFrom": "crop_protection_applications",
           "tableTo": "plots",
-          "columnsFrom": ["plot_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "plot_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -136,17 +148,25 @@
           "name": "crop_protection_applications_equipment_id_crop_protection_equipment_id_fk",
           "tableFrom": "crop_protection_applications",
           "tableTo": "crop_protection_equipment",
-          "columnsFrom": ["equipment_id"],
-          "columnsTo": ["id"],
-          "onDelete": "no action",
+          "columnsFrom": [
+            "equipment_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
           "onUpdate": "no action"
         },
         "crop_protection_applications_product_id_crop_protection_products_id_fk": {
           "name": "crop_protection_applications_product_id_crop_protection_products_id_fk",
           "tableFrom": "crop_protection_applications",
           "tableTo": "crop_protection_products",
-          "columnsFrom": ["product_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "product_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -158,7 +178,9 @@
           "name": "only farm members",
           "as": "PERMISSIVE",
           "for": "ALL",
-          "to": ["authenticated"],
+          "to": [
+            "authenticated"
+          ],
           "using": "\"crop_protection_applications\".\"farm_id\" = farm_id()",
           "withCheck": "\"crop_protection_applications\".\"farm_id\" = farm_id()"
         }
@@ -222,8 +244,12 @@
           "name": "crop_protection_equipment_farm_id_farms_id_fk",
           "tableFrom": "crop_protection_equipment",
           "tableTo": "farms",
-          "columnsFrom": ["farm_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "farm_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -235,7 +261,9 @@
           "name": "only farm members",
           "as": "PERMISSIVE",
           "for": "ALL",
-          "to": ["authenticated"],
+          "to": [
+            "authenticated"
+          ],
           "using": "\"crop_protection_equipment\".\"farm_id\" = farm_id()",
           "withCheck": "\"crop_protection_equipment\".\"farm_id\" = farm_id()"
         }
@@ -278,6 +306,12 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "default_equipment_id": {
+          "name": "default_equipment_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},
@@ -286,9 +320,26 @@
           "name": "crop_protection_products_farm_id_farms_id_fk",
           "tableFrom": "crop_protection_products",
           "tableTo": "farms",
-          "columnsFrom": ["farm_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "farm_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "crop_protection_products_default_equipment_id_crop_protection_equipment_id_fk": {
+          "name": "crop_protection_products_default_equipment_id_crop_protection_equipment_id_fk",
+          "tableFrom": "crop_protection_products",
+          "tableTo": "crop_protection_equipment",
+          "columnsFrom": [
+            "default_equipment_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
@@ -299,7 +350,9 @@
           "name": "only farm members",
           "as": "PERMISSIVE",
           "for": "ALL",
-          "to": ["authenticated"],
+          "to": [
+            "authenticated"
+          ],
           "using": "\"crop_protection_products\".\"farm_id\" = farm_id()",
           "withCheck": "\"crop_protection_products\".\"farm_id\" = farm_id()"
         }
@@ -361,8 +414,12 @@
           "name": "crop_rotations_farm_id_farms_id_fk",
           "tableFrom": "crop_rotations",
           "tableTo": "farms",
-          "columnsFrom": ["farm_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "farm_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -370,8 +427,12 @@
           "name": "crop_rotations_plot_id_plots_id_fk",
           "tableFrom": "crop_rotations",
           "tableTo": "plots",
-          "columnsFrom": ["plot_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "plot_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -379,8 +440,12 @@
           "name": "crop_rotations_crop_id_crops_id_fk",
           "tableFrom": "crop_rotations",
           "tableTo": "crops",
-          "columnsFrom": ["crop_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "crop_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -392,7 +457,9 @@
           "name": "only farm members",
           "as": "PERMISSIVE",
           "for": "ALL",
-          "to": ["authenticated"],
+          "to": [
+            "authenticated"
+          ],
           "using": "\"crop_rotations\".\"farm_id\" = farm_id()",
           "withCheck": "\"crop_rotations\".\"farm_id\" = farm_id()"
         }
@@ -456,8 +523,12 @@
           "name": "crops_farm_id_farms_id_fk",
           "tableFrom": "crops",
           "tableTo": "farms",
-          "columnsFrom": ["farm_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "farm_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -469,7 +540,9 @@
           "name": "only farm members",
           "as": "PERMISSIVE",
           "for": "ALL",
-          "to": ["authenticated"],
+          "to": [
+            "authenticated"
+          ],
           "using": "\"crops\".\"farm_id\" = farm_id()",
           "withCheck": "\"crops\".\"farm_id\" = farm_id()"
         }
@@ -528,21 +601,27 @@
           "name": "any user can create a new farm",
           "as": "PERMISSIVE",
           "for": "INSERT",
-          "to": ["authenticated"],
+          "to": [
+            "authenticated"
+          ],
           "withCheck": "true"
         },
         "only farm members can read": {
           "name": "only farm members can read",
           "as": "PERMISSIVE",
           "for": "SELECT",
-          "to": ["authenticated"],
+          "to": [
+            "authenticated"
+          ],
           "using": "farm_id() = \"farms\".\"id\""
         },
         "only farm members can update": {
           "name": "only farm members can update",
           "as": "PERMISSIVE",
           "for": "UPDATE",
-          "to": ["authenticated"],
+          "to": [
+            "authenticated"
+          ],
           "using": "farm_id() = \"farms\".\"id\"",
           "withCheck": "farm_id() = \"farms\".\"id\""
         },
@@ -550,7 +629,9 @@
           "name": "only farm members can delete",
           "as": "PERMISSIVE",
           "for": "DELETE",
-          "to": ["authenticated"],
+          "to": [
+            "authenticated"
+          ],
           "using": "farm_id() = \"farms\".\"id\""
         }
       },
@@ -657,7 +738,9 @@
           "name": "authenticated users can read",
           "as": "PERMISSIVE",
           "for": "SELECT",
-          "to": ["authenticated"],
+          "to": [
+            "authenticated"
+          ],
           "using": "true"
         }
       },
@@ -769,8 +852,12 @@
           "name": "fertilizer_applications_farm_id_farms_id_fk",
           "tableFrom": "fertilizer_applications",
           "tableTo": "farms",
-          "columnsFrom": ["farm_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "farm_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -778,8 +865,12 @@
           "name": "fertilizer_applications_created_by_profiles_id_fk",
           "tableFrom": "fertilizer_applications",
           "tableTo": "profiles",
-          "columnsFrom": ["created_by"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -787,8 +878,12 @@
           "name": "fertilizer_applications_plot_id_plots_id_fk",
           "tableFrom": "fertilizer_applications",
           "tableTo": "plots",
-          "columnsFrom": ["plot_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "plot_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -796,8 +891,12 @@
           "name": "fertilizer_applications_fertilizer_id_fertilizers_id_fk",
           "tableFrom": "fertilizer_applications",
           "tableTo": "fertilizers",
-          "columnsFrom": ["fertilizer_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "fertilizer_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -805,8 +904,12 @@
           "name": "fertilizer_applications_spreader_id_fertilizer_spreaders_id_fk",
           "tableFrom": "fertilizer_applications",
           "tableTo": "fertilizer_spreaders",
-          "columnsFrom": ["spreader_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "spreader_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -818,7 +921,9 @@
           "name": "only farm members",
           "as": "PERMISSIVE",
           "for": "ALL",
-          "to": ["authenticated"],
+          "to": [
+            "authenticated"
+          ],
           "using": "\"fertilizer_applications\".\"farm_id\" = farm_id()",
           "withCheck": "\"fertilizer_applications\".\"farm_id\" = farm_id()"
         }
@@ -876,8 +981,12 @@
           "name": "fertilizer_spreaders_farm_id_farms_id_fk",
           "tableFrom": "fertilizer_spreaders",
           "tableTo": "farms",
-          "columnsFrom": ["farm_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "farm_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -889,7 +998,9 @@
           "name": "only farm members",
           "as": "PERMISSIVE",
           "for": "ALL",
-          "to": ["authenticated"],
+          "to": [
+            "authenticated"
+          ],
           "using": "\"fertilizer_spreaders\".\"farm_id\" = farm_id()",
           "withCheck": "\"fertilizer_spreaders\".\"farm_id\" = farm_id()"
         }
@@ -939,6 +1050,12 @@
           "typeSchema": "public",
           "primaryKey": false,
           "notNull": true
+        },
+        "default_spreader_id": {
+          "name": "default_spreader_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},
@@ -947,9 +1064,26 @@
           "name": "fertilizers_farm_id_farms_id_fk",
           "tableFrom": "fertilizers",
           "tableTo": "farms",
-          "columnsFrom": ["farm_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "farm_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "fertilizers_default_spreader_id_fertilizer_spreaders_id_fk": {
+          "name": "fertilizers_default_spreader_id_fertilizer_spreaders_id_fk",
+          "tableFrom": "fertilizers",
+          "tableTo": "fertilizer_spreaders",
+          "columnsFrom": [
+            "default_spreader_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
@@ -960,7 +1094,9 @@
           "name": "only farm members",
           "as": "PERMISSIVE",
           "for": "ALL",
-          "to": ["authenticated"],
+          "to": [
+            "authenticated"
+          ],
           "using": "\"fertilizers\".\"farm_id\" = farm_id()",
           "withCheck": "\"fertilizers\".\"farm_id\" = farm_id()"
         }
@@ -1025,8 +1161,12 @@
           "name": "harvesting_machinery_farm_id_farms_id_fk",
           "tableFrom": "harvesting_machinery",
           "tableTo": "farms",
-          "columnsFrom": ["farm_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "farm_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1038,7 +1178,9 @@
           "name": "only farm members",
           "as": "PERMISSIVE",
           "for": "ALL",
-          "to": ["authenticated"],
+          "to": [
+            "authenticated"
+          ],
           "using": "\"harvesting_machinery\".\"farm_id\" = farm_id()",
           "withCheck": "\"harvesting_machinery\".\"farm_id\" = farm_id()"
         }
@@ -1157,8 +1299,12 @@
           "name": "forage_harvests_farm_id_farms_id_fk",
           "tableFrom": "forage_harvests",
           "tableTo": "farms",
-          "columnsFrom": ["farm_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "farm_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1166,8 +1312,12 @@
           "name": "forage_harvests_created_by_profiles_id_fk",
           "tableFrom": "forage_harvests",
           "tableTo": "profiles",
-          "columnsFrom": ["created_by"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -1175,8 +1325,12 @@
           "name": "forage_harvests_plot_id_plots_id_fk",
           "tableFrom": "forage_harvests",
           "tableTo": "plots",
-          "columnsFrom": ["plot_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "plot_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1184,8 +1338,12 @@
           "name": "forage_harvests_crop_id_crops_id_fk",
           "tableFrom": "forage_harvests",
           "tableTo": "crops",
-          "columnsFrom": ["crop_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "crop_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1193,8 +1351,12 @@
           "name": "forage_harvests_machinery_id_harvesting_machinery_id_fk",
           "tableFrom": "forage_harvests",
           "tableTo": "harvesting_machinery",
-          "columnsFrom": ["machinery_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "machinery_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -1206,7 +1368,9 @@
           "name": "only farm members",
           "as": "PERMISSIVE",
           "for": "ALL",
-          "to": ["authenticated"],
+          "to": [
+            "authenticated"
+          ],
           "using": "\"forage_harvests\".\"farm_id\" = farm_id()",
           "withCheck": "\"forage_harvests\".\"farm_id\" = farm_id()"
         }
@@ -1293,8 +1457,12 @@
           "name": "parcels_farm_id_farms_id_fk",
           "tableFrom": "parcels",
           "tableTo": "farms",
-          "columnsFrom": ["farm_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "farm_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1306,7 +1474,9 @@
           "name": "only farm members",
           "as": "PERMISSIVE",
           "for": "ALL",
-          "to": ["authenticated"],
+          "to": [
+            "authenticated"
+          ],
           "using": "\"parcels\".\"farm_id\" = farm_id()",
           "withCheck": "\"parcels\".\"farm_id\" = farm_id()"
         }
@@ -1402,8 +1572,12 @@
           "name": "plots_farm_id_farms_id_fk",
           "tableFrom": "plots",
           "tableTo": "farms",
-          "columnsFrom": ["farm_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "farm_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1415,7 +1589,9 @@
           "name": "only farm members",
           "as": "PERMISSIVE",
           "for": "ALL",
-          "to": ["authenticated"],
+          "to": [
+            "authenticated"
+          ],
           "using": "\"plots\".\"farm_id\" = farm_id()",
           "withCheck": "\"plots\".\"farm_id\" = farm_id()"
         }
@@ -1445,6 +1621,13 @@
           "primaryKey": false,
           "notNull": false
         },
+        "email_verified": {
+          "name": "email_verified",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
         "farm_id": {
           "name": "farm_id",
           "type": "uuid",
@@ -1458,8 +1641,12 @@
           "name": "profiles_farm_id_farms_id_fk",
           "tableFrom": "profiles",
           "tableTo": "farms",
-          "columnsFrom": ["farm_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "farm_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -1468,8 +1655,12 @@
           "tableFrom": "profiles",
           "tableTo": "users",
           "schemaTo": "auth",
-          "columnsFrom": ["id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1479,7 +1670,9 @@
         "profiles_email_unique": {
           "name": "profiles_email_unique",
           "nullsNotDistinct": false,
-          "columns": ["email"]
+          "columns": [
+            "email"
+          ]
         }
       },
       "policies": {
@@ -1487,21 +1680,27 @@
           "name": "user can insert own profile",
           "as": "PERMISSIVE",
           "for": "INSERT",
-          "to": ["authenticated"],
+          "to": [
+            "authenticated"
+          ],
           "withCheck": "(select auth.uid()) = \"profiles\".\"id\""
         },
         "user can update own profile": {
           "name": "user can update own profile",
           "as": "PERMISSIVE",
           "for": "UPDATE",
-          "to": ["authenticated"],
+          "to": [
+            "authenticated"
+          ],
           "using": "(select auth.uid()) = \"profiles\".\"id\""
         },
         "members of same farm can read each others profile and owners can read their own profile": {
           "name": "members of same farm can read each others profile and owners can read their own profile",
           "as": "PERMISSIVE",
           "for": "SELECT",
-          "to": ["authenticated"],
+          "to": [
+            "authenticated"
+          ],
           "using": "((\"profiles\".\"farm_id\" is not null and \"profiles\".\"farm_id\" = farm_id()) or (select auth.uid()) = \"profiles\".\"id\")"
         }
       },
@@ -1552,8 +1751,12 @@
           "name": "tillage_equipment_farm_id_farms_id_fk",
           "tableFrom": "tillage_equipment",
           "tableTo": "farms",
-          "columnsFrom": ["farm_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "farm_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1565,7 +1768,9 @@
           "name": "only farm members",
           "as": "PERMISSIVE",
           "for": "ALL",
-          "to": ["authenticated"],
+          "to": [
+            "authenticated"
+          ],
           "using": "\"tillage_equipment\".\"farm_id\" = farm_id()",
           "withCheck": "\"tillage_equipment\".\"farm_id\" = farm_id()"
         }
@@ -1660,8 +1865,12 @@
           "name": "tillages_farm_id_farms_id_fk",
           "tableFrom": "tillages",
           "tableTo": "farms",
-          "columnsFrom": ["farm_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "farm_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1669,8 +1878,12 @@
           "name": "tillages_created_by_profiles_id_fk",
           "tableFrom": "tillages",
           "tableTo": "profiles",
-          "columnsFrom": ["created_by"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -1678,8 +1891,12 @@
           "name": "tillages_plot_id_plots_id_fk",
           "tableFrom": "tillages",
           "tableTo": "plots",
-          "columnsFrom": ["plot_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "plot_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1687,9 +1904,13 @@
           "name": "tillages_equipment_id_tillage_equipment_id_fk",
           "tableFrom": "tillages",
           "tableTo": "tillage_equipment",
-          "columnsFrom": ["equipment_id"],
-          "columnsTo": ["id"],
-          "onDelete": "no action",
+          "columnsFrom": [
+            "equipment_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
@@ -1700,7 +1921,9 @@
           "name": "only farm members",
           "as": "PERMISSIVE",
           "for": "ALL",
-          "to": ["authenticated"],
+          "to": [
+            "authenticated"
+          ],
           "using": "\"tillages\".\"farm_id\" = farm_id()",
           "withCheck": "\"tillages\".\"farm_id\" = farm_id()"
         }
@@ -1713,42 +1936,83 @@
     "public.forage_conservation_method": {
       "name": "forage_conservation_method",
       "schema": "public",
-      "values": ["dried", "silage", "haylage", "other", "none"]
+      "values": [
+        "dried",
+        "silage",
+        "haylage",
+        "other",
+        "none"
+      ]
     },
     "public.crop_category": {
       "name": "crop_category",
       "schema": "public",
-      "values": ["grass", "grain", "vegetable", "fruit", "other"]
+      "values": [
+        "grass",
+        "grain",
+        "vegetable",
+        "fruit",
+        "other"
+      ]
     },
     "public.crop_protection_application_method": {
       "name": "crop_protection_application_method",
       "schema": "public",
-      "values": ["spraying", "misting", "broadcasting", "injecting", "other"]
+      "values": [
+        "spraying",
+        "misting",
+        "broadcasting",
+        "injecting",
+        "other"
+      ]
     },
     "public.crop_protection_unit": {
       "name": "crop_protection_unit",
       "schema": "public",
-      "values": ["ml", "l", "g", "kg"]
+      "values": [
+        "ml",
+        "l",
+        "g",
+        "kg"
+      ]
     },
     "public.fertilization_method": {
       "name": "fertilization_method",
       "schema": "public",
-      "values": ["spray", "spread", "other"]
+      "values": [
+        "spray",
+        "spread",
+        "other"
+      ]
     },
     "public.fertilizer_type": {
       "name": "fertilizer_type",
       "schema": "public",
-      "values": ["mineral", "organic"]
+      "values": [
+        "mineral",
+        "organic"
+      ]
     },
     "public.fertilizer_unit": {
       "name": "fertilizer_unit",
       "schema": "public",
-      "values": ["l", "kg", "dt", "t", "m3"]
+      "values": [
+        "l",
+        "kg",
+        "dt",
+        "t",
+        "m3"
+      ]
     },
     "public.forage_processing_type": {
       "name": "forage_processing_type",
       "schema": "public",
-      "values": ["none", "square_bale", "round_bale", "other"]
+      "values": [
+        "none",
+        "square_bale",
+        "round_bale",
+        "other"
+      ]
     },
     "public.tillage_action": {
       "name": "tillage_action",
@@ -1768,12 +2032,20 @@
     "public.tillage_reason": {
       "name": "tillage_reason",
       "schema": "public",
-      "values": ["weed_control", "soil_loosening", "other"]
+      "values": [
+        "weed_control",
+        "soil_loosening",
+        "other"
+      ]
     },
     "public.user_role": {
       "name": "user_role",
       "schema": "public",
-      "values": ["ADMIN", "USER", "CONTRACTOR"]
+      "values": [
+        "ADMIN",
+        "USER",
+        "CONTRACTOR"
+      ]
     }
   },
   "schemas": {},
