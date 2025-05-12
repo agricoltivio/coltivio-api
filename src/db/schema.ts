@@ -393,7 +393,7 @@ export const cropProtectionEquipment = pgTable(
     description: text(),
     method: cropProtectionApplicationMehtod().notNull(),
     unit: cropProtectionUnit().notNull(),
-    capacity: integer().notNull(),
+    capacity: real().notNull(),
   },
   (table) => [
     pgPolicy("only farm members", {
@@ -429,7 +429,7 @@ export const cropProtectionApplications = pgTable(
     geometry: polygon().notNull(),
     size: integer().notNull(),
     method: cropProtectionApplicationMehtod().notNull(),
-    amountPerApplication: integer().notNull(),
+    amountPerApplication: real().notNull(),
     numberOfApplications: real().notNull(),
     unit: cropProtectionUnit().notNull(),
     additionalNotes: text(),
@@ -642,13 +642,7 @@ export const harvestsRelations = relations(harvests, ({ one, many }) => ({
   }),
 }));
 
-export const fertilizerUnit = pgEnum("fertilizer_unit", [
-  "l",
-  "kg",
-  "dt",
-  "t",
-  "m3",
-]);
+export const fertilizerUnit = pgEnum("fertilizer_unit", ["l", "kg", "dt", "t"]);
 
 export const fertilizerType = pgEnum("fertilizer_type", ["mineral", "organic"]);
 export const fertilizationMethod = pgEnum("fertilization_method", [
@@ -754,7 +748,7 @@ export const fertilizerApplications = pgTable(
     date: date({ mode: "date" }).notNull(),
     unit: fertilizerUnit().notNull(),
     method: fertilizationMethod().notNull(),
-    amountPerApplication: integer().notNull(),
+    amountPerApplication: real().notNull(),
     numberOfApplications: real().notNull(),
     fertilizerId: uuid()
       .references(() => fertilizers.id)
