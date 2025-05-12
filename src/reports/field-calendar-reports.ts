@@ -9,7 +9,7 @@ import { txEmailApi } from "../brevo/brevo";
 export function fieldCalendarReportsApi(
   rlsDb: RlsDb,
   t: TFunction,
-  locale: string
+  locale: string = "de"
 ) {
   return {
     async generateReport(
@@ -96,6 +96,8 @@ export function fieldCalendarReportsApi(
             if (cropRotations) {
               plot.cropRotations.forEach((cropRotation) => {
                 cropRotationRows.push([
+                  plot.name,
+                  plot.usage,
                   cropRotation.fromDate.toLocaleDateString(locale),
                   cropRotation.toDate?.toLocaleDateString(locale) ?? "",
                   cropRotation.crop.name,
@@ -106,6 +108,8 @@ export function fieldCalendarReportsApi(
             if (tillages) {
               plot.tillages.forEach((tillage) => {
                 tillageRows.push([
+                  plot.name,
+                  plot.usage,
                   tillage.date.toLocaleDateString(locale),
                   (tillage.size / 100).toFixed(2),
                   t(`tillages.reasons.${tillage.reason}`),
@@ -118,6 +122,8 @@ export function fieldCalendarReportsApi(
             if (fertilizerApplications) {
               plot.fertilizerApplications.forEach((application) => {
                 fertilizerApplicationRows.push([
+                  plot.name,
+                  plot.usage,
                   application.date.toLocaleDateString(locale),
                   (application.size / 100).toFixed(2),
                   application.fertilizer.name,
@@ -134,6 +140,8 @@ export function fieldCalendarReportsApi(
             if (cropProtectionApplications) {
               plot.cropProtectionApplications.forEach((application) => {
                 cropProtectionApplicationRows.push([
+                  plot.name,
+                  plot.usage,
                   application.dateTime.toLocaleDateString(locale, {
                     hour: "2-digit",
                     minute: "2-digit",
@@ -153,6 +161,8 @@ export function fieldCalendarReportsApi(
             if (harvests) {
               plot.harvests.forEach((harvest) => {
                 harvestRows.push([
+                  plot.name,
+                  plot.usage,
                   harvest.date.toLocaleDateString(locale),
                   (harvest.size / 100).toFixed(2),
                   harvest.crop.name,
@@ -178,11 +188,11 @@ export function fieldCalendarReportsApi(
           sheet.getCell(`A${rowIndex}`).value = t(
             "field_calendar_report.sheet_titles.main",
             {
-              fromDate: fromDate.toLocaleDateString(locale, {
+              fromDate: fromDate.toLocaleDateString("de", {
                 hour: "2-digit",
                 minute: "2-digit",
               }),
-              toDate: toDate.toLocaleDateString(locale, {
+              toDate: toDate.toLocaleDateString("de", {
                 hour: "2-digit",
                 minute: "2-digit",
               }),
@@ -208,6 +218,8 @@ export function fieldCalendarReportsApi(
               headerRow: true,
               style: { showRowStripes: true },
               columns: [
+                { name: t("plots.plot") },
+                { name: t("plots.usage") },
                 { name: t("common.from") },
                 { name: t("common.to") },
                 { name: t("crops.crop") },
@@ -232,6 +244,8 @@ export function fieldCalendarReportsApi(
               headerRow: true,
               style: { showRowStripes: true },
               columns: [
+                { name: t("plots.plot") },
+                { name: t("plots.usage") },
                 { name: t("common.date") },
                 { name: t("common.size_a") },
                 { name: t("common.reason") },
@@ -260,6 +274,8 @@ export function fieldCalendarReportsApi(
               headerRow: true,
               style: { showRowStripes: true },
               columns: [
+                { name: t("plots.plot") },
+                { name: t("plots.usage") },
                 { name: t("common.date") },
                 { name: t("common.size_a") },
                 { name: t("fertilizer_applications.fertilizer") },
@@ -294,6 +310,8 @@ export function fieldCalendarReportsApi(
               headerRow: true,
               style: { showRowStripes: true },
               columns: [
+                { name: t("plots.plot") },
+                { name: t("plots.usage") },
                 { name: t("common.date") },
                 { name: t("common.size_a") },
                 { name: t("crop_protections.product") },
@@ -324,6 +342,8 @@ export function fieldCalendarReportsApi(
               headerRow: true,
               style: { showRowStripes: true },
               columns: [
+                { name: t("plots.plot") },
+                { name: t("plots.usage") },
                 { name: t("common.date") },
                 { name: t("common.size_a") },
                 { name: t("crops.crop") },
@@ -349,11 +369,11 @@ export function fieldCalendarReportsApi(
           sheet.getCell(`A${rowIndex}`).value = t(
             "field_calendar_report.sheet_titles.per_plot",
             {
-              fromDate: fromDate.toLocaleDateString(locale, {
+              fromDate: fromDate.toLocaleDateString("de", {
                 hour: "2-digit",
                 minute: "2-digit",
               }),
-              toDate: toDate.toLocaleDateString(locale, {
+              toDate: toDate.toLocaleDateString("de", {
                 hour: "2-digit",
                 minute: "2-digit",
               }),
@@ -384,7 +404,7 @@ export function fieldCalendarReportsApi(
               continue;
             }
 
-            const { name, size } = plot;
+            const { name, size, usage } = plot;
 
             // add plot name as title
             sheet.getCell(`A${rowIndex}`).value = t("plots.plot");
@@ -400,6 +420,10 @@ export function fieldCalendarReportsApi(
             rowIndex += 2;
 
             // add plot details
+            sheet.getCell(`A${rowIndex}`).value = t("plots.usage");
+            sheet.getCell(`A${rowIndex}`).font = { bold: true };
+            sheet.getCell(`B${rowIndex}`).value = usage ?? t("common.unknown");
+            rowIndex++;
             sheet.getCell(`A${rowIndex}`).value = t("common.size_ha");
             sheet.getCell(`A${rowIndex}`).font = { bold: true };
             sheet.getCell(`B${rowIndex}`).value = (size / 10000).toFixed(2);
@@ -428,7 +452,7 @@ export function fieldCalendarReportsApi(
                   headers.map((header) => entry[header.key] || "")
                 );
                 sheet.addTable({
-                  name: `${title}_${name}_${index}`,
+                  name: `${title}_${name}_${index}`.replace(/\s+/g, "_"),
                   ref: `A${rowIndex}`,
                   headerRow: true,
                   style: { showRowStripes: true },
@@ -614,7 +638,7 @@ export function fieldCalendarReportsApi(
           }
         }
 
-        const fileName = `${t("field_calendar_report.file_name", { fromDate: fromDate.toLocaleDateString(locale), toDate: toDate.toLocaleDateString(locale) })}.xlsx`;
+        const fileName = `${t("field_calendar_report.file_name", { fromDate: fromDate.toLocaleDateString("de"), toDate: toDate.toLocaleDateString("de") })}.xlsx`;
 
         const buffer = await workbook.xlsx.writeBuffer();
         const attachement = Buffer.from(buffer).toString("base64");
@@ -627,7 +651,7 @@ export function fieldCalendarReportsApi(
             sender: { email: "noreply@app.coltivio.ch", name: "Coltivio" },
             to: [{ email: user.email, name: user.fullName || undefined }],
             subject: fileName,
-            htmlContent: `<p>${t("field_calendar_report.mail_content", { fromDate: fromDate.toLocaleDateString(locale), toDate: toDate.toLocaleDateString(locale) })}</p>`,
+            htmlContent: `<p>${t("field_calendar_report.mail_content", { fromDate: fromDate.toLocaleDateString("de"), toDate: toDate.toLocaleDateString("de") })}</p>`,
             attachment: [
               {
                 content: attachement,
