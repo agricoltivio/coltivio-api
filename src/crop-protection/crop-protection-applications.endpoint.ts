@@ -3,6 +3,7 @@ import { z } from "zod";
 import * as tables from "../db/schema";
 import { farmEndpointFactory } from "../endpoint-factory";
 import { ez } from "express-zod-api";
+import { ensureDateRange } from "../utils";
 
 const cropProtectionApplicationsResponseSchema =
   tables.selectCropProtectionApplicationSchema.merge(
@@ -37,7 +38,7 @@ export const getCropProtectionApplicationByIdEndpoint =
     method: "get",
     input: z.object({ cropProtectionApplicationId: z.string() }),
     output: cropProtectionApplicationsResponseSchema,
-    handler: async ({ input, options: { cropProtectionApplications } }) => {
+    handler: async ({ input, ctx: { cropProtectionApplications } }) => {
       const cropProtectionApplication =
         await cropProtectionApplications.getCropProtectionApplicationById(
           input.cropProtectionApplicationId
@@ -61,7 +62,7 @@ export const getPlotCropProtectionApplicationsEndpoint =
     }),
     handler: async ({
       input,
-      options: { cropProtectionApplications, farmId },
+      ctx: { cropProtectionApplications, farmId },
     }) => {
       const result =
         await cropProtectionApplications.getCropProtectionApplicationsForPlot(
@@ -77,16 +78,9 @@ export const getPlotCropProtectionApplicationsEndpoint =
 export const getFarmCropProtectionApplicationsEndpoint =
   farmEndpointFactory.build({
     method: "get",
-
     input: z.object({
-      fromDate: ez
-        .dateIn()
-        .optional()
-        .default(new Date(2020, 0, 1).toISOString()),
-      toDate: ez
-        .dateIn()
-        .optional()
-        .default(new Date(5000, 0, 1).toISOString()),
+      fromDate: ez.dateIn().optional(),
+      toDate: ez.dateIn().optional(),
     }),
     output: z.object({
       result: z.array(cropProtectionApplicationsResponseSchema),
@@ -94,13 +88,14 @@ export const getFarmCropProtectionApplicationsEndpoint =
     }),
     handler: async ({
       input,
-      options: { cropProtectionApplications, farmId },
+      ctx: { cropProtectionApplications, farmId },
     }) => {
+      const { from, to } = ensureDateRange(input.fromDate, input.toDate);
       const result =
         await cropProtectionApplications.getCropProtectionApplicationsForFarm(
           farmId,
-          input.fromDate,
-          input.toDate
+          from,
+          to
         );
       return {
         result,
@@ -116,7 +111,7 @@ export const createCropProtectionApplicationEndpoint =
     output: cropProtectionApplicationsResponseSchema,
     handler: async ({
       input,
-      options: { cropProtectionApplications, user },
+      ctx: { cropProtectionApplications, user },
     }) => {
       return cropProtectionApplications.createCropProtectionApplication({
         ...input,
@@ -151,7 +146,7 @@ export const createCropProtectionApplicationsEndpoint =
     }),
     handler: async ({
       input,
-      options: { cropProtectionApplications, user },
+      ctx: { cropProtectionApplications, user },
     }) => {
       const result =
         await cropProtectionApplications.createCropProtectionApplications({
@@ -175,7 +170,7 @@ export const updateCropProtectionApplicationEndpoint =
         cropProtectionApplicationId: z.string(),
       }),
     output: cropProtectionApplicationsResponseSchema,
-    handler: async ({ input, options: { cropProtectionApplications } }) => {
+    handler: async ({ input, ctx: { cropProtectionApplications } }) => {
       return cropProtectionApplications.updateCropProtectionApplication(
         input.cropProtectionApplicationId,
         input
@@ -190,7 +185,7 @@ export const deleteCropProtectionApplicationEndpoint =
     output: z.object({}),
     handler: async ({
       input: { cropProtectionApplicationId },
-      options: { cropProtectionApplications: cropProtectionApplication },
+      ctx: { cropProtectionApplications: cropProtectionApplication },
     }) => {
       await cropProtectionApplication.deleteCropProtectionApplication(
         cropProtectionApplicationId
@@ -207,7 +202,7 @@ export const getCropProtectionApplicationYearsEndpoint =
       result: z.array(z.string()),
       count: z.number(),
     }),
-    handler: async ({ options: { cropProtectionApplications } }) => {
+    handler: async ({ ctx: { cropProtectionApplications } }) => {
       const result =
         await cropProtectionApplications.getCropProtectionApplicationYears();
       return {
@@ -238,7 +233,7 @@ export const getCropProtectionApplicationSummaryForFarmEndpoint =
     method: "get",
     input: z.object({}),
     output: cropProtectionApplicationSummaryResponseSchema,
-    handler: async ({ options: { cropProtectionApplications, farmId } }) => {
+    handler: async ({ ctx: { cropProtectionApplications, farmId } }) => {
       return cropProtectionApplications.getCropProtectionApplicationSummaryForFarm();
     },
   });
@@ -250,7 +245,7 @@ export const getCropProtectionApplicationSummaryForPlotEndpoint =
     output: cropProtectionApplicationSummaryResponseSchema,
     handler: async ({
       input: { plotId },
-      options: { cropProtectionApplications },
+      ctx: { cropProtectionApplications },
     }) => {
       return cropProtectionApplications.getCropProtectionApplicationSummaryForPlot(
         plotId

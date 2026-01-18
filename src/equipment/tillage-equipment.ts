@@ -1,4 +1,4 @@
-import { asc, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { RlsDb } from "../db/db";
 import { farmIdColumnValue, tillageEquipment } from "../db/schema";
 
@@ -28,7 +28,7 @@ export function tillageEquipmentApi(rlsDb: RlsDb) {
     ): Promise<TillageEquipment | undefined> {
       return rlsDb.rls(async (tx) => {
         return tx.query.tillageEquipment.findFirst({
-          where: eq(tillageEquipment.id, id),
+          where: { id },
         });
       });
     },
@@ -37,8 +37,8 @@ export function tillageEquipmentApi(rlsDb: RlsDb) {
     ): Promise<TillageEquipment[]> {
       return rlsDb.rls(async (tx) => {
         return tx.query.tillageEquipment.findMany({
-          where: eq(tillageEquipment.farmId, farmId),
-          orderBy: asc(tillageEquipment.name),
+          where: { farmId },
+          orderBy: { name: "asc" },
         });
       });
     },

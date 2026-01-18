@@ -1,12 +1,10 @@
 import {
   and,
-  desc,
   eq,
   getTableColumns,
   inArray,
   isNull,
   ne,
-  not,
   sql,
 } from "drizzle-orm";
 import { RlsDb } from "../db/db";
@@ -63,8 +61,8 @@ export function plotsApi(rlsDb: RlsDb) {
           .where(
             and(
               ne(plots.id, plot.id),
-              sql`ST_Intersects(${plots.geometry}, ${plot.geom})`
-            )
+              sql`ST_Intersects(${plots.geometry}, ${plot.geom})`,
+            ),
           );
         return plot;
       });
@@ -75,17 +73,17 @@ export function plotsApi(rlsDb: RlsDb) {
     async getPlotById(id: string): Promise<Plot | undefined> {
       return rlsDb.rls(async (tx) => {
         const plot = await tx.query.plots.findFirst({
-          where: eq(plots.id, id),
+          where: { id },
           with: {
             cropRotations: {
-              orderBy: desc(cropRotations.fromDate),
+              orderBy: { fromDate: "desc" },
               with: { crop: true },
             },
           },
           extras: {
-            geometry:
-              sql<MultiPolygon>`ST_AsGeoJSON(${plots.geometry})::json`.as(
-                "geometry"
+            geometry: (t) =>
+              sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as(
+                "geometry",
               ),
           },
         });
@@ -96,18 +94,22 @@ export function plotsApi(rlsDb: RlsDb) {
     async getPlotsForFarm(farmId: string): Promise<Plot[]> {
       return rlsDb.rls(async (tx) => {
         return tx.query.plots.findMany({
-          where: eq(plots.farmId, farmId),
-          orderBy: (plots) => [plots.name, plots.localId, plots.usage],
+          where: { farmId },
+          orderBy: (plots, { asc }) => [
+            asc(plots.name),
+            asc(plots.localId),
+            asc(plots.usage),
+          ],
           with: {
             cropRotations: {
-              orderBy: desc(cropRotations.fromDate),
+              orderBy: { fromDate: "desc" },
               with: { crop: true },
             },
           },
           extras: {
-            geometry:
-              sql<MultiPolygon>`ST_AsGeoJSON(${plots.geometry})::json`.as(
-                "geometry"
+            geometry: (t) =>
+              sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as(
+                "geometry",
               ),
           },
         });
@@ -137,8 +139,8 @@ export function plotsApi(rlsDb: RlsDb) {
             .where(
               and(
                 ne(plots.id, plot.id),
-                sql`ST_Intersects(${plots.geometry}, ${plot.geometry})`
-              )
+                sql`ST_Intersects(${plots.geometry}, ${plot.geometry})`,
+              ),
             );
         }
         return plot;
@@ -161,11 +163,11 @@ export function plotsApi(rlsDb: RlsDb) {
               farmId: plots.farmId,
               cluster:
                 sql`UNNEST(ST_ClusterWithin(${plots.geometry}, 0.0005) over (partition by ${plots.farmId}))`.as(
-                  "cluster"
+                  "cluster",
                 ),
             })
             .from(plots)
-            .where(isNull(plots.localId))
+            .where(isNull(plots.localId)),
         );
 
         const envelopes = await tx.$with("envelopes").as(
@@ -175,7 +177,7 @@ export function plotsApi(rlsDb: RlsDb) {
               box: sql`ST_Extent(${clusters.cluster})`.as("box"),
             })
             .from(clusters)
-            .groupBy(clusters.farmId, clusters.cluster)
+            .groupBy(clusters.farmId, clusters.cluster),
         );
 
         const selectEsriEnvelope = sql<string>` 
@@ -190,16 +192,16 @@ export function plotsApi(rlsDb: RlsDb) {
           .from(envelopes);
 
         const geoAdminParcels = await getParcelsForEnvelopes(
-          plotGroups.map((group) => group.envelope)
+          plotGroups.map((group) => group.envelope),
         );
 
         writeFileSync(
           path.join(__dirname, "geoparcels.json"),
-          JSON.stringify(geoAdminParcels)
+          JSON.stringify(geoAdminParcels),
         );
 
         const candidates = await tx.query.plots.findMany({
-          where: isNull(plots.localId),
+          where: { localId: { isNull: true } },
         });
         const plotIds = candidates.map((candidate) => candidate.id);
 
@@ -214,8 +216,8 @@ export function plotsApi(rlsDb: RlsDb) {
               .where(
                 and(
                   inArray(plots.id, plotIds),
-                  sql`ST_Within(${plots.geometry}, ST_Buffer(ST_MakeValid(ST_GeomFromGeoJSON(${JSON.stringify(parcel.geometry)})), 0.0001))`
-                )
+                  sql`ST_Within(${plots.geometry}, ST_Buffer(ST_MakeValid(ST_GeomFromGeoJSON(${JSON.stringify(parcel.geometry)})), 0.0001))`,
+                ),
               );
           }
         }

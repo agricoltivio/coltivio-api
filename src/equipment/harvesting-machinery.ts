@@ -1,4 +1,4 @@
-import { asc, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { RlsDb } from "../db/db";
 import { farmIdColumnValue, harvestingMachinery } from "../db/schema";
 
@@ -30,7 +30,7 @@ export function harvestingMachineryApi(rlsDb: RlsDb) {
     ): Promise<HarvestingMachinery | undefined> {
       return rlsDb.rls(async (tx) => {
         return tx.query.harvestingMachinery.findFirst({
-          where: eq(harvestingMachinery.id, id),
+          where: { id },
         });
       });
     },
@@ -39,8 +39,8 @@ export function harvestingMachineryApi(rlsDb: RlsDb) {
     ): Promise<HarvestingMachinery[]> {
       return rlsDb.rls(async (tx) => {
         return tx.query.harvestingMachinery.findMany({
-          where: eq(harvestingMachinery.farmId, farmId),
-          orderBy: asc(harvestingMachinery.name),
+          where: { farmId },
+          orderBy: { name: "asc" },
         });
       });
     },

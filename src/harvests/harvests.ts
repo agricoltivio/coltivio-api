@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { RlsDb } from "../db/db";
 import * as tables from "../db/schema";
@@ -98,23 +98,23 @@ export function harvestsApi(rlsDb: RlsDb) {
     async getHarvestsByIds(ids: string[]): Promise<Harvest[]> {
       return rlsDb.rls(async (tx) => {
         return tx.query.harvests.findMany({
-          where: inArray(tables.harvests.id, ids),
+          where: { id: { in: ids } },
           with: {
             crop: true,
             machinery: true,
             plot: {
               extras: {
-                geometry:
-                  sql<MultiPolygon>`ST_AsGeoJSON(${tables.harvests.geometry})::json`.as(
-                    "geometry"
+                geometry: (t) =>
+                  sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as(
+                    "geometry",
                   ),
               },
             },
           },
           extras: {
-            geometry:
-              sql<MultiPolygon>`ST_AsGeoJSON(${tables.harvests.geometry})::json`.as(
-                "geometry"
+            geometry: (t) =>
+              sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as(
+                "geometry",
               ),
           },
         });
@@ -123,23 +123,23 @@ export function harvestsApi(rlsDb: RlsDb) {
     async getHarvestById(id: string): Promise<Harvest | undefined> {
       return rlsDb.rls(async (tx) => {
         return tx.query.harvests.findFirst({
-          where: eq(tables.harvests.id, id),
+          where: { id },
           with: {
             crop: true,
             machinery: true,
             plot: {
               extras: {
-                geometry:
-                  sql<MultiPolygon>`ST_AsGeoJSON(${tables.harvests.geometry})::json`.as(
-                    "geometry"
+                geometry: (t) =>
+                  sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as(
+                    "geometry",
                   ),
               },
             },
           },
           extras: {
-            geometry:
-              sql<MultiPolygon>`ST_AsGeoJSON(${tables.harvests.geometry})::json`.as(
-                "geometry"
+            geometry: (t) =>
+              sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as(
+                "geometry",
               ),
           },
         });
@@ -152,50 +152,47 @@ export function harvestsApi(rlsDb: RlsDb) {
     ): Promise<Harvest[]> {
       return rlsDb.rls(async (tx) => {
         return tx.query.harvests.findMany({
-          where: and(
-            eq(tables.harvests.farmId, farmId),
-            and(
-              gte(tables.harvests.date, fromDate),
-              lte(tables.harvests.date, toDate)
-            )
-          ),
+          where: {
+            farmId,
+            AND: [{ date: { gte: fromDate } }, { date: { lte: toDate } }],
+          },
           with: {
             crop: true,
             machinery: true,
             plot: {
               extras: {
-                geometry:
-                  sql<MultiPolygon>`ST_AsGeoJSON(${tables.harvests.geometry})::json`.as(
-                    "geometry"
+                geometry: (t) =>
+                  sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as(
+                    "geometry",
                   ),
               },
             },
           },
           extras: {
-            geometry:
-              sql<MultiPolygon>`ST_AsGeoJSON(${tables.harvests.geometry})::json`.as(
-                "geometry"
+            geometry: (t) =>
+              sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as(
+                "geometry",
               ),
           },
-          orderBy: [desc(tables.harvests.date)],
+          orderBy: { date: "desc" },
         });
       });
     },
     async getHarvestsForPlot(plotId: string): Promise<Omit<Harvest, "plot">[]> {
       return rlsDb.rls(async (tx) => {
         return tx.query.harvests.findMany({
-          where: eq(tables.harvests.plotId, plotId),
+          where: { plotId },
           with: {
             crop: true,
             machinery: true,
           },
           extras: {
-            geometry:
-              sql<MultiPolygon>`ST_AsGeoJSON(${tables.harvests.geometry})::json`.as(
-                "geometry"
+            geometry: (t) =>
+              sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as(
+                "geometry",
               ),
           },
-          orderBy: [desc(tables.harvests.date)],
+          orderBy: { date: "desc" },
         });
       });
     },
@@ -206,7 +203,7 @@ export function harvestsApi(rlsDb: RlsDb) {
           columns: {
             date: true,
           },
-          orderBy: [desc(tables.harvests.date)],
+          orderBy: { date: "desc" },
         });
         return Array.from(
           new Set(
@@ -220,7 +217,7 @@ export function harvestsApi(rlsDb: RlsDb) {
     async getHarvestSummaryForFarm(farmId: string): Promise<HarvestSummary> {
       return rlsDb.rls(async (tx) => {
         const results = await tx.query.harvests.findMany({
-          where: eq(tables.harvests.farmId, farmId),
+          where: { farmId },
           columns: {
             geometry: false,
           },
@@ -235,7 +232,7 @@ export function harvestsApi(rlsDb: RlsDb) {
     async getHarvestSummaryForPlot(plotId: string): Promise<HarvestSummary> {
       return rlsDb.rls(async (tx) => {
         const results = await tx.query.harvests.findMany({
-          where: eq(tables.harvests.plotId, plotId),
+          where: { plotId },
           columns: {
             geometry: false,
           },

@@ -10,7 +10,6 @@ import { sessionApi } from "./api/api";
 import { adminDrizzle, rlsDb } from "./db/db";
 import { supabase, SupabaseToken } from "./supabase/supabase";
 import * as tables from "./db/schema";
-import { eq } from "drizzle-orm";
 import { sentryResultHandler } from "./sentry";
 
 export const supabaseAuthMiddleware = new Middleware({
@@ -33,7 +32,7 @@ export const supabaseAuthMiddleware = new Middleware({
       throw createHttpError(401, "Invalid jwt token, no user found");
     }
     const user = await adminDrizzle.query.profiles.findFirst({
-      where: eq(tables.profiles.id, authUser.id),
+      where: { id: authUser.id },
     });
     if (!user) {
       throw createHttpError(401, "User not found");
@@ -70,11 +69,11 @@ export const authenticatedEndpointFactory = publicEndpointFactory.addMiddleware(
 export const farmEndpointFactory = authenticatedEndpointFactory.addMiddleware(
   new Middleware({
     input: z.object({}),
-    handler: async ({ input: {}, request, logger, options }) => {
-      if (!options.user.farmId) {
+    handler: async ({ input: {}, request, logger, ctx }) => {
+      if (!ctx.user.farmId) {
         throw createHttpError(400, "User has no farm");
       }
-      return { farmId: options.user.farmId };
+      return { farmId: ctx.user.farmId };
     },
   })
 );

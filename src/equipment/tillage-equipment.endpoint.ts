@@ -9,7 +9,7 @@ export const getTillageEquipmentByIdEndpoint = farmEndpointFactory.build({
   method: "get",
   input: z.object({ tillageEquipmentId: z.string() }),
   output: tillageEquipmentResponseSchema,
-  handler: async ({ input, options: { tillageEquipments } }) => {
+  handler: async ({ input, ctx: { tillageEquipments } }) => {
     const tillageEquipment = await tillageEquipments.getTillageEquipmentById(
       input.tillageEquipmentId
     );
@@ -27,7 +27,7 @@ export const getFarmTillageEquipmentsEndpoint = farmEndpointFactory.build({
     result: z.array(tillageEquipmentResponseSchema),
     count: z.number(),
   }),
-  handler: async ({ options: { tillageEquipments, farmId } }) => {
+  handler: async ({ ctx: { tillageEquipments, farmId } }) => {
     const result = await tillageEquipments.getTillageEquipmentForFarm(farmId);
     return {
       result,
@@ -43,7 +43,7 @@ export const createTillageEquipmentEndpoint = farmEndpointFactory.build({
     id: true,
   }),
   output: tillageEquipmentResponseSchema,
-  handler: async ({ input, options: { tillageEquipments } }) => {
+  handler: async ({ input, ctx: { tillageEquipments } }) => {
     return tillageEquipments.createTillageEquipment(input);
   },
 });
@@ -56,7 +56,7 @@ export const updateTillageEquipmentEndpoint = farmEndpointFactory.build({
       tillageEquipmentId: z.string(),
     }),
   output: tillageEquipmentResponseSchema,
-  handler: async ({ input, options: { tillageEquipments } }) => {
+  handler: async ({ input, ctx: { tillageEquipments } }) => {
     return tillageEquipments.updateTillageEquipment(
       input.tillageEquipmentId,
       input
@@ -70,7 +70,7 @@ export const deleteTillageEquipmentEndpoint = farmEndpointFactory.build({
   output: z.object({}),
   handler: async ({
     input: { tillageEquipmentId },
-    options: { tillageEquipments },
+    ctx: { tillageEquipments },
   }) => {
     await tillageEquipments.deleteTillageEquipment(tillageEquipmentId);
     return {};

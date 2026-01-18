@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { RlsDb } from "../db/db";
 import { farmIdColumnValue, tillages } from "../db/schema";
 import { MultiPolygon } from "../geo/geojson";
@@ -74,15 +74,15 @@ export function tillagesApi(rlsDb: RlsDb) {
     async getTillagesByIds(ids: string[]): Promise<Tillage[]> {
       return rlsDb.rls(async (tx) => {
         return tx.query.tillages.findMany({
-          where: inArray(tillages.id, ids),
+          where: { id: { in: ids } },
           with: {
             equipment: true,
             plot: true,
           },
           extras: {
-            geometry:
-              sql<MultiPolygon>`ST_AsGeoJSON(${tillages.geometry})::json`.as(
-                "geometry"
+            geometry: (t) =>
+              sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as(
+                "geometry",
               ),
           },
         });
@@ -91,15 +91,15 @@ export function tillagesApi(rlsDb: RlsDb) {
     async getTillageById(id: string): Promise<Tillage | undefined> {
       return rlsDb.rls(async (tx) => {
         return tx.query.tillages.findFirst({
-          where: eq(tillages.id, id),
+          where: { id },
           with: {
             equipment: true,
             plot: true,
           },
           extras: {
-            geometry:
-              sql<MultiPolygon>`ST_AsGeoJSON(${tillages.geometry})::json`.as(
-                "geometry"
+            geometry: (t) =>
+              sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as(
+                "geometry",
               ),
           },
         });
@@ -112,39 +112,39 @@ export function tillagesApi(rlsDb: RlsDb) {
     ): Promise<Tillage[]> {
       return rlsDb.rls(async (tx) => {
         return tx.query.tillages.findMany({
-          where: and(
-            eq(tillages.farmId, farmId),
-            and(gte(tillages.date, fromDate), lte(tillages.date, toDate))
-          ),
+          where: {
+            farmId,
+            AND: [{ date: { gte: fromDate } }, { date: { lte: toDate } }],
+          },
           with: {
             equipment: true,
             plot: true,
           },
           extras: {
-            geometry:
-              sql<MultiPolygon>`ST_AsGeoJSON(${tillages.geometry})::json`.as(
-                "geometry"
+            geometry: (t) =>
+              sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as(
+                "geometry",
               ),
           },
-          orderBy: [desc(tillages.date)],
+          orderBy: { date: "desc" },
         });
       });
     },
     async getTillagesForPlot(plotId: string): Promise<Tillage[]> {
       return rlsDb.rls(async (tx) => {
         return tx.query.tillages.findMany({
-          where: eq(tillages.plotId, plotId),
+          where: { plotId },
           with: {
             equipment: true,
             plot: true,
           },
           extras: {
-            geometry:
-              sql<MultiPolygon>`ST_AsGeoJSON(${tillages.geometry})::json`.as(
-                "geometry"
+            geometry: (t) =>
+              sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as(
+                "geometry",
               ),
           },
-          orderBy: [desc(tillages.date)],
+          orderBy: { date: "desc" },
         });
       });
     },
@@ -178,7 +178,7 @@ export function tillagesApi(rlsDb: RlsDb) {
           columns: {
             date: true,
           },
-          orderBy: [desc(tillages.date)],
+          orderBy: { date: "desc" },
         });
 
         return Array.from(

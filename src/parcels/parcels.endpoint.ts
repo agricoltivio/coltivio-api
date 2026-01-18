@@ -10,7 +10,7 @@
 //     result: z.array(tables.selectParcelSchema),
 //     count: z.number(),
 //   }),
-//   handler: async ({ options: { parcels, farmId } }) => {
+//   handler: async ({ ctx: { parcels, farmId } }) => {
 //     const farmParcels = await parcels.getParcelsForFarm(farmId);
 
 //     return { result: farmParcels, count: farmParcels.length };
@@ -21,7 +21,7 @@
 //   method: "get",
 //   input: z.object({ parcelId: z.string() }),
 //   output: tables.selectParcelSchema,
-//   handler: async ({ input, options: { parcels } }) => {
+//   handler: async ({ input, ctx: { parcels } }) => {
 //     const farmParcel = await parcels.getParcelById(input.parcelId);
 //     if (!farmParcel) {
 //       throw createHttpError(404, "Farm Parcel not found");
@@ -47,7 +47,7 @@
 //     result: z.array(tables.selectParcelSchema),
 //     count: z.number(),
 //   }),
-//   handler: async ({ input, options: { parcels } }) => {
+//   handler: async ({ input, ctx: { parcels } }) => {
 //     const result = await parcels.createParcels(input.parcels);
 //     return { result, count: result.length };
 //   },
@@ -60,7 +60,7 @@
 //     result: z.array(tables.selectParcelSchema),
 //     count: z.number(),
 //   }),
-//   handler: async ({ input, options: { parcels } }) => {
+//   handler: async ({ input, ctx: { parcels } }) => {
 //     const result = await parcels.copyFromFederalParcel(input.gisIds);
 //     return { result, count: 0 };
 //   },
@@ -72,7 +72,7 @@
 //     .omit({ id: true, farmId: true })
 //     .extend({ parcelId: z.string() }),
 //   output: tables.selectParcelSchema,
-//   handler: async ({ input, options: { parcels } }) => {
+//   handler: async ({ input, ctx: { parcels } }) => {
 //     return parcels.updateParcel(input.parcelId, input);
 //   },
 // });
@@ -81,7 +81,7 @@
 //   method: "delete",
 //   input: z.object({ parcelId: z.string() }),
 //   output: z.object({}),
-//   handler: async ({ input: { parcelId }, options: { parcels } }) => {
+//   handler: async ({ input: { parcelId }, ctx: { parcels } }) => {
 //     await parcels.deleteFarmParcel(parcelId);
 //     return {};
 //   },

@@ -1,4 +1,4 @@
-import { and, eq, isNotNull, or, relations, sql } from "drizzle-orm";
+import { and, eq, isNotNull, or, defineRelations, sql } from "drizzle-orm";
 import {
   boolean,
   customType,
@@ -40,7 +40,7 @@ export const farmIdColumnValue = { farmId: currentFarmId };
 const appRole = pgRole("rls_client").existing();
 const extensions = pgSchema("extensions");
 
-export const federalFarmPlots = pgTable(
+export const federalFarmPlots = pgTable.withRLS(
   "federal_farm_plots",
   {
     id: integer().primaryKey(),
@@ -58,7 +58,7 @@ export const federalFarmPlots = pgTable(
     index("federal_farm_plots_geometries_idx").using("gist", table.geometry),
     index("federal_farm_id_idx").using(
       "gin",
-      table.federalFarmId.op("gin_trgm_ops")
+      table.federalFarmId.op("gin_trgm_ops"),
     ),
     pgPolicy("authenticated users can read", {
       as: "permissive",
@@ -66,10 +66,10 @@ export const federalFarmPlots = pgTable(
       for: "select",
       using: sql`true`,
     }),
-  ]
-).enableRLS();
+  ],
+);
 
-export const profiles = pgTable(
+export const profiles = pgTable.withRLS(
   "profiles",
   {
     id: uuid().primaryKey().notNull(),
@@ -104,21 +104,14 @@ export const profiles = pgTable(
         for: "select",
         using: or(
           and(isNotNull(table.farmId), eq(table.farmId, currentFarmId)),
-          eq(authUid, table.id)
+          eq(authUid, table.id),
         ),
-      }
+      },
     ),
-  ]
-).enableRLS();
+  ],
+);
 
-export const profileRelations = relations(profiles, ({ one }) => ({
-  farms: one(farms, {
-    fields: [profiles.farmId],
-    references: [farms.id],
-  }),
-}));
-
-export const farms = pgTable(
+export const farms = pgTable.withRLS(
   "farms",
   {
     id: uuid().primaryKey().defaultRandom(),
@@ -154,17 +147,8 @@ export const farms = pgTable(
       for: "delete",
       using: eq(currentFarmId, table.id),
     }),
-  ]
-).enableRLS();
-
-export const farmRelations = relations(farms, ({ many, one }) => ({
-  users: many(profiles),
-  parcels: many(parcels),
-  plots: many(plots),
-  harvests: many(harvests),
-  fertilizerApplications: many(fertilizerApplications),
-  harvestingMachinery: many(harvestingMachinery),
-}));
+  ],
+);
 
 export const userRoleEnum = pgEnum("user_role", [
   "ADMIN",
@@ -172,7 +156,7 @@ export const userRoleEnum = pgEnum("user_role", [
   "CONTRACTOR",
 ]);
 
-export const parcels = pgTable(
+export const parcels = pgTable.withRLS(
   "parcels",
   {
     id: uuid().primaryKey().defaultRandom(),
@@ -196,17 +180,10 @@ export const parcels = pgTable(
       using: eq(table.farmId, currentFarmId),
       withCheck: eq(table.farmId, currentFarmId),
     }),
-  ]
-).enableRLS();
+  ],
+);
 
-export const parcelRelations = relations(parcels, ({ one, many }) => ({
-  farm: one(farms, {
-    fields: [parcels.farmId],
-    references: [farms.id],
-  }),
-}));
-
-export const cropRotations = pgTable(
+export const cropRotations = pgTable.withRLS(
   "crop_rotations",
   {
     id: uuid().primaryKey().defaultRandom(),
@@ -232,25 +209,7 @@ export const cropRotations = pgTable(
       using: eq(table.farmId, currentFarmId),
       withCheck: eq(table.farmId, currentFarmId),
     }),
-  ]
-).enableRLS();
-
-export const cropRotationsRelations = relations(
-  cropRotations,
-  ({ one, many }) => ({
-    farm: one(farms, {
-      fields: [cropRotations.farmId],
-      references: [farms.id],
-    }),
-    plot: one(plots, {
-      fields: [cropRotations.plotId],
-      references: [plots.id],
-    }),
-    crop: one(crops, {
-      fields: [cropRotations.cropId],
-      references: [crops.id],
-    }),
-  })
+  ],
 );
 
 export const tillageReason = pgEnum("tillage_reason", [
@@ -274,7 +233,7 @@ export const tillageAction = pgEnum("tillage_action", [
   "other",
 ]);
 
-export const tillageEquipment = pgTable(
+export const tillageEquipment = pgTable.withRLS(
   "tillage_equipment",
   {
     id: uuid().primaryKey().defaultRandom(),
@@ -294,10 +253,10 @@ export const tillageEquipment = pgTable(
       using: eq(table.farmId, currentFarmId),
       withCheck: eq(table.farmId, currentFarmId),
     }),
-  ]
-).enableRLS();
+  ],
+);
 
-export const tillages = pgTable(
+export const tillages = pgTable.withRLS(
   "tillages",
   {
     id: uuid().primaryKey().defaultRandom(),
@@ -328,19 +287,8 @@ export const tillages = pgTable(
       using: eq(table.farmId, currentFarmId),
       withCheck: eq(table.farmId, currentFarmId),
     }),
-  ]
-).enableRLS();
-
-export const tillagesRelations = relations(tillages, ({ one }) => ({
-  equipment: one(tillageEquipment, {
-    fields: [tillages.equipmentId],
-    references: [tillageEquipment.id],
-  }),
-  plot: one(plots, {
-    fields: [tillages.plotId],
-    references: [plots.id],
-  }),
-}));
+  ],
+);
 
 export const cropProtectionUnit = pgEnum("crop_protection_unit", [
   "ml",
@@ -349,7 +297,7 @@ export const cropProtectionUnit = pgEnum("crop_protection_unit", [
   "kg",
 ]);
 
-export const cropProtectionProducts = pgTable(
+export const cropProtectionProducts = pgTable.withRLS(
   "crop_protection_products",
   {
     id: uuid().primaryKey().defaultRandom(),
@@ -372,15 +320,15 @@ export const cropProtectionProducts = pgTable(
       using: eq(table.farmId, currentFarmId),
       withCheck: eq(table.farmId, currentFarmId),
     }),
-  ]
+  ],
 );
 
 export const cropProtectionApplicationMehtod = pgEnum(
   "crop_protection_application_method",
-  ["spraying", "misting", "broadcasting", "injecting", "other"]
+  ["spraying", "misting", "broadcasting", "injecting", "other"],
 );
 
-export const cropProtectionEquipment = pgTable(
+export const cropProtectionEquipment = pgTable.withRLS(
   "crop_protection_equipment",
   {
     id: uuid().primaryKey().defaultRandom(),
@@ -402,10 +350,10 @@ export const cropProtectionEquipment = pgTable(
       using: eq(table.farmId, currentFarmId),
       withCheck: eq(table.farmId, currentFarmId),
     }),
-  ]
+  ],
 );
 
-export const cropProtectionApplications = pgTable(
+export const cropProtectionApplications = pgTable.withRLS(
   "crop_protection_applications",
   {
     id: uuid().primaryKey().defaultRandom(),
@@ -441,28 +389,10 @@ export const cropProtectionApplications = pgTable(
       using: eq(table.farmId, currentFarmId),
       withCheck: eq(table.farmId, currentFarmId),
     }),
-  ]
+  ],
 );
 
-export const cropProtectionApplicationRelations = relations(
-  cropProtectionApplications,
-  ({ one }) => ({
-    equipment: one(cropProtectionEquipment, {
-      fields: [cropProtectionApplications.equipmentId],
-      references: [cropProtectionEquipment.id],
-    }),
-    plot: one(plots, {
-      fields: [cropProtectionApplications.plotId],
-      references: [plots.id],
-    }),
-    product: one(cropProtectionProducts, {
-      fields: [cropProtectionApplications.productId],
-      references: [cropProtectionProducts.id],
-    }),
-  })
-);
-
-export const plots = pgTable(
+export const plots = pgTable.withRLS(
   "plots",
   {
     id: uuid().primaryKey().defaultRandom(),
@@ -489,20 +419,8 @@ export const plots = pgTable(
       using: eq(table.farmId, currentFarmId),
       withCheck: eq(table.farmId, currentFarmId),
     }),
-  ]
-).enableRLS();
-
-export const plotRelations = relations(plots, ({ one, many }) => ({
-  farm: one(farms, {
-    fields: [plots.farmId],
-    references: [farms.id],
-  }),
-  cropRotations: many(cropRotations),
-  harvests: many(harvests),
-  tillages: many(tillages),
-  cropProtectionApplications: many(cropProtectionApplications),
-  fertilizerApplications: many(fertilizerApplications),
-}));
+  ],
+);
 
 export const conservationMethod = pgEnum("forage_conservation_method", [
   "dried",
@@ -526,7 +444,7 @@ export const cropCategory = pgEnum("crop_category", [
   "other",
 ]);
 
-export const crops = pgTable(
+export const crops = pgTable.withRLS(
   "crops",
   {
     id: uuid().primaryKey().defaultRandom(),
@@ -548,10 +466,10 @@ export const crops = pgTable(
       using: eq(table.farmId, currentFarmId),
       withCheck: eq(table.farmId, currentFarmId),
     }),
-  ]
-).enableRLS();
+  ],
+);
 
-export const harvestingMachinery = pgTable(
+export const harvestingMachinery = pgTable.withRLS(
   "harvesting_machinery",
   {
     id: uuid().primaryKey().defaultRandom(),
@@ -573,21 +491,10 @@ export const harvestingMachinery = pgTable(
       using: eq(table.farmId, currentFarmId),
       withCheck: eq(table.farmId, currentFarmId),
     }),
-  ]
-).enableRLS();
-
-export const harvestingMachineryRelations = relations(
-  harvestingMachinery,
-  ({ one, many }) => ({
-    farm: one(farms, {
-      fields: [harvestingMachinery.farmId],
-      references: [farms.id],
-    }),
-    harvests: many(harvests),
-  })
+  ],
 );
 
-export const harvests = pgTable(
+export const harvests = pgTable.withRLS(
   "forage_harvests",
   {
     id: uuid().primaryKey().defaultRandom(),
@@ -624,23 +531,8 @@ export const harvests = pgTable(
       using: eq(table.farmId, currentFarmId),
       withCheck: eq(table.farmId, currentFarmId),
     }),
-  ]
-).enableRLS();
-
-export const harvestsRelations = relations(harvests, ({ one, many }) => ({
-  plot: one(plots, {
-    fields: [harvests.plotId],
-    references: [plots.id],
-  }),
-  crop: one(crops, {
-    fields: [harvests.cropId],
-    references: [crops.id],
-  }),
-  machinery: one(harvestingMachinery, {
-    fields: [harvests.machineryId],
-    references: [harvestingMachinery.id],
-  }),
-}));
+  ],
+);
 
 export const fertilizerUnit = pgEnum("fertilizer_unit", ["l", "kg", "dt", "t"]);
 
@@ -651,7 +543,7 @@ export const fertilizationMethod = pgEnum("fertilization_method", [
   "other",
 ]);
 
-export const fertilizerSpreaders = pgTable(
+export const fertilizerSpreaders = pgTable.withRLS(
   "fertilizer_spreaders",
   {
     id: uuid().primaryKey().defaultRandom(),
@@ -672,21 +564,10 @@ export const fertilizerSpreaders = pgTable(
       using: eq(table.farmId, currentFarmId),
       withCheck: eq(table.farmId, currentFarmId),
     }),
-  ]
-).enableRLS();
-
-export const fertilizerSpreadersRelations = relations(
-  fertilizerSpreaders,
-  ({ one, many }) => ({
-    farm: one(farms, {
-      fields: [fertilizerSpreaders.farmId],
-      references: [farms.id],
-    }),
-    fertilizationApplications: many(fertilizerApplications),
-  })
+  ],
 );
 
-export const fertilizers = pgTable(
+export const fertilizers = pgTable.withRLS(
   "fertilizers",
   {
     id: uuid().primaryKey().defaultRandom(),
@@ -713,23 +594,10 @@ export const fertilizers = pgTable(
       using: eq(table.farmId, currentFarmId),
       withCheck: eq(table.farmId, currentFarmId),
     }),
-  ]
-).enableRLS();
+  ],
+);
 
-export const fertilizerRelations = relations(fertilizers, ({ one, many }) => ({
-  farm: one(farms, {
-    fields: [fertilizers.farmId],
-    references: [farms.id],
-  }),
-  fertilizerSpreaders: many(fertilizerSpreaders),
-  fertilizerApplications: many(fertilizerApplications),
-  defaultSpreader: one(fertilizerSpreaders, {
-    fields: [fertilizers.defaultSpreaderId],
-    references: [fertilizerSpreaders.id],
-  }),
-}));
-
-export const fertilizerApplications = pgTable(
+export const fertilizerApplications = pgTable.withRLS(
   "fertilizer_applications",
   {
     id: uuid().primaryKey().defaultRandom(),
@@ -767,30 +635,180 @@ export const fertilizerApplications = pgTable(
       using: eq(table.farmId, currentFarmId),
       withCheck: eq(table.farmId, currentFarmId),
     }),
-  ]
-).enableRLS();
-
-export const fertilizerApplicationsRelations = relations(
-  fertilizerApplications,
-  ({ one, many }) => ({
-    fertilizer: one(fertilizers, {
-      fields: [fertilizerApplications.fertilizerId],
-      references: [fertilizers.id],
-    }),
-    farm: one(farms, {
-      fields: [fertilizerApplications.farmId],
-      references: [farms.id],
-    }),
-    spreader: one(fertilizerSpreaders, {
-      fields: [fertilizerApplications.spreaderId],
-      references: [fertilizerSpreaders.id],
-    }),
-    plot: one(plots, {
-      fields: [fertilizerApplications.plotId],
-      references: [plots.id],
-    }),
-  })
+  ],
 );
+
+// Schema object for defineRelations (contains all tables)
+const tables = {
+  federalFarmPlots,
+  profiles,
+  farms,
+  parcels,
+  cropRotations,
+  tillageEquipment,
+  tillages,
+  cropProtectionProducts,
+  cropProtectionEquipment,
+  cropProtectionApplications,
+  plots,
+  crops,
+  harvestingMachinery,
+  harvests,
+  fertilizerSpreaders,
+  fertilizers,
+  fertilizerApplications,
+};
+
+// Define all relations using the new Drizzle v1 API
+export const relations = defineRelations(tables, (r) => ({
+  profiles: {
+    farm: r.one.farms({
+      from: r.profiles.farmId,
+      to: r.farms.id,
+    }), // optional - farmId can be null
+  },
+  farms: {
+    users: r.many.profiles(),
+    parcels: r.many.parcels(),
+    plots: r.many.plots(),
+    harvests: r.many.harvests(),
+    fertilizerApplications: r.many.fertilizerApplications(),
+    harvestingMachinery: r.many.harvestingMachinery(),
+  },
+  parcels: {
+    farm: r.one.farms({
+      from: r.parcels.farmId,
+      to: r.farms.id,
+      optional: false,
+    }),
+  },
+  cropRotations: {
+    farm: r.one.farms({
+      from: r.cropRotations.farmId,
+      to: r.farms.id,
+      optional: false,
+    }),
+    plot: r.one.plots({
+      from: r.cropRotations.plotId,
+      to: r.plots.id,
+      optional: false,
+    }),
+    crop: r.one.crops({
+      from: r.cropRotations.cropId,
+      to: r.crops.id,
+      optional: false,
+    }),
+  },
+  tillages: {
+    equipment: r.one.tillageEquipment({
+      from: r.tillages.equipmentId,
+      to: r.tillageEquipment.id,
+    }), // optional - equipmentId can be null
+    plot: r.one.plots({
+      from: r.tillages.plotId,
+      to: r.plots.id,
+      optional: false,
+    }),
+  },
+  cropProtectionApplications: {
+    equipment: r.one.cropProtectionEquipment({
+      from: r.cropProtectionApplications.equipmentId,
+      to: r.cropProtectionEquipment.id,
+    }), // optional - equipmentId can be null
+    plot: r.one.plots({
+      from: r.cropProtectionApplications.plotId,
+      to: r.plots.id,
+      optional: false,
+    }),
+    product: r.one.cropProtectionProducts({
+      from: r.cropProtectionApplications.productId,
+      to: r.cropProtectionProducts.id,
+      optional: false,
+    }),
+  },
+  plots: {
+    farm: r.one.farms({
+      from: r.plots.farmId,
+      to: r.farms.id,
+      optional: false,
+    }),
+    cropRotations: r.many.cropRotations(),
+    harvests: r.many.harvests(),
+    tillages: r.many.tillages(),
+    cropProtectionApplications: r.many.cropProtectionApplications(),
+    fertilizerApplications: r.many.fertilizerApplications(),
+  },
+  harvestingMachinery: {
+    farm: r.one.farms({
+      from: r.harvestingMachinery.farmId,
+      to: r.farms.id,
+      optional: false,
+    }),
+    harvests: r.many.harvests(),
+  },
+  harvests: {
+    farm: r.one.farms({
+      from: r.harvests.farmId,
+      to: r.farms.id,
+      optional: false,
+    }),
+    plot: r.one.plots({
+      from: r.harvests.plotId,
+      to: r.plots.id,
+      optional: false,
+    }),
+    crop: r.one.crops({
+      from: r.harvests.cropId,
+      to: r.crops.id,
+      optional: false,
+    }),
+    machinery: r.one.harvestingMachinery({
+      from: r.harvests.machineryId,
+      to: r.harvestingMachinery.id,
+    }), // optional - machineryId can be null
+  },
+  fertilizerSpreaders: {
+    farm: r.one.farms({
+      from: r.fertilizerSpreaders.farmId,
+      to: r.farms.id,
+      optional: false,
+    }),
+    fertilizerApplications: r.many.fertilizerApplications(),
+  },
+  fertilizers: {
+    farm: r.one.farms({
+      from: r.fertilizers.farmId,
+      to: r.farms.id,
+      optional: false,
+    }),
+    fertilizerApplications: r.many.fertilizerApplications(),
+    defaultSpreader: r.one.fertilizerSpreaders({
+      from: r.fertilizers.defaultSpreaderId,
+      to: r.fertilizerSpreaders.id,
+    }), // optional - defaultSpreaderId can be null
+  },
+  fertilizerApplications: {
+    fertilizer: r.one.fertilizers({
+      from: r.fertilizerApplications.fertilizerId,
+      to: r.fertilizers.id,
+      optional: false,
+    }),
+    farm: r.one.farms({
+      from: r.fertilizerApplications.farmId,
+      to: r.farms.id,
+      optional: false,
+    }),
+    spreader: r.one.fertilizerSpreaders({
+      from: r.fertilizerApplications.spreaderId,
+      to: r.fertilizerSpreaders.id,
+    }), // optional - spreaderId can be null
+    plot: r.one.plots({
+      from: r.fertilizerApplications.plotId,
+      to: r.plots.id,
+      optional: false,
+    }),
+  },
+}));
 
 export const idSchema = z.object({ id: z.string() });
 export const multiPolygonSchema = z.object({
@@ -806,7 +824,7 @@ export const pointSchema = z.object({
 export const selectFarmSchema = createSelectSchema(farms).merge(
   z.object({
     location: pointSchema,
-  })
+  }),
 );
 export const insertFarmSchema = selectFarmSchema.omit({ id: true });
 export const updateFarmSchema = insertFarmSchema.partial().merge(idSchema);
@@ -816,34 +834,36 @@ export const insertUserSchema = createInsertSchema(profiles);
 export const updateUserSchema = insertUserSchema.partial().merge(idSchema);
 
 export const selectCropSchema = createSelectSchema(crops);
-export const insertCropSchema = createInsertSchema(crops);
+export const insertCropSchema = createInsertSchema(crops, {
+  usageCodes: z.array(z.number()).default([]),
+});
 export const updateCropSchema = insertCropSchema.partial().merge(idSchema);
 
 export const cropProtectionUnitSchema = z.enum(cropProtectionUnit.enumValues);
 
 export const selectCropProtectionProductSchema = createSelectSchema(
-  cropProtectionProducts
+  cropProtectionProducts,
 );
 export const insertCropProtectionProductSchema = createInsertSchema(
-  cropProtectionProducts
+  cropProtectionProducts,
 );
 export const updateCropProtectionProductSchema =
   insertCropProtectionProductSchema.partial().merge(idSchema);
 
 export const selectCropProtectionApplicationSchema = createSelectSchema(
-  cropProtectionApplications
+  cropProtectionApplications,
 );
 export const insertCropProtectionApplicationSchema = createInsertSchema(
-  cropProtectionApplications
+  cropProtectionApplications,
 );
 export const updateCropProtectionApplicationSchema =
   insertCropProtectionApplicationSchema.partial().merge(idSchema);
 
 export const selectCropProtectionEquipmentSchema = createSelectSchema(
-  cropProtectionEquipment
+  cropProtectionEquipment,
 );
 export const insertCropProtectionEquipmentSchema = createInsertSchema(
-  cropProtectionEquipment
+  cropProtectionEquipment,
 );
 export const updateCropProtectionEquipmentSchema =
   insertCropProtectionEquipmentSchema.partial().merge(idSchema);
@@ -875,10 +895,10 @@ export const selectHarvestSchema = createSelectSchema(harvests)
   .merge(
     z.object({
       geometry: multiPolygonSchema,
-    })
+    }),
   );
 export const insertHarvestSchema = createInsertSchema(harvests).merge(
-  z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) })
+  z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }),
 );
 export const updateHarvestSchema = insertHarvestSchema
   .partial()
@@ -886,17 +906,17 @@ export const updateHarvestSchema = insertHarvestSchema
 
 export const processingTypeEnumSchema = z.enum(processingType.enumValues);
 export const conservationMethodEnumSchema = z.enum(
-  conservationMethod.enumValues
+  conservationMethod.enumValues,
 );
 
 export const fertilizerUnitSchema = z.enum(fertilizerUnit.enumValues);
 export const fertilizationMethodSchema = z.enum(fertilizationMethod.enumValues);
 
 export const selectFertilizerApplicationSchema = createSelectSchema(
-  fertilizerApplications
+  fertilizerApplications,
 );
 export const insertFertilizerApplicationSchema = createInsertSchema(
-  fertilizerApplications
+  fertilizerApplications,
 ).merge(z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }));
 export const updateFertilizerApplicationSchema =
   insertFertilizerApplicationSchema.partial().merge(idSchema);
@@ -920,7 +940,7 @@ export const selectParcelSchema = createSelectSchema(parcels)
   .merge(
     z.object({
       geometry: multiPolygonSchema,
-    })
+    }),
   );
 export const insertParcelSchema = createInsertSchema(parcels);
 export const updateParcelSchema = insertParcelSchema.partial().merge(idSchema);
@@ -931,14 +951,14 @@ export const selectCropRotationSchema = createSelectSchema(cropRotations).merge(
     fromDate: ez.dateOut(),
     toDate: ez.dateOut().nullable(),
     crop: selectCropSchema,
-  })
+  }),
 );
 export const insertCropRotationSchema = createInsertSchema(cropRotations).merge(
   z.object({
     sowingDate: ez.dateIn().optional(),
     fromDate: ez.dateIn(),
     toDate: ez.dateIn().optional(),
-  })
+  }),
 );
 export const updateCropRotationSchema = insertCropRotationSchema
   .partial()
@@ -951,7 +971,7 @@ export const selectPlotSchema = createSelectSchema(plots)
       geometry: multiPolygonSchema,
       cuttingDate: ez.dateOut().nullable(),
       cropRotations: z.array(selectCropRotationSchema),
-    })
+    }),
   );
 export const insertPlotSchema = createInsertSchema(plots)
   .omit({ geometry: true, cuttingDate: true })
@@ -960,7 +980,7 @@ export const insertPlotSchema = createInsertSchema(plots)
       geometry: multiPolygonSchema,
       cuttingDate: ez.dateIn().nullable().optional(),
       cropId: z.string(),
-    })
+    }),
   );
 export const updatePlotSchema = insertPlotSchema.partial().merge(idSchema);
 
@@ -970,5 +990,5 @@ export const selectFederalFarmPlotSchema = createSelectSchema(federalFarmPlots)
     z.object({
       geometry: multiPolygonSchema,
       cuttingDate: ez.dateOut().nullable(),
-    })
+    }),
   );

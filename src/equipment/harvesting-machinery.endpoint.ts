@@ -9,7 +9,7 @@ export const getHarvestingMachineryByIdEndpoint = farmEndpointFactory.build({
   method: "get",
   input: z.object({ harvestingMachineryId: z.string() }),
   output: harvestersResponseSchema,
-  handler: async ({ input, options: { harvestingMachinery } }) => {
+  handler: async ({ input, ctx: { harvestingMachinery } }) => {
     const harvester = await harvestingMachinery.getHarvestingMachineryById(
       input.harvestingMachineryId
     );
@@ -27,7 +27,7 @@ export const getFarmHarvestingMachineryEndpoint = farmEndpointFactory.build({
     result: z.array(harvestersResponseSchema),
     count: z.number(),
   }),
-  handler: async ({ options: { harvestingMachinery, farmId } }) => {
+  handler: async ({ ctx: { harvestingMachinery, farmId } }) => {
     const result =
       await harvestingMachinery.getHarvestingMachineryForFarm(farmId);
     return {
@@ -44,7 +44,7 @@ export const createHarvestingMachineryEndpoint = farmEndpointFactory.build({
     id: true,
   }),
   output: harvestersResponseSchema,
-  handler: async ({ input, options: { harvestingMachinery } }) => {
+  handler: async ({ input, ctx: { harvestingMachinery } }) => {
     return harvestingMachinery.createHarvestingMachinery(input);
   },
 });
@@ -57,7 +57,7 @@ export const updateHarvestingMachineryEndpoint = farmEndpointFactory.build({
       harvestingMachineryId: z.string(),
     }),
   output: harvestersResponseSchema,
-  handler: async ({ input, options: { harvestingMachinery } }) => {
+  handler: async ({ input, ctx: { harvestingMachinery } }) => {
     return harvestingMachinery.updateHarvestingMachinery(
       input.harvestingMachineryId,
       input
@@ -71,7 +71,7 @@ export const deleteHarvestingMachineryEndpoint = farmEndpointFactory.build({
   output: z.object({}),
   handler: async ({
     input: { harvestingMachineryId },
-    options: { harvestingMachinery },
+    ctx: { harvestingMachinery },
   }) => {
     await harvestingMachinery.deleteHarvestingMachinery(harvestingMachineryId);
     return {};

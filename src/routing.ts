@@ -1,4 +1,4 @@
-import { DependsOnMethod, Routing } from "express-zod-api";
+import { Routing } from "express-zod-api";
 import {
   createFarmEndpoint,
   deleteFarmEndpoint,
@@ -151,12 +151,12 @@ export const routing: Routing = {
       federalFarmIds: getFederalFarmIdsEndpoint,
     },
     farm: {
-      "": new DependsOnMethod({
+      "": {
         post: createFarmEndpoint,
         get: getFarmEndpoint,
         delete: deleteFarmEndpoint,
         patch: updateFarmEndpoint,
-      }),
+      },
     },
 
     users: {
@@ -166,35 +166,35 @@ export const routing: Routing = {
       },
     },
     me: {
-      "": new DependsOnMethod({
+      "": {
         patch: updateUserProfileEndpoint,
         get: getMyUserProfileEndpoint,
-      }),
+      },
     },
     harvestingMachinery: {
-      "": new DependsOnMethod({
+      "": {
         get: getFarmHarvestingMachineryEndpoint,
         post: createHarvestingMachineryEndpoint,
-      }),
+      },
       byId: {
         ":harvestingMachineryId": {
-          "": new DependsOnMethod({
+          "": {
             get: getHarvestingMachineryByIdEndpoint,
             delete: deleteHarvestingMachineryEndpoint,
             patch: updateHarvestingMachineryEndpoint,
-          }),
+          },
         },
       },
     },
     // parcels: {
-    //   "": new DependsOnMethod({
+    //   "": {
     //     get: getFarmParcelsEndpoint,
     //     post: createParcelsEndpoint,
     //   }),
     //   copy: copyFromFederalParcelsEndpoint,
     //   byId: {
     //     ":parcelId": {
-    //       "": new DependsOnMethod({
+    //       "": {
     //         get: getParcelByIdEndpoint,
     //         delete: deleteParcelEndpoint,
     //         patch: updateParcelEndpoint,
@@ -203,17 +203,17 @@ export const routing: Routing = {
     //   },
     // },
     plots: {
-      "": new DependsOnMethod({
+      "": {
         get: getFarmPlotsEndpoint,
         post: createPlotEndpoint,
-      }),
+      },
       byId: {
         ":plotId": {
-          "": new DependsOnMethod({
+          "": {
             get: getPlotByIdEndpoint,
             delete: deletePlotEndpoint,
             patch: updatePlotEndpoint,
-          }),
+          },
           cropRotations: getCropRotationsForPlotEndpoint,
           tillages: getPlotTillagesEndpoint,
           cropProtectionApplications: getPlotCropProtectionApplicationsEndpoint,
@@ -229,165 +229,165 @@ export const routing: Routing = {
       syncMissingLocalIds: syncMissingLocalIdsEndpoint,
     },
     crops: {
-      "": new DependsOnMethod({
+      "": {
         get: getFarmCropsEndpoint,
         post: createCropEndpoint,
-      }),
+      },
       byId: {
         ":cropId": {
-          "": new DependsOnMethod({
+          "": {
             get: getCropByIdEndpoint,
             delete: deleteCropEndpoint,
             patch: updateCropEndpoint,
-          }),
+          },
           inUse: cropInUseEndpoint,
         },
       },
     },
     cropProtectionProducts: {
-      "": new DependsOnMethod({
+      "": {
         get: getFarmCropProtectionProductsEndpoint,
         post: createCropProtectionProductEndpoint,
-      }),
+      },
       byId: {
         ":cropProtectionProductId": {
-          "": new DependsOnMethod({
+          "": {
             get: getCropProtectionProductByIdEndpoint,
             patch: updateCropProtectionProductEndpoint,
             delete: deleteCropProtectionProductEndpoint,
-          }),
+          },
           inUse: cropProtectionProductInUseEndpoint,
         },
       },
     },
     cropProtectionEquipments: {
-      "": new DependsOnMethod({
+      "": {
         post: createCropProtectionEquipmentEndpoint,
         get: getFarmCropProtectionEquipmentsEndpoint,
-      }),
+      },
       byId: {
-        ":cropProtectionEquipmentId": new DependsOnMethod({
+        ":cropProtectionEquipmentId": {
           get: getCropProtectionEquipmentByIdEndpoint,
           delete: deleteCropProtectionEquipmentEndpoint,
           patch: updateCropProtectionEquipmentEndpoint,
-        }),
+        },
       },
     },
     cropProtectionApplications: {
-      "": new DependsOnMethod({
+      "": {
         post: createCropProtectionApplicationEndpoint,
         get: getFarmCropProtectionApplicationsEndpoint,
-      }),
+      },
       batch: createCropProtectionApplicationsEndpoint,
       byId: {
-        ":cropProtectionApplicationId": new DependsOnMethod({
+        ":cropProtectionApplicationId": {
           get: getCropProtectionApplicationByIdEndpoint,
           delete: deleteCropProtectionApplicationEndpoint,
           patch: updateCropProtectionApplicationEndpoint,
-        }),
+        },
       },
       summaries: getCropProtectionApplicationSummaryForFarmEndpoint,
       years: getCropProtectionApplicationYearsEndpoint,
     },
     tillageEquipments: {
-      "": new DependsOnMethod({
+      "": {
         post: createTillageEquipmentEndpoint,
         get: getFarmTillageEquipmentsEndpoint,
-      }),
+      },
       byId: {
-        ":tillageEquipmentId": new DependsOnMethod({
+        ":tillageEquipmentId": {
           get: getTillageEquipmentByIdEndpoint,
           delete: deleteTillageEquipmentEndpoint,
           patch: updateTillageEquipmentEndpoint,
-        }),
+        },
       },
     },
     tillages: {
-      "": new DependsOnMethod({
+      "": {
         post: createTillageEndpoint,
         get: getFarmTillagesEndpoint,
-      }),
+      },
       batch: createTillagesEndpoint,
       byId: {
-        ":tillageId": new DependsOnMethod({
+        ":tillageId": {
           get: getTillageByIdEndpoint,
           delete: deleteTillageEndpoint,
           patch: updateTillageEndpoint,
-        }),
+        },
       },
       years: getTillagesYearsEndpoint,
     },
     cropRotations: {
-      "": new DependsOnMethod({
+      "": {
         get: getCropRotationsForFarmEndpoint,
         post: createCropRotationEndpoint,
-      }),
+      },
       batch: createCropRotationsEndpoint,
       current: getCurrentCropRotationsForPlotsEndpoint,
       byId: {
-        ":rotationId": new DependsOnMethod({
+        ":rotationId": {
           get: getCropRotationByIdEndpoint,
           delete: deleteCropRotationEndpoint,
           patch: updateCropRotationEndpoint,
-        }),
+        },
       },
       years: getCropRotationYearsEndpoint,
     },
     harvests: {
-      "": new DependsOnMethod({
+      "": {
         get: getHarvestsForFarmEndpoint,
-      }),
+      },
       batch: createHarvestsEndpoint,
       byId: {
-        ":harvestId": new DependsOnMethod({
+        ":harvestId": {
           get: getHarvestByIdEndpoint,
           delete: deleteHarvestEndpoint,
-        }),
+        },
       },
       summaries: getHarvestSummaryForFarmEndpoint,
       years: getHarvestYearsEndpoint,
     },
     fertilizerApplications: {
-      "": new DependsOnMethod({
+      "": {
         get: getFertilizerApplicationsForFarmEndpoint,
         post: createFertilizerApplicationsEndpoint,
-      }),
+      },
       byId: {
-        ":fertilizerApplicationId": new DependsOnMethod({
+        ":fertilizerApplicationId": {
           get: getFertilizerApplicationByIdEndpoint,
           delete: deleteFertilizerApplicationEndpoint,
-        }),
+        },
       },
       summaries: getFertilizerApplicationSummaryForFarmEndpoint,
       years: getFertilizerApplicationYearsEndpoint,
     },
     fertilizers: {
-      "": new DependsOnMethod({
+      "": {
         get: getFarmFertilizersEndpoint,
         post: createFertilizerEndpoint,
-      }),
+      },
       byId: {
         ":fertilizerId": {
-          "": new DependsOnMethod({
+          "": {
             get: getFertilizerByIdEndpoint,
             patch: updateFertilizerEndpoint,
             delete: deleteFertilizerEndpoint,
-          }),
+          },
           inUse: fertilizerInUseEndpoint,
         },
       },
     },
     fertilizerSpreaders: {
-      "": new DependsOnMethod({
+      "": {
         get: getFarmFertilizerSpreadersEndpoint,
         post: createFertilizerSpreaderEndpoint,
-      }),
+      },
       byId: {
-        ":fertilizerSpreaderId": new DependsOnMethod({
+        ":fertilizerSpreaderId": {
           get: getFertilizerSpreaderByIdEndpoint,
           patch: updateFertilizerSpreaderEndpoint,
           delete: deleteFertilizerSpreaderEndpoint,
-        }),
+        },
       },
     },
     reports: {

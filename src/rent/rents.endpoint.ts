@@ -18,7 +18,7 @@
 //     result: z.array(tables.selectRentSchema),
 //     count: z.number(),
 //   }),
-//   handler: async ({ input, options }) => {
+//   handler: async ({ input, ctx }) => {
 //     const rents = await getRentsForFarm(input.farmId);
 
 //     return { result: rents, count: rents.length };
@@ -29,7 +29,7 @@
 //   method: "get",
 //   input: z.object({ rentId: z.string() }),
 //   output: tables.selectRentSchema,
-//   handler: async ({ input, options }) => {
+//   handler: async ({ input, ctx }) => {
 //     const rent = await getRentById(input.rentId);
 //     if (!rent) {
 //       throw createHttpError(404, "Rent not found");
@@ -42,7 +42,7 @@
 //   method: "post",
 //   input: tables.insertRentSchema,
 //   output: tables.selectRentSchema,
-//   handler: async ({ input, options }) => {
+//   handler: async ({ input, ctx }) => {
 //     return createRent(input);
 //   },
 // });
@@ -51,7 +51,7 @@
 //   method: "patch",
 //   input: tables.updateRentSchema,
 //   output: tables.selectRentSchema,
-//   handler: async ({ input, options }) => {
+//   handler: async ({ input, ctx }) => {
 //     return updateRent(input.id, input);
 //   },
 // });
@@ -60,7 +60,7 @@
 //   method: "delete",
 //   input: z.object({ rentId: z.string() }),
 //   output: z.object({}),
-//   handler: async ({ input: { rentId }, options }) => {
+//   handler: async ({ input: { rentId }, ctx }) => {
 //     await deleteRent(rentId);
 //     return {};
 //   },

@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { RlsDb } from "../db/db";
 import {
@@ -101,7 +101,7 @@ export function fertilizerApplicationsApi(rlsDb: RlsDb) {
     ): Promise<FertilizerApplication[]> {
       return rlsDb.rls(async (tx) => {
         return tx.query.fertilizerApplications.findMany({
-          where: inArray(fertilizerApplications.id, ids),
+          where: { id: { in: ids } },
           with: {
             fertilizer: true,
             spreader: true,
@@ -113,9 +113,9 @@ export function fertilizerApplicationsApi(rlsDb: RlsDb) {
             },
           },
           extras: {
-            geometry:
-              sql<MultiPolygon>`ST_AsGeoJSON(${fertilizerApplications.geometry})::json`.as(
-                "geometry"
+            geometry: (t) =>
+              sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as(
+                "geometry",
               ),
           },
         });
@@ -127,7 +127,7 @@ export function fertilizerApplicationsApi(rlsDb: RlsDb) {
     ): Promise<FertilizerApplication | undefined> {
       return rlsDb.rls(async (tx) => {
         return tx.query.fertilizerApplications.findFirst({
-          where: eq(fertilizerApplications.id, id),
+          where: { id },
           with: {
             fertilizer: true,
             spreader: true,
@@ -139,9 +139,9 @@ export function fertilizerApplicationsApi(rlsDb: RlsDb) {
             },
           },
           extras: {
-            geometry:
-              sql<MultiPolygon>`ST_AsGeoJSON(${fertilizerApplications.geometry})::json`.as(
-                "geometry"
+            geometry: (t) =>
+              sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as(
+                "geometry",
               ),
           },
         });
@@ -155,13 +155,10 @@ export function fertilizerApplicationsApi(rlsDb: RlsDb) {
     ): Promise<FertilizerApplication[]> {
       return rlsDb.rls(async (tx) => {
         return tx.query.fertilizerApplications.findMany({
-          where: and(
-            eq(fertilizerApplications.farmId, farmId),
-            and(
-              gte(fertilizerApplications.date, fromDate),
-              lte(fertilizerApplications.date, toDate)
-            )
-          ),
+          where: {
+            farmId,
+            AND: [{ date: { gte: fromDate } }, { date: { lte: toDate } }],
+          },
           with: {
             plot: {
               columns: {
@@ -173,12 +170,12 @@ export function fertilizerApplicationsApi(rlsDb: RlsDb) {
             spreader: true,
           },
           extras: {
-            geometry:
-              sql<MultiPolygon>`ST_AsGeoJSON(${fertilizerApplications.geometry})::json`.as(
-                "geometry"
+            geometry: (t) =>
+              sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as(
+                "geometry",
               ),
           },
-          orderBy: [desc(fertilizerApplications.date)],
+          orderBy: { date: "desc" },
         });
       });
     },
@@ -188,18 +185,18 @@ export function fertilizerApplicationsApi(rlsDb: RlsDb) {
     ): Promise<Omit<FertilizerApplication, "plot">[]> {
       return rlsDb.rls(async (tx) => {
         return tx.query.fertilizerApplications.findMany({
-          where: eq(fertilizerApplications.plotId, plotId),
+          where: { plotId },
           with: {
             fertilizer: true,
             spreader: true,
           },
           extras: {
-            geometry:
-              sql<MultiPolygon>`ST_AsGeoJSON(${fertilizerApplications.geometry})::json`.as(
-                "geometry"
+            geometry: (t) =>
+              sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as(
+                "geometry",
               ),
           },
-          orderBy: [desc(fertilizerApplications.date)],
+          orderBy: { date: "desc" },
         });
       });
     },
@@ -218,7 +215,7 @@ export function fertilizerApplicationsApi(rlsDb: RlsDb) {
           columns: {
             date: true,
           },
-          orderBy: [desc(fertilizerApplications.date)],
+          orderBy: { date: "desc" },
         });
 
         return Array.from(
@@ -237,7 +234,7 @@ export function fertilizerApplicationsApi(rlsDb: RlsDb) {
       // return { monthlyApplications: [] };
       return rlsDb.rls(async (tx) => {
         const result = await tx.query.fertilizerApplications.findMany({
-          where: eq(fertilizerApplications.farmId, farmId),
+          where: { farmId },
           columns: {
             numberOfApplications: true,
             amountPerApplication: true,
@@ -260,7 +257,7 @@ export function fertilizerApplicationsApi(rlsDb: RlsDb) {
     ): Promise<FertilizationApplicationSummary> {
       return rlsDb.rls(async (tx) => {
         const result = await tx.query.fertilizerApplications.findMany({
-          where: eq(fertilizerApplications.plotId, plotId),
+          where: { plotId },
           columns: {
             numberOfApplications: true,
             amountPerApplication: true,

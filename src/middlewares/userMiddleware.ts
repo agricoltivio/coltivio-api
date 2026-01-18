@@ -9,7 +9,7 @@ export const userMiddleware = new Middleware({
     name: "token",
   },
   input: z.object({}),
-  handler: async ({ input: {}, options, request, logger }) => {
+  handler: async ({ input: {}, ctx, request, logger }) => {
     logger.debug("Checking the key and token");
     // const user = await db.Users.findOne({ key });
     // if (!user) {

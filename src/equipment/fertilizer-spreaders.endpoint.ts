@@ -9,7 +9,7 @@ export const getFertilizerSpreaderByIdEndpoint = farmEndpointFactory.build({
   output: tables.selectFertilizerSpreaderSchema,
   handler: async ({
     input,
-    options: { fertilizerSpreader: fertilizerSpreaders },
+    ctx: { fertilizerSpreader: fertilizerSpreaders },
   }) => {
     const fertilizerSpreader =
       await fertilizerSpreaders.getFertilizerSpreaderById(
@@ -30,7 +30,7 @@ export const getFarmFertilizerSpreadersEndpoint = farmEndpointFactory.build({
     count: z.number(),
   }),
   handler: async ({
-    options: { fertilizerSpreader: fertilizerSpreaders, farmId },
+    ctx: { fertilizerSpreader: fertilizerSpreaders, farmId },
   }) => {
     const result =
       await fertilizerSpreaders.getFertilizerSpreadersForFarm(farmId);
@@ -50,7 +50,7 @@ export const createFertilizerSpreaderEndpoint = farmEndpointFactory.build({
   output: tables.selectFertilizerSpreaderSchema,
   handler: async ({
     input,
-    options: { fertilizerSpreader: fertilizerSpreaders },
+    ctx: { fertilizerSpreader: fertilizerSpreaders },
   }) => {
     return fertilizerSpreaders.createFertilizerSpreader(input);
   },
@@ -66,7 +66,7 @@ export const updateFertilizerSpreaderEndpoint = farmEndpointFactory.build({
   output: tables.selectFertilizerSpreaderSchema,
   handler: async ({
     input,
-    options: { fertilizerSpreader: fertilizerSpreaders },
+    ctx: { fertilizerSpreader: fertilizerSpreaders },
   }) => {
     return fertilizerSpreaders.updateFertilizerSpreader(
       input.fertilizerSpreaderId,
@@ -81,7 +81,7 @@ export const deleteFertilizerSpreaderEndpoint = farmEndpointFactory.build({
   output: z.object({}),
   handler: async ({
     input: { fertilizerSpreaderId },
-    options: { fertilizerSpreader: fertilizerSpreader },
+    ctx: { fertilizerSpreader: fertilizerSpreader },
   }) => {
     await fertilizerSpreader.deleteFertilizerSpreader(fertilizerSpreaderId);
     return {};

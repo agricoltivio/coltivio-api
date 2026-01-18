@@ -1,5 +1,5 @@
 import * as Sentry from "@sentry/node";
-import { and, desc, eq, gte, lte } from "drizzle-orm";
+import { and, gte, lte } from "drizzle-orm";
 import ExcelJS from "exceljs";
 import { TFunction } from "i18next";
 import { RlsDb } from "../db/db";
@@ -31,7 +31,7 @@ export function fieldCalendarReportsApi(
       };
       await rlsDb.rls(async (tx) => {
         const user = await tx.query.profiles.findFirst({
-          where: eq(tables.profiles.id, userId),
+          where: { id: userId },
         });
         if (!user) {
           throw new Error(`User with id ${userId} not found`);
@@ -39,44 +39,45 @@ export function fieldCalendarReportsApi(
         const plots = await tx.query.plots.findMany({
           with: {
             cropRotations: {
-              orderBy: desc(tables.cropRotations.fromDate),
+              orderBy: { fromDate: "desc" },
               with: { crop: true },
-              where: and(
-                gte(tables.cropRotations.fromDate, fromDate),
-                lte(tables.cropRotations.fromDate, toDate)
-              ),
+              where: {
+                AND: [
+                  { fromDate: { gte: fromDate } },
+                  { fromDate: { lte: toDate } },
+                ],
+              },
             },
             tillages: {
               with: { equipment: true },
-              orderBy: desc(tables.tillages.date),
-              where: and(
-                gte(tables.tillages.date, fromDate),
-                lte(tables.tillages.date, toDate)
-              ),
+              orderBy: { date: "desc" },
+              where: {
+                AND: [{ date: { gte: fromDate } }, { date: { lte: toDate } }],
+              },
             },
             harvests: {
               with: { crop: true, machinery: true },
-              orderBy: desc(tables.harvests.date),
-              where: and(
-                gte(tables.harvests.date, fromDate),
-                lte(tables.harvests.date, toDate)
-              ),
+              orderBy: { date: "desc" },
+              where: {
+                AND: [{ date: { gte: fromDate } }, { date: { lte: toDate } }],
+              },
             },
             fertilizerApplications: {
               with: { fertilizer: true, spreader: true },
-              orderBy: desc(tables.fertilizerApplications.date),
-              where: and(
-                gte(tables.fertilizerApplications.date, fromDate),
-                lte(tables.fertilizerApplications.date, toDate)
-              ),
+              orderBy: { date: "desc" },
+              where: {
+                AND: [{ date: { gte: fromDate } }, { date: { lte: toDate } }],
+              },
             },
             cropProtectionApplications: {
               with: { equipment: true, product: true },
-              orderBy: desc(tables.cropProtectionApplications.dateTime),
-              where: and(
-                gte(tables.cropProtectionApplications.dateTime, fromDate),
-                lte(tables.cropProtectionApplications.dateTime, toDate)
-              ),
+              orderBy: { dateTime: "desc" },
+              where: {
+                AND: [
+                  { dateTime: { gte: fromDate } },
+                  { dateTime: { lte: toDate } },
+                ],
+              },
             },
           },
         });

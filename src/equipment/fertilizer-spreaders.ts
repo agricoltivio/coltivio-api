@@ -37,7 +37,7 @@ export function fertilizerSpreaderApi(rlsDb: RlsDb) {
     ): Promise<FertilizerSpreader | undefined> {
       return rlsDb.rls(async (tx) => {
         return tx.query.fertilizerSpreaders.findFirst({
-          where: eq(fertilizerSpreaders.id, id),
+          where: { id },
         });
       });
     },
@@ -46,7 +46,7 @@ export function fertilizerSpreaderApi(rlsDb: RlsDb) {
     ): Promise<FertilizerSpreader[]> {
       return rlsDb.rls(async (tx) => {
         return tx.query.fertilizerSpreaders.findMany({
-          where: eq(fertilizerSpreaders.farmId, farmId),
+          where: { farmId },
         });
       });
     },
@@ -57,7 +57,7 @@ export function fertilizerSpreaderApi(rlsDb: RlsDb) {
       const result = await rlsDb.rls(async (tx) => {
         // we need to remove this spreader as default when the unit changes
         const currentUnit = await tx.query.fertilizerSpreaders.findFirst({
-          where: eq(fertilizerSpreaders.id, id),
+          where: { id },
           columns: { unit: true },
         });
         if (data.unit != null && currentUnit?.unit !== data.unit) {

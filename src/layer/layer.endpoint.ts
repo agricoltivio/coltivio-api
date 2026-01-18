@@ -52,7 +52,7 @@ export const getPlotsLayerForBoundingBoxEndpoint =
     }),
     handler: async ({
       input: { xmax, xmin, ymax, ymin },
-      options: { federalParcelLayer },
+      ctx: { federalParcelLayer },
     }) => {
       const parcels = await federalParcelLayer.getPlotsLayerForBoundingBox(
         xmin,
@@ -80,7 +80,7 @@ export const getPlotsForFederalFarmIdEndpoint =
     }),
     handler: async ({
       input: { federalFarmId },
-      options: { federalParcelLayer },
+      ctx: { federalParcelLayer },
     }) => {
       const parcels =
         await federalParcelLayer.getPlotsForFederalFarmId(federalFarmId);
@@ -104,7 +104,7 @@ export const getFarmAndNearbyPlotsEndpoint = authenticatedEndpointFactory.build(
     }),
     handler: async ({
       input: { federalFarmId, buffer },
-      options: { federalParcelLayer },
+      ctx: { federalParcelLayer },
     }) => {
       const parcels = await federalParcelLayer.getFarmAndNearbyPlots(
         federalFarmId,
@@ -131,7 +131,7 @@ export const getPlotsWithinRadiusOfPointEndpoint =
     }),
     handler: async ({
       input: { longitude, latitude, radiusInKm },
-      options: { federalParcelLayer },
+      ctx: { federalParcelLayer },
     }) => {
       const parcels = await federalParcelLayer.getPlotsWithinRadiusOfPoint(
         longitude,
@@ -158,7 +158,7 @@ export const getFederalFarmIdsEndpoint = authenticatedEndpointFactory.build({
     result: z.array(z.string()),
     count: z.number(),
   }),
-  handler: async ({ input, options: { federalParcelLayer } }) => {
+  handler: async ({ input, ctx: { federalParcelLayer } }) => {
     const federalFarmIds = await federalParcelLayer.getFederalFarmIds(
       input.query,
       input.longitude,

@@ -11,7 +11,7 @@ export const getCropProtectionEquipmentByIdEndpoint = farmEndpointFactory.build(
     method: "get",
     input: z.object({ cropProtectionEquipmentId: z.string() }),
     output: cropProtectionEquipmentResponseSchema,
-    handler: async ({ input, options: { cropProtectionEquipment } }) => {
+    handler: async ({ input, ctx: { cropProtectionEquipment } }) => {
       const equipment =
         await cropProtectionEquipment.getCropProtectionEquipmentById(
           input.cropProtectionEquipmentId
@@ -32,7 +32,7 @@ export const getFarmCropProtectionEquipmentsEndpoint =
       result: z.array(cropProtectionEquipmentResponseSchema),
       count: z.number(),
     }),
-    handler: async ({ options: { cropProtectionEquipment, farmId } }) => {
+    handler: async ({ ctx: { cropProtectionEquipment, farmId } }) => {
       const result =
         await cropProtectionEquipment.getCropProtectionEquipmentsForFarm(
           farmId
@@ -51,7 +51,7 @@ export const createCropProtectionEquipmentEndpoint = farmEndpointFactory.build({
     id: true,
   }),
   output: cropProtectionEquipmentResponseSchema,
-  handler: async ({ input, options: { cropProtectionEquipment } }) => {
+  handler: async ({ input, ctx: { cropProtectionEquipment } }) => {
     return cropProtectionEquipment.createCropProtectionEquipment(input);
   },
 });
@@ -64,7 +64,7 @@ export const updateCropProtectionEquipmentEndpoint = farmEndpointFactory.build({
       cropProtectionEquipmentId: z.string(),
     }),
   output: cropProtectionEquipmentResponseSchema,
-  handler: async ({ input, options: { cropProtectionEquipment } }) => {
+  handler: async ({ input, ctx: { cropProtectionEquipment } }) => {
     return cropProtectionEquipment.updateCropProtectionEquipment(
       input.cropProtectionEquipmentId,
       input
@@ -78,7 +78,7 @@ export const deleteCropProtectionEquipmentEndpoint = farmEndpointFactory.build({
   output: z.object({}),
   handler: async ({
     input: { cropProtectionEquipmentId },
-    options: { cropProtectionEquipment },
+    ctx: { cropProtectionEquipment },
   }) => {
     await cropProtectionEquipment.deleteCropProtectionEquipment(
       cropProtectionEquipmentId

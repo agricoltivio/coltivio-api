@@ -3,6 +3,7 @@ import { z } from "zod";
 import * as tables from "../db/schema";
 import { farmEndpointFactory } from "../endpoint-factory";
 import { ez } from "express-zod-api";
+import { ensureDateRange } from "../utils";
 
 const tillagesResponseSchema = tables.selectTillageSchema.merge(
   z.object({
@@ -30,7 +31,7 @@ export const getTillageByIdEndpoint = farmEndpointFactory.build({
   method: "get",
   input: z.object({ tillageId: z.string() }),
   output: tillagesResponseSchema,
-  handler: async ({ input, options: { tillages } }) => {
+  handler: async ({ input, ctx: { tillages } }) => {
     const tillage = await tillages.getTillageById(input.tillageId);
     if (!tillage) {
       throw createHttpError(404, "Tillage not found");
@@ -47,7 +48,7 @@ export const getPlotTillagesEndpoint = farmEndpointFactory.build({
     result: z.array(tillagesResponseSchema),
     count: z.number(),
   }),
-  handler: async ({ input, options: { tillages, farmId } }) => {
+  handler: async ({ input, ctx: { tillages, farmId } }) => {
     const result = await tillages.getTillagesForPlot(input.plotId);
     return {
       result,
@@ -59,25 +60,16 @@ export const getPlotTillagesEndpoint = farmEndpointFactory.build({
 export const getFarmTillagesEndpoint = farmEndpointFactory.build({
   method: "get",
   input: z.object({
-    fromDate: ez
-      .dateIn()
-      .optional()
-      .default(new Date(2020, 0, 1).toISOString()),
-    toDate: ez
-      .dateIn()
-      .optional()
-      .default(new Date(5000, 0, 1).toISOString()),
+    fromDate: ez.dateIn().optional(),
+    toDate: ez.dateIn().optional(),
   }),
   output: z.object({
     result: z.array(tillagesResponseSchema),
     count: z.number(),
   }),
-  handler: async ({ input, options: { tillages, farmId } }) => {
-    const result = await tillages.getTillagesForFarm(
-      farmId,
-      input.fromDate,
-      input.toDate
-    );
+  handler: async ({ input, ctx: { tillages, farmId } }) => {
+    const { from, to } = ensureDateRange(input.fromDate, input.toDate);
+    const result = await tillages.getTillagesForFarm(farmId, from, to);
     return {
       result,
       count: result.length,
@@ -89,7 +81,7 @@ export const createTillageEndpoint = farmEndpointFactory.build({
   method: "post",
   input: tillageCreateSchema,
   output: tillagesResponseSchema,
-  handler: async ({ input, options: { tillages, user } }) => {
+  handler: async ({ input, ctx: { tillages, user } }) => {
     return tillages.createTillage({ ...input, createdBy: user.id });
   },
 });
@@ -114,7 +106,7 @@ export const createTillagesEndpoint = farmEndpointFactory.build({
     result: z.array(tillagesResponseSchema),
     count: z.number(),
   }),
-  handler: async ({ input, options: { tillages, user } }) => {
+  handler: async ({ input, ctx: { tillages, user } }) => {
     const result = await tillages.createTillages({
       ...input,
       createdBy: user.id,
@@ -132,7 +124,7 @@ export const updateTillageEndpoint = farmEndpointFactory.build({
     tillageId: z.string(),
   }),
   output: tillagesResponseSchema,
-  handler: async ({ input, options: { tillages } }) => {
+  handler: async ({ input, ctx: { tillages } }) => {
     return tillages.updateTillage(input.tillageId, input);
   },
 });
@@ -141,7 +133,7 @@ export const deleteTillageEndpoint = farmEndpointFactory.build({
   method: "delete",
   input: z.object({ tillageId: z.string() }),
   output: z.object({}),
-  handler: async ({ input: { tillageId }, options: { tillages: tillage } }) => {
+  handler: async ({ input: { tillageId }, ctx: { tillages: tillage } }) => {
     await tillage.deleteTillage(tillageId);
     return {};
   },
@@ -154,7 +146,7 @@ export const getTillagesYearsEndpoint = farmEndpointFactory.build({
     result: z.array(z.string()),
     count: z.number(),
   }),
-  handler: async ({ options: { tillages } }) => {
+  handler: async ({ ctx: { tillages } }) => {
     const result = await tillages.getTillagesYears();
     return {
       result,

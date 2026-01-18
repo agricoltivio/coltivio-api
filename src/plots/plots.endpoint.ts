@@ -7,7 +7,7 @@ export const getPlotByIdEndpoint = farmEndpointFactory.build({
   method: "get",
   input: z.object({ plotId: z.string() }),
   output: tables.selectPlotSchema,
-  handler: async ({ input, options: { plots } }) => {
+  handler: async ({ input, ctx: { plots } }) => {
     const plot = await plots.getPlotById(input.plotId);
     if (!plot) {
       throw createHttpError(404, "Plot not found");
@@ -23,7 +23,7 @@ export const getFarmPlotsEndpoint = farmEndpointFactory.build({
     result: z.array(tables.selectPlotSchema),
     count: z.number(),
   }),
-  handler: async ({ options: { plots, farmId } }) => {
+  handler: async ({ ctx: { plots, farmId } }) => {
     const result = await plots.getPlotsForFarm(farmId);
     return {
       result,
@@ -36,7 +36,7 @@ export const createPlotEndpoint = farmEndpointFactory.build({
   method: "post",
   input: tables.insertPlotSchema.omit({ farmId: true, id: true }),
   output: tables.selectPlotSchema,
-  handler: async ({ input, options: { plots } }) => {
+  handler: async ({ input, ctx: { plots } }) => {
     return plots.createPlot(input);
   },
 });
@@ -47,7 +47,7 @@ export const updatePlotEndpoint = farmEndpointFactory.build({
     plotId: z.string(),
   }),
   output: tables.selectPlotSchema,
-  handler: async ({ input, options: { plots } }) => {
+  handler: async ({ input, ctx: { plots } }) => {
     return plots.updatePlot(input.plotId, input);
   },
 });
@@ -56,7 +56,7 @@ export const deletePlotEndpoint = farmEndpointFactory.build({
   method: "delete",
   input: z.object({ plotId: z.string() }),
   output: z.object({}),
-  handler: async ({ input: { plotId }, options: { plots: plot } }) => {
+  handler: async ({ input: { plotId }, ctx: { plots: plot } }) => {
     await plot.deletePlot(plotId);
     return {};
   },
@@ -66,7 +66,7 @@ export const syncMissingLocalIdsEndpoint = farmEndpointFactory.build({
   method: "post",
   input: z.object({}),
   output: z.object({}),
-  handler: async ({ options: { plots } }) => {
+  handler: async ({ ctx: { plots } }) => {
     await plots.syncMissingLocalIds();
     return {};
   },

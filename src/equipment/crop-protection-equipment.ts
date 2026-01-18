@@ -1,4 +1,4 @@
-import { asc, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { RlsDb } from "../db/db";
 import { farmIdColumnValue, cropProtectionEquipment } from "../db/schema";
 
@@ -30,7 +30,7 @@ export function cropProtectionEquipmentApi(rlsDb: RlsDb) {
     ): Promise<CropProtectionEquipment | undefined> {
       return rlsDb.rls(async (tx) => {
         return tx.query.cropProtectionEquipment.findFirst({
-          where: eq(cropProtectionEquipment.id, id),
+          where: { id },
         });
       });
     },
@@ -39,8 +39,8 @@ export function cropProtectionEquipmentApi(rlsDb: RlsDb) {
     ): Promise<CropProtectionEquipment[]> {
       return rlsDb.rls(async (tx) => {
         return tx.query.cropProtectionEquipment.findMany({
-          where: eq(cropProtectionEquipment.farmId, farmId),
-          orderBy: asc(cropProtectionEquipment.name),
+          where: { farmId },
+          orderBy: { name: "asc" },
         });
       });
     },

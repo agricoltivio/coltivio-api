@@ -3,6 +3,7 @@ import createHttpError from "http-errors";
 import { z } from "zod";
 import * as tables from "../db/schema";
 import { farmEndpointFactory } from "../endpoint-factory";
+import { ensureDateRange } from "../utils";
 
 const fertilizerApplicationResponseSchema =
   tables.selectFertilizerApplicationSchema.merge(
@@ -23,25 +24,20 @@ export const getFertilizerApplicationsForFarmEndpoint =
   farmEndpointFactory.build({
     method: "get",
     input: z.object({
-      fromDate: ez
-        .dateIn()
-        .optional()
-        .default(new Date(2020, 0, 1).toISOString()),
-      toDate: ez
-        .dateIn()
-        .optional()
-        .default(new Date(5000, 0, 1).toISOString()),
+      fromDate: ez.dateIn().optional(),
+      toDate: ez.dateIn().optional(),
     }),
     output: z.object({
       result: z.array(fertilizerApplicationResponseSchema),
       count: z.number(),
     }),
-    handler: async ({ input, options: { fertilizerApplications, farmId } }) => {
+    handler: async ({ input, ctx: { fertilizerApplications, farmId } }) => {
+      const { from, to } = ensureDateRange(input.fromDate, input.toDate);
       const result =
         await fertilizerApplications.getFertilizerApplicationsForFarm(
           farmId,
-          input.fromDate,
-          input.toDate
+          from,
+          to
         );
 
       return {
@@ -59,7 +55,7 @@ export const getFertilizerApplicationsForPlotEndpoint =
       result: fertilizerApplicationResponseSchema.omit({ plot: true }).array(),
       count: z.number(),
     }),
-    handler: async ({ input, options: { fertilizerApplications } }) => {
+    handler: async ({ input, ctx: { fertilizerApplications } }) => {
       const result =
         await fertilizerApplications.getFertilizerApplicationsForPlot(
           input.plotId
@@ -76,7 +72,7 @@ export const getFertilizerApplicationByIdEndpoint = farmEndpointFactory.build({
   method: "get",
   input: z.object({ fertilizerApplicationId: z.string() }),
   output: fertilizerApplicationResponseSchema,
-  handler: async ({ input, options: { fertilizerApplications } }) => {
+  handler: async ({ input, ctx: { fertilizerApplications } }) => {
     const fertilizerApplication =
       await fertilizerApplications.getFertilizerApplicationById(
         input.fertilizerApplicationId
@@ -111,7 +107,7 @@ export const createFertilizerApplicationsEndpoint = farmEndpointFactory.build({
     result: fertilizerApplicationResponseSchema.array(),
     count: z.number(),
   }),
-  handler: async ({ input, options: { user, fertilizerApplications } }) => {
+  handler: async ({ input, ctx: { user, fertilizerApplications } }) => {
     const result = await fertilizerApplications.createFertilizerApplications({
       ...input,
       createdBy: user.id,
@@ -127,7 +123,7 @@ export const deleteFertilizerApplicationEndpoint = farmEndpointFactory.build({
   method: "delete",
   input: z.object({ fertilizerApplicationId: z.string() }),
   output: z.object({}),
-  handler: async ({ input, options: { fertilizerApplications } }) => {
+  handler: async ({ input, ctx: { fertilizerApplications } }) => {
     await fertilizerApplications.deleteFertilizerApplication(
       input.fertilizerApplicationId
     );
@@ -142,7 +138,7 @@ export const getFertilizerApplicationYearsEndpoint = farmEndpointFactory.build({
     result: z.array(z.string()),
     count: z.number(),
   }),
-  handler: async ({ options: { fertilizerApplications } }) => {
+  handler: async ({ ctx: { fertilizerApplications } }) => {
     const result = await fertilizerApplications.getFertilizerApplicationYears();
     return {
       result,
@@ -171,7 +167,7 @@ export const getFertilizerApplicationSummaryForFarmEndpoint =
     method: "get",
     input: z.object({}),
     output: fertilizerApplicationSummaryResponseSchema,
-    handler: async ({ input, options: { fertilizerApplications, farmId } }) => {
+    handler: async ({ input, ctx: { fertilizerApplications, farmId } }) => {
       return fertilizerApplications.getFertilizerApplicationSummaryForFarm(
         farmId
       );
@@ -183,7 +179,7 @@ export const getFertilizerApplicationSummaryForPlotEndpoint =
     method: "get",
     input: z.object({ plotId: z.string() }),
     output: fertilizerApplicationSummaryResponseSchema,
-    handler: async ({ input, options: { fertilizerApplications } }) => {
+    handler: async ({ input, ctx: { fertilizerApplications } }) => {
       return fertilizerApplications.getFertilizerApplicationSummaryForPlot(
         input.plotId
       );

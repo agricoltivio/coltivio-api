@@ -14,9 +14,9 @@ export const generateFieldCalendarReport = farmEndpointFactory.build({
     generateHarvests: z.boolean(),
   }),
   output: z.object({}),
-  handler: async ({ input, options }) => {
-    await options.fieldCalendarReports.generateReport(
-      options.user.id,
+  handler: async ({ input, ctx }) => {
+    await ctx.fieldCalendarReports.generateReport(
+      ctx.user.id,
       input.fromDate,
       input.toDate,
       input.generateCropRotations,

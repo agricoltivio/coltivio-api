@@ -3,6 +3,7 @@ import { z } from "zod";
 import * as tables from "../db/schema";
 import { farmEndpointFactory } from "../endpoint-factory";
 import { ez } from "express-zod-api";
+import { ensureDateRange } from "../utils";
 
 export const getCropRotationsForPlotEndpoint = farmEndpointFactory.build({
   method: "get",
@@ -11,7 +12,7 @@ export const getCropRotationsForPlotEndpoint = farmEndpointFactory.build({
     result: z.array(tables.selectCropRotationSchema),
     count: z.number(),
   }),
-  handler: async ({ input: { plotId }, options: { cropRotations } }) => {
+  handler: async ({ input: { plotId }, ctx: { cropRotations } }) => {
     const result = await cropRotations.getCropRotationsForPlot(plotId);
     return {
       result,
@@ -28,7 +29,7 @@ export const getCurrentCropRotationsForPlotsEndpoint =
       result: z.array(tables.selectCropRotationSchema),
       count: z.number(),
     }),
-    handler: async ({ input, options: { cropRotations } }) => {
+    handler: async ({ input, ctx: { cropRotations } }) => {
       const result = await cropRotations.getCurreentCropRotationsForPlots(
         input.plotIds
       );
@@ -43,7 +44,7 @@ export const getCropRotationByIdEndpoint = farmEndpointFactory.build({
   method: "get",
   input: z.object({ rotationId: z.string() }),
   output: tables.selectCropRotationSchema,
-  handler: async ({ input: { rotationId }, options: { cropRotations } }) => {
+  handler: async ({ input: { rotationId }, ctx: { cropRotations } }) => {
     const result = await cropRotations.getCropRotationById(rotationId);
     if (!result) {
       throw createHttpError(404, "Crop rotation not found");
@@ -55,14 +56,8 @@ export const getCropRotationByIdEndpoint = farmEndpointFactory.build({
 export const getCropRotationsForFarmEndpoint = farmEndpointFactory.build({
   method: "get",
   input: z.object({
-    fromDate: ez
-      .dateIn()
-      .optional()
-      .default(new Date(2020, 0, 1).toISOString()),
-    toDate: ez
-      .dateIn()
-      .optional()
-      .default(new Date(5000, 0, 1).toISOString()),
+    fromDate: ez.dateIn().optional(),
+    toDate: ez.dateIn().optional(),
   }),
   output: z.object({
     result: z.array(
@@ -72,11 +67,9 @@ export const getCropRotationsForFarmEndpoint = farmEndpointFactory.build({
     ),
     count: z.number(),
   }),
-  handler: async ({ input, options: { cropRotations, farmId } }) => {
-    const result = await cropRotations.getCropRotationsForFarm(
-      input.fromDate,
-      input.toDate
-    );
+  handler: async ({ input, ctx: { cropRotations } }) => {
+    const { from, to } = ensureDateRange(input.fromDate, input.toDate);
+    const result = await cropRotations.getCropRotationsForFarm(from, to);
     return {
       result,
       count: result.length,
@@ -88,7 +81,7 @@ export const createCropRotationEndpoint = farmEndpointFactory.build({
   method: "post",
   input: tables.insertCropRotationSchema.omit({ farmId: true }),
   output: tables.selectCropRotationSchema,
-  handler: async ({ input, options: { cropRotations } }) => {
+  handler: async ({ input, ctx: { cropRotations } }) => {
     return cropRotations.createCropRotation(input);
   },
 });
@@ -105,7 +98,7 @@ export const createCropRotationsEndpoint = farmEndpointFactory.build({
     result: tables.selectCropRotationSchema.array(),
     count: z.number(),
   }),
-  handler: async ({ input, options: { cropRotations } }) => {
+  handler: async ({ input, ctx: { cropRotations } }) => {
     const result = await cropRotations.createCropRotations(input);
     return {
       result,
@@ -122,7 +115,7 @@ export const updateCropRotationEndpoint = farmEndpointFactory.build({
   output: tables.selectCropRotationSchema,
   handler: async ({
     input: { rotationId, ...data },
-    options: { cropRotations },
+    ctx: { cropRotations },
   }) => {
     return cropRotations.updateCropRotation(rotationId, data);
   },
@@ -132,7 +125,7 @@ export const deleteCropRotationEndpoint = farmEndpointFactory.build({
   method: "delete",
   input: z.object({ rotationId: z.string() }),
   output: z.object({}),
-  handler: async ({ input: { rotationId }, options: { cropRotations } }) => {
+  handler: async ({ input: { rotationId }, ctx: { cropRotations } }) => {
     await cropRotations.deleteCropRotation(rotationId);
     return {};
   },
@@ -145,7 +138,7 @@ export const getCropRotationYearsEndpoint = farmEndpointFactory.build({
     result: z.array(z.string()),
     count: z.number(),
   }),
-  handler: async ({ options: { cropRotations } }) => {
+  handler: async ({ ctx: { cropRotations } }) => {
     const result = await cropRotations.getCropRotationYears();
     return {
       result,

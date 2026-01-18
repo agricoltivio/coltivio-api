@@ -7,7 +7,7 @@ export const getCropProtectionProductByIdEndpoint = farmEndpointFactory.build({
   method: "get",
   input: z.object({ cropProtectionProductId: z.string() }),
   output: tables.selectCropProtectionProductSchema,
-  handler: async ({ input, options: { cropProtectionProducts } }) => {
+  handler: async ({ input, ctx: { cropProtectionProducts } }) => {
     const cropProtectionProduct =
       await cropProtectionProducts.getCropProtectionProductById(
         input.cropProtectionProductId
@@ -26,7 +26,7 @@ export const getFarmCropProtectionProductsEndpoint = farmEndpointFactory.build({
     result: z.array(tables.selectCropProtectionProductSchema),
     count: z.number(),
   }),
-  handler: async ({ options: { cropProtectionProducts, farmId } }) => {
+  handler: async ({ ctx: { cropProtectionProducts, farmId } }) => {
     const result =
       await cropProtectionProducts.getCropProtectionProductsForFarm(farmId);
     return {
@@ -43,7 +43,7 @@ export const createCropProtectionProductEndpoint = farmEndpointFactory.build({
     id: true,
   }),
   output: tables.selectCropProtectionProductSchema,
-  handler: async ({ input, options: { cropProtectionProducts } }) => {
+  handler: async ({ input, ctx: { cropProtectionProducts } }) => {
     return cropProtectionProducts.createCropProtectionProduct(input);
   },
 });
@@ -56,7 +56,7 @@ export const updateCropProtectionProductEndpoint = farmEndpointFactory.build({
       cropProtectionProductId: z.string(),
     }),
   output: tables.selectCropProtectionProductSchema,
-  handler: async ({ input, options: { cropProtectionProducts } }) => {
+  handler: async ({ input, ctx: { cropProtectionProducts } }) => {
     return cropProtectionProducts.updateCropProtectionProduct(
       input.cropProtectionProductId,
       input
@@ -70,7 +70,7 @@ export const deleteCropProtectionProductEndpoint = farmEndpointFactory.build({
   output: z.object({}),
   handler: async ({
     input: { cropProtectionProductId },
-    options: { cropProtectionProducts: cropProtectionProduct },
+    ctx: { cropProtectionProducts: cropProtectionProduct },
   }) => {
     await cropProtectionProduct.deleteCropProtectionProduct(
       cropProtectionProductId
@@ -85,7 +85,7 @@ export const cropProtectionProductInUseEndpoint = farmEndpointFactory.build({
   output: z.object({ inUse: z.boolean() }),
   handler: async ({
     input: { cropProtectionProductId },
-    options: { cropProtectionProducts },
+    ctx: { cropProtectionProducts },
   }) => {
     const inUse = await cropProtectionProducts.cropProtectionProductInUse(
       cropProtectionProductId

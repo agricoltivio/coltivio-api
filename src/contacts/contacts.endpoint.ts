@@ -17,7 +17,7 @@
 //     result: z.array(tables.selectContactSchema),
 //     count: z.number(),
 //   }),
-//   handler: async ({ input, options }) => {
+//   handler: async ({ input, ctx }) => {
 //     const contacts = await getContactsForFarm(input.farmId);
 
 //     return { result: contacts, count: contacts.length };
@@ -28,7 +28,7 @@
 //   method: "get",
 //   input: z.object({ contactId: z.string() }),
 //   output: tables.selectContactSchema,
-//   handler: async ({ input, options }) => {
+//   handler: async ({ input, ctx }) => {
 //     const contact = await getContactById(input.contactId);
 //     if (!contact) {
 //       throw createHttpError(404, "Contact not found");
@@ -41,7 +41,7 @@
 //   method: "post",
 //   input: tables.insertContactSchema,
 //   output: tables.selectContactSchema,
-//   handler: async ({ input, options }) => {
+//   handler: async ({ input, ctx }) => {
 //     return createContact(input);
 //   },
 // });
@@ -50,7 +50,7 @@
 //   method: "patch",
 //   input: tables.updateContactSchema,
 //   output: tables.selectContactSchema,
-//   handler: async ({ input, options }) => {
+//   handler: async ({ input, ctx }) => {
 //     return updateContact(input.id, input);
 //   },
 // });
@@ -59,7 +59,7 @@
 //   method: "delete",
 //   input: z.object({ contactId: z.string() }),
 //   output: z.object({}),
-//   handler: async ({ input: { contactId }, options }) => {
+//   handler: async ({ input: { contactId }, ctx }) => {
 //     await deleteContact(contactId);
 //     return {};
 //   },

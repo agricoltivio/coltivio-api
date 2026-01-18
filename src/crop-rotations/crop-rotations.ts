@@ -1,15 +1,4 @@
-import {
-  and,
-  asc,
-  count,
-  desc,
-  eq,
-  gte,
-  inArray,
-  lte,
-  ne,
-  sql,
-} from "drizzle-orm";
+import { and, count, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import { RlsDb } from "../db/db";
 import {
   cropRotations,
@@ -45,7 +34,7 @@ export function cropRotationsApi(rlsDb: RlsDb) {
     async getCropRotationsForPlot(plotId: string): Promise<CropRotation[]> {
       return rlsDb.rls(async (tx) => {
         return tx.query.cropRotations.findMany({
-          where: eq(cropRotations.plotId, plotId),
+          where: { plotId },
           with: { crop: true },
         });
       });
@@ -54,10 +43,10 @@ export function cropRotationsApi(rlsDb: RlsDb) {
     async getCurreentCropRotationsForPlots(plotIds: string[]) {
       return rlsDb.rls(async (tx) => {
         const results = await tx.query.plots.findMany({
-          where: inArray(plots.id, plotIds),
+          where: { id: { in: plotIds } },
           with: {
             cropRotations: {
-              orderBy: desc(cropRotations.fromDate),
+              orderBy: { fromDate: "desc" },
               limit: 1,
               with: { crop: true },
             },
@@ -69,7 +58,7 @@ export function cropRotationsApi(rlsDb: RlsDb) {
     async getCropRotationById(id: string): Promise<CropRotation | undefined> {
       return rlsDb.rls(async (tx) => {
         return tx.query.cropRotations.findFirst({
-          where: eq(cropRotations.id, id),
+          where: { id },
           with: { crop: true },
         });
       });
@@ -77,7 +66,7 @@ export function cropRotationsApi(rlsDb: RlsDb) {
 
     async getCropRotationsForFarm(
       fromDate: Date,
-      toDate: Date
+      toDate: Date,
     ): Promise<CropRotationWithPlotName[]> {
       return rlsDb.rls(async (tx) => {
         // return tx.query.cropRotations.findMany({
@@ -103,8 +92,8 @@ export function cropRotationsApi(rlsDb: RlsDb) {
           .where(
             and(
               gte(cropRotations.fromDate, fromDate),
-              lte(cropRotations.fromDate, toDate)
-            )
+              lte(cropRotations.fromDate, toDate),
+            ),
           )
           .orderBy(desc(cropRotations.fromDate));
 
@@ -116,7 +105,7 @@ export function cropRotationsApi(rlsDb: RlsDb) {
       });
     },
     async createCropRotation(
-      input: CropRotationCreateInput
+      input: CropRotationCreateInput,
     ): Promise<CropRotation> {
       const result = await rlsDb.rls(async (tx) => {
         const entries = await tx
@@ -154,7 +143,7 @@ export function cropRotationsApi(rlsDb: RlsDb) {
     },
 
     async createCropRotations(
-      input: CropRotationCreateManyInput
+      input: CropRotationCreateManyInput,
     ): Promise<CropRotation[]> {
       return rlsDb.rls(async (tx) => {
         if (input.plotIds.length === 0) {
@@ -162,8 +151,8 @@ export function cropRotationsApi(rlsDb: RlsDb) {
         }
 
         const plotsWithExistingRotations = await tx.query.plots.findMany({
-          where: inArray(plots.id, input.plotIds),
-          with: { cropRotations: { orderBy: desc(cropRotations.fromDate) } },
+          where: { id: { in: input.plotIds } },
+          with: { cropRotations: { orderBy: { fromDate: "desc" } } },
         });
 
         const cropRotationIdsToUpdate: string[] = [];
@@ -194,15 +183,16 @@ export function cropRotationsApi(rlsDb: RlsDb) {
               toDate: input.toDate,
               cropId: input.cropId,
               ...farmIdColumnValue,
-            }))
+            })),
           )
           .returning();
 
         return tx.query.cropRotations.findMany({
-          where: inArray(
-            cropRotations.id,
-            createdCropRotations.map((cropRotation) => cropRotation.id)
-          ),
+          where: {
+            id: {
+              in: createdCropRotations.map((cropRotation) => cropRotation.id),
+            },
+          },
           with: { crop: true },
         });
       });
@@ -210,7 +200,7 @@ export function cropRotationsApi(rlsDb: RlsDb) {
 
     async updateCropRotation(
       id: string,
-      data: CropRotationUpdateInput
+      data: CropRotationUpdateInput,
     ): Promise<CropRotation> {
       const result = await rlsDb.rls(async (tx) => {
         const [plotCrop] = await tx
@@ -242,12 +232,14 @@ export function cropRotationsApi(rlsDb: RlsDb) {
           columns: {
             fromDate: true,
           },
-          orderBy: [desc(cropRotations.fromDate)],
+          orderBy: { fromDate: "desc" },
         });
         return Array.from(
           new Set(
-            result.map((rotation) => rotation.fromDate.getFullYear().toString())
-          )
+            result.map((rotation) =>
+              rotation.fromDate.getFullYear().toString(),
+            ),
+          ),
         );
       });
     },

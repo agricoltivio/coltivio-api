@@ -3,6 +3,7 @@ import createHttpError from "http-errors";
 import { z } from "zod";
 import * as tables from "../db/schema";
 import { farmEndpointFactory } from "../endpoint-factory";
+import { ensureDateRange } from "../utils";
 
 const harvestResponseSchema = tables.selectHarvestSchema.merge(
   z.object({
@@ -11,31 +12,22 @@ const harvestResponseSchema = tables.selectHarvestSchema.merge(
     machinery: tables.selectHarvestingMachinerySchema.nullable(),
     crop: tables.selectCropSchema,
     plot: tables.selectPlotSchema.omit({ cropRotations: true }),
-  })
+  }),
 );
 
 export const getHarvestsForFarmEndpoint = farmEndpointFactory.build({
   method: "get",
   input: z.object({
-    fromDate: ez
-      .dateIn()
-      .optional()
-      .default(new Date(2020, 0, 1).toISOString()),
-    toDate: ez
-      .dateIn()
-      .optional()
-      .default(new Date(5000, 0, 1).toISOString()),
+    fromDate: ez.dateIn().optional(),
+    toDate: ez.dateIn().optional(),
   }),
   output: z.object({
     result: z.array(harvestResponseSchema),
     count: z.number(),
   }),
-  handler: async ({ input, options: { harvests, farmId } }) => {
-    const result = await harvests.getHarvestsForFarm(
-      farmId,
-      input.fromDate,
-      input.toDate
-    );
+  handler: async ({ input, ctx: { harvests, farmId } }) => {
+    const { from, to } = ensureDateRange(input.fromDate, input.toDate);
+    const result = await harvests.getHarvestsForFarm(farmId, from, to);
     return { result, count: result.length };
   },
 });
@@ -47,7 +39,7 @@ export const getHarvestsForPlotEndpoint = farmEndpointFactory.build({
     result: z.array(harvestResponseSchema.omit({ plot: true })),
     count: z.number(),
   }),
-  handler: async ({ input, options: { harvests } }) => {
+  handler: async ({ input, ctx: { harvests } }) => {
     const result = await harvests.getHarvestsForPlot(input.plotId);
     return { result, count: result.length };
   },
@@ -68,11 +60,11 @@ const harvestSummaryResponseSchema = z.object({
               processingMethod: z.string(),
               totalAmountInKilos: z.number(),
               totalProducedUnits: z.number(),
-            })
+            }),
           ),
-        })
+        }),
       ),
-    })
+    }),
   ),
 });
 
@@ -80,7 +72,7 @@ export const getHarvestSummaryForFarmEndpoint = farmEndpointFactory.build({
   method: "get",
   input: z.object({}),
   output: harvestSummaryResponseSchema,
-  handler: async ({ input, options: { harvests, farmId } }) => {
+  handler: async ({ input, ctx: { harvests, farmId } }) => {
     const result = await harvests.getHarvestSummaryForFarm(farmId);
     return result;
   },
@@ -90,7 +82,7 @@ export const getHarvestSummaryForPlotEndpoint = farmEndpointFactory.build({
   method: "get",
   input: z.object({ plotId: z.string() }),
   output: harvestSummaryResponseSchema,
-  handler: async ({ input, options: { harvests } }) => {
+  handler: async ({ input, ctx: { harvests } }) => {
     const result = await harvests.getHarvestSummaryForPlot(input.plotId);
     return result;
   },
@@ -100,7 +92,7 @@ export const getHarvestByIdEndpoint = farmEndpointFactory.build({
   method: "get",
   input: z.object({ harvestId: z.string() }),
   output: harvestResponseSchema,
-  handler: async ({ input, options: { harvests } }) => {
+  handler: async ({ input, ctx: { harvests } }) => {
     const harvest = await harvests.getHarvestById(input.harvestId);
     if (!harvest) {
       throw createHttpError(404, "Forage Harvest not found");
@@ -135,7 +127,7 @@ export const createHarvestsEndpoint = farmEndpointFactory.build({
     result: harvestResponseSchema.array(),
     count: z.number(),
   }),
-  handler: async ({ input, options: { harvests, user } }) => {
+  handler: async ({ input, ctx: { harvests, user } }) => {
     const result = await harvests.createHarvests({
       ...input,
       createdBy: user.id,
@@ -151,7 +143,7 @@ export const deleteHarvestEndpoint = farmEndpointFactory.build({
   method: "delete",
   input: z.object({ harvestId: z.string() }),
   output: z.object({}),
-  handler: async ({ input: { harvestId }, options: { harvests } }) => {
+  handler: async ({ input: { harvestId }, ctx: { harvests } }) => {
     await harvests.deleteHarvest(harvestId);
     return {};
   },
@@ -164,7 +156,7 @@ export const getHarvestYearsEndpoint = farmEndpointFactory.build({
     result: z.array(z.string()),
     count: z.number(),
   }),
-  handler: async ({ options: { harvests } }) => {
+  handler: async ({ ctx: { harvests } }) => {
     const result = await harvests.getHarvestYears();
     return { result, count: result.length };
   },
