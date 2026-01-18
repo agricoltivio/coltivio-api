@@ -1,4 +1,9 @@
+import { animalsApi } from "../animals/animals";
+import { contactsApi } from "../contacts/contacts";
 import { cropRotationsApi } from "../crop-rotations/crop-rotations";
+import { earTagsApi } from "../ear-tags/ear-tags";
+import { paymentsApi } from "../payments/payments";
+import { sponsorshipsApi } from "../sponsorships/sponsorships";
 import { cropApi } from "../crops/crops";
 import { RlsDb } from "../db/db";
 import { cropProtectionEquipmentApi } from "../equipment/crop-protection-equipment";
@@ -37,5 +42,10 @@ export function sessionApi(db: RlsDb, t: TFunction, locale: string) {
     cropProtectionEquipment: cropProtectionEquipmentApi(db),
     cropProtectionApplications: cropProtectionApplicationsApi(db),
     fieldCalendarReports: fieldCalendarReportsApi(db, t, locale),
+    animals: animalsApi(db),
+    earTags: earTagsApi(db),
+    contacts: contactsApi(db),
+    payments: paymentsApi(db),
+    sponsorships: sponsorshipsApi(db),
   };
 }

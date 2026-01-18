@@ -536,6 +536,242 @@ export const harvests = pgTable.withRLS(
 
 export const fertilizerUnit = pgEnum("fertilizer_unit", ["l", "kg", "dt", "t"]);
 
+export const animalType = pgEnum("animal_type", [
+  "goat",
+  "sheep",
+  "cow",
+  "horse",
+  "donkey",
+  "pig",
+  "deer",
+]);
+
+export const deathReason = pgEnum("death_reason", ["died", "slaughtered"]);
+
+export const productCategory = pgEnum("product_category", [
+  "meat",
+  "vegetables",
+  "dairy",
+  "eggs",
+  "other",
+]);
+
+export const productUnit = pgEnum("product_unit", [
+  "kg",
+  "g",
+  "piece",
+  "bunch",
+  "liter",
+]);
+
+export const orderStatus = pgEnum("order_status", [
+  "pending",
+  "confirmed",
+  "fulfilled",
+  "cancelled",
+]);
+
+export const preferredCommunication = pgEnum("preferred_communication", [
+  "email",
+  "phone",
+  "whatsapp",
+]);
+
+export const contacts = pgTable.withRLS(
+  "contacts",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    farmId: uuid()
+      .notNull()
+      .references(() => farms.id, {
+        onDelete: "cascade",
+      }),
+    firstName: text().notNull(),
+    lastName: text().notNull(),
+    street: text(),
+    city: text(),
+    zip: text(),
+    phone: text(),
+    email: text(),
+    preferredCommunication: preferredCommunication(),
+    labels: text().array().notNull().default([]),
+  },
+  (table) => [
+    pgPolicy("only farm members", {
+      as: "permissive",
+      to: authenticatedRole,
+      using: eq(table.farmId, currentFarmId),
+      withCheck: eq(table.farmId, currentFarmId),
+    }),
+  ],
+);
+
+export const products = pgTable.withRLS(
+  "products",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    farmId: uuid()
+      .notNull()
+      .references(() => farms.id, {
+        onDelete: "cascade",
+      }),
+    name: text().notNull(),
+    category: productCategory().notNull(),
+    unit: productUnit().notNull(),
+    pricePerUnit: real().notNull(),
+    stock: real().notNull(),
+    description: text(),
+    active: boolean().notNull().default(true),
+  },
+  (table) => [
+    pgPolicy("only farm members", {
+      as: "permissive",
+      to: authenticatedRole,
+      using: eq(table.farmId, currentFarmId),
+      withCheck: eq(table.farmId, currentFarmId),
+    }),
+  ],
+);
+
+export const orders = pgTable.withRLS(
+  "orders",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    farmId: uuid()
+      .notNull()
+      .references(() => farms.id, {
+        onDelete: "cascade",
+      }),
+    contactId: uuid()
+      .notNull()
+      .references(() => contacts.id, {
+        onDelete: "cascade",
+      }),
+    status: orderStatus().notNull().default("pending"),
+    orderDate: date({ mode: "date" }).notNull(),
+    shippingDate: date({ mode: "date" }),
+    notes: text(),
+  },
+  (table) => [
+    pgPolicy("only farm members", {
+      as: "permissive",
+      to: authenticatedRole,
+      using: eq(table.farmId, currentFarmId),
+      withCheck: eq(table.farmId, currentFarmId),
+    }),
+  ],
+);
+
+export const orderItems = pgTable.withRLS(
+  "order_items",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    farmId: uuid()
+      .notNull()
+      .references(() => farms.id, {
+        onDelete: "cascade",
+      }),
+    orderId: uuid()
+      .notNull()
+      .references(() => orders.id, {
+        onDelete: "cascade",
+      }),
+    productId: uuid()
+      .notNull()
+      .references(() => products.id, {
+        onDelete: "restrict",
+      }),
+    quantity: real().notNull(),
+    unitPrice: real().notNull(),
+  },
+  (table) => [
+    pgPolicy("only farm members", {
+      as: "permissive",
+      to: authenticatedRole,
+      using: eq(table.farmId, currentFarmId),
+      withCheck: eq(table.farmId, currentFarmId),
+    }),
+  ],
+);
+
+export const paymentMethod = pgEnum("payment_method", [
+  "cash",
+  "bank_transfer",
+  "twint",
+  "card",
+  "other",
+]);
+
+export const sponsorships = pgTable.withRLS(
+  "sponsorships",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    farmId: uuid()
+      .notNull()
+      .references(() => farms.id, {
+        onDelete: "cascade",
+      }),
+    contactId: uuid()
+      .notNull()
+      .references(() => contacts.id, {
+        onDelete: "cascade",
+      }),
+    animalId: uuid()
+      .notNull()
+      .references(() => animals.id, {
+        onDelete: "cascade",
+      }),
+    startDate: date({ mode: "date" }).notNull(),
+    endDate: date({ mode: "date" }),
+    notes: text(),
+    preferredCommunication: preferredCommunication(),
+  },
+  (table) => [
+    pgPolicy("only farm members", {
+      as: "permissive",
+      to: authenticatedRole,
+      using: eq(table.farmId, currentFarmId),
+      withCheck: eq(table.farmId, currentFarmId),
+    }),
+  ],
+);
+
+export const payments = pgTable.withRLS(
+  "payments",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    farmId: uuid()
+      .notNull()
+      .references(() => farms.id, {
+        onDelete: "cascade",
+      }),
+    contactId: uuid()
+      .notNull()
+      .references(() => contacts.id, {
+        onDelete: "cascade",
+      }),
+    sponsorshipId: uuid().references(() => sponsorships.id, {
+      onDelete: "set null",
+    }),
+    orderId: uuid().references(() => orders.id, {
+      onDelete: "set null",
+    }),
+    date: date({ mode: "date" }).notNull(),
+    amount: real().notNull(),
+    currency: text().notNull().default("CHF"),
+    method: paymentMethod().notNull(),
+    notes: text(),
+  },
+  (table) => [
+    pgPolicy("only farm members", {
+      as: "permissive",
+      to: authenticatedRole,
+      using: eq(table.farmId, currentFarmId),
+      withCheck: eq(table.farmId, currentFarmId),
+    }),
+  ],
+);
+
 export const fertilizerType = pgEnum("fertilizer_type", ["mineral", "organic"]);
 export const fertilizationMethod = pgEnum("fertilization_method", [
   "spray",
@@ -638,6 +874,65 @@ export const fertilizerApplications = pgTable.withRLS(
   ],
 );
 
+export const earTags = pgTable.withRLS(
+  "ear_tags",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    farmId: uuid()
+      .notNull()
+      .references(() => farms.id, {
+        onDelete: "cascade",
+      }),
+    number: text().notNull(),
+  },
+  (table) => [
+    pgPolicy("only farm members", {
+      as: "permissive",
+      to: authenticatedRole,
+      using: eq(table.farmId, currentFarmId),
+      withCheck: eq(table.farmId, currentFarmId),
+    }),
+  ],
+);
+
+export const animals = pgTable.withRLS(
+  "animals",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    farmId: uuid()
+      .notNull()
+      .references(() => farms.id, {
+        onDelete: "cascade",
+      }),
+    name: text().notNull(),
+    type: animalType().notNull(),
+    dateOfBirth: date({ mode: "date" }).notNull(),
+    earTagId: uuid().references(() => earTags.id, { onDelete: "restrict" }),
+    motherId: uuid(),
+    fatherId: uuid(),
+    dateOfDeath: date({ mode: "date" }),
+    deathReason: deathReason(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.motherId],
+      foreignColumns: [table.id],
+      name: "animals_mother_fk",
+    }).onDelete("set null"),
+    foreignKey({
+      columns: [table.fatherId],
+      foreignColumns: [table.id],
+      name: "animals_father_fk",
+    }).onDelete("set null"),
+    pgPolicy("only farm members", {
+      as: "permissive",
+      to: authenticatedRole,
+      using: eq(table.farmId, currentFarmId),
+      withCheck: eq(table.farmId, currentFarmId),
+    }),
+  ],
+);
+
 // Schema object for defineRelations (contains all tables)
 const tables = {
   federalFarmPlots,
@@ -657,6 +952,14 @@ const tables = {
   fertilizerSpreaders,
   fertilizers,
   fertilizerApplications,
+  contacts,
+  products,
+  orders,
+  orderItems,
+  sponsorships,
+  payments,
+  earTags,
+  animals,
 };
 
 // Define all relations using the new Drizzle v1 API
@@ -807,6 +1110,136 @@ export const relations = defineRelations(tables, (r) => ({
       to: r.plots.id,
       optional: false,
     }),
+  },
+  contacts: {
+    farm: r.one.farms({
+      from: r.contacts.farmId,
+      to: r.farms.id,
+      optional: false,
+    }),
+    payments: r.many.payments(),
+    sponsorships: r.many.sponsorships(),
+    orders: r.many.orders(),
+  },
+  products: {
+    farm: r.one.farms({
+      from: r.products.farmId,
+      to: r.farms.id,
+      optional: false,
+    }),
+    orderItems: r.many.orderItems(),
+  },
+  orders: {
+    farm: r.one.farms({
+      from: r.orders.farmId,
+      to: r.farms.id,
+      optional: false,
+    }),
+    contact: r.one.contacts({
+      from: r.orders.contactId,
+      to: r.contacts.id,
+      optional: false,
+    }),
+    items: r.many.orderItems(),
+    payments: r.many.payments(),
+  },
+  orderItems: {
+    farm: r.one.farms({
+      from: r.orderItems.farmId,
+      to: r.farms.id,
+      optional: false,
+    }),
+    order: r.one.orders({
+      from: r.orderItems.orderId,
+      to: r.orders.id,
+      optional: false,
+    }),
+    product: r.one.products({
+      from: r.orderItems.productId,
+      to: r.products.id,
+      optional: false,
+    }),
+  },
+  sponsorships: {
+    farm: r.one.farms({
+      from: r.sponsorships.farmId,
+      to: r.farms.id,
+      optional: false,
+    }),
+    contact: r.one.contacts({
+      from: r.sponsorships.contactId,
+      to: r.contacts.id,
+      optional: false,
+    }),
+    animal: r.one.animals({
+      from: r.sponsorships.animalId,
+      to: r.animals.id,
+      optional: false,
+    }),
+    payments: r.many.payments(),
+  },
+  payments: {
+    farm: r.one.farms({
+      from: r.payments.farmId,
+      to: r.farms.id,
+      optional: false,
+    }),
+    contact: r.one.contacts({
+      from: r.payments.contactId,
+      to: r.contacts.id,
+      optional: false,
+    }),
+    sponsorship: r.one.sponsorships({
+      from: r.payments.sponsorshipId,
+      to: r.sponsorships.id,
+    }), // optional - sponsorshipId can be null
+    order: r.one.orders({
+      from: r.payments.orderId,
+      to: r.orders.id,
+    }), // optional - orderId can be null
+  },
+  earTags: {
+    farm: r.one.farms({
+      from: r.earTags.farmId,
+      to: r.farms.id,
+      optional: false,
+    }),
+    animal: r.one.animals({
+      from: r.earTags.id,
+      to: r.animals.earTagId,
+    }), // optional - may not be assigned to any animal
+  },
+  animals: {
+    farm: r.one.farms({
+      from: r.animals.farmId,
+      to: r.farms.id,
+      optional: false,
+    }),
+    earTag: r.one.earTags({
+      from: r.animals.earTagId,
+      to: r.earTags.id,
+    }), // optional - earTagId can be null
+    mother: r.one.animals({
+      from: r.animals.motherId,
+      to: r.animals.id,
+      alias: "mother",
+    }), // optional - motherId can be null
+    father: r.one.animals({
+      from: r.animals.fatherId,
+      to: r.animals.id,
+      alias: "father",
+    }), // optional - fatherId can be null
+    childrenAsMother: r.many.animals({
+      from: r.animals.id,
+      to: r.animals.motherId,
+      alias: "childrenAsMother",
+    }),
+    childrenAsFather: r.many.animals({
+      from: r.animals.id,
+      to: r.animals.fatherId,
+      alias: "childrenAsFather",
+    }),
+    sponsorships: r.many.sponsorships(),
   },
 }));
 
@@ -992,3 +1425,92 @@ export const selectFederalFarmPlotSchema = createSelectSchema(federalFarmPlots)
       cuttingDate: ez.dateOut().nullable(),
     }),
   );
+
+export const animalTypeSchema = z.enum(animalType.enumValues);
+export const deathReasonSchema = z.enum(deathReason.enumValues);
+
+export const selectAnimalSchema = createSelectSchema(animals).merge(
+  z.object({
+    dateOfBirth: ez.dateOut(),
+    dateOfDeath: ez.dateOut().nullable(),
+  }),
+);
+export const insertAnimalSchema = createInsertSchema(animals).merge(
+  z.object({
+    dateOfBirth: ez.dateIn(),
+    dateOfDeath: ez.dateIn().optional(),
+  }),
+);
+export const updateAnimalSchema = insertAnimalSchema.partial().merge(idSchema);
+
+export const selectEarTagSchema = createSelectSchema(earTags);
+export const insertEarTagSchema = createInsertSchema(earTags);
+export const updateEarTagSchema = insertEarTagSchema.partial().merge(idSchema);
+
+export const preferredCommunicationSchema = z.enum(
+  preferredCommunication.enumValues,
+);
+
+export const selectContactSchema = createSelectSchema(contacts);
+export const insertContactSchema = createInsertSchema(contacts, {
+  labels: z.array(z.string()).default([]),
+});
+export const updateContactSchema = insertContactSchema.partial().merge(idSchema);
+
+export const selectSponsorshipSchema = createSelectSchema(sponsorships).merge(
+  z.object({
+    startDate: ez.dateOut(),
+    endDate: ez.dateOut().nullable(),
+  }),
+);
+export const insertSponsorshipSchema = createInsertSchema(sponsorships).merge(
+  z.object({
+    startDate: ez.dateIn(),
+    endDate: ez.dateIn().optional(),
+  }),
+);
+export const updateSponsorshipSchema = insertSponsorshipSchema
+  .partial()
+  .merge(idSchema);
+
+export const paymentMethodSchema = z.enum(paymentMethod.enumValues);
+
+export const selectPaymentSchema = createSelectSchema(payments).merge(
+  z.object({
+    date: ez.dateOut(),
+  }),
+);
+export const insertPaymentSchema = createInsertSchema(payments).merge(
+  z.object({
+    date: ez.dateIn(),
+  }),
+);
+export const updatePaymentSchema = insertPaymentSchema.partial().merge(idSchema);
+
+export const productCategorySchema = z.enum(productCategory.enumValues);
+export const productUnitSchema = z.enum(productUnit.enumValues);
+export const orderStatusSchema = z.enum(orderStatus.enumValues);
+
+export const selectProductSchema = createSelectSchema(products);
+export const insertProductSchema = createInsertSchema(products);
+export const updateProductSchema = insertProductSchema.partial().merge(idSchema);
+
+export const selectOrderSchema = createSelectSchema(orders).merge(
+  z.object({
+    orderDate: ez.dateOut(),
+    shippingDate: ez.dateOut().nullable(),
+  }),
+);
+export const insertOrderSchema = createInsertSchema(orders).merge(
+  z.object({
+    orderDate: ez.dateIn(),
+    shippingDate: ez.dateIn().optional(),
+  }),
+);
+export const updateOrderSchema = insertOrderSchema.partial().merge(idSchema);
+
+export const selectOrderItemSchema = createSelectSchema(orderItems);
+export const insertOrderItemSchema = createInsertSchema(orderItems);
+export const updateOrderItemSchema = insertOrderItemSchema
+  .partial()
+  .merge(idSchema);

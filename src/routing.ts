@@ -1,5 +1,45 @@
 import { Routing } from "express-zod-api";
 import {
+  createAnimalEndpoint,
+  deleteAnimalEndpoint,
+  getAnimalByIdEndpoint,
+  getAnimalChildrenEndpoint,
+  getFarmAnimalsEndpoint,
+  getLivingAnimalsEndpoint,
+  updateAnimalEndpoint,
+} from "./animals/animals.endpoint";
+import {
+  createContactEndpoint,
+  deleteContactEndpoint,
+  getContactByIdEndpoint,
+  getFarmContactsEndpoint,
+  updateContactEndpoint,
+} from "./contacts/contacts.endpoint";
+import {
+  createPaymentEndpoint,
+  deletePaymentEndpoint,
+  getContactPaymentsEndpoint,
+  getFarmPaymentsEndpoint,
+  getPaymentByIdEndpoint,
+  updatePaymentEndpoint,
+} from "./payments/payments.endpoint";
+import {
+  createSponsorshipEndpoint,
+  deleteSponsorshipEndpoint,
+  getAnimalSponsorshipsEndpoint,
+  getContactSponsorshipsEndpoint,
+  getFarmSponsorshipsEndpoint,
+  getSponsorshipByIdEndpoint,
+  getSponsorshipPaymentsEndpoint,
+  updateSponsorshipEndpoint,
+} from "./sponsorships/sponsorships.endpoint";
+import {
+  createEarTagRangeEndpoint,
+  deleteEarTagRangeEndpoint,
+  getAvailableEarTagsEndpoint,
+  getEarTagsEndpoint,
+} from "./ear-tags/ear-tags.endpoint";
+import {
   createFarmEndpoint,
   deleteFarmEndpoint,
   getFarmEndpoint,
@@ -392,6 +432,80 @@ export const routing: Routing = {
     },
     reports: {
       fieldcalendar: generateFieldCalendarReport,
+    },
+    animals: {
+      "": {
+        get: getFarmAnimalsEndpoint,
+        post: createAnimalEndpoint,
+      },
+      living: getLivingAnimalsEndpoint,
+      byId: {
+        ":animalId": {
+          "": {
+            get: getAnimalByIdEndpoint,
+            patch: updateAnimalEndpoint,
+            delete: deleteAnimalEndpoint,
+          },
+          children: getAnimalChildrenEndpoint,
+          sponsorships: getAnimalSponsorshipsEndpoint,
+        },
+      },
+    },
+    earTags: {
+      "": getEarTagsEndpoint,
+      available: getAvailableEarTagsEndpoint,
+      range: {
+        "": {
+          post: createEarTagRangeEndpoint,
+          delete: deleteEarTagRangeEndpoint,
+        },
+      },
+    },
+    contacts: {
+      "": {
+        get: getFarmContactsEndpoint,
+        post: createContactEndpoint,
+      },
+      byId: {
+        ":contactId": {
+          "": {
+            get: getContactByIdEndpoint,
+            patch: updateContactEndpoint,
+            delete: deleteContactEndpoint,
+          },
+          payments: getContactPaymentsEndpoint,
+          sponsorships: getContactSponsorshipsEndpoint,
+        },
+      },
+    },
+    payments: {
+      "": {
+        get: getFarmPaymentsEndpoint,
+        post: createPaymentEndpoint,
+      },
+      byId: {
+        ":paymentId": {
+          get: getPaymentByIdEndpoint,
+          patch: updatePaymentEndpoint,
+          delete: deletePaymentEndpoint,
+        },
+      },
+    },
+    sponsorships: {
+      "": {
+        get: getFarmSponsorshipsEndpoint,
+        post: createSponsorshipEndpoint,
+      },
+      byId: {
+        ":sponsorshipId": {
+          "": {
+            get: getSponsorshipByIdEndpoint,
+            patch: updateSponsorshipEndpoint,
+            delete: deleteSponsorshipEndpoint,
+          },
+          payments: getSponsorshipPaymentsEndpoint,
+        },
+      },
     },
   },
 };
