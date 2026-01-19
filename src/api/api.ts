@@ -2,7 +2,9 @@ import { animalsApi } from "../animals/animals";
 import { contactsApi } from "../contacts/contacts";
 import { cropRotationsApi } from "../crop-rotations/crop-rotations";
 import { earTagsApi } from "../ear-tags/ear-tags";
+import { ordersApi } from "../orders/orders";
 import { paymentsApi } from "../payments/payments";
+import { productsApi } from "../products/products";
 import { sponsorshipsApi } from "../sponsorships/sponsorships";
 import { cropApi } from "../crops/crops";
 import { RlsDb } from "../db/db";
@@ -45,6 +47,8 @@ export function sessionApi(db: RlsDb, t: TFunction, locale: string) {
     animals: animalsApi(db),
     earTags: earTagsApi(db),
     contacts: contactsApi(db),
+    products: productsApi(db),
+    orders: ordersApi(db),
     payments: paymentsApi(db),
     sponsorships: sponsorshipsApi(db),
   };

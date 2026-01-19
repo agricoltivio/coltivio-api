@@ -171,6 +171,26 @@ import {
   getFarmCropProtectionProductsEndpoint,
   updateCropProtectionProductEndpoint,
 } from "./crop-protection/crop-protection-products.endpoint";
+import {
+  cancelOrderEndpoint,
+  confirmOrderEndpoint,
+  createOrderEndpoint,
+  fulfillOrderEndpoint,
+  getContactOrdersEndpoint,
+  getFarmOrdersEndpoint,
+  getOrderByIdEndpoint,
+  getOrderItemsEndpoint,
+  getOrderPaymentsEndpoint,
+  updateOrderEndpoint,
+} from "./orders/orders.endpoint";
+import {
+  createProductEndpoint,
+  deleteProductEndpoint,
+  getActiveProductsEndpoint,
+  getFarmProductsEndpoint,
+  getProductByIdEndpoint,
+  updateProductEndpoint,
+} from "./products/products.endpoint";
 import { generateFieldCalendarReport } from "./reports/field-calendar-reports.endpoint";
 import { healthEndpoint } from "./chore/chore.endpoint";
 
@@ -475,6 +495,42 @@ export const routing: Routing = {
           },
           payments: getContactPaymentsEndpoint,
           sponsorships: getContactSponsorshipsEndpoint,
+          orders: getContactOrdersEndpoint,
+        },
+      },
+    },
+    products: {
+      "": {
+        get: getFarmProductsEndpoint,
+        post: createProductEndpoint,
+      },
+      active: getActiveProductsEndpoint,
+      byId: {
+        ":productId": {
+          "": {
+            get: getProductByIdEndpoint,
+            patch: updateProductEndpoint,
+            delete: deleteProductEndpoint,
+          },
+        },
+      },
+    },
+    orders: {
+      "": {
+        get: getFarmOrdersEndpoint,
+        post: createOrderEndpoint,
+      },
+      byId: {
+        ":orderId": {
+          "": {
+            get: getOrderByIdEndpoint,
+            patch: updateOrderEndpoint,
+          },
+          items: getOrderItemsEndpoint,
+          confirm: confirmOrderEndpoint,
+          fulfill: fulfillOrderEndpoint,
+          cancel: cancelOrderEndpoint,
+          payments: getOrderPaymentsEndpoint,
         },
       },
     },

@@ -46,6 +46,15 @@ export function paymentsApi(rlsDb: RlsDb) {
       });
     },
 
+    async getPaymentsForOrder(orderId: string): Promise<Payment[]> {
+      return rlsDb.rls(async (tx) => {
+        return tx
+          .select()
+          .from(payments)
+          .where(eq(payments.orderId, orderId));
+      });
+    },
+
     async updatePayment(
       id: string,
       data: PaymentUpdateInput,
