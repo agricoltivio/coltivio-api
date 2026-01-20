@@ -1,12 +1,31 @@
 import createHttpError from "http-errors";
 import { z } from "zod";
-import * as tables from "../db/schema";
+import { fertilizerUnitSchema, fertilizationMethodSchema } from "../db/schema";
 import { farmEndpointFactory } from "../endpoint-factory";
+
+// API Schemas - decoupled from database schema for stable API contract
+export const fertilizerSpreaderSchema = z.object({
+  id: z.string(),
+  farmId: z.string(),
+  name: z.string(),
+  unit: fertilizerUnitSchema,
+  defaultMethod: fertilizationMethodSchema,
+  capacity: z.number(),
+});
+
+const createFertilizerSpreaderSchema = z.object({
+  name: z.string(),
+  unit: fertilizerUnitSchema,
+  defaultMethod: fertilizationMethodSchema,
+  capacity: z.number(),
+});
+
+const updateFertilizerSpreaderSchema = createFertilizerSpreaderSchema.partial();
 
 export const getFertilizerSpreaderByIdEndpoint = farmEndpointFactory.build({
   method: "get",
   input: z.object({ fertilizerSpreaderId: z.string() }),
-  output: tables.selectFertilizerSpreaderSchema,
+  output: fertilizerSpreaderSchema,
   handler: async ({
     input,
     ctx: { fertilizerSpreader: fertilizerSpreaders },
@@ -26,7 +45,7 @@ export const getFarmFertilizerSpreadersEndpoint = farmEndpointFactory.build({
   method: "get",
   input: z.object({}),
   output: z.object({
-    result: z.array(tables.selectFertilizerSpreaderSchema),
+    result: z.array(fertilizerSpreaderSchema),
     count: z.number(),
   }),
   handler: async ({
@@ -43,11 +62,8 @@ export const getFarmFertilizerSpreadersEndpoint = farmEndpointFactory.build({
 
 export const createFertilizerSpreaderEndpoint = farmEndpointFactory.build({
   method: "post",
-  input: tables.insertFertilizerSpreaderSchema.omit({
-    farmId: true,
-    id: true,
-  }),
-  output: tables.selectFertilizerSpreaderSchema,
+  input: createFertilizerSpreaderSchema,
+  output: fertilizerSpreaderSchema,
   handler: async ({
     input,
     ctx: { fertilizerSpreader: fertilizerSpreaders },
@@ -58,12 +74,10 @@ export const createFertilizerSpreaderEndpoint = farmEndpointFactory.build({
 
 export const updateFertilizerSpreaderEndpoint = farmEndpointFactory.build({
   method: "patch",
-  input: tables.updateFertilizerSpreaderSchema
-    .omit({ id: true, farmId: true })
-    .extend({
-      fertilizerSpreaderId: z.string(),
-    }),
-  output: tables.selectFertilizerSpreaderSchema,
+  input: updateFertilizerSpreaderSchema.extend({
+    fertilizerSpreaderId: z.string(),
+  }),
+  output: fertilizerSpreaderSchema,
   handler: async ({
     input,
     ctx: { fertilizerSpreader: fertilizerSpreaders },

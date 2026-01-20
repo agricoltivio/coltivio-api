@@ -1,10 +1,33 @@
 import createHttpError from "http-errors";
 import { z } from "zod";
-import * as tables from "../db/schema";
+import { cropProtectionUnitSchema } from "../db/schema";
 import { farmEndpointFactory } from "../endpoint-factory";
 
-const cropProtectionEquipmentResponseSchema =
-  tables.selectCropProtectionEquipmentSchema;
+// API Schemas - decoupled from database schema for stable API contract
+// Note: cropProtectionApplicationMehtod is misspelled in the database enum
+const cropProtectionApplicationMethodSchema = z.enum(["spraying", "misting", "broadcasting", "injecting", "other"]);
+
+export const cropProtectionEquipmentSchema = z.object({
+  id: z.string(),
+  farmId: z.string(),
+  name: z.string(),
+  description: z.string().nullable(),
+  method: cropProtectionApplicationMethodSchema,
+  unit: cropProtectionUnitSchema,
+  capacity: z.number(),
+});
+
+const createCropProtectionEquipmentSchema = z.object({
+  name: z.string(),
+  description: z.string().optional(),
+  method: cropProtectionApplicationMethodSchema,
+  unit: cropProtectionUnitSchema,
+  capacity: z.number(),
+});
+
+const updateCropProtectionEquipmentSchema = createCropProtectionEquipmentSchema.partial();
+
+const cropProtectionEquipmentResponseSchema = cropProtectionEquipmentSchema;
 
 export const getCropProtectionEquipmentByIdEndpoint = farmEndpointFactory.build(
   {
@@ -46,10 +69,7 @@ export const getFarmCropProtectionEquipmentsEndpoint =
 
 export const createCropProtectionEquipmentEndpoint = farmEndpointFactory.build({
   method: "post",
-  input: tables.insertCropProtectionEquipmentSchema.omit({
-    farmId: true,
-    id: true,
-  }),
+  input: createCropProtectionEquipmentSchema,
   output: cropProtectionEquipmentResponseSchema,
   handler: async ({ input, ctx: { cropProtectionEquipment } }) => {
     return cropProtectionEquipment.createCropProtectionEquipment(input);
@@ -58,11 +78,9 @@ export const createCropProtectionEquipmentEndpoint = farmEndpointFactory.build({
 
 export const updateCropProtectionEquipmentEndpoint = farmEndpointFactory.build({
   method: "patch",
-  input: tables.updateCropProtectionEquipmentSchema
-    .omit({ id: true, farmId: true })
-    .extend({
-      cropProtectionEquipmentId: z.string(),
-    }),
+  input: updateCropProtectionEquipmentSchema.extend({
+    cropProtectionEquipmentId: z.string(),
+  }),
   output: cropProtectionEquipmentResponseSchema,
   handler: async ({ input, ctx: { cropProtectionEquipment } }) => {
     return cropProtectionEquipment.updateCropProtectionEquipment(

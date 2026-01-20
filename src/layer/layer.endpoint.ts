@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { authenticatedEndpointFactory } from "../endpoint-factory";
 import { BBox } from "../geo/geojson";
-import { selectFederalFarmPlotSchema } from "../db/schema";
+import { ez } from "express-zod-api";
+import { multiPolygonSchema } from "../db/schema";
 
 interface ParcelLayerPolygon {
   id: string;
@@ -18,21 +19,23 @@ interface Geometry {
   coordinates: number[][][][];
 }
 
-interface MultiPolygon {
-  type: "MultiPolygon";
-  coordinates: number[][][][];
-}
-
-const MultiPolygonSchema = z.object({
-  type: z.literal("MultiPolygon"),
-  coordinates: z.array(z.array(z.array(z.array(z.number())))),
-});
-
 const BoundingBoxSchema = z.object({
   xmin: z.string().transform((value) => parseFloat(value)),
   ymin: z.string().transform((value) => parseFloat(value)),
   xmax: z.string().transform((value) => parseFloat(value)),
   ymax: z.string().transform((value) => parseFloat(value)),
+});
+
+const selectFederalFarmPlotSchema = z.object({
+  id: z.number(),
+  federalFarmId: z.string(),
+  localId: z.string().nullable(),
+  usage: z.number(),
+  additionalUsages: z.string().nullable(),
+  area: z.number(),
+  cuttingDate: ez.dateOut().nullable(),
+  canton: z.string(),
+  geometry: multiPolygonSchema,
 });
 
 export const getPlotsLayerForBoundingBoxEndpoint =
@@ -58,7 +61,7 @@ export const getPlotsLayerForBoundingBoxEndpoint =
         xmin,
         ymin,
         xmax,
-        ymax
+        ymax,
       );
       const bbox: BBox = [xmin, ymin, xmax, ymax];
 
@@ -108,14 +111,14 @@ export const getFarmAndNearbyPlotsEndpoint = authenticatedEndpointFactory.build(
     }) => {
       const parcels = await federalParcelLayer.getFarmAndNearbyPlots(
         federalFarmId,
-        buffer
+        buffer,
       );
       return {
         result: parcels,
         count: parcels.length,
       };
     },
-  }
+  },
 );
 export const getPlotsWithinRadiusOfPointEndpoint =
   authenticatedEndpointFactory.build({
@@ -136,7 +139,7 @@ export const getPlotsWithinRadiusOfPointEndpoint =
       const parcels = await federalParcelLayer.getPlotsWithinRadiusOfPoint(
         longitude,
         latitude,
-        radiusInKm
+        radiusInKm,
       );
       return {
         result: parcels,
@@ -164,7 +167,7 @@ export const getFederalFarmIdsEndpoint = authenticatedEndpointFactory.build({
       input.longitude,
       input.latitude,
       input.radiusInKm,
-      input.limit
+      input.limit,
     );
     return {
       result: federalFarmIds,

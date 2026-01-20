@@ -1,12 +1,31 @@
 import createHttpError from "http-errors";
 import { z } from "zod";
-import * as tables from "../db/schema";
+import { cropProtectionUnitSchema } from "../db/schema";
 import { farmEndpointFactory } from "../endpoint-factory";
+
+// API Schemas - decoupled from database schema for stable API contract
+export const cropProtectionProductSchema = z.object({
+  id: z.string(),
+  farmId: z.string(),
+  name: z.string(),
+  unit: cropProtectionUnitSchema,
+  description: z.string().nullable(),
+  defaultEquipmentId: z.string().nullable(),
+});
+
+const createCropProtectionProductSchema = z.object({
+  name: z.string(),
+  unit: cropProtectionUnitSchema,
+  description: z.string().optional(),
+  defaultEquipmentId: z.string().optional(),
+});
+
+const updateCropProtectionProductSchema = createCropProtectionProductSchema.partial();
 
 export const getCropProtectionProductByIdEndpoint = farmEndpointFactory.build({
   method: "get",
   input: z.object({ cropProtectionProductId: z.string() }),
-  output: tables.selectCropProtectionProductSchema,
+  output: cropProtectionProductSchema,
   handler: async ({ input, ctx: { cropProtectionProducts } }) => {
     const cropProtectionProduct =
       await cropProtectionProducts.getCropProtectionProductById(
@@ -23,7 +42,7 @@ export const getFarmCropProtectionProductsEndpoint = farmEndpointFactory.build({
   method: "get",
   input: z.object({}),
   output: z.object({
-    result: z.array(tables.selectCropProtectionProductSchema),
+    result: z.array(cropProtectionProductSchema),
     count: z.number(),
   }),
   handler: async ({ ctx: { cropProtectionProducts, farmId } }) => {
@@ -38,11 +57,8 @@ export const getFarmCropProtectionProductsEndpoint = farmEndpointFactory.build({
 
 export const createCropProtectionProductEndpoint = farmEndpointFactory.build({
   method: "post",
-  input: tables.insertCropProtectionProductSchema.omit({
-    farmId: true,
-    id: true,
-  }),
-  output: tables.selectCropProtectionProductSchema,
+  input: createCropProtectionProductSchema,
+  output: cropProtectionProductSchema,
   handler: async ({ input, ctx: { cropProtectionProducts } }) => {
     return cropProtectionProducts.createCropProtectionProduct(input);
   },
@@ -50,12 +66,10 @@ export const createCropProtectionProductEndpoint = farmEndpointFactory.build({
 
 export const updateCropProtectionProductEndpoint = farmEndpointFactory.build({
   method: "patch",
-  input: tables.updateCropProtectionProductSchema
-    .omit({ id: true, farmId: true })
-    .extend({
-      cropProtectionProductId: z.string(),
-    }),
-  output: tables.selectCropProtectionProductSchema,
+  input: updateCropProtectionProductSchema.extend({
+    cropProtectionProductId: z.string(),
+  }),
+  output: cropProtectionProductSchema,
   handler: async ({ input, ctx: { cropProtectionProducts } }) => {
     return cropProtectionProducts.updateCropProtectionProduct(
       input.cropProtectionProductId,

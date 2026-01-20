@@ -1,31 +1,53 @@
 import createHttpError from "http-errors";
-import { z } from "zod";
-import * as tables from "../db/schema";
-import { farmEndpointFactory } from "../endpoint-factory";
 import { ez } from "express-zod-api";
+import { z } from "zod";
+import { multiPolygonSchema, tillageActionSchema, tillageReasonSchema } from "../db/schema";
+import { tillageEquipmentSchema } from "../equipment/tillage-equipment.endpoint";
+import { farmEndpointFactory } from "../endpoint-factory";
 import { ensureDateRange } from "../utils";
 
-const tillagesResponseSchema = tables.selectTillageSchema.merge(
-  z.object({
-    createdAt: ez.dateOut(),
-    date: ez.dateOut(),
-    geometry: tables.multiPolygonSchema,
-    equipment: tables.selectTillageEquipmentSchema.nullable(),
-    plot: tables.selectPlotSchema.omit({ cropRotations: true, geometry: true }),
-  })
-);
+// API Schemas - decoupled from database schema for stable API contract
+const plotBasicSchema = z.object({
+  id: z.string(),
+  farmId: z.string(),
+  name: z.string(),
+  localId: z.string().nullable(),
+  usage: z.number().nullable(),
+  additionalUsages: z.string().nullable(),
+  cuttingDate: ez.dateOut().nullable(),
+  size: z.number(),
+  additionalNotes: z.string().nullable(),
+});
 
-const tillageCreateSchema = tables.insertTillageSchema
-  .omit({
-    farmId: true,
-    id: true,
-    createdAt: true,
-    createdBy: true,
-  })
-  .extend({
-    date: ez.dateIn(),
-    geometry: tables.multiPolygonSchema,
-  });
+export const tillageSchema = z.object({
+  id: z.string(),
+  farmId: z.string(),
+  createdAt: ez.dateOut(),
+  createdBy: z.string().nullable(),
+  plotId: z.string(),
+  geometry: multiPolygonSchema,
+  size: z.number(),
+  reason: tillageReasonSchema,
+  action: tillageActionSchema,
+  equipmentId: z.string().nullable(),
+  date: ez.dateOut(),
+  additionalNotes: z.string().nullable(),
+  equipment: tillageEquipmentSchema.nullable(),
+  plot: plotBasicSchema,
+});
+
+const tillagesResponseSchema = tillageSchema;
+
+const tillageCreateSchema = z.object({
+  plotId: z.string(),
+  geometry: multiPolygonSchema,
+  size: z.number(),
+  reason: tillageReasonSchema,
+  action: tillageActionSchema,
+  equipmentId: z.string().optional(),
+  date: ez.dateIn(),
+  additionalNotes: z.string().optional(),
+});
 
 export const getTillageByIdEndpoint = farmEndpointFactory.build({
   method: "get",
@@ -89,15 +111,15 @@ export const createTillageEndpoint = farmEndpointFactory.build({
 export const createTillagesEndpoint = farmEndpointFactory.build({
   method: "post",
   input: z.object({
-    reason: z.enum(tables.tillageReason.enumValues),
-    action: z.enum(tables.tillageAction.enumValues),
+    reason: tillageReasonSchema,
+    action: tillageActionSchema,
     date: ez.dateIn(),
     additionalNotes: z.string().optional(),
     equipmentId: z.string().optional(),
     plots: z
       .object({
         plotId: z.string(),
-        geometry: tables.multiPolygonSchema,
+        geometry: multiPolygonSchema,
         size: z.number(),
       })
       .array(),

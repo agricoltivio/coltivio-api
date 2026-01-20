@@ -34,6 +34,13 @@ import {
   updateSponsorshipEndpoint,
 } from "./sponsorships/sponsorships.endpoint";
 import {
+  createSponsorshipTypeEndpoint,
+  deleteSponsorshipTypeEndpoint,
+  getFarmSponsorshipTypesEndpoint,
+  getSponsorshipTypeByIdEndpoint,
+  updateSponsorshipTypeEndpoint,
+} from "./sponsorships/sponsorship-types.endpoint";
+import {
   createEarTagRangeEndpoint,
   deleteEarTagRangeEndpoint,
   getAvailableEarTagsEndpoint,
@@ -544,6 +551,21 @@ export const routing: Routing = {
           get: getPaymentByIdEndpoint,
           patch: updatePaymentEndpoint,
           delete: deletePaymentEndpoint,
+        },
+      },
+    },
+    sponsorshipTypes: {
+      "": {
+        get: getFarmSponsorshipTypesEndpoint,
+        post: createSponsorshipTypeEndpoint,
+      },
+      byId: {
+        ":sponsorshipTypeId": {
+          "": {
+            get: getSponsorshipTypeByIdEndpoint,
+            patch: updateSponsorshipTypeEndpoint,
+            delete: deleteSponsorshipTypeEndpoint,
+          },
         },
       },
     },

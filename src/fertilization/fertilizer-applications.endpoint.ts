@@ -1,24 +1,40 @@
 import { ez } from "express-zod-api";
 import createHttpError from "http-errors";
 import { z } from "zod";
-import * as tables from "../db/schema";
+import { fertilizerUnitSchema, fertilizationMethodSchema, multiPolygonSchema } from "../db/schema";
+import { fertilizerSpreaderSchema } from "../equipment/fertilizer-spreaders.endpoint";
+import { fertilizerSchema } from "./fertilizers.endpoint";
 import { farmEndpointFactory } from "../endpoint-factory";
 import { ensureDateRange } from "../utils";
 
-const fertilizerApplicationResponseSchema =
-  tables.selectFertilizerApplicationSchema.merge(
-    z.object({
-      createdAt: ez.dateOut(),
-      date: ez.dateOut(),
-      geometry: tables.multiPolygonSchema,
-      plot: z.object({
-        id: z.string(),
-        name: z.string(),
-      }),
-      spreader: tables.selectFertilizerSpreaderSchema.nullable(),
-      fertilizer: tables.selectFertilizerSchema,
-    })
-  );
+// API Schemas - decoupled from database schema for stable API contract
+const plotMinimalSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+});
+
+export const fertilizerApplicationSchema = z.object({
+  id: z.string(),
+  farmId: z.string(),
+  createdAt: ez.dateOut(),
+  createdBy: z.string(),
+  plotId: z.string(),
+  date: ez.dateOut(),
+  unit: fertilizerUnitSchema,
+  method: fertilizationMethodSchema,
+  amountPerApplication: z.number(),
+  numberOfApplications: z.number(),
+  fertilizerId: z.string(),
+  spreaderId: z.string().nullable(),
+  geometry: multiPolygonSchema,
+  size: z.number(),
+  additionalNotes: z.string().nullable(),
+  plot: plotMinimalSchema,
+  spreader: fertilizerSpreaderSchema.nullable(),
+  fertilizer: fertilizerSchema,
+});
+
+const fertilizerApplicationResponseSchema = fertilizerApplicationSchema;
 
 export const getFertilizerApplicationsForFarmEndpoint =
   farmEndpointFactory.build({
@@ -88,8 +104,8 @@ export const createFertilizerApplicationsEndpoint = farmEndpointFactory.build({
   method: "post",
   input: z.object({
     date: ez.dateIn(),
-    unit: tables.fertilizerUnitSchema,
-    method: tables.fertilizationMethodSchema,
+    unit: fertilizerUnitSchema,
+    method: fertilizationMethodSchema,
     amountPerApplication: z.number(),
     fertilizerId: z.string(),
     spreaderId: z.string().optional(),
@@ -98,7 +114,7 @@ export const createFertilizerApplicationsEndpoint = farmEndpointFactory.build({
       .object({
         plotId: z.string(),
         numberOfApplications: z.number(),
-        geometry: tables.multiPolygonSchema,
+        geometry: multiPolygonSchema,
         size: z.number(),
       })
       .array(),
@@ -155,7 +171,7 @@ const fertilizerApplicationSummaryResponseSchema = z.object({
         z.object({
           totalAmount: z.number(),
           fertilizerName: z.string(),
-          unit: tables.fertilizerUnitSchema,
+          unit: fertilizerUnitSchema,
         })
       ),
     })

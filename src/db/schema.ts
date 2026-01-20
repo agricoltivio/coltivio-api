@@ -18,9 +18,8 @@ import {
   varchar,
 } from "drizzle-orm/pg-core";
 import { authenticatedRole, authUid, authUsers } from "drizzle-orm/supabase";
+import { createSelectSchema } from "drizzle-zod";
 
-import { createInsertSchema, createSelectSchema } from "drizzle-zod";
-import { ez } from "express-zod-api";
 import { z } from "zod";
 
 const polygon = customType<{ data: string }>({
@@ -702,6 +701,29 @@ export const paymentMethod = pgEnum("payment_method", [
   "other",
 ]);
 
+export const sponsorshipTypes = pgTable.withRLS(
+  "sponsorship_types",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    farmId: uuid()
+      .notNull()
+      .references(() => farms.id, {
+        onDelete: "cascade",
+      }),
+    name: text().notNull(),
+    description: text(),
+    yearlyCost: real().notNull(),
+  },
+  (table) => [
+    pgPolicy("only farm members", {
+      as: "permissive",
+      to: authenticatedRole,
+      using: eq(table.farmId, currentFarmId),
+      withCheck: eq(table.farmId, currentFarmId),
+    }),
+  ],
+);
+
 export const sponsorships = pgTable.withRLS(
   "sponsorships",
   {
@@ -720,6 +742,11 @@ export const sponsorships = pgTable.withRLS(
       .notNull()
       .references(() => animals.id, {
         onDelete: "cascade",
+      }),
+    sponsorshipTypeId: uuid()
+      .notNull()
+      .references(() => sponsorshipTypes.id, {
+        onDelete: "restrict",
       }),
     startDate: date({ mode: "date" }).notNull(),
     endDate: date({ mode: "date" }),
@@ -956,6 +983,7 @@ const tables = {
   products,
   orders,
   orderItems,
+  sponsorshipTypes,
   sponsorships,
   payments,
   earTags,
@@ -1160,6 +1188,14 @@ export const relations = defineRelations(tables, (r) => ({
       optional: false,
     }),
   },
+  sponsorshipTypes: {
+    farm: r.one.farms({
+      from: r.sponsorshipTypes.farmId,
+      to: r.farms.id,
+      optional: false,
+    }),
+    sponsorships: r.many.sponsorships(),
+  },
   sponsorships: {
     farm: r.one.farms({
       from: r.sponsorships.farmId,
@@ -1174,6 +1210,11 @@ export const relations = defineRelations(tables, (r) => ({
     animal: r.one.animals({
       from: r.sponsorships.animalId,
       to: r.animals.id,
+      optional: false,
+    }),
+    sponsorshipType: r.one.sponsorshipTypes({
+      from: r.sponsorships.sponsorshipTypeId,
+      to: r.sponsorshipTypes.id,
       optional: false,
     }),
     payments: r.many.payments(),
@@ -1254,88 +1295,11 @@ export const pointSchema = z.object({
   coordinates: z.tuple([z.number(), z.number()]),
 });
 
-export const selectFarmSchema = createSelectSchema(farms).merge(
-  z.object({
-    location: pointSchema,
-  }),
-);
-export const insertFarmSchema = selectFarmSchema.omit({ id: true });
-export const updateFarmSchema = insertFarmSchema.partial().merge(idSchema);
-
-export const selectUserSchema = createSelectSchema(profiles);
-export const insertUserSchema = createInsertSchema(profiles);
-export const updateUserSchema = insertUserSchema.partial().merge(idSchema);
-
-export const selectCropSchema = createSelectSchema(crops);
-export const insertCropSchema = createInsertSchema(crops, {
-  usageCodes: z.array(z.number()).default([]),
-});
-export const updateCropSchema = insertCropSchema.partial().merge(idSchema);
+export const cropCategorySchema = z.enum(cropCategory.enumValues);
+export const tillageActionSchema = z.enum(tillageAction.enumValues);
+export const tillageReasonSchema = z.enum(tillageReason.enumValues);
 
 export const cropProtectionUnitSchema = z.enum(cropProtectionUnit.enumValues);
-
-export const selectCropProtectionProductSchema = createSelectSchema(
-  cropProtectionProducts,
-);
-export const insertCropProtectionProductSchema = createInsertSchema(
-  cropProtectionProducts,
-);
-export const updateCropProtectionProductSchema =
-  insertCropProtectionProductSchema.partial().merge(idSchema);
-
-export const selectCropProtectionApplicationSchema = createSelectSchema(
-  cropProtectionApplications,
-);
-export const insertCropProtectionApplicationSchema = createInsertSchema(
-  cropProtectionApplications,
-);
-export const updateCropProtectionApplicationSchema =
-  insertCropProtectionApplicationSchema.partial().merge(idSchema);
-
-export const selectCropProtectionEquipmentSchema = createSelectSchema(
-  cropProtectionEquipment,
-);
-export const insertCropProtectionEquipmentSchema = createInsertSchema(
-  cropProtectionEquipment,
-);
-export const updateCropProtectionEquipmentSchema =
-  insertCropProtectionEquipmentSchema.partial().merge(idSchema);
-
-export const selectTillageSchema = createSelectSchema(tillages);
-export const insertTillageSchema = createInsertSchema(tillages);
-export const updateTillageSchema = insertTillageSchema
-  .partial()
-  .merge(idSchema);
-
-export const selectTillageEquipmentSchema =
-  createSelectSchema(tillageEquipment);
-export const insertTillageEquipmentSchema =
-  createInsertSchema(tillageEquipment);
-export const updateTillageEquipmentSchema = insertTillageEquipmentSchema
-  .partial()
-  .merge(idSchema);
-
-export const selectHarvestingMachinerySchema =
-  createSelectSchema(harvestingMachinery);
-export const insertHarvestingMachinerySchema =
-  createInsertSchema(harvestingMachinery);
-export const updateHarvestingMachinerySchema = insertHarvestingMachinerySchema
-  .partial()
-  .merge(idSchema);
-
-export const selectHarvestSchema = createSelectSchema(harvests)
-  .omit({ geometry: true })
-  .merge(
-    z.object({
-      geometry: multiPolygonSchema,
-    }),
-  );
-export const insertHarvestSchema = createInsertSchema(harvests).merge(
-  z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }),
-);
-export const updateHarvestSchema = insertHarvestSchema
-  .partial()
-  .merge(idSchema);
 
 export const processingTypeEnumSchema = z.enum(processingType.enumValues);
 export const conservationMethodEnumSchema = z.enum(
@@ -1343,174 +1307,23 @@ export const conservationMethodEnumSchema = z.enum(
 );
 
 export const fertilizerUnitSchema = z.enum(fertilizerUnit.enumValues);
+export const fertilizerTypeSchema = z.enum(fertilizerType.enumValues);
 export const fertilizationMethodSchema = z.enum(fertilizationMethod.enumValues);
-
-export const selectFertilizerApplicationSchema = createSelectSchema(
-  fertilizerApplications,
-);
-export const insertFertilizerApplicationSchema = createInsertSchema(
-  fertilizerApplications,
-).merge(z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }));
-export const updateFertilizerApplicationSchema =
-  insertFertilizerApplicationSchema.partial().merge(idSchema);
-
-export const selectFertilizerSpreaderSchema =
-  createSelectSchema(fertilizerSpreaders);
-export const insertFertilizerSpreaderSchema =
-  createInsertSchema(fertilizerSpreaders);
-export const updateFertilizerSpreaderSchema = insertFertilizerSpreaderSchema
-  .partial()
-  .merge(idSchema);
-
-export const selectFertilizerSchema = createSelectSchema(fertilizers);
-export const insertFertilizerSchema = createInsertSchema(fertilizers);
-export const updateFertilizerSchema = insertFertilizerSchema
-  .partial()
-  .merge(idSchema);
-
-export const selectParcelSchema = createSelectSchema(parcels)
-  .omit({ geometry: true })
-  .merge(
-    z.object({
-      geometry: multiPolygonSchema,
-    }),
-  );
-export const insertParcelSchema = createInsertSchema(parcels);
-export const updateParcelSchema = insertParcelSchema.partial().merge(idSchema);
-
-export const selectCropRotationSchema = createSelectSchema(cropRotations).merge(
-  z.object({
-    sowingDate: ez.dateOut().nullable(),
-    fromDate: ez.dateOut(),
-    toDate: ez.dateOut().nullable(),
-    crop: selectCropSchema,
-  }),
-);
-export const insertCropRotationSchema = createInsertSchema(cropRotations).merge(
-  z.object({
-    sowingDate: ez.dateIn().optional(),
-    fromDate: ez.dateIn(),
-    toDate: ez.dateIn().optional(),
-  }),
-);
-export const updateCropRotationSchema = insertCropRotationSchema
-  .partial()
-  .merge(idSchema);
-
-export const selectPlotSchema = createSelectSchema(plots)
-  .omit({ geometry: true, cuttingDate: true })
-  .merge(
-    z.object({
-      geometry: multiPolygonSchema,
-      cuttingDate: ez.dateOut().nullable(),
-      cropRotations: z.array(selectCropRotationSchema),
-    }),
-  );
-export const insertPlotSchema = createInsertSchema(plots)
-  .omit({ geometry: true, cuttingDate: true })
-  .merge(
-    z.object({
-      geometry: multiPolygonSchema,
-      cuttingDate: ez.dateIn().nullable().optional(),
-      cropId: z.string(),
-    }),
-  );
-export const updatePlotSchema = insertPlotSchema.partial().merge(idSchema);
-
-export const selectFederalFarmPlotSchema = createSelectSchema(federalFarmPlots)
-  .omit({ geometry: true, cuttingDate: true })
-  .merge(
-    z.object({
-      geometry: multiPolygonSchema,
-      cuttingDate: ez.dateOut().nullable(),
-    }),
-  );
 
 export const animalTypeSchema = z.enum(animalType.enumValues);
 export const deathReasonSchema = z.enum(deathReason.enumValues);
-
-export const selectAnimalSchema = createSelectSchema(animals).merge(
-  z.object({
-    dateOfBirth: ez.dateOut(),
-    dateOfDeath: ez.dateOut().nullable(),
-  }),
-);
-export const insertAnimalSchema = createInsertSchema(animals).merge(
-  z.object({
-    dateOfBirth: ez.dateIn(),
-    dateOfDeath: ez.dateIn().optional(),
-  }),
-);
-export const updateAnimalSchema = insertAnimalSchema.partial().merge(idSchema);
-
-export const selectEarTagSchema = createSelectSchema(earTags);
-export const insertEarTagSchema = createInsertSchema(earTags);
-export const updateEarTagSchema = insertEarTagSchema.partial().merge(idSchema);
 
 export const preferredCommunicationSchema = z.enum(
   preferredCommunication.enumValues,
 );
 
-export const selectContactSchema = createSelectSchema(contacts);
-export const insertContactSchema = createInsertSchema(contacts, {
-  labels: z.array(z.string()).default([]),
-});
-export const updateContactSchema = insertContactSchema.partial().merge(idSchema);
-
-export const selectSponsorshipSchema = createSelectSchema(sponsorships).merge(
-  z.object({
-    startDate: ez.dateOut(),
-    endDate: ez.dateOut().nullable(),
-  }),
-);
-export const insertSponsorshipSchema = createInsertSchema(sponsorships).merge(
-  z.object({
-    startDate: ez.dateIn(),
-    endDate: ez.dateIn().optional(),
-  }),
-);
-export const updateSponsorshipSchema = insertSponsorshipSchema
-  .partial()
-  .merge(idSchema);
-
 export const paymentMethodSchema = z.enum(paymentMethod.enumValues);
-
-export const selectPaymentSchema = createSelectSchema(payments).merge(
-  z.object({
-    date: ez.dateOut(),
-  }),
-);
-export const insertPaymentSchema = createInsertSchema(payments).merge(
-  z.object({
-    date: ez.dateIn(),
-  }),
-);
-export const updatePaymentSchema = insertPaymentSchema.partial().merge(idSchema);
 
 export const productCategorySchema = z.enum(productCategory.enumValues);
 export const productUnitSchema = z.enum(productUnit.enumValues);
 export const orderStatusSchema = z.enum(orderStatus.enumValues);
 
-export const selectProductSchema = createSelectSchema(products);
-export const insertProductSchema = createInsertSchema(products);
-export const updateProductSchema = insertProductSchema.partial().merge(idSchema);
-
-export const selectOrderSchema = createSelectSchema(orders).merge(
-  z.object({
-    orderDate: ez.dateOut(),
-    shippingDate: ez.dateOut().nullable(),
-  }),
-);
-export const insertOrderSchema = createInsertSchema(orders).merge(
-  z.object({
-    orderDate: ez.dateIn(),
-    shippingDate: ez.dateIn().optional(),
-  }),
-);
-export const updateOrderSchema = insertOrderSchema.partial().merge(idSchema);
-
-export const selectOrderItemSchema = createSelectSchema(orderItems);
-export const insertOrderItemSchema = createInsertSchema(orderItems);
-export const updateOrderItemSchema = insertOrderItemSchema
-  .partial()
-  .merge(idSchema);
+const selectFederalFarmPlotSchema = createSelectSchema(
+  federalFarmPlots,
+  {},
+).shape;

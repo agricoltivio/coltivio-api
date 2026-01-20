@@ -1,8 +1,14 @@
 import { z } from "zod";
-import * as tables from "../db/schema";
 import { farmEndpointFactory } from "../endpoint-factory";
 
-const earTagWithAssignmentSchema = tables.selectEarTagSchema.extend({
+// API Schemas - decoupled from database schema for stable API contract
+export const earTagSchema = z.object({
+  id: z.string(),
+  farmId: z.string(),
+  number: z.string(),
+});
+
+const earTagWithAssignmentSchema = earTagSchema.extend({
   animalId: z.string().nullable(),
 });
 
@@ -26,7 +32,7 @@ export const getAvailableEarTagsEndpoint = farmEndpointFactory.build({
   method: "get",
   input: z.object({}),
   output: z.object({
-    result: z.array(tables.selectEarTagSchema),
+    result: z.array(earTagSchema),
     count: z.number(),
   }),
   handler: async ({ ctx: { earTags, farmId } }) => {
@@ -45,7 +51,7 @@ export const createEarTagRangeEndpoint = farmEndpointFactory.build({
     toNumber: z.string().min(1),
   }),
   output: z.object({
-    result: z.array(tables.selectEarTagSchema),
+    result: z.array(earTagSchema),
     count: z.number(),
   }),
   handler: async ({ input, ctx: { earTags } }) => {

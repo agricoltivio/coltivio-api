@@ -5,6 +5,7 @@ import { earTagsApi } from "../ear-tags/ear-tags";
 import { ordersApi } from "../orders/orders";
 import { paymentsApi } from "../payments/payments";
 import { productsApi } from "../products/products";
+import { sponsorshipTypesApi } from "../sponsorships/sponsorship-types";
 import { sponsorshipsApi } from "../sponsorships/sponsorships";
 import { cropApi } from "../crops/crops";
 import { RlsDb } from "../db/db";
@@ -50,6 +51,7 @@ export function sessionApi(db: RlsDb, t: TFunction, locale: string) {
     products: productsApi(db),
     orders: ordersApi(db),
     payments: paymentsApi(db),
+    sponsorshipTypes: sponsorshipTypesApi(db),
     sponsorships: sponsorshipsApi(db),
   };
 }

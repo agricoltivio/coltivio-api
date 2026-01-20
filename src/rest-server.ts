@@ -30,12 +30,15 @@ const config = createConfig({
   },
   beforeRouting: ({ app, getLogger }) => {
     getLogger().info(
-      "Serving the API documentation at http://localhost:8000/docs. "
+      "Serving the API documentation at http://localhost:8000/docs. ",
     );
     app.use("/docs", ui.serve, ui.setup(documentation));
     app.use(i18nextMiddleware.handle(i18next));
   },
-  cors: true,
+  cors: ({ defaultHeaders, request, endpoint, logger }) => ({
+    ...defaultHeaders,
+    ["Access-Control-Allow-Headers"]: "Authorization, Content-Type",
+  }),
   compression: { threshold: "1kb" },
   logger: { level: "debug", color: true },
 });

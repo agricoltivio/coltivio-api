@@ -1,12 +1,41 @@
 import createHttpError from "http-errors";
 import { z } from "zod";
-import * as tables from "../db/schema";
+import { preferredCommunicationSchema } from "../db/schema";
 import { farmEndpointFactory } from "../endpoint-factory";
+
+// API Schemas - decoupled from database schema for stable API contract
+export const contactSchema = z.object({
+  id: z.string(),
+  farmId: z.string(),
+  firstName: z.string(),
+  lastName: z.string(),
+  street: z.string().nullable(),
+  city: z.string().nullable(),
+  zip: z.string().nullable(),
+  phone: z.string().nullable(),
+  email: z.string().nullable(),
+  preferredCommunication: preferredCommunicationSchema.nullable(),
+  labels: z.array(z.string()),
+});
+
+const createContactSchema = z.object({
+  firstName: z.string(),
+  lastName: z.string(),
+  street: z.string().optional(),
+  city: z.string().optional(),
+  zip: z.string().optional(),
+  phone: z.string().optional(),
+  email: z.string().optional(),
+  preferredCommunication: preferredCommunicationSchema.optional(),
+  labels: z.array(z.string()).default([]),
+});
+
+const updateContactSchema = createContactSchema.partial();
 
 export const getContactByIdEndpoint = farmEndpointFactory.build({
   method: "get",
   input: z.object({ contactId: z.string() }),
-  output: tables.selectContactSchema,
+  output: contactSchema,
   handler: async ({ input, ctx: { contacts } }) => {
     const contact = await contacts.getContactById(input.contactId);
     if (!contact) {
@@ -20,7 +49,7 @@ export const getFarmContactsEndpoint = farmEndpointFactory.build({
   method: "get",
   input: z.object({}),
   output: z.object({
-    result: z.array(tables.selectContactSchema),
+    result: z.array(contactSchema),
     count: z.number(),
   }),
   handler: async ({ ctx: { contacts, farmId } }) => {
@@ -34,19 +63,20 @@ export const getFarmContactsEndpoint = farmEndpointFactory.build({
 
 export const createContactEndpoint = farmEndpointFactory.build({
   method: "post",
-  input: tables.insertContactSchema.omit({ farmId: true, id: true }),
-  output: tables.selectContactSchema,
+  input: createContactSchema,
+  output: contactSchema,
   handler: async ({ input, ctx: { contacts } }) => {
+    console.log("CREATE CONTACT");
     return contacts.createContact(input);
   },
 });
 
 export const updateContactEndpoint = farmEndpointFactory.build({
   method: "patch",
-  input: tables.updateContactSchema.omit({ id: true, farmId: true }).extend({
+  input: updateContactSchema.extend({
     contactId: z.string(),
   }),
-  output: tables.selectContactSchema,
+  output: contactSchema,
   handler: async ({ input, ctx: { contacts } }) => {
     const { contactId, ...data } = input;
     return contacts.updateContact(contactId, data);

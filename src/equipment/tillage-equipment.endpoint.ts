@@ -1,9 +1,26 @@
 import createHttpError from "http-errors";
 import { z } from "zod";
-import * as tables from "../db/schema";
+import { tillageActionSchema, tillageReasonSchema } from "../db/schema";
 import { farmEndpointFactory } from "../endpoint-factory";
 
-const tillageEquipmentResponseSchema = tables.selectTillageEquipmentSchema;
+// API Schemas - decoupled from database schema for stable API contract
+export const tillageEquipmentSchema = z.object({
+  id: z.string(),
+  farmId: z.string(),
+  name: z.string(),
+  action: tillageActionSchema,
+  reason: tillageReasonSchema,
+});
+
+const createTillageEquipmentSchema = z.object({
+  name: z.string(),
+  action: tillageActionSchema,
+  reason: tillageReasonSchema,
+});
+
+const updateTillageEquipmentSchema = createTillageEquipmentSchema.partial();
+
+const tillageEquipmentResponseSchema = tillageEquipmentSchema;
 
 export const getTillageEquipmentByIdEndpoint = farmEndpointFactory.build({
   method: "get",
@@ -38,10 +55,7 @@ export const getFarmTillageEquipmentsEndpoint = farmEndpointFactory.build({
 
 export const createTillageEquipmentEndpoint = farmEndpointFactory.build({
   method: "post",
-  input: tables.insertTillageEquipmentSchema.omit({
-    farmId: true,
-    id: true,
-  }),
+  input: createTillageEquipmentSchema,
   output: tillageEquipmentResponseSchema,
   handler: async ({ input, ctx: { tillageEquipments } }) => {
     return tillageEquipments.createTillageEquipment(input);
@@ -50,11 +64,9 @@ export const createTillageEquipmentEndpoint = farmEndpointFactory.build({
 
 export const updateTillageEquipmentEndpoint = farmEndpointFactory.build({
   method: "patch",
-  input: tables.updateTillageEquipmentSchema
-    .omit({ id: true, farmId: true })
-    .extend({
-      tillageEquipmentId: z.string(),
-    }),
+  input: updateTillageEquipmentSchema.extend({
+    tillageEquipmentId: z.string(),
+  }),
   output: tillageEquipmentResponseSchema,
   handler: async ({ input, ctx: { tillageEquipments } }) => {
     return tillageEquipments.updateTillageEquipment(

@@ -1,15 +1,29 @@
 import createHttpError from "http-errors";
 import { z } from "zod";
-import * as tables from "../db/schema";
 import {
   farmEndpointFactory,
   authenticatedEndpointFactory,
 } from "../endpoint-factory";
 
+// API Schemas - decoupled from database schema for stable API contract
+export const userSchema = z.object({
+  id: z.string(),
+  email: z.string(),
+  fullName: z.string().nullable(),
+  emailVerified: z.boolean(),
+  farmId: z.string().nullable(),
+});
+
+const updateUserSchema = z.object({
+  fullName: z.string().optional(),
+  emailVerified: z.boolean().optional(),
+  farmId: z.string().optional(),
+}).partial();
+
 export const getMyUserProfileEndpoint = authenticatedEndpointFactory.build({
   method: "get",
   input: z.object({}),
-  output: tables.selectUserSchema,
+  output: userSchema,
   handler: async ({ input, ctx }) => {
     return ctx.users.getUserById(ctx.user.id);
   },
@@ -18,7 +32,7 @@ export const getMyUserProfileEndpoint = authenticatedEndpointFactory.build({
 export const getUserProfileByIdEndpoint = authenticatedEndpointFactory.build({
   method: "get",
   input: z.object({ userId: z.string() }),
-  output: tables.selectUserSchema,
+  output: userSchema,
   handler: async ({ input, ctx }) => {
     const user = await ctx.users.getUserById(input.userId);
     if (!user) {
@@ -32,7 +46,7 @@ export const getFarmUsersEndpoint = farmEndpointFactory.build({
   method: "get",
   input: z.object({}),
   output: z.object({
-    result: z.array(tables.selectUserSchema),
+    result: z.array(userSchema),
     count: z.number(),
   }),
   handler: async ({ ctx }) => {
@@ -43,8 +57,8 @@ export const getFarmUsersEndpoint = farmEndpointFactory.build({
 
 export const updateUserProfileEndpoint = authenticatedEndpointFactory.build({
   method: "patch",
-  input: tables.updateUserSchema.omit({ id: true }),
-  output: tables.selectUserSchema,
+  input: updateUserSchema,
+  output: userSchema,
   handler: async ({ input, ctx }) => {
     return ctx.users.updateUser(ctx.user.id, input);
   },

@@ -1,37 +1,64 @@
 import createHttpError from "http-errors";
-import { z } from "zod";
-import * as tables from "../db/schema";
-import { farmEndpointFactory } from "../endpoint-factory";
 import { ez } from "express-zod-api";
+import { z } from "zod";
+import { cropProtectionUnitSchema, multiPolygonSchema } from "../db/schema";
+import { cropProtectionEquipmentSchema } from "../equipment/crop-protection-equipment.endpoint";
+import { cropProtectionProductSchema } from "./crop-protection-products.endpoint";
+import { farmEndpointFactory } from "../endpoint-factory";
 import { ensureDateRange } from "../utils";
 
-const cropProtectionApplicationsResponseSchema =
-  tables.selectCropProtectionApplicationSchema.merge(
-    z.object({
-      createdAt: ez.dateOut(),
-      dateTime: ez.dateOut(),
-      geometry: tables.multiPolygonSchema,
-      equipment: tables.selectCropProtectionEquipmentSchema.nullable(),
-      product: tables.selectCropProtectionProductSchema,
-      plot: tables.selectPlotSchema.omit({
-        cropRotations: true,
-        geometry: true,
-      }),
-    })
-  );
+// API Schemas - decoupled from database schema for stable API contract
+// Note: cropProtectionApplicationMehtod is misspelled in the database enum
+const cropProtectionApplicationMethodSchema = z.enum(["spraying", "misting", "broadcasting", "injecting", "other"]);
 
-const cropProtectionApplicationCreateSchema =
-  tables.insertCropProtectionApplicationSchema
-    .omit({
-      farmId: true,
-      id: true,
-      createdAt: true,
-      createdBy: true,
-    })
-    .extend({
-      dateTime: ez.dateIn(),
-      geometry: tables.multiPolygonSchema,
-    });
+const plotBasicSchema = z.object({
+  id: z.string(),
+  farmId: z.string(),
+  name: z.string(),
+  localId: z.string().nullable(),
+  usage: z.number().nullable(),
+  additionalUsages: z.string().nullable(),
+  cuttingDate: ez.dateOut().nullable(),
+  size: z.number(),
+  additionalNotes: z.string().nullable(),
+});
+
+export const cropProtectionApplicationSchema = z.object({
+  id: z.string(),
+  farmId: z.string(),
+  createdAt: ez.dateOut(),
+  createdBy: z.string().nullable(),
+  plotId: z.string(),
+  dateTime: ez.dateOut(),
+  equipmentId: z.string().nullable(),
+  productId: z.string(),
+  geometry: multiPolygonSchema,
+  size: z.number(),
+  method: cropProtectionApplicationMethodSchema,
+  amountPerApplication: z.number(),
+  numberOfApplications: z.number(),
+  unit: cropProtectionUnitSchema,
+  additionalNotes: z.string().nullable(),
+  equipment: cropProtectionEquipmentSchema.nullable(),
+  product: cropProtectionProductSchema,
+  plot: plotBasicSchema,
+});
+
+const cropProtectionApplicationsResponseSchema = cropProtectionApplicationSchema;
+
+const cropProtectionApplicationCreateSchema = z.object({
+  plotId: z.string(),
+  dateTime: ez.dateIn(),
+  equipmentId: z.string().optional(),
+  productId: z.string(),
+  geometry: multiPolygonSchema,
+  size: z.number(),
+  method: cropProtectionApplicationMethodSchema,
+  amountPerApplication: z.number(),
+  numberOfApplications: z.number(),
+  unit: cropProtectionUnitSchema,
+  additionalNotes: z.string().optional(),
+});
 
 export const getCropProtectionApplicationByIdEndpoint =
   farmEndpointFactory.build({
@@ -124,17 +151,17 @@ export const createCropProtectionApplicationsEndpoint =
   farmEndpointFactory.build({
     method: "post",
     input: z.object({
-      method: z.enum(tables.cropProtectionApplicationMehtod.enumValues),
+      method: cropProtectionApplicationMethodSchema,
       dateTime: ez.dateIn(),
       equipmentId: z.string().optional(),
       productId: z.string(),
-      unit: z.enum(tables.cropProtectionUnit.enumValues),
+      unit: cropProtectionUnitSchema,
       additionalNotes: z.string().optional(),
       amountPerApplication: z.number(),
       plots: z
         .object({
           plotId: z.string(),
-          geometry: tables.multiPolygonSchema,
+          geometry: multiPolygonSchema,
           size: z.number(),
           numberOfApplications: z.number(),
         })
@@ -221,7 +248,7 @@ const cropProtectionApplicationSummaryResponseSchema = z.object({
         z.object({
           totalAmount: z.number(),
           productName: z.string(),
-          unit: tables.cropProtectionUnitSchema,
+          unit: cropProtectionUnitSchema,
         })
       ),
     })

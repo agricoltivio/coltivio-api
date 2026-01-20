@@ -1,12 +1,40 @@
 import createHttpError from "http-errors";
+import { ez } from "express-zod-api";
 import { z } from "zod";
-import * as tables from "../db/schema";
+import { paymentMethodSchema } from "../db/schema";
 import { farmEndpointFactory } from "../endpoint-factory";
+
+// API Schemas - decoupled from database schema for stable API contract
+export const paymentSchema = z.object({
+  id: z.string(),
+  farmId: z.string(),
+  contactId: z.string(),
+  sponsorshipId: z.string().nullable(),
+  orderId: z.string().nullable(),
+  date: ez.dateOut(),
+  amount: z.number(),
+  currency: z.string(),
+  method: paymentMethodSchema,
+  notes: z.string().nullable(),
+});
+
+const createPaymentSchema = z.object({
+  contactId: z.string(),
+  sponsorshipId: z.string().optional(),
+  orderId: z.string().optional(),
+  date: ez.dateIn(),
+  amount: z.number(),
+  currency: z.string().default("CHF"),
+  method: paymentMethodSchema,
+  notes: z.string().optional(),
+});
+
+const updatePaymentSchema = createPaymentSchema.partial();
 
 export const getPaymentByIdEndpoint = farmEndpointFactory.build({
   method: "get",
   input: z.object({ paymentId: z.string() }),
-  output: tables.selectPaymentSchema,
+  output: paymentSchema,
   handler: async ({ input, ctx: { payments } }) => {
     const payment = await payments.getPaymentById(input.paymentId);
     if (!payment) {
@@ -20,7 +48,7 @@ export const getFarmPaymentsEndpoint = farmEndpointFactory.build({
   method: "get",
   input: z.object({}),
   output: z.object({
-    result: z.array(tables.selectPaymentSchema),
+    result: z.array(paymentSchema),
     count: z.number(),
   }),
   handler: async ({ ctx: { payments, farmId } }) => {
@@ -36,7 +64,7 @@ export const getContactPaymentsEndpoint = farmEndpointFactory.build({
   method: "get",
   input: z.object({ contactId: z.string() }),
   output: z.object({
-    result: z.array(tables.selectPaymentSchema),
+    result: z.array(paymentSchema),
     count: z.number(),
   }),
   handler: async ({ input, ctx: { payments } }) => {
@@ -50,8 +78,8 @@ export const getContactPaymentsEndpoint = farmEndpointFactory.build({
 
 export const createPaymentEndpoint = farmEndpointFactory.build({
   method: "post",
-  input: tables.insertPaymentSchema.omit({ farmId: true, id: true }),
-  output: tables.selectPaymentSchema,
+  input: createPaymentSchema,
+  output: paymentSchema,
   handler: async ({ input, ctx: { payments } }) => {
     return payments.createPayment(input);
   },
@@ -59,10 +87,10 @@ export const createPaymentEndpoint = farmEndpointFactory.build({
 
 export const updatePaymentEndpoint = farmEndpointFactory.build({
   method: "patch",
-  input: tables.updatePaymentSchema.omit({ id: true, farmId: true }).extend({
+  input: updatePaymentSchema.extend({
     paymentId: z.string(),
   }),
-  output: tables.selectPaymentSchema,
+  output: paymentSchema,
   handler: async ({ input, ctx: { payments } }) => {
     const { paymentId, ...data } = input;
     return payments.updatePayment(paymentId, data);

@@ -1,9 +1,30 @@
 import createHttpError from "http-errors";
 import { z } from "zod";
-import * as tables from "../db/schema";
+import { conservationMethodEnumSchema, processingTypeEnumSchema } from "../db/schema";
 import { farmEndpointFactory } from "../endpoint-factory";
 
-const harvestersResponseSchema = tables.selectHarvestingMachinerySchema;
+// API Schemas - decoupled from database schema for stable API contract
+export const harvestingMachinerySchema = z.object({
+  id: z.string(),
+  farmId: z.string(),
+  name: z.string(),
+  default: z.boolean(),
+  defaultConservationMethod: conservationMethodEnumSchema,
+  defaultProcessingType: processingTypeEnumSchema,
+  defaultKilosPerUnit: z.number(),
+});
+
+const createHarvestingMachinerySchema = z.object({
+  name: z.string(),
+  default: z.boolean().default(false),
+  defaultConservationMethod: conservationMethodEnumSchema,
+  defaultProcessingType: processingTypeEnumSchema,
+  defaultKilosPerUnit: z.number(),
+});
+
+const updateHarvestingMachinerySchema = createHarvestingMachinerySchema.partial();
+
+const harvestersResponseSchema = harvestingMachinerySchema;
 
 export const getHarvestingMachineryByIdEndpoint = farmEndpointFactory.build({
   method: "get",
@@ -39,10 +60,7 @@ export const getFarmHarvestingMachineryEndpoint = farmEndpointFactory.build({
 
 export const createHarvestingMachineryEndpoint = farmEndpointFactory.build({
   method: "post",
-  input: tables.insertHarvestingMachinerySchema.omit({
-    farmId: true,
-    id: true,
-  }),
+  input: createHarvestingMachinerySchema,
   output: harvestersResponseSchema,
   handler: async ({ input, ctx: { harvestingMachinery } }) => {
     return harvestingMachinery.createHarvestingMachinery(input);
@@ -51,11 +69,9 @@ export const createHarvestingMachineryEndpoint = farmEndpointFactory.build({
 
 export const updateHarvestingMachineryEndpoint = farmEndpointFactory.build({
   method: "patch",
-  input: tables.updateHarvestingMachinerySchema
-    .omit({ id: true, farmId: true })
-    .extend({
-      harvestingMachineryId: z.string(),
-    }),
+  input: updateHarvestingMachinerySchema.extend({
+    harvestingMachineryId: z.string(),
+  }),
   output: harvestersResponseSchema,
   handler: async ({ input, ctx: { harvestingMachinery } }) => {
     return harvestingMachinery.updateHarvestingMachinery(
