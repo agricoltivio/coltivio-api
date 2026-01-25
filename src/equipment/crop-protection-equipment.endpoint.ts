@@ -1,11 +1,10 @@
 import createHttpError from "http-errors";
 import { z } from "zod";
-import { cropProtectionUnitSchema } from "../db/schema";
+import {
+  cropProtectionApplicationMethodSchema,
+  cropProtectionUnitSchema,
+} from "../db/schema";
 import { farmEndpointFactory } from "../endpoint-factory";
-
-// API Schemas - decoupled from database schema for stable API contract
-// Note: cropProtectionApplicationMehtod is misspelled in the database enum
-const cropProtectionApplicationMethodSchema = z.enum(["spraying", "misting", "broadcasting", "injecting", "other"]);
 
 export const cropProtectionEquipmentSchema = z.object({
   id: z.string(),
@@ -25,7 +24,8 @@ const createCropProtectionEquipmentSchema = z.object({
   capacity: z.number(),
 });
 
-const updateCropProtectionEquipmentSchema = createCropProtectionEquipmentSchema.partial();
+const updateCropProtectionEquipmentSchema =
+  createCropProtectionEquipmentSchema.partial();
 
 const cropProtectionEquipmentResponseSchema = cropProtectionEquipmentSchema;
 
@@ -37,14 +37,14 @@ export const getCropProtectionEquipmentByIdEndpoint = farmEndpointFactory.build(
     handler: async ({ input, ctx: { cropProtectionEquipment } }) => {
       const equipment =
         await cropProtectionEquipment.getCropProtectionEquipmentById(
-          input.cropProtectionEquipmentId
+          input.cropProtectionEquipmentId,
         );
       if (!equipment) {
         throw createHttpError(404, "Traktor not found");
       }
       return equipment;
     },
-  }
+  },
 );
 
 export const getFarmCropProtectionEquipmentsEndpoint =
@@ -58,7 +58,7 @@ export const getFarmCropProtectionEquipmentsEndpoint =
     handler: async ({ ctx: { cropProtectionEquipment, farmId } }) => {
       const result =
         await cropProtectionEquipment.getCropProtectionEquipmentsForFarm(
-          farmId
+          farmId,
         );
       return {
         result,
@@ -85,7 +85,7 @@ export const updateCropProtectionEquipmentEndpoint = farmEndpointFactory.build({
   handler: async ({ input, ctx: { cropProtectionEquipment } }) => {
     return cropProtectionEquipment.updateCropProtectionEquipment(
       input.cropProtectionEquipmentId,
-      input
+      input,
     );
   },
 });
@@ -99,7 +99,7 @@ export const deleteCropProtectionEquipmentEndpoint = farmEndpointFactory.build({
     ctx: { cropProtectionEquipment },
   }) => {
     await cropProtectionEquipment.deleteCropProtectionEquipment(
-      cropProtectionEquipmentId
+      cropProtectionEquipmentId,
     );
     return {};
   },

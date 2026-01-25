@@ -3,8 +3,10 @@ import { ez } from "express-zod-api";
 import { z } from "zod";
 import { paymentMethodSchema } from "../db/schema";
 import { farmEndpointFactory } from "../endpoint-factory";
+import { sponsorshipSchema } from "../sponsorships/sponsorships.endpoint";
+import { orderSchema } from "../orders/orders.endpoint";
+import { contactSchema } from "../contacts/contacts.endpoint";
 
-// API Schemas - decoupled from database schema for stable API contract
 export const paymentSchema = z.object({
   id: z.string(),
   farmId: z.string(),
@@ -16,6 +18,18 @@ export const paymentSchema = z.object({
   currency: z.string(),
   method: paymentMethodSchema,
   notes: z.string().nullable(),
+});
+
+const paymentWithRelationsSchema = paymentSchema.extend({
+  get sponsorship() {
+    return sponsorshipSchema.nullable();
+  },
+  get contact() {
+    return contactSchema;
+  },
+  get order() {
+    return orderSchema.nullable();
+  },
 });
 
 const createPaymentSchema = z.object({
@@ -34,7 +48,7 @@ const updatePaymentSchema = createPaymentSchema.partial();
 export const getPaymentByIdEndpoint = farmEndpointFactory.build({
   method: "get",
   input: z.object({ paymentId: z.string() }),
-  output: paymentSchema,
+  output: paymentWithRelationsSchema,
   handler: async ({ input, ctx: { payments } }) => {
     const payment = await payments.getPaymentById(input.paymentId);
     if (!payment) {
@@ -48,7 +62,7 @@ export const getFarmPaymentsEndpoint = farmEndpointFactory.build({
   method: "get",
   input: z.object({}),
   output: z.object({
-    result: z.array(paymentSchema),
+    result: z.array(paymentWithRelationsSchema),
     count: z.number(),
   }),
   handler: async ({ ctx: { payments, farmId } }) => {
@@ -64,7 +78,7 @@ export const getContactPaymentsEndpoint = farmEndpointFactory.build({
   method: "get",
   input: z.object({ contactId: z.string() }),
   output: z.object({
-    result: z.array(paymentSchema),
+    result: z.array(paymentWithRelationsSchema.omit({ contact: true })),
     count: z.number(),
   }),
   handler: async ({ input, ctx: { payments } }) => {

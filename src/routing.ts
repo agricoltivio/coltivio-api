@@ -30,16 +30,16 @@ import {
   getContactSponsorshipsEndpoint,
   getFarmSponsorshipsEndpoint,
   getSponsorshipByIdEndpoint,
-  getSponsorshipPaymentsEndpoint,
+  // getSponsorshipPaymentsEndpoint,
   updateSponsorshipEndpoint,
 } from "./sponsorships/sponsorships.endpoint";
 import {
-  createSponsorshipTypeEndpoint,
-  deleteSponsorshipTypeEndpoint,
-  getFarmSponsorshipTypesEndpoint,
-  getSponsorshipTypeByIdEndpoint,
-  updateSponsorshipTypeEndpoint,
-} from "./sponsorships/sponsorship-types.endpoint";
+  createSponsorshipProgramEndpoint,
+  deleteSponsorshipProgramEndpoint,
+  getFarmSponsorshipProgramsEndpoint,
+  getSponsorshipProgramByIdEndpoint,
+  updateSponsorshipProgramEndpoint,
+} from "./sponsorships/sponsorship-programs.endpoint";
 import {
   createEarTagRangeEndpoint,
   deleteEarTagRangeEndpoint,
@@ -187,7 +187,6 @@ import {
   getFarmOrdersEndpoint,
   getOrderByIdEndpoint,
   getOrderItemsEndpoint,
-  getOrderPaymentsEndpoint,
   updateOrderEndpoint,
 } from "./orders/orders.endpoint";
 import {
@@ -537,7 +536,6 @@ export const routing: Routing = {
           confirm: confirmOrderEndpoint,
           fulfill: fulfillOrderEndpoint,
           cancel: cancelOrderEndpoint,
-          payments: getOrderPaymentsEndpoint,
         },
       },
     },
@@ -554,17 +552,17 @@ export const routing: Routing = {
         },
       },
     },
-    sponsorshipTypes: {
+    sponsorshipPrograms: {
       "": {
-        get: getFarmSponsorshipTypesEndpoint,
-        post: createSponsorshipTypeEndpoint,
+        get: getFarmSponsorshipProgramsEndpoint,
+        post: createSponsorshipProgramEndpoint,
       },
       byId: {
-        ":sponsorshipTypeId": {
+        ":sponsorshipProgramId": {
           "": {
-            get: getSponsorshipTypeByIdEndpoint,
-            patch: updateSponsorshipTypeEndpoint,
-            delete: deleteSponsorshipTypeEndpoint,
+            get: getSponsorshipProgramByIdEndpoint,
+            patch: updateSponsorshipProgramEndpoint,
+            delete: deleteSponsorshipProgramEndpoint,
           },
         },
       },
@@ -581,7 +579,6 @@ export const routing: Routing = {
             patch: updateSponsorshipEndpoint,
             delete: deleteSponsorshipEndpoint,
           },
-          payments: getSponsorshipPaymentsEndpoint,
         },
       },
     },

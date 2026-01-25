@@ -1,7 +1,7 @@
 import { z } from "zod";
+import { animalSchema } from "../animals/animals.endpoint";
 import { farmEndpointFactory } from "../endpoint-factory";
 
-// API Schemas - decoupled from database schema for stable API contract
 export const earTagSchema = z.object({
   id: z.string(),
   farmId: z.string(),
@@ -9,7 +9,9 @@ export const earTagSchema = z.object({
 });
 
 const earTagWithAssignmentSchema = earTagSchema.extend({
-  animalId: z.string().nullable(),
+  get animal() {
+    return animalSchema.nullable();
+  },
 });
 
 export const getEarTagsEndpoint = farmEndpointFactory.build({
@@ -77,10 +79,6 @@ export const deleteEarTagRangeEndpoint = farmEndpointFactory.build({
     skippedAssigned: z.array(z.string()),
   }),
   handler: async ({ input, ctx: { earTags, farmId } }) => {
-    return earTags.deleteEarTagRange(
-      farmId,
-      input.fromNumber,
-      input.toNumber,
-    );
+    return earTags.deleteEarTagRange(farmId, input.fromNumber, input.toNumber);
   },
 });

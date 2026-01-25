@@ -3,7 +3,6 @@ import { z } from "zod";
 import { cropCategorySchema } from "../db/schema";
 import { farmEndpointFactory } from "../endpoint-factory";
 
-// API Schemas - decoupled from database schema for stable API contract
 export const cropSchema = z.object({
   id: z.string(),
   farmId: z.string(),

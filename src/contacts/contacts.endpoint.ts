@@ -1,9 +1,15 @@
 import createHttpError from "http-errors";
 import { z } from "zod";
-import { preferredCommunicationSchema } from "../db/schema";
+import { preferredCommunicationSchema, sponsorships } from "../db/schema";
 import { farmEndpointFactory } from "../endpoint-factory";
+import { paymentSchema } from "../payments/payments.endpoint";
+import {
+  sponsorshipSchema,
+  sponsorshipWithRelationsSchema,
+} from "../sponsorships/sponsorships.endpoint";
+import { orderSchema } from "../orders/orders.endpoint";
+import { animalSchema } from "../animals/animals.endpoint";
 
-// API Schemas - decoupled from database schema for stable API contract
 export const contactSchema = z.object({
   id: z.string(),
   farmId: z.string(),
@@ -16,6 +22,22 @@ export const contactSchema = z.object({
   email: z.string().nullable(),
   preferredCommunication: preferredCommunicationSchema.nullable(),
   labels: z.array(z.string()),
+});
+
+export const contactWithRelationsSchema = contactSchema.extend({
+  get payments() {
+    return z.array(paymentSchema);
+  },
+  get sponsorships() {
+    return z.array(
+      sponsorshipWithRelationsSchema
+        .omit({ contact: true, payments: true })
+        .extend({ animal: animalSchema.omit({ earTag: true }) }),
+    );
+  },
+  get orders() {
+    return z.array(orderSchema);
+  },
 });
 
 const createContactSchema = z.object({
@@ -35,7 +57,7 @@ const updateContactSchema = createContactSchema.partial();
 export const getContactByIdEndpoint = farmEndpointFactory.build({
   method: "get",
   input: z.object({ contactId: z.string() }),
-  output: contactSchema,
+  output: contactWithRelationsSchema,
   handler: async ({ input, ctx: { contacts } }) => {
     const contact = await contacts.getContactById(input.contactId);
     if (!contact) {

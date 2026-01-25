@@ -3,7 +3,6 @@ import { z } from "zod";
 import { fertilizerUnitSchema, fertilizationMethodSchema } from "../db/schema";
 import { farmEndpointFactory } from "../endpoint-factory";
 
-// API Schemas - decoupled from database schema for stable API contract
 export const fertilizerSpreaderSchema = z.object({
   id: z.string(),
   farmId: z.string(),
@@ -32,7 +31,7 @@ export const getFertilizerSpreaderByIdEndpoint = farmEndpointFactory.build({
   }) => {
     const fertilizerSpreader =
       await fertilizerSpreaders.getFertilizerSpreaderById(
-        input.fertilizerSpreaderId
+        input.fertilizerSpreaderId,
       );
     if (!fertilizerSpreader) {
       throw createHttpError(404, "FertilizerSpreader not found");
@@ -84,7 +83,7 @@ export const updateFertilizerSpreaderEndpoint = farmEndpointFactory.build({
   }) => {
     return fertilizerSpreaders.updateFertilizerSpreader(
       input.fertilizerSpreaderId,
-      input
+      input,
     );
   },
 });

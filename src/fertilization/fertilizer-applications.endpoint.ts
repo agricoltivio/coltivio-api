@@ -1,13 +1,16 @@
 import { ez } from "express-zod-api";
 import createHttpError from "http-errors";
 import { z } from "zod";
-import { fertilizerUnitSchema, fertilizationMethodSchema, multiPolygonSchema } from "../db/schema";
+import {
+  fertilizerUnitSchema,
+  fertilizationMethodSchema,
+  multiPolygonSchema,
+} from "../db/schema";
 import { fertilizerSpreaderSchema } from "../equipment/fertilizer-spreaders.endpoint";
 import { fertilizerSchema } from "./fertilizers.endpoint";
 import { farmEndpointFactory } from "../endpoint-factory";
 import { ensureDateRange } from "../utils";
 
-// API Schemas - decoupled from database schema for stable API contract
 const plotMinimalSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -53,7 +56,7 @@ export const getFertilizerApplicationsForFarmEndpoint =
         await fertilizerApplications.getFertilizerApplicationsForFarm(
           farmId,
           from,
-          to
+          to,
         );
 
       return {
@@ -74,7 +77,7 @@ export const getFertilizerApplicationsForPlotEndpoint =
     handler: async ({ input, ctx: { fertilizerApplications } }) => {
       const result =
         await fertilizerApplications.getFertilizerApplicationsForPlot(
-          input.plotId
+          input.plotId,
         );
 
       return {
@@ -91,7 +94,7 @@ export const getFertilizerApplicationByIdEndpoint = farmEndpointFactory.build({
   handler: async ({ input, ctx: { fertilizerApplications } }) => {
     const fertilizerApplication =
       await fertilizerApplications.getFertilizerApplicationById(
-        input.fertilizerApplicationId
+        input.fertilizerApplicationId,
       );
     if (!fertilizerApplication) {
       throw createHttpError(404, "Fertilizer Application not found");
@@ -141,7 +144,7 @@ export const deleteFertilizerApplicationEndpoint = farmEndpointFactory.build({
   output: z.object({}),
   handler: async ({ input, ctx: { fertilizerApplications } }) => {
     await fertilizerApplications.deleteFertilizerApplication(
-      input.fertilizerApplicationId
+      input.fertilizerApplicationId,
     );
     return {};
   },
@@ -172,9 +175,9 @@ const fertilizerApplicationSummaryResponseSchema = z.object({
           totalAmount: z.number(),
           fertilizerName: z.string(),
           unit: fertilizerUnitSchema,
-        })
+        }),
       ),
-    })
+    }),
   ),
 });
 
@@ -185,7 +188,7 @@ export const getFertilizerApplicationSummaryForFarmEndpoint =
     output: fertilizerApplicationSummaryResponseSchema,
     handler: async ({ input, ctx: { fertilizerApplications, farmId } }) => {
       return fertilizerApplications.getFertilizerApplicationSummaryForFarm(
-        farmId
+        farmId,
       );
     },
   });
@@ -197,7 +200,7 @@ export const getFertilizerApplicationSummaryForPlotEndpoint =
     output: fertilizerApplicationSummaryResponseSchema,
     handler: async ({ input, ctx: { fertilizerApplications } }) => {
       return fertilizerApplications.getFertilizerApplicationSummaryForPlot(
-        input.plotId
+        input.plotId,
       );
     },
   });

@@ -3,7 +3,6 @@ import { z } from "zod";
 import { productCategorySchema, productUnitSchema } from "../db/schema";
 import { farmEndpointFactory } from "../endpoint-factory";
 
-// API Schemas - decoupled from database schema for stable API contract
 export const productSchema = z.object({
   id: z.string(),
   farmId: z.string(),
@@ -11,7 +10,6 @@ export const productSchema = z.object({
   category: productCategorySchema,
   unit: productUnitSchema,
   pricePerUnit: z.number(),
-  stock: z.number(),
   description: z.string().nullable(),
   active: z.boolean(),
 });
@@ -21,7 +19,6 @@ const createProductSchema = z.object({
   category: productCategorySchema,
   unit: productUnitSchema,
   pricePerUnit: z.number(),
-  stock: z.number(),
   description: z.string().optional(),
   active: z.boolean().default(true),
 });

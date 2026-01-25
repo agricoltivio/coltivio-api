@@ -5,7 +5,6 @@ import { multiPolygonSchema } from "../db/schema";
 import { cropRotationSchema } from "../crop-rotations/crop-rotations.endpoint";
 import { farmEndpointFactory } from "../endpoint-factory";
 
-// API Schemas - decoupled from database schema for stable API contract
 export const plotSchema = z.object({
   id: z.string(),
   farmId: z.string(),

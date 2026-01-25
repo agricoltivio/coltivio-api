@@ -4,16 +4,6 @@ import { BBox } from "../geo/geojson";
 import { ez } from "express-zod-api";
 import { multiPolygonSchema } from "../db/schema";
 
-interface ParcelLayerPolygon {
-  id: string;
-  gisId: number;
-  area: number;
-  communalId: string;
-  labelX?: number;
-  labelY?: number;
-  geometry: Geometry;
-}
-
 interface Geometry {
   type: string;
   coordinates: number[][][][];

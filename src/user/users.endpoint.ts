@@ -5,7 +5,6 @@ import {
   authenticatedEndpointFactory,
 } from "../endpoint-factory";
 
-// API Schemas - decoupled from database schema for stable API contract
 export const userSchema = z.object({
   id: z.string(),
   email: z.string(),
@@ -14,11 +13,13 @@ export const userSchema = z.object({
   farmId: z.string().nullable(),
 });
 
-const updateUserSchema = z.object({
-  fullName: z.string().optional(),
-  emailVerified: z.boolean().optional(),
-  farmId: z.string().optional(),
-}).partial();
+const updateUserSchema = z
+  .object({
+    fullName: z.string().optional(),
+    emailVerified: z.boolean().optional(),
+    farmId: z.string().optional(),
+  })
+  .partial();
 
 export const getMyUserProfileEndpoint = authenticatedEndpointFactory.build({
   method: "get",

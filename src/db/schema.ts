@@ -1,4 +1,4 @@
-import { and, eq, isNotNull, or, defineRelations, sql } from "drizzle-orm";
+import { and, defineRelations, eq, isNotNull, or, sql } from "drizzle-orm";
 import {
   boolean,
   customType,
@@ -15,10 +15,8 @@ import {
   text,
   timestamp,
   uuid,
-  varchar,
 } from "drizzle-orm/pg-core";
 import { authenticatedRole, authUid, authUsers } from "drizzle-orm/supabase";
-import { createSelectSchema } from "drizzle-zod";
 
 import { z } from "zod";
 
@@ -322,7 +320,7 @@ export const cropProtectionProducts = pgTable.withRLS(
   ],
 );
 
-export const cropProtectionApplicationMehtod = pgEnum(
+export const cropProtectionApplicationMethod = pgEnum(
   "crop_protection_application_method",
   ["spraying", "misting", "broadcasting", "injecting", "other"],
 );
@@ -338,7 +336,7 @@ export const cropProtectionEquipment = pgTable.withRLS(
       }),
     name: text().notNull(),
     description: text(),
-    method: cropProtectionApplicationMehtod().notNull(),
+    method: cropProtectionApplicationMethod().notNull(),
     unit: cropProtectionUnit().notNull(),
     capacity: real().notNull(),
   },
@@ -375,7 +373,7 @@ export const cropProtectionApplications = pgTable.withRLS(
       .references(() => cropProtectionProducts.id),
     geometry: polygon().notNull(),
     size: integer().notNull(),
-    method: cropProtectionApplicationMehtod().notNull(),
+    method: cropProtectionApplicationMethod().notNull(),
     amountPerApplication: real().notNull(),
     numberOfApplications: real().notNull(),
     unit: cropProtectionUnit().notNull(),
@@ -535,6 +533,8 @@ export const harvests = pgTable.withRLS(
 
 export const fertilizerUnit = pgEnum("fertilizer_unit", ["l", "kg", "dt", "t"]);
 
+export const animalSex = pgEnum("animal_sex", ["male", "female"]);
+
 export const animalType = pgEnum("animal_type", [
   "goat",
   "sheep",
@@ -618,7 +618,6 @@ export const products = pgTable.withRLS(
     category: productCategory().notNull(),
     unit: productUnit().notNull(),
     pricePerUnit: real().notNull(),
-    stock: real().notNull(),
     description: text(),
     active: boolean().notNull().default(true),
   },
@@ -701,8 +700,8 @@ export const paymentMethod = pgEnum("payment_method", [
   "other",
 ]);
 
-export const sponsorshipTypes = pgTable.withRLS(
-  "sponsorship_types",
+export const sponsorshipPrograms = pgTable.withRLS(
+  "sponsorship_programs",
   {
     id: uuid().primaryKey().defaultRandom(),
     farmId: uuid()
@@ -743,9 +742,9 @@ export const sponsorships = pgTable.withRLS(
       .references(() => animals.id, {
         onDelete: "cascade",
       }),
-    sponsorshipTypeId: uuid()
+    sponsorshipProgramId: uuid()
       .notNull()
-      .references(() => sponsorshipTypes.id, {
+      .references(() => sponsorshipPrograms.id, {
         onDelete: "restrict",
       }),
     startDate: date({ mode: "date" }).notNull(),
@@ -933,6 +932,7 @@ export const animals = pgTable.withRLS(
       }),
     name: text().notNull(),
     type: animalType().notNull(),
+    sex: animalSex().notNull(),
     dateOfBirth: date({ mode: "date" }).notNull(),
     earTagId: uuid().references(() => earTags.id, { onDelete: "restrict" }),
     motherId: uuid(),
@@ -983,7 +983,7 @@ const tables = {
   products,
   orders,
   orderItems,
-  sponsorshipTypes,
+  sponsorshipPrograms,
   sponsorships,
   payments,
   earTags,
@@ -1188,9 +1188,9 @@ export const relations = defineRelations(tables, (r) => ({
       optional: false,
     }),
   },
-  sponsorshipTypes: {
+  sponsorshipPrograms: {
     farm: r.one.farms({
-      from: r.sponsorshipTypes.farmId,
+      from: r.sponsorshipPrograms.farmId,
       to: r.farms.id,
       optional: false,
     }),
@@ -1212,9 +1212,9 @@ export const relations = defineRelations(tables, (r) => ({
       to: r.animals.id,
       optional: false,
     }),
-    sponsorshipType: r.one.sponsorshipTypes({
-      from: r.sponsorships.sponsorshipTypeId,
-      to: r.sponsorshipTypes.id,
+    sponsorshipProgram: r.one.sponsorshipPrograms({
+      from: r.sponsorships.sponsorshipProgramId,
+      to: r.sponsorshipPrograms.id,
       optional: false,
     }),
     payments: r.many.payments(),
@@ -1296,6 +1296,9 @@ export const pointSchema = z.object({
 });
 
 export const cropCategorySchema = z.enum(cropCategory.enumValues);
+export const cropProtectionApplicationMethodSchema = z.enum(
+  cropProtectionApplicationMethod.enumValues,
+);
 export const tillageActionSchema = z.enum(tillageAction.enumValues);
 export const tillageReasonSchema = z.enum(tillageReason.enumValues);
 
@@ -1311,6 +1314,7 @@ export const fertilizerTypeSchema = z.enum(fertilizerType.enumValues);
 export const fertilizationMethodSchema = z.enum(fertilizationMethod.enumValues);
 
 export const animalTypeSchema = z.enum(animalType.enumValues);
+export const animalSexSchema = z.enum(animalSex.enumValues);
 export const deathReasonSchema = z.enum(deathReason.enumValues);
 
 export const preferredCommunicationSchema = z.enum(
@@ -1322,8 +1326,3 @@ export const paymentMethodSchema = z.enum(paymentMethod.enumValues);
 export const productCategorySchema = z.enum(productCategory.enumValues);
 export const productUnitSchema = z.enum(productUnit.enumValues);
 export const orderStatusSchema = z.enum(orderStatus.enumValues);
-
-const selectFederalFarmPlotSchema = createSelectSchema(
-  federalFarmPlots,
-  {},
-).shape;

@@ -1,6 +1,13 @@
 import { eq } from "drizzle-orm";
 import { RlsDb } from "../db/db";
 import { contacts, farmIdColumnValue } from "../db/schema";
+import { Payment } from "../payments/payments";
+import {
+  Sponsorship,
+  SponsorshipWithRelations,
+} from "../sponsorships/sponsorships";
+import { Order } from "../orders/orders";
+import { Animal } from "../animals/animals";
 
 export type ContactCreateInput = Omit<
   typeof contacts.$inferInsert,
@@ -8,6 +15,19 @@ export type ContactCreateInput = Omit<
 >;
 export type ContactUpdateInput = Partial<ContactCreateInput>;
 export type Contact = typeof contacts.$inferSelect;
+
+export type ContactWithRelations = Contact & {
+  payments: Payment[];
+  sponsorships: Array<
+    Omit<
+      Omit<SponsorshipWithRelations, "animal"> & {
+        animal: Omit<Animal, "earTag">;
+      },
+      "contact" | "payments"
+    >
+  >;
+  orders: Order[];
+};
 
 export function contactsApi(rlsDb: RlsDb) {
   return {
@@ -21,13 +41,23 @@ export function contactsApi(rlsDb: RlsDb) {
       });
     },
 
-    async getContactById(id: string): Promise<Contact | undefined> {
+    async getContactById(
+      id: string,
+    ): Promise<ContactWithRelations | undefined> {
       return rlsDb.rls(async (tx) => {
-        const [contact] = await tx
-          .select()
-          .from(contacts)
-          .where(eq(contacts.id, id));
-        return contact;
+        return tx.query.contacts.findFirst({
+          where: { id },
+          with: {
+            payments: true,
+            sponsorships: {
+              with: {
+                animal: true,
+                sponsorshipProgram: true,
+              },
+            },
+            orders: true,
+          },
+        });
       });
     },
 

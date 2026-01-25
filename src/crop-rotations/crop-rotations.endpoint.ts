@@ -5,7 +5,6 @@ import { cropSchema } from "../crops/crops.endpoint";
 import { farmEndpointFactory } from "../endpoint-factory";
 import { ensureDateRange } from "../utils";
 
-// API Schemas - decoupled from database schema for stable API contract
 export const cropRotationSchema = z.object({
   id: z.string(),
   farmId: z.string(),
@@ -58,7 +57,7 @@ export const getCurrentCropRotationsForPlotsEndpoint =
     }),
     handler: async ({ input, ctx: { cropRotations } }) => {
       const result = await cropRotations.getCurreentCropRotationsForPlots(
-        input.plotIds
+        input.plotIds,
       );
       return {
         result,
@@ -90,7 +89,7 @@ export const getCropRotationsForFarmEndpoint = farmEndpointFactory.build({
     result: z.array(
       cropRotationSchema.extend({
         plot: z.object({ name: z.string() }),
-      })
+      }),
     ),
     count: z.number(),
   }),

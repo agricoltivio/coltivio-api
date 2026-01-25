@@ -1,9 +1,14 @@
 import createHttpError from "http-errors";
 import { ez } from "express-zod-api";
 import { z } from "zod";
-import { animalTypeSchema, deathReasonSchema } from "../db/schema";
+import {
+  animalSexSchema,
+  animalTypeSchema,
+  deathReasonSchema,
+} from "../db/schema";
 import { earTagSchema } from "../ear-tags/ear-tags.endpoint";
 import { farmEndpointFactory } from "../endpoint-factory";
+import { paymentSchema } from "../payments/payments.endpoint";
 
 // API Schemas - decoupled from database schema for stable API contract
 export const animalSchema = z.object({
@@ -11,9 +16,12 @@ export const animalSchema = z.object({
   farmId: z.string(),
   name: z.string(),
   type: animalTypeSchema,
+  sex: animalSexSchema,
   dateOfBirth: ez.dateOut(),
   earTagId: z.string().nullable(),
-  earTag: earTagSchema.nullable(),
+  get earTag() {
+    return earTagSchema.nullable();
+  },
   motherId: z.string().nullable(),
   fatherId: z.string().nullable(),
   dateOfDeath: ez.dateOut().nullable(),
@@ -21,13 +29,20 @@ export const animalSchema = z.object({
 });
 
 const animalExtendedSchema = animalSchema.extend({
-  mother: animalSchema.nullable(),
-  father: animalSchema.nullable(),
+  get earTag() {
+    return earTagSchema.nullable();
+  },
+  // if we do animalSchema.nullable(), all schemas referencing animal in this object will be nullable
+  mother: z.union([animalSchema, z.null()]),
+  father: z.union([animalSchema, z.null()]),
+  childrenAsMother: z.array(animalSchema),
+  childrenAsFather: z.array(animalSchema),
 });
 
 const createAnimalSchema = z.object({
   name: z.string(),
   type: animalTypeSchema,
+  sex: animalSexSchema,
   dateOfBirth: ez.dateIn(),
   earTagId: z.string().optional(),
   motherId: z.string().optional(),
@@ -47,19 +62,25 @@ export const getAnimalByIdEndpoint = farmEndpointFactory.build({
     if (!animal) {
       throw createHttpError(404, "Animal not found");
     }
-    return animal;
+    return animal as any;
   },
 });
 
 export const getFarmAnimalsEndpoint = farmEndpointFactory.build({
   method: "get",
-  input: z.object({}),
+  input: z.object({
+    onlyLiving: z
+      .string()
+      .optional()
+      .transform((value) => value === "true")
+      .default(true),
+  }),
   output: z.object({
     result: z.array(animalSchema),
     count: z.number(),
   }),
-  handler: async ({ ctx: { animals, farmId } }) => {
-    const result = await animals.getAnimalsForFarm(farmId);
+  handler: async ({ input, ctx: { animals, farmId } }) => {
+    const result = await animals.getAnimalsForFarm(farmId, input.onlyLiving);
     return {
       result,
       count: result.length,

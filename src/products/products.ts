@@ -65,30 +65,5 @@ export function productsApi(rlsDb: RlsDb) {
         await tx.delete(products).where(eq(products.id, id));
       });
     },
-
-    // Internal helper for stock management - adjusts stock by delta (positive or negative)
-    async adjustStock(id: string, delta: number): Promise<Product> {
-      return rlsDb.rls(async (tx) => {
-        const [product] = await tx
-          .select()
-          .from(products)
-          .where(eq(products.id, id));
-        if (!product) {
-          throw new Error(`Product not found: ${id}`);
-        }
-        const newStock = product.stock + delta;
-        if (newStock < 0) {
-          throw new Error(
-            `Insufficient stock for product ${product.name}. Available: ${product.stock}, requested: ${Math.abs(delta)}`,
-          );
-        }
-        const [updated] = await tx
-          .update(products)
-          .set({ stock: newStock })
-          .where(eq(products.id, id))
-          .returning();
-        return updated;
-      });
-    },
   };
 }

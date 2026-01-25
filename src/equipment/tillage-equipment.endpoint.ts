@@ -3,7 +3,6 @@ import { z } from "zod";
 import { tillageActionSchema, tillageReasonSchema } from "../db/schema";
 import { farmEndpointFactory } from "../endpoint-factory";
 
-// API Schemas - decoupled from database schema for stable API contract
 export const tillageEquipmentSchema = z.object({
   id: z.string(),
   farmId: z.string(),
@@ -28,7 +27,7 @@ export const getTillageEquipmentByIdEndpoint = farmEndpointFactory.build({
   output: tillageEquipmentResponseSchema,
   handler: async ({ input, ctx: { tillageEquipments } }) => {
     const tillageEquipment = await tillageEquipments.getTillageEquipmentById(
-      input.tillageEquipmentId
+      input.tillageEquipmentId,
     );
     if (!tillageEquipment) {
       throw createHttpError(404, "Traktor not found");
@@ -71,7 +70,7 @@ export const updateTillageEquipmentEndpoint = farmEndpointFactory.build({
   handler: async ({ input, ctx: { tillageEquipments } }) => {
     return tillageEquipments.updateTillageEquipment(
       input.tillageEquipmentId,
-      input
+      input,
     );
   },
 });

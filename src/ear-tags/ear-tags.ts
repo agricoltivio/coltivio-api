@@ -1,26 +1,25 @@
 import { and, eq, inArray, isNotNull, notInArray } from "drizzle-orm";
 import { RlsDb } from "../db/db";
 import { animals, earTags, farmIdColumnValue } from "../db/schema";
+import { Animal } from "../animals/animals";
 
 export type EarTag = typeof earTags.$inferSelect;
-export type EarTagWithAssignment = EarTag & { animalId: string | null };
+export type EarTagWithAssignment = EarTag & { animal: Animal | null };
 
 export function earTagsApi(rlsDb: RlsDb) {
   return {
-    // Get all ear tags for a farm with their assignment status
     async getEarTagsForFarm(farmId: string): Promise<EarTagWithAssignment[]> {
       return rlsDb.rls(async (tx) => {
-        const tags = await tx
-          .select({
-            id: earTags.id,
-            farmId: earTags.farmId,
-            number: earTags.number,
-            animalId: animals.id,
-          })
-          .from(earTags)
-          .leftJoin(animals, eq(animals.earTagId, earTags.id))
-          .where(eq(earTags.farmId, farmId));
-        return tags;
+        return tx.query.earTags.findMany({
+          where: { farmId },
+          with: {
+            animal: {
+              with: {
+                earTag: true,
+              },
+            },
+          },
+        });
       });
     },
 
@@ -74,7 +73,9 @@ export function earTagsApi(rlsDb: RlsDb) {
         const toNum = parseInt(toNumStr, 10);
 
         if (fromNum > toNum) {
-          throw new Error("Start number must be less than or equal to end number");
+          throw new Error(
+            "Start number must be less than or equal to end number",
+          );
         }
 
         const padding = fromNumStr.length;
@@ -127,7 +128,9 @@ export function earTagsApi(rlsDb: RlsDb) {
         const toNum = parseInt(toNumStr, 10);
 
         if (fromNum > toNum) {
-          throw new Error("Start number must be less than or equal to end number");
+          throw new Error(
+            "Start number must be less than or equal to end number",
+          );
         }
 
         // Generate all numbers in range
@@ -148,7 +151,10 @@ export function earTagsApi(rlsDb: RlsDb) {
           .from(earTags)
           .leftJoin(animals, eq(animals.earTagId, earTags.id))
           .where(
-            and(eq(earTags.farmId, farmId), inArray(earTags.number, numbersInRange)),
+            and(
+              eq(earTags.farmId, farmId),
+              inArray(earTags.number, numbersInRange),
+            ),
           );
 
         // Separate assigned and unassigned tags
@@ -175,13 +181,18 @@ export function earTagsApi(rlsDb: RlsDb) {
       });
     },
 
-    async getEarTagById(id: string): Promise<EarTag | undefined> {
+    async getEarTagById(id: string): Promise<EarTagWithAssignment | undefined> {
       return rlsDb.rls(async (tx) => {
-        const [tag] = await tx
-          .select()
-          .from(earTags)
-          .where(eq(earTags.id, id));
-        return tag;
+        return tx.query.earTags.findFirst({
+          where: { id },
+          with: {
+            animal: {
+              with: {
+                earTag: true,
+              },
+            },
+          },
+        });
       });
     },
   };

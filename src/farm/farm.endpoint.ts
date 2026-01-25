@@ -5,7 +5,6 @@ import {
   farmEndpointFactory,
 } from "../endpoint-factory";
 
-// API Schemas - decoupled from database schema for stable API contract
 const pointSchema = z.object({
   type: z.literal("Point"),
   coordinates: z.tuple([z.number(), z.number()]),

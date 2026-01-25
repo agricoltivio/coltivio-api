@@ -1,9 +1,11 @@
 import createHttpError from "http-errors";
 import { z } from "zod";
-import { conservationMethodEnumSchema, processingTypeEnumSchema } from "../db/schema";
+import {
+  conservationMethodEnumSchema,
+  processingTypeEnumSchema,
+} from "../db/schema";
 import { farmEndpointFactory } from "../endpoint-factory";
 
-// API Schemas - decoupled from database schema for stable API contract
 export const harvestingMachinerySchema = z.object({
   id: z.string(),
   farmId: z.string(),
@@ -22,7 +24,8 @@ const createHarvestingMachinerySchema = z.object({
   defaultKilosPerUnit: z.number(),
 });
 
-const updateHarvestingMachinerySchema = createHarvestingMachinerySchema.partial();
+const updateHarvestingMachinerySchema =
+  createHarvestingMachinerySchema.partial();
 
 const harvestersResponseSchema = harvestingMachinerySchema;
 
@@ -32,7 +35,7 @@ export const getHarvestingMachineryByIdEndpoint = farmEndpointFactory.build({
   output: harvestersResponseSchema,
   handler: async ({ input, ctx: { harvestingMachinery } }) => {
     const harvester = await harvestingMachinery.getHarvestingMachineryById(
-      input.harvestingMachineryId
+      input.harvestingMachineryId,
     );
     if (!harvester) {
       throw createHttpError(404, "Traktor not found");
@@ -76,7 +79,7 @@ export const updateHarvestingMachineryEndpoint = farmEndpointFactory.build({
   handler: async ({ input, ctx: { harvestingMachinery } }) => {
     return harvestingMachinery.updateHarvestingMachinery(
       input.harvestingMachineryId,
-      input
+      input,
     );
   },
 });

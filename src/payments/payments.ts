@@ -1,6 +1,9 @@
 import { eq } from "drizzle-orm";
 import { RlsDb } from "../db/db";
 import { payments, farmIdColumnValue } from "../db/schema";
+import { Contact } from "../contacts/contacts";
+import { Sponsorship } from "../sponsorships/sponsorships";
+import { Order } from "../orders/orders";
 
 export type PaymentCreateInput = Omit<
   typeof payments.$inferInsert,
@@ -8,6 +11,12 @@ export type PaymentCreateInput = Omit<
 >;
 export type PaymentUpdateInput = Partial<PaymentCreateInput>;
 export type Payment = typeof payments.$inferSelect;
+
+export type PaymentWithRelations = Payment & {
+  contact: Contact;
+  sponsorship: Sponsorship | null;
+  order: Order | null;
+};
 
 export function paymentsApi(rlsDb: RlsDb) {
   return {
@@ -21,37 +30,51 @@ export function paymentsApi(rlsDb: RlsDb) {
       });
     },
 
-    async getPaymentById(id: string): Promise<Payment | undefined> {
+    async getPaymentById(
+      id: string,
+    ): Promise<PaymentWithRelations | undefined> {
       return rlsDb.rls(async (tx) => {
-        const [payment] = await tx
-          .select()
-          .from(payments)
-          .where(eq(payments.id, id));
-        return payment;
+        return tx.query.payments.findFirst({
+          where: { id },
+          with: {
+            contact: true,
+            sponsorship: true,
+            order: true,
+          },
+        });
       });
     },
 
-    async getPaymentsForFarm(farmId: string): Promise<Payment[]> {
+    async getPaymentsForFarm(farmId: string): Promise<PaymentWithRelations[]> {
       return rlsDb.rls(async (tx) => {
-        return tx.select().from(payments).where(eq(payments.farmId, farmId));
+        return tx.query.payments.findMany({
+          with: {
+            contact: true,
+            sponsorship: true,
+            order: true,
+          },
+          where: { farmId },
+        });
       });
     },
 
-    async getPaymentsForContact(contactId: string): Promise<Payment[]> {
+    async getPaymentsForContact(
+      contactId: string,
+    ): Promise<Omit<PaymentWithRelations, "contact">[]> {
       return rlsDb.rls(async (tx) => {
-        return tx
-          .select()
-          .from(payments)
-          .where(eq(payments.contactId, contactId));
+        return tx.query.payments.findMany({
+          with: {
+            sponsorship: true,
+            order: true,
+          },
+          where: { contactId },
+        });
       });
     },
 
     async getPaymentsForOrder(orderId: string): Promise<Payment[]> {
       return rlsDb.rls(async (tx) => {
-        return tx
-          .select()
-          .from(payments)
-          .where(eq(payments.orderId, orderId));
+        return tx.select().from(payments).where(eq(payments.orderId, orderId));
       });
     },
 
