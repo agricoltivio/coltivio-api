@@ -47,6 +47,22 @@ import {
   getEarTagsEndpoint,
 } from "./ear-tags/ear-tags.endpoint";
 import {
+  createDrugEndpoint,
+  deleteDrugEndpoint,
+  drugInUseEndpoint,
+  getDrugByIdEndpoint,
+  getFarmDrugsEndpoint,
+  updateDrugEndpoint,
+} from "./drugs/drugs.endpoint";
+import {
+  createTreatmentEndpoint,
+  deleteTreatmentEndpoint,
+  getAnimalTreatmentsEndpoint,
+  getFarmTreatmentsEndpoint,
+  getTreatmentByIdEndpoint,
+  updateTreatmentEndpoint,
+} from "./treatments/treatments.endpoint";
+import {
   createFarmEndpoint,
   deleteFarmEndpoint,
   getFarmEndpoint,
@@ -474,6 +490,7 @@ export const routing: Routing = {
           },
           children: getAnimalChildrenEndpoint,
           sponsorships: getAnimalSponsorshipsEndpoint,
+          treatments: getAnimalTreatmentsEndpoint,
         },
       },
     },
@@ -484,6 +501,35 @@ export const routing: Routing = {
         "": {
           post: createEarTagRangeEndpoint,
           delete: deleteEarTagRangeEndpoint,
+        },
+      },
+    },
+    drugs: {
+      "": {
+        get: getFarmDrugsEndpoint,
+        post: createDrugEndpoint,
+      },
+      byId: {
+        ":drugId": {
+          "": {
+            get: getDrugByIdEndpoint,
+            patch: updateDrugEndpoint,
+            delete: deleteDrugEndpoint,
+          },
+          inUse: drugInUseEndpoint,
+        },
+      },
+    },
+    treatments: {
+      "": {
+        get: getFarmTreatmentsEndpoint,
+        post: createTreatmentEndpoint,
+      },
+      byId: {
+        ":treatmentId": {
+          get: getTreatmentByIdEndpoint,
+          patch: updateTreatmentEndpoint,
+          delete: deleteTreatmentEndpoint,
         },
       },
     },

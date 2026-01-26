@@ -8,7 +8,6 @@ import {
 } from "../db/schema";
 import { earTagSchema } from "../ear-tags/ear-tags.endpoint";
 import { farmEndpointFactory } from "../endpoint-factory";
-import { paymentSchema } from "../payments/payments.endpoint";
 
 // API Schemas - decoupled from database schema for stable API contract
 export const animalSchema = z.object({
@@ -17,7 +16,7 @@ export const animalSchema = z.object({
   name: z.string(),
   type: animalTypeSchema,
   sex: animalSexSchema,
-  dateOfBirth: ez.dateOut(),
+  dateOfBirth: ez.dateOut().nullable(),
   earTagId: z.string().nullable(),
   get earTag() {
     return earTagSchema.nullable();
@@ -43,7 +42,7 @@ const createAnimalSchema = z.object({
   name: z.string(),
   type: animalTypeSchema,
   sex: animalSexSchema,
-  dateOfBirth: ez.dateIn(),
+  dateOfBirth: ez.dateIn().optional(),
   earTagId: z.string().optional(),
   motherId: z.string().optional(),
   fatherId: z.string().optional(),

@@ -1,7 +1,9 @@
 import { animalsApi } from "../animals/animals";
 import { contactsApi } from "../contacts/contacts";
 import { cropRotationsApi } from "../crop-rotations/crop-rotations";
+import { drugsApi } from "../drugs/drugs";
 import { earTagsApi } from "../ear-tags/ear-tags";
+import { treatmentsApi } from "../treatments/treatments";
 import { ordersApi } from "../orders/orders";
 import { paymentsApi } from "../payments/payments";
 import { productsApi } from "../products/products";
@@ -47,6 +49,8 @@ export function sessionApi(db: RlsDb, t: TFunction, locale: string) {
     fieldCalendarReports: fieldCalendarReportsApi(db, t, locale),
     animals: animalsApi(db),
     earTags: earTagsApi(db),
+    drugs: drugsApi(db),
+    treatments: treatmentsApi(db),
     contacts: contactsApi(db),
     products: productsApi(db),
     orders: ordersApi(db),

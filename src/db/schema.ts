@@ -14,6 +14,7 @@ import {
   real,
   text,
   timestamp,
+  unique,
   uuid,
 } from "drizzle-orm/pg-core";
 import { authenticatedRole, authUid, authUsers } from "drizzle-orm/supabase";
@@ -933,7 +934,7 @@ export const animals = pgTable.withRLS(
     name: text().notNull(),
     type: animalType().notNull(),
     sex: animalSex().notNull(),
-    dateOfBirth: date({ mode: "date" }).notNull(),
+    dateOfBirth: date({ mode: "date" }),
     earTagId: uuid().references(() => earTags.id, { onDelete: "restrict" }),
     motherId: uuid(),
     fatherId: uuid(),
@@ -951,6 +952,95 @@ export const animals = pgTable.withRLS(
       foreignColumns: [table.id],
       name: "animals_father_fk",
     }).onDelete("set null"),
+    pgPolicy("only farm members", {
+      as: "permissive",
+      to: authenticatedRole,
+      using: eq(table.farmId, currentFarmId),
+      withCheck: eq(table.farmId, currentFarmId),
+    }),
+  ],
+);
+
+export const drugs = pgTable.withRLS(
+  "drugs",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    farmId: uuid()
+      .notNull()
+      .references(() => farms.id, {
+        onDelete: "cascade",
+      }),
+    name: text().notNull(),
+    notes: text(),
+  },
+  (table) => [
+    pgPolicy("only farm members", {
+      as: "permissive",
+      to: authenticatedRole,
+      using: eq(table.farmId, currentFarmId),
+      withCheck: eq(table.farmId, currentFarmId),
+    }),
+  ],
+);
+
+export const drugTreatment = pgTable.withRLS(
+  "drug_treatment",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    drugId: uuid()
+      .notNull()
+      .references(() => drugs.id, { onDelete: "cascade" }),
+    animalType: animalType().notNull(),
+    dosePerKg: real("dose_per_kg").notNull(),
+    milkWaitingDays: integer("milk_waiting_days").notNull(),
+    meatWaitingDays: integer("meat_waiting_days").notNull(),
+  },
+  (table) => [
+    index("drug_treatment_drug_id_idx").on(table.drugId),
+    unique("drug_treatment_drug_animal_unique").on(
+      table.drugId,
+      table.animalType,
+    ),
+    pgPolicy("only farm members", {
+      as: "permissive",
+      to: authenticatedRole,
+      using: sql`EXISTS (
+        SELECT 1 FROM ${drugs}
+        WHERE ${drugs.id} = ${table.drugId}
+        AND ${drugs.farmId} = current_setting('request.farm_id')::uuid
+      )`,
+    }),
+  ],
+);
+
+export const treatments = pgTable.withRLS(
+  "treatments",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    farmId: uuid()
+      .notNull()
+      .references(() => farms.id, {
+        onDelete: "cascade",
+      }),
+    animalId: uuid()
+      .notNull()
+      .references(() => animals.id, { onDelete: "cascade" }),
+    drugId: uuid()
+      .notNull()
+      .references(() => drugs.id, { onDelete: "restrict" }),
+    date: date({ mode: "date" }).notNull(),
+    name: text().notNull(),
+    reason: text().notNull(),
+    notes: text(),
+    milkUsableDate: date("milk_usable_date", { mode: "date" }),
+    meatUsableDate: date("meat_usable_date", { mode: "date" }),
+    createdAt: timestamp().notNull().defaultNow(),
+    createdBy: uuid().references(() => profiles.id, { onDelete: "set null" }),
+  },
+  (table) => [
+    index("treatments_animal_id_idx").on(table.animalId),
+    index("treatments_drug_id_idx").on(table.drugId),
+    index("treatments_date_idx").on(table.date),
     pgPolicy("only farm members", {
       as: "permissive",
       to: authenticatedRole,
@@ -988,6 +1078,9 @@ const tables = {
   payments,
   earTags,
   animals,
+  drugs,
+  drugTreatment,
+  treatments,
 };
 
 // Define all relations using the new Drizzle v1 API
@@ -1281,6 +1374,44 @@ export const relations = defineRelations(tables, (r) => ({
       alias: "childrenAsFather",
     }),
     sponsorships: r.many.sponsorships(),
+    treatments: r.many.treatments(),
+  },
+  drugs: {
+    farm: r.one.farms({
+      from: r.drugs.farmId,
+      to: r.farms.id,
+      optional: false,
+    }),
+    drugTreatment: r.many.drugTreatment(),
+    treatments: r.many.treatments(),
+  },
+  drugTreatment: {
+    drug: r.one.drugs({
+      from: r.drugTreatment.drugId,
+      to: r.drugs.id,
+      optional: false,
+    }),
+  },
+  treatments: {
+    farm: r.one.farms({
+      from: r.treatments.farmId,
+      to: r.farms.id,
+      optional: false,
+    }),
+    animal: r.one.animals({
+      from: r.treatments.animalId,
+      to: r.animals.id,
+      optional: false,
+    }),
+    drug: r.one.drugs({
+      from: r.treatments.drugId,
+      to: r.drugs.id,
+      optional: false,
+    }),
+    createdByProfile: r.one.profiles({
+      from: r.treatments.createdBy,
+      to: r.profiles.id,
+    }), // optional - createdBy can be null
   },
 }));
 
