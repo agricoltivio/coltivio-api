@@ -9,7 +9,7 @@ export const treatmentSchema = z.object({
   id: z.string(),
   farmId: z.string(),
   animalId: z.string(),
-  drugId: z.string(),
+  drugId: z.string().nullable(),
   date: ez.dateOut(),
   name: z.string(),
   reason: z.string(),
@@ -25,28 +25,31 @@ export const treatmentWithRelationsSchema = treatmentSchema.extend({
     return animalSchema;
   },
   get drug() {
-    return drugSchema;
+    return drugSchema.nullable();
   },
 });
 
 const createTreatmentSchema = z.object({
   animalId: z.string(),
-  drugId: z.string(),
+  drugId: z.string().nullable(),
   date: ez.dateIn(),
   name: z.string().min(1),
   reason: z.string().min(1),
   notes: z.string().optional(),
-  milkUsableDate: ez.dateIn().optional(),
-  meatUsableDate: ez.dateIn().optional(),
+  milkUsableDate: ez.dateIn().nullable(),
+  meatUsableDate: ez.dateIn().nullable(),
 });
 
 const updateTreatmentSchema = z.object({
+  treatmentId: z.string(),
+  animalId: z.string().optional(),
+  drugId: z.string().nullable(),
   date: ez.dateIn().optional(),
   name: z.string().min(1).optional(),
   reason: z.string().min(1).optional(),
   notes: z.string().optional(),
-  milkUsableDate: ez.dateIn().optional(),
-  meatUsableDate: ez.dateIn().optional(),
+  milkUsableDate: ez.dateIn().nullable(),
+  meatUsableDate: ez.dateIn().nullable(),
 });
 
 export const getTreatmentByIdEndpoint = farmEndpointFactory.build({
@@ -58,7 +61,7 @@ export const getTreatmentByIdEndpoint = farmEndpointFactory.build({
     if (!treatment) {
       throw createHttpError(404, "Treatment not found");
     }
-    return treatment as any;
+    return treatment;
   },
 });
 
@@ -99,7 +102,7 @@ export const createTreatmentEndpoint = farmEndpointFactory.build({
 
 export const updateTreatmentEndpoint = farmEndpointFactory.build({
   method: "patch",
-  input: updateTreatmentSchema.extend({ treatmentId: z.string() }),
+  input: updateTreatmentSchema,
   output: treatmentSchema,
   handler: async ({ input, ctx: { treatments } }) => {
     const { treatmentId, ...data } = input;

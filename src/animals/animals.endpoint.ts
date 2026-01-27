@@ -8,6 +8,7 @@ import {
 } from "../db/schema";
 import { earTagSchema } from "../ear-tags/ear-tags.endpoint";
 import { farmEndpointFactory } from "../endpoint-factory";
+import { treatmentSchema } from "../treatments/treatments.endpoint";
 
 // API Schemas - decoupled from database schema for stable API contract
 export const animalSchema = z.object({
@@ -27,7 +28,7 @@ export const animalSchema = z.object({
   deathReason: deathReasonSchema.nullable(),
 });
 
-const animalExtendedSchema = animalSchema.extend({
+const animalWithRelationsSchema = animalSchema.extend({
   get earTag() {
     return earTagSchema.nullable();
   },
@@ -36,6 +37,9 @@ const animalExtendedSchema = animalSchema.extend({
   father: z.union([animalSchema, z.null()]),
   childrenAsMother: z.array(animalSchema),
   childrenAsFather: z.array(animalSchema),
+  get treatments() {
+    return z.array(treatmentSchema);
+  },
 });
 
 const createAnimalSchema = z.object({
@@ -55,13 +59,13 @@ const updateAnimalSchema = createAnimalSchema.partial();
 export const getAnimalByIdEndpoint = farmEndpointFactory.build({
   method: "get",
   input: z.object({ animalId: z.string() }),
-  output: animalExtendedSchema,
+  output: animalWithRelationsSchema,
   handler: async ({ input, ctx: { animals } }) => {
     const animal = await animals.getAnimalById(input.animalId);
     if (!animal) {
       throw createHttpError(404, "Animal not found");
     }
-    return animal as any;
+    return animal;
   },
 });
 
@@ -147,5 +151,39 @@ export const getAnimalChildrenEndpoint = farmEndpointFactory.build({
       result,
       count: result.length,
     };
+  },
+});
+
+const skippedRowSchema = z.object({
+  row: z.number(),
+  earTagNumber: z.string().nullable(),
+  name: z.string().nullable(),
+  reason: z.string(),
+});
+
+const importSummarySchema = z.object({
+  totalRows: z.number(),
+  imported: z.number(),
+  skipped: z.number(),
+});
+
+export const importAnimalsFromExcelEndpoint = farmEndpointFactory.build({
+  method: "post",
+  input: z.object({
+    file: ez.upload(),
+    type: animalTypeSchema,
+    skipHeaderRow: z
+      .string()
+      .optional()
+      .transform((val) => val !== "false")
+      .default(true),
+  }),
+  output: z.object({
+    skipped: z.array(skippedRowSchema),
+    summary: importSummarySchema,
+  }),
+  handler: async ({ input, ctx: { animals, farmId } }) => {
+    const { file, type, skipHeaderRow } = input;
+    return animals.importFromExcel(file.data, type, skipHeaderRow, farmId);
   },
 });

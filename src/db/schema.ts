@@ -1025,9 +1025,7 @@ export const treatments = pgTable.withRLS(
     animalId: uuid()
       .notNull()
       .references(() => animals.id, { onDelete: "cascade" }),
-    drugId: uuid()
-      .notNull()
-      .references(() => drugs.id, { onDelete: "restrict" }),
+    drugId: uuid().references(() => drugs.id, { onDelete: "restrict" }),
     date: date({ mode: "date" }).notNull(),
     name: text().notNull(),
     reason: text().notNull(),
@@ -1406,7 +1404,6 @@ export const relations = defineRelations(tables, (r) => ({
     drug: r.one.drugs({
       from: r.treatments.drugId,
       to: r.drugs.id,
-      optional: false,
     }),
     createdByProfile: r.one.profiles({
       from: r.treatments.createdBy,

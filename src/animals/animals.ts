@@ -1,7 +1,38 @@
 import { eq } from "drizzle-orm";
+import ExcelJS from "exceljs";
 import { RlsDb } from "../db/db";
-import { animals, farmIdColumnValue } from "../db/schema";
+import { animalType, animals, earTags, farmIdColumnValue } from "../db/schema";
 import { EarTag } from "../ear-tags/ear-tags";
+import { Treatment } from "../treatments/treatments";
+
+// German sex value mapping for Excel imports
+const SEX_MAP: Record<string, "male" | "female"> = {
+  weiblich: "female",
+  w: "female",
+  geiss: "female",
+  geiß: "female",
+  männlich: "male",
+  m: "male",
+  bock: "male",
+};
+
+export type SkippedRow = {
+  row: number;
+  earTagNumber: string | null;
+  name: string | null;
+  reason: string;
+};
+
+export type ImportResult = {
+  skipped: SkippedRow[];
+  summary: {
+    totalRows: number;
+    imported: number;
+    skipped: number;
+  };
+};
+
+export type AnimalType = (typeof animalType.enumValues)[number];
 
 export type AnimalCreateInput = Omit<
   typeof animals.$inferInsert,
@@ -16,6 +47,7 @@ export type AnimalWithRelations = Animal & {
   father: Animal | null;
   childrenAsMother: Animal[];
   childrenAsFather: Animal[];
+  treatments: Treatment[];
 };
 
 export function animalsApi(rlsDb: RlsDb) {
@@ -65,6 +97,7 @@ export function animalsApi(rlsDb: RlsDb) {
                 earTag: true,
               },
             },
+            treatments: true,
           },
         });
       });
@@ -143,6 +176,139 @@ export function animalsApi(rlsDb: RlsDb) {
           },
         });
       });
+    },
+
+    // Import animals from an Excel file buffer. Columns: A=ear tag, B=name, C=sex, D=date of birth
+    async importFromExcel(
+      fileBuffer: Buffer,
+      type: AnimalType,
+      skipHeaderRow: boolean,
+      farmId: string,
+    ): Promise<ImportResult> {
+      // Load Excel workbook from buffer
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(fileBuffer as unknown as ExcelJS.Buffer);
+      const worksheet = workbook.worksheets[0];
+      if (!worksheet) {
+        throw new Error("Excel file has no worksheets");
+      }
+
+      // Fetch all existing ear tags for this farm to check for duplicates (with animal assignment info)
+      const existingEarTags = await rlsDb.rls(async (tx) => {
+        return tx.query.earTags.findMany({
+          where: { farmId },
+          with: { animal: { with: { earTag: true } } },
+        });
+      });
+      const earTagByNumber = new Map(
+        existingEarTags.map((tag) => [tag.number.toLowerCase(), tag]),
+      );
+
+      const skippedRows: SkippedRow[] = [];
+      const validAnimals: (AnimalCreateInput & { earTagNumber?: string })[] = [];
+      const earTagsToCreate = new Set<string>();
+
+      // Process rows
+      let rowIndex = 0;
+      worksheet.eachRow((row, rowNumber) => {
+        rowIndex++;
+        if (skipHeaderRow && rowNumber === 1) return;
+
+        const earTagNumber = row.getCell(1).text?.trim() || null;
+        const name = row.getCell(2).text?.trim() || null;
+        const sexValue = row.getCell(3).text?.trim().toLowerCase() || null;
+        const dobCell = row.getCell(4);
+
+        if (!name) {
+          skippedRows.push({ row: rowNumber, earTagNumber, name, reason: "Name is required" });
+          return;
+        }
+
+        if (!sexValue) {
+          skippedRows.push({ row: rowNumber, earTagNumber, name, reason: "Sex is required" });
+          return;
+        }
+        const sex = SEX_MAP[sexValue];
+        if (!sex) {
+          skippedRows.push({ row: rowNumber, earTagNumber, name, reason: `Unknown sex value: ${sexValue}` });
+          return;
+        }
+
+        // Parse date of birth (optional)
+        let dateOfBirth: Date | undefined;
+        if (dobCell.value) {
+          if (dobCell.value instanceof Date) {
+            dateOfBirth = dobCell.value;
+          } else if (typeof dobCell.value === "string") {
+            const parsed = new Date(dobCell.value);
+            if (isNaN(parsed.getTime())) {
+              skippedRows.push({ row: rowNumber, earTagNumber, name, reason: "Invalid date format" });
+              return;
+            }
+            dateOfBirth = parsed;
+          } else if (typeof dobCell.value === "number") {
+            // Excel date serial number
+            dateOfBirth = new Date(Math.round((dobCell.value - 25569) * 86400 * 1000));
+          }
+        }
+
+        // Check ear tag status
+        let earTagId: string | undefined;
+        if (earTagNumber) {
+          const existingTag = earTagByNumber.get(earTagNumber.toLowerCase());
+          if (existingTag) {
+            if (existingTag.animal) {
+              skippedRows.push({ row: rowNumber, earTagNumber, name, reason: "Ear tag already assigned" });
+              return;
+            }
+            earTagId = existingTag.id;
+          } else {
+            earTagsToCreate.add(earTagNumber);
+          }
+        }
+
+        validAnimals.push({ name, type, sex, dateOfBirth, earTagId, earTagNumber: earTagNumber || undefined });
+      });
+
+      // Batch create missing ear tags
+      const earTagNumbersToCreate = Array.from(earTagsToCreate);
+      let newEarTags: EarTag[] = [];
+      if (earTagNumbersToCreate.length > 0) {
+        newEarTags = await rlsDb.rls(async (tx) => {
+          return tx
+            .insert(earTags)
+            .values(earTagNumbersToCreate.map((number) => ({ ...farmIdColumnValue, number })))
+            .returning();
+        });
+      }
+      const newEarTagMap = new Map(newEarTags.map((tag) => [tag.number.toLowerCase(), tag.id]));
+
+      // Assign ear tag IDs to animals that need new ear tags
+      const animalsToCreate: AnimalCreateInput[] = validAnimals.map((animal) => {
+        const { earTagNumber, ...animalData } = animal;
+        if (earTagNumber && !animalData.earTagId) {
+          animalData.earTagId = newEarTagMap.get(earTagNumber.toLowerCase());
+        }
+        return animalData;
+      });
+
+      // Batch create all valid animals
+      let importedCount = 0;
+      if (animalsToCreate.length > 0) {
+        const result = await rlsDb.rls(async (tx) => {
+          return tx
+            .insert(animals)
+            .values(animalsToCreate.map((input) => ({ ...farmIdColumnValue, ...input })))
+            .returning({ id: animals.id });
+        });
+        importedCount = result.length;
+      }
+      const totalRows = skipHeaderRow ? rowIndex - 1 : rowIndex;
+
+      return {
+        skipped: skippedRows,
+        summary: { totalRows, imported: importedCount, skipped: skippedRows.length },
+      };
     },
   };
 }

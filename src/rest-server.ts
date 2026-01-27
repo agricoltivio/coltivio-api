@@ -28,6 +28,7 @@ const config = createConfig({
   http: {
     listen: process.env.PORT || 8000, // port, UNIX socket or options
   },
+  upload: true,
   beforeRouting: ({ app, getLogger }) => {
     getLogger().info(
       "Serving the API documentation at http://localhost:8000/docs. ",

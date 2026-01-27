@@ -1,12 +1,7 @@
 import { addDays } from "date-fns";
 import { and, eq } from "drizzle-orm";
 import { RlsDb } from "../db/db";
-import {
-  treatments,
-  farmIdColumnValue,
-  drugTreatment,
-  animals,
-} from "../db/schema";
+import { treatments, farmIdColumnValue, drugTreatment } from "../db/schema";
 import type { Animal } from "../animals/animals";
 import type { DrugWithTreatment } from "../drugs/drugs";
 
@@ -23,7 +18,7 @@ export type Treatment = typeof treatments.$inferSelect;
 
 export type TreatmentWithRelations = Treatment & {
   animal: Animal;
-  drug: DrugWithTreatment;
+  drug: DrugWithTreatment | null;
 };
 
 export function treatmentsApi(rlsDb: RlsDb) {
@@ -37,7 +32,7 @@ export function treatmentsApi(rlsDb: RlsDb) {
         let meatUsableDate = treatmentInput.meatUsableDate;
 
         // If dates not provided, auto-calculate
-        if (!milkUsableDate || !meatUsableDate) {
+        if (treatmentInput.drugId && (!milkUsableDate || !meatUsableDate)) {
           // Fetch animal to get type
           const animal = await tx.query.animals.findFirst({
             where: { id: treatmentInput.animalId },
@@ -47,18 +42,12 @@ export function treatmentsApi(rlsDb: RlsDb) {
             throw new Error("Animal not found");
           }
 
-          // Fetch drug treatment data for this animal type
-          const drugTreatmentData = await tx
-            .select()
-            .from(drugTreatment)
-            .where(
-              and(
-                eq(drugTreatment.drugId, treatmentInput.drugId),
-                eq(drugTreatment.animalType, animal.type),
-              ),
-            )
-            .then((rows) => rows[0]);
-
+          const drugTreatmentData = await tx.query.drugTreatment.findFirst({
+            where: {
+              drugId: treatmentInput.drugId,
+              animalType: animal.type,
+            },
+          });
           if (!drugTreatmentData) {
             throw new Error(
               `No treatment data found for drug and animal type ${animal.type}`,

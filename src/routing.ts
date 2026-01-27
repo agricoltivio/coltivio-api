@@ -6,6 +6,7 @@ import {
   getAnimalChildrenEndpoint,
   getFarmAnimalsEndpoint,
   getLivingAnimalsEndpoint,
+  importAnimalsFromExcelEndpoint,
   updateAnimalEndpoint,
 } from "./animals/animals.endpoint";
 import {
@@ -480,6 +481,7 @@ export const routing: Routing = {
         get: getFarmAnimalsEndpoint,
         post: createAnimalEndpoint,
       },
+      import: importAnimalsFromExcelEndpoint,
       living: getLivingAnimalsEndpoint,
       byId: {
         ":animalId": {
