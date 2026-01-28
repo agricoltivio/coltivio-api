@@ -1048,6 +1048,57 @@ export const treatments = pgTable.withRLS(
   ],
 );
 
+export const animalGroups = pgTable.withRLS(
+  "animal_groups",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    farmId: uuid()
+      .notNull()
+      .references(() => farms.id, {
+        onDelete: "cascade",
+      }),
+    name: text().notNull(),
+    description: text(),
+  },
+  (table) => [
+    pgPolicy("only farm members", {
+      as: "permissive",
+      to: authenticatedRole,
+      using: eq(table.farmId, currentFarmId),
+      withCheck: eq(table.farmId, currentFarmId),
+    }),
+  ],
+);
+
+export const outdoorJournalEntries = pgTable.withRLS(
+  "outdoor_journal_entries",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    farmId: uuid()
+      .notNull()
+      .references(() => farms.id, {
+        onDelete: "cascade",
+      }),
+    animalGroupId: uuid()
+      .notNull()
+      .references(() => animalGroups.id, { onDelete: "cascade" }),
+    startDate: date("start_date", { mode: "date" }).notNull(),
+    endDate: date("end_date", { mode: "date" }).notNull(),
+    animalCount: integer("animal_count").notNull(),
+  },
+  (table) => [
+    index("outdoor_journal_entries_animal_group_id_idx").on(table.animalGroupId),
+    index("outdoor_journal_entries_start_date_idx").on(table.startDate),
+    index("outdoor_journal_entries_end_date_idx").on(table.endDate),
+    pgPolicy("only farm members", {
+      as: "permissive",
+      to: authenticatedRole,
+      using: eq(table.farmId, currentFarmId),
+      withCheck: eq(table.farmId, currentFarmId),
+    }),
+  ],
+);
+
 // Schema object for defineRelations (contains all tables)
 const tables = {
   federalFarmPlots,
@@ -1079,6 +1130,8 @@ const tables = {
   drugs,
   drugTreatment,
   treatments,
+  animalGroups,
+  outdoorJournalEntries,
 };
 
 // Define all relations using the new Drizzle v1 API
@@ -1409,6 +1462,26 @@ export const relations = defineRelations(tables, (r) => ({
       from: r.treatments.createdBy,
       to: r.profiles.id,
     }), // optional - createdBy can be null
+  },
+  animalGroups: {
+    farm: r.one.farms({
+      from: r.animalGroups.farmId,
+      to: r.farms.id,
+      optional: false,
+    }),
+    outdoorJournalEntries: r.many.outdoorJournalEntries(),
+  },
+  outdoorJournalEntries: {
+    farm: r.one.farms({
+      from: r.outdoorJournalEntries.farmId,
+      to: r.farms.id,
+      optional: false,
+    }),
+    animalGroup: r.one.animalGroups({
+      from: r.outdoorJournalEntries.animalGroupId,
+      to: r.animalGroups.id,
+      optional: false,
+    }),
   },
 }));
 

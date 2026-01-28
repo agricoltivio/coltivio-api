@@ -27,6 +27,8 @@ import { usersApi } from "../user/users";
 import { cropProtectionProductsApi } from "../crop-protection/crop-protection-products";
 import { TFunction } from "i18next";
 import { fieldCalendarReportsApi } from "../reports/field-calendar-reports";
+import { animalGroupsApi } from "../outdoor-journal/animal-groups";
+import { outdoorJournalApi } from "../outdoor-journal/outdoor-journal";
 
 export function sessionApi(db: RlsDb, t: TFunction, locale: string) {
   return {
@@ -57,5 +59,7 @@ export function sessionApi(db: RlsDb, t: TFunction, locale: string) {
     payments: paymentsApi(db),
     sponsorshipPrograms: sponsorshipProgramsApi(db),
     sponsorships: sponsorshipsApi(db),
+    animalGroups: animalGroupsApi(db),
+    outdoorJournal: outdoorJournalApi(db),
   };
 }

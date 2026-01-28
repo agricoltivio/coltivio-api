@@ -216,6 +216,21 @@ import {
 } from "./products/products.endpoint";
 import { generateFieldCalendarReport } from "./reports/field-calendar-reports.endpoint";
 import { healthEndpoint } from "./chore/chore.endpoint";
+import {
+  createAnimalGroupEndpoint,
+  deleteAnimalGroupEndpoint,
+  getAnimalGroupByIdEndpoint,
+  getAnimalGroupsEndpoint,
+  updateAnimalGroupEndpoint,
+} from "./outdoor-journal/animal-groups.endpoint";
+import {
+  createOutdoorJournalEntryEndpoint,
+  deleteOutdoorJournalEntryEndpoint,
+  getOutdoorJournalCalendarEndpoint,
+  getOutdoorJournalEntriesEndpoint,
+  getOutdoorJournalEntryByIdEndpoint,
+  updateOutdoorJournalEntryEndpoint,
+} from "./outdoor-journal/outdoor-journal.endpoint";
 
 export const routing: Routing = {
   healthz: healthEndpoint,
@@ -629,6 +644,37 @@ export const routing: Routing = {
           },
         },
       },
+    },
+    animalGroups: {
+      "": {
+        get: getAnimalGroupsEndpoint,
+        post: createAnimalGroupEndpoint,
+      },
+      byId: {
+        ":groupId": {
+          "": {
+            get: getAnimalGroupByIdEndpoint,
+            patch: updateAnimalGroupEndpoint,
+            delete: deleteAnimalGroupEndpoint,
+          },
+        },
+      },
+    },
+    outdoorJournal: {
+      "": {
+        get: getOutdoorJournalEntriesEndpoint,
+        post: createOutdoorJournalEntryEndpoint,
+      },
+      byId: {
+        ":entryId": {
+          "": {
+            get: getOutdoorJournalEntryByIdEndpoint,
+            patch: updateOutdoorJournalEntryEndpoint,
+            delete: deleteOutdoorJournalEntryEndpoint,
+          },
+        },
+      },
+      calendar: getOutdoorJournalCalendarEndpoint,
     },
   },
 };
