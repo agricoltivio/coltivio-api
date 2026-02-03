@@ -18,6 +18,7 @@ export const animalSchema = z.object({
   type: animalTypeSchema,
   sex: animalSexSchema,
   dateOfBirth: ez.dateOut().nullable(),
+  registered: z.boolean(),
   earTagId: z.string().nullable(),
   get earTag() {
     return earTagSchema.nullable();
@@ -47,11 +48,12 @@ const createAnimalSchema = z.object({
   type: animalTypeSchema,
   sex: animalSexSchema,
   dateOfBirth: ez.dateIn().optional(),
-  earTagId: z.string().optional(),
-  motherId: z.string().optional(),
-  fatherId: z.string().optional(),
-  dateOfDeath: ez.dateIn().optional(),
-  deathReason: deathReasonSchema.optional(),
+  registered: z.boolean(),
+  earTagId: z.string().optional().nullable(),
+  motherId: z.string().optional().nullable(),
+  fatherId: z.string().optional().nullable(),
+  dateOfDeath: ez.dateIn().optional().nullable(),
+  deathReason: deathReasonSchema.optional().nullable(),
 });
 
 const updateAnimalSchema = createAnimalSchema.partial();
@@ -72,6 +74,7 @@ export const getAnimalByIdEndpoint = farmEndpointFactory.build({
 export const getFarmAnimalsEndpoint = farmEndpointFactory.build({
   method: "get",
   input: z.object({
+    animalTypes: z.array(animalTypeSchema).optional(),
     onlyLiving: z
       .string()
       .optional()
@@ -83,7 +86,11 @@ export const getFarmAnimalsEndpoint = farmEndpointFactory.build({
     count: z.number(),
   }),
   handler: async ({ input, ctx: { animals, farmId } }) => {
-    const result = await animals.getAnimalsForFarm(farmId, input.onlyLiving);
+    const result = await animals.getAnimalsForFarm(
+      farmId,
+      input.onlyLiving,
+      input.animalTypes,
+    );
     return {
       result,
       count: result.length,
@@ -125,6 +132,28 @@ export const updateAnimalEndpoint = farmEndpointFactory.build({
   handler: async ({ input, ctx: { animals } }) => {
     const { animalId, ...data } = input;
     return animals.updateAnimal(animalId, data);
+  },
+});
+
+export const updateAnimalsEndpoint = farmEndpointFactory.build({
+  method: "patch",
+  input: z.object({
+    animals: z.array(
+      updateAnimalSchema.extend({
+        id: z.string(),
+      }),
+    ),
+  }),
+  output: z.object({
+    result: z.array(animalSchema),
+    count: z.number(),
+  }),
+  handler: async ({ input, ctx: { animals } }) => {
+    const result = await animals.updateAnimals(input.animals);
+    return {
+      result,
+      count: result.length,
+    };
   },
 });
 

@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import ExcelJS from "exceljs";
 import { RlsDb } from "../db/db";
-import { animalType, animals, earTags, farmIdColumnValue } from "../db/schema";
+import * as tables from "../db/schema";
 import { EarTag } from "../ear-tags/ear-tags";
 import { Treatment } from "../treatments/treatments";
 
@@ -32,14 +32,14 @@ export type ImportResult = {
   };
 };
 
-export type AnimalType = (typeof animalType.enumValues)[number];
+export type AnimalType = (typeof tables.animalType.enumValues)[number];
 
 export type AnimalCreateInput = Omit<
-  typeof animals.$inferInsert,
+  typeof tables.animals.$inferInsert,
   "id" | "farmId"
 >;
 export type AnimalUpdateInput = Partial<AnimalCreateInput>;
-export type Animal = typeof animals.$inferSelect & {
+export type Animal = typeof tables.animals.$inferSelect & {
   earTag: EarTag | null;
 };
 export type AnimalWithRelations = Animal & {
@@ -55,8 +55,8 @@ export function animalsApi(rlsDb: RlsDb) {
     async createAnimal(animalInput: AnimalCreateInput): Promise<Animal> {
       const result = await rlsDb.rls(async (tx) => {
         const [result] = await tx
-          .insert(animals)
-          .values({ ...farmIdColumnValue, ...animalInput })
+          .insert(tables.animals)
+          .values({ ...tables.farmIdColumnValue, ...animalInput })
           .returning();
         return result;
       });
@@ -106,11 +106,13 @@ export function animalsApi(rlsDb: RlsDb) {
     async getAnimalsForFarm(
       farmId: string,
       onlyLiving: boolean,
+      animalTypes?: AnimalType[],
     ): Promise<Animal[]> {
       return rlsDb.rls(async (tx) => {
         return tx.query.animals.findMany({
           where: {
             farmId,
+            type: { in: animalTypes },
             dateOfDeath: onlyLiving ? { isNull: true } : undefined,
           },
           with: {
@@ -131,14 +133,37 @@ export function animalsApi(rlsDb: RlsDb) {
         });
       });
     },
+    async updateAnimals(
+      data: Array<AnimalUpdateInput & { id: string }>,
+    ): Promise<Animal[]> {
+      await rlsDb.rls(async (tx) => {
+        await Promise.all(
+          data.map(async ({ id, ...animal }) => {
+            await tx
+              .update(tables.animals)
+              .set(animal)
+              .where(eq(tables.animals.id, id));
+          }),
+        );
+      });
+      const result = await rlsDb.rls(async (tx) => {
+        return tx.query.animals.findMany({
+          where: { id: { in: data.map(({ id }) => id) } },
+          with: {
+            earTag: true,
+          },
+        });
+      });
+      return result!;
+    },
 
     async updateAnimal(id: string, data: AnimalUpdateInput): Promise<Animal> {
       const result = await rlsDb.rls(async (tx) => {
         const [result] = await tx
-          .update(animals)
+          .update(tables.animals)
           .set(data)
-          .where(eq(animals.id, id))
-          .returning({ id: animals.id });
+          .where(eq(tables.animals.id, id))
+          .returning({ id: tables.animals.id });
         return result;
       });
       const animal = await rlsDb.rls(async (tx) => {
@@ -154,7 +179,7 @@ export function animalsApi(rlsDb: RlsDb) {
 
     async deleteAnimal(id: string): Promise<void> {
       return rlsDb.rls(async (tx) => {
-        await tx.delete(animals).where(eq(animals.id, id));
+        await tx.delete(tables.animals).where(eq(tables.animals.id, id));
       });
     },
 
@@ -205,7 +230,8 @@ export function animalsApi(rlsDb: RlsDb) {
       );
 
       const skippedRows: SkippedRow[] = [];
-      const validAnimals: (AnimalCreateInput & { earTagNumber?: string })[] = [];
+      const validAnimals: (AnimalCreateInput & { earTagNumber?: string })[] =
+        [];
       const earTagsToCreate = new Set<string>();
 
       // Process rows
@@ -220,17 +246,32 @@ export function animalsApi(rlsDb: RlsDb) {
         const dobCell = row.getCell(4);
 
         if (!name) {
-          skippedRows.push({ row: rowNumber, earTagNumber, name, reason: "Name is required" });
+          skippedRows.push({
+            row: rowNumber,
+            earTagNumber,
+            name,
+            reason: "Name is required",
+          });
           return;
         }
 
         if (!sexValue) {
-          skippedRows.push({ row: rowNumber, earTagNumber, name, reason: "Sex is required" });
+          skippedRows.push({
+            row: rowNumber,
+            earTagNumber,
+            name,
+            reason: "Sex is required",
+          });
           return;
         }
         const sex = SEX_MAP[sexValue];
         if (!sex) {
-          skippedRows.push({ row: rowNumber, earTagNumber, name, reason: `Unknown sex value: ${sexValue}` });
+          skippedRows.push({
+            row: rowNumber,
+            earTagNumber,
+            name,
+            reason: `Unknown sex value: ${sexValue}`,
+          });
           return;
         }
 
@@ -242,13 +283,20 @@ export function animalsApi(rlsDb: RlsDb) {
           } else if (typeof dobCell.value === "string") {
             const parsed = new Date(dobCell.value);
             if (isNaN(parsed.getTime())) {
-              skippedRows.push({ row: rowNumber, earTagNumber, name, reason: "Invalid date format" });
+              skippedRows.push({
+                row: rowNumber,
+                earTagNumber,
+                name,
+                reason: "Invalid date format",
+              });
               return;
             }
             dateOfBirth = parsed;
           } else if (typeof dobCell.value === "number") {
             // Excel date serial number
-            dateOfBirth = new Date(Math.round((dobCell.value - 25569) * 86400 * 1000));
+            dateOfBirth = new Date(
+              Math.round((dobCell.value - 25569) * 86400 * 1000),
+            );
           }
         }
 
@@ -258,7 +306,12 @@ export function animalsApi(rlsDb: RlsDb) {
           const existingTag = earTagByNumber.get(earTagNumber.toLowerCase());
           if (existingTag) {
             if (existingTag.animal) {
-              skippedRows.push({ row: rowNumber, earTagNumber, name, reason: "Ear tag already assigned" });
+              skippedRows.push({
+                row: rowNumber,
+                earTagNumber,
+                name,
+                reason: "Ear tag already assigned",
+              });
               return;
             }
             earTagId = existingTag.id;
@@ -267,7 +320,14 @@ export function animalsApi(rlsDb: RlsDb) {
           }
         }
 
-        validAnimals.push({ name, type, sex, dateOfBirth, earTagId, earTagNumber: earTagNumber || undefined });
+        validAnimals.push({
+          name,
+          type,
+          sex,
+          dateOfBirth,
+          earTagId,
+          earTagNumber: earTagNumber || undefined,
+        });
       });
 
       // Batch create missing ear tags
@@ -276,30 +336,44 @@ export function animalsApi(rlsDb: RlsDb) {
       if (earTagNumbersToCreate.length > 0) {
         newEarTags = await rlsDb.rls(async (tx) => {
           return tx
-            .insert(earTags)
-            .values(earTagNumbersToCreate.map((number) => ({ ...farmIdColumnValue, number })))
+            .insert(tables.earTags)
+            .values(
+              earTagNumbersToCreate.map((number) => ({
+                ...tables.farmIdColumnValue,
+                number,
+              })),
+            )
             .returning();
         });
       }
-      const newEarTagMap = new Map(newEarTags.map((tag) => [tag.number.toLowerCase(), tag.id]));
+      const newEarTagMap = new Map(
+        newEarTags.map((tag) => [tag.number.toLowerCase(), tag.id]),
+      );
 
       // Assign ear tag IDs to animals that need new ear tags
-      const animalsToCreate: AnimalCreateInput[] = validAnimals.map((animal) => {
-        const { earTagNumber, ...animalData } = animal;
-        if (earTagNumber && !animalData.earTagId) {
-          animalData.earTagId = newEarTagMap.get(earTagNumber.toLowerCase());
-        }
-        return animalData;
-      });
+      const animalsToCreate: AnimalCreateInput[] = validAnimals.map(
+        (animal) => {
+          const { earTagNumber, ...animalData } = animal;
+          if (earTagNumber && !animalData.earTagId) {
+            animalData.earTagId = newEarTagMap.get(earTagNumber.toLowerCase());
+          }
+          return animalData;
+        },
+      );
 
       // Batch create all valid animals
       let importedCount = 0;
       if (animalsToCreate.length > 0) {
         const result = await rlsDb.rls(async (tx) => {
           return tx
-            .insert(animals)
-            .values(animalsToCreate.map((input) => ({ ...farmIdColumnValue, ...input })))
-            .returning({ id: animals.id });
+            .insert(tables.animals)
+            .values(
+              animalsToCreate.map((input) => ({
+                ...tables.farmIdColumnValue,
+                ...input,
+              })),
+            )
+            .returning({ id: tables.animals.id });
         });
         importedCount = result.length;
       }
@@ -307,7 +381,11 @@ export function animalsApi(rlsDb: RlsDb) {
 
       return {
         skipped: skippedRows,
-        summary: { totalRows, imported: importedCount, skipped: skippedRows.length },
+        summary: {
+          totalRows,
+          imported: importedCount,
+          skipped: skippedRows.length,
+        },
       };
     },
   };

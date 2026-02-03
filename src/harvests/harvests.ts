@@ -80,7 +80,7 @@ export function harvestsApi(rlsDb: RlsDb) {
               ...base,
               ...plot,
               geometry: sql<MultiPolygon>`ST_GeomFromGeoJSON(${JSON.stringify(plot.geometry)})`,
-            }))
+            })),
           )
           .returning({
             id: tables.harvests.id,
@@ -148,7 +148,7 @@ export function harvestsApi(rlsDb: RlsDb) {
     async getHarvestsForFarm(
       farmId: string,
       fromDate: Date,
-      toDate: Date
+      toDate: Date,
     ): Promise<Harvest[]> {
       return rlsDb.rls(async (tx) => {
         return tx.query.harvests.findMany({
@@ -208,9 +208,9 @@ export function harvestsApi(rlsDb: RlsDb) {
         return Array.from(
           new Set(
             result.map((application) =>
-              application.date.getFullYear().toString()
-            )
-          )
+              application.date.getFullYear().toString(),
+            ),
+          ),
         );
       });
     },
@@ -247,7 +247,7 @@ export function harvestsApi(rlsDb: RlsDb) {
   };
 
   function mapToMonthlySummaries(
-    harvests: Omit<Harvest, "machinery" | "geometry" | "plot">[]
+    harvests: Omit<Harvest, "machinery" | "geometry" | "plot">[],
   ): HarvestSummary {
     const monthlyHarvests = harvests.reduce<
       Record<
@@ -327,7 +327,7 @@ export function harvestsApi(rlsDb: RlsDb) {
         .map((monthlyHarvest) => ({
           ...monthlyHarvest,
           producedQuantities: Object.values(
-            monthlyHarvest.producedQuantities
+            monthlyHarvest.producedQuantities,
           ).map((producedQuantity) => ({
             ...producedQuantity,
             producedUnits: Object.values(producedQuantity.producedUnits),

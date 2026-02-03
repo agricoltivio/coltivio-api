@@ -9,7 +9,7 @@ import { txEmailApi } from "../brevo/brevo";
 export function fieldCalendarReportsApi(
   rlsDb: RlsDb,
   t: TFunction,
-  locale: string = "de"
+  locale: string = "de",
 ) {
   return {
     async generateReport(
@@ -20,7 +20,7 @@ export function fieldCalendarReportsApi(
       tillages: boolean,
       fertilizerApplications: boolean,
       cropProtectionApplications: boolean,
-      harvests: boolean
+      harvests: boolean,
     ): Promise<void> {
       const selectedFlags = {
         cropRotations,
@@ -169,10 +169,10 @@ export function fieldCalendarReportsApi(
                   harvest.crop.name,
                   harvest.machinery?.name,
                   t(
-                    `harvests.labels.processing_type.${harvest.processingType}`
+                    `harvests.labels.processing_type.${harvest.processingType}`,
                   ),
                   t(
-                    `harvests.labels.conservation_method.${harvest.conservationMethod}`
+                    `harvests.labels.conservation_method.${harvest.conservationMethod}`,
                   ),
                   harvest.producedUnits,
                   harvest.kilosPerUnit,
@@ -183,7 +183,7 @@ export function fieldCalendarReportsApi(
           }
 
           const sheet = workbook.addWorksheet(
-            t("field_calendar_report.sheet_titles.main_short")
+            t("field_calendar_report.sheet_titles.main_short"),
           );
           let rowIndex = 1;
           sheet.getCell(`A${rowIndex}`).value = t(
@@ -197,7 +197,7 @@ export function fieldCalendarReportsApi(
                 hour: "2-digit",
                 minute: "2-digit",
               }),
-            }
+            },
           );
           sheet.getCell(`A${rowIndex}`).font = { bold: true, size: 24 };
           rowIndex += 3;
@@ -205,7 +205,7 @@ export function fieldCalendarReportsApi(
           if (cropRotations && cropRotationRows.length > 0) {
             // crop rotations table
             sheet.getCell(`A${rowIndex}`).value = t(
-              "crop_rotations.crop_rotation"
+              "crop_rotations.crop_rotation",
             );
             sheet.getCell(`A${rowIndex}`).font = {
               bold: true,
@@ -261,7 +261,7 @@ export function fieldCalendarReportsApi(
           if (fertilizerApplications && fertilizerApplicationRows.length > 0) {
             // table fertilizer applications
             sheet.getCell(`A${rowIndex}`).value = t(
-              "fertilizer_applications.fertilizer_application"
+              "fertilizer_applications.fertilizer_application",
             );
             sheet.getCell(`A${rowIndex}`).font = {
               bold: true,
@@ -297,7 +297,7 @@ export function fieldCalendarReportsApi(
           ) {
             // table crop protection applications
             sheet.getCell(`A${rowIndex}`).value = t(
-              "crop_protections.crop_protection"
+              "crop_protections.crop_protection",
             );
             sheet.getCell(`A${rowIndex}`).font = {
               bold: true,
@@ -363,7 +363,7 @@ export function fieldCalendarReportsApi(
 
         function generatePerPlotSheet() {
           const sheet = workbook.addWorksheet(
-            t("field_calendar_report.sheet_titles.per_plot_short")
+            t("field_calendar_report.sheet_titles.per_plot_short"),
           );
           let rowIndex = 1;
 
@@ -378,7 +378,7 @@ export function fieldCalendarReportsApi(
                 hour: "2-digit",
                 minute: "2-digit",
               }),
-            }
+            },
           );
           sheet.getCell(`A${rowIndex}`).font = { bold: true, size: 24 };
           rowIndex += 3;
@@ -399,7 +399,7 @@ export function fieldCalendarReportsApi(
                   [keyof typeof selectedFlags, boolean]
                 >
               ).every(
-                ([key, isSelected]) => !isSelected || plot[key].length === 0
+                ([key, isSelected]) => !isSelected || plot[key].length === 0,
               )
             ) {
               continue;
@@ -439,7 +439,7 @@ export function fieldCalendarReportsApi(
               title: string,
               headers: Array<{ key: keyof T; value: string }>,
               data: T[],
-              index: number
+              index: number,
             ) => {
               if (data.length > 0) {
                 sheet.getCell(`A${rowIndex}`).value = title;
@@ -450,7 +450,7 @@ export function fieldCalendarReportsApi(
                 rowIndex++;
 
                 const tableRows = data.map((entry) =>
-                  headers.map((header) => entry[header.key] || "")
+                  headers.map((header) => entry[header.key] || ""),
                 );
                 sheet.addTable({
                   name: `${title}_${name}_${index}`.replace(/\s+/g, "_"),
@@ -478,7 +478,7 @@ export function fieldCalendarReportsApi(
                   toDate: cropRotation.toDate?.toLocaleDateString(locale),
                   crop: cropRotation.crop.name,
                 })),
-                plotIndex
+                plotIndex,
               );
             }
 
@@ -499,7 +499,7 @@ export function fieldCalendarReportsApi(
                   action: t(`tillages.actions.${tillage.action}`),
                   equipment: tillage.equipment?.name,
                 })),
-                plotIndex
+                plotIndex,
               );
             }
 
@@ -540,7 +540,7 @@ export function fieldCalendarReportsApi(
                     application.amountPerApplication *
                     application.numberOfApplications,
                 })),
-                plotIndex
+                plotIndex,
               );
             }
 
@@ -584,7 +584,7 @@ export function fieldCalendarReportsApi(
                     application.amountPerApplication *
                     application.numberOfApplications,
                 })),
-                plotIndex
+                plotIndex,
               );
             }
 
@@ -623,16 +623,16 @@ export function fieldCalendarReportsApi(
                   crop: harvest.crop.name,
                   machinery: harvest.machinery?.name,
                   processingType: t(
-                    `harvests.labels.processing_type.${harvest.processingType}`
+                    `harvests.labels.processing_type.${harvest.processingType}`,
                   ),
                   conservationMethod: t(
-                    `harvests.labels.conservation_method.${harvest.conservationMethod}`
+                    `harvests.labels.conservation_method.${harvest.conservationMethod}`,
                   ),
                   producedUnits: harvest.producedUnits,
                   kilosPerUnit: harvest.kilosPerUnit,
                   totalKilos: harvest.producedUnits * harvest.kilosPerUnit,
                 })),
-                plotIndex
+                plotIndex,
               );
             }
             plotIndex++;

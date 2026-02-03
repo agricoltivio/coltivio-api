@@ -1,9 +1,9 @@
-import createHttpError from "http-errors";
 import { ez } from "express-zod-api";
+import createHttpError from "http-errors";
 import { z } from "zod";
 import { cropSchema } from "../crops/crops.endpoint";
+import { ensureDateRange } from "../date-utils";
 import { farmEndpointFactory } from "../endpoint-factory";
-import { ensureDateRange } from "../utils";
 
 export const cropRotationSchema = z.object({
   id: z.string(),
@@ -12,7 +12,7 @@ export const cropRotationSchema = z.object({
   cropId: z.string(),
   sowingDate: ez.dateOut().nullable(),
   fromDate: ez.dateOut(),
-  toDate: ez.dateOut().nullable(),
+  toDate: ez.dateOut(),
   crop: cropSchema,
 });
 
@@ -21,7 +21,7 @@ const createCropRotationSchema = z.object({
   cropId: z.string(),
   sowingDate: ez.dateIn().optional(),
   fromDate: ez.dateIn(),
-  toDate: ez.dateIn().optional(),
+  toDate: ez.dateIn(),
 });
 
 const updateCropRotationSchema = z.object({
@@ -50,14 +50,25 @@ export const getCropRotationsForPlotEndpoint = farmEndpointFactory.build({
 export const getCurrentCropRotationsForPlotsEndpoint =
   farmEndpointFactory.build({
     method: "get",
-    input: z.object({ plotIds: z.array(z.string()).min(1) }),
+    input: z.object({
+      plotIds: z.preprocess(
+        (val) => (typeof val === "string" ? [val] : val),
+        z.array(z.string()).min(1),
+      ),
+      onlyCurrent: z
+        .string()
+        .optional()
+        .transform((val) => val === "true")
+        .default(true),
+    }),
     output: z.object({
       result: z.array(cropRotationSchema),
       count: z.number(),
     }),
     handler: async ({ input, ctx: { cropRotations } }) => {
-      const result = await cropRotations.getCurreentCropRotationsForPlots(
+      const result = await cropRotations.getCropRotationsForPlots(
         input.plotIds,
+        input.onlyCurrent,
       );
       return {
         result,
@@ -112,20 +123,44 @@ export const createCropRotationEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const createCropRotationsEndpoint = farmEndpointFactory.build({
+export const createCropRotationsByPlotEndpoint = farmEndpointFactory.build({
   method: "post",
   input: z.object({
-    cropId: z.string(),
-    fromDate: ez.dateIn(),
-    toDate: ez.dateIn().optional(),
-    plotIds: z.array(z.string()).min(1),
+    plotId: z.string(),
+    crops: z.array(
+      z.object({
+        cropId: z.string(),
+        sowingDate: ez.dateIn().optional(),
+        fromDate: ez.dateIn(),
+        toDate: ez.dateIn(),
+      }),
+    ),
   }),
   output: z.object({
     result: cropRotationSchema.array(),
     count: z.number(),
   }),
   handler: async ({ input, ctx: { cropRotations } }) => {
-    const result = await cropRotations.createCropRotations(input);
+    const result = await cropRotations.createCropRotationsByPlot(input);
+    return {
+      result,
+      count: result.length,
+    };
+  },
+});
+
+export const createCropRotationsByCropEndpoint = farmEndpointFactory.build({
+  method: "post",
+  input: z.object({
+    cropId: z.string(),
+    plots: z.array(createCropRotationSchema),
+  }),
+  output: z.object({
+    result: cropRotationSchema.array(),
+    count: z.number(),
+  }),
+  handler: async ({ input, ctx: { cropRotations } }) => {
+    const result = await cropRotations.createCropRotationsByCrop(input);
     return {
       result,
       count: result.length,

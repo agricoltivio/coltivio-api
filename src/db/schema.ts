@@ -20,6 +20,7 @@ import {
 import { authenticatedRole, authUid, authUsers } from "drizzle-orm/supabase";
 
 import { z } from "zod";
+import { INFINITE_DATE } from "../date-utils";
 
 const polygon = customType<{ data: string }>({
   dataType() {
@@ -198,7 +199,7 @@ export const cropRotations = pgTable.withRLS(
       .references(() => crops.id),
     sowingDate: date({ mode: "date" }),
     fromDate: date({ mode: "date" }).notNull(),
-    toDate: date({ mode: "date" }),
+    toDate: date({ mode: "date" }).notNull().default(INFINITE_DATE),
   },
   (table) => [
     pgPolicy("only farm members", {
@@ -420,14 +421,14 @@ export const plots = pgTable.withRLS(
   ],
 );
 
-export const conservationMethod = pgEnum("forage_conservation_method", [
+export const conservationMethod = pgEnum("conservation_method", [
   "dried",
   "silage",
   "haylage",
   "other",
   "none",
 ]);
-export const processingType = pgEnum("forage_processing_type", [
+export const processingType = pgEnum("processing_type", [
   "none",
   "square_bale",
   "round_bale",
@@ -493,7 +494,7 @@ export const harvestingMachinery = pgTable.withRLS(
 );
 
 export const harvests = pgTable.withRLS(
-  "forage_harvests",
+  "harvests",
   {
     id: uuid().primaryKey().defaultRandom(),
     farmId: uuid()
@@ -935,6 +936,7 @@ export const animals = pgTable.withRLS(
     type: animalType().notNull(),
     sex: animalSex().notNull(),
     dateOfBirth: date({ mode: "date" }),
+    registered: boolean().notNull().default(false),
     earTagId: uuid().references(() => earTags.id, { onDelete: "restrict" }),
     motherId: uuid(),
     fatherId: uuid(),
@@ -1087,7 +1089,9 @@ export const outdoorJournalEntries = pgTable.withRLS(
     animalCount: integer("animal_count").notNull(),
   },
   (table) => [
-    index("outdoor_journal_entries_animal_group_id_idx").on(table.animalGroupId),
+    index("outdoor_journal_entries_animal_group_id_idx").on(
+      table.animalGroupId,
+    ),
     index("outdoor_journal_entries_start_date_idx").on(table.startDate),
     index("outdoor_journal_entries_end_date_idx").on(table.endDate),
     pgPolicy("only farm members", {

@@ -9,7 +9,7 @@ import {
 import { cropProtectionEquipmentSchema } from "../equipment/crop-protection-equipment.endpoint";
 import { cropProtectionProductSchema } from "./crop-protection-products.endpoint";
 import { farmEndpointFactory } from "../endpoint-factory";
-import { ensureDateRange } from "../utils";
+import { ensureDateRange } from "../date-utils";
 
 const plotBasicSchema = z.object({
   id: z.string(),

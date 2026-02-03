@@ -8,6 +8,7 @@ import {
   getLivingAnimalsEndpoint,
   importAnimalsFromExcelEndpoint,
   updateAnimalEndpoint,
+  updateAnimalsEndpoint,
 } from "./animals/animals.endpoint";
 import {
   createContactEndpoint,
@@ -142,13 +143,14 @@ import {
 } from "./equipment/harvesting-machinery.endpoint";
 import {
   createCropRotationEndpoint,
-  createCropRotationsEndpoint,
+  createCropRotationsByCropEndpoint,
+  createCropRotationsByPlotEndpoint,
   deleteCropRotationEndpoint,
   getCropRotationByIdEndpoint,
   getCropRotationsForFarmEndpoint,
   getCropRotationsForPlotEndpoint,
   getCropRotationYearsEndpoint,
-  getCurrentCropRotationsForPlotsEndpoint,
+  getCurrentCropRotationsForPlotsEndpoint as getCropRotationsForPlotsEndpoint,
   updateCropRotationEndpoint,
 } from "./crop-rotations/crop-rotations.endpoint";
 import {
@@ -420,8 +422,11 @@ export const routing: Routing = {
         get: getCropRotationsForFarmEndpoint,
         post: createCropRotationEndpoint,
       },
-      batch: createCropRotationsEndpoint,
-      current: getCurrentCropRotationsForPlotsEndpoint,
+      batch: {
+        byCrop: createCropRotationsByCropEndpoint,
+        byPlot: createCropRotationsByPlotEndpoint,
+      },
+      plots: getCropRotationsForPlotsEndpoint,
       byId: {
         ":rotationId": {
           get: getCropRotationByIdEndpoint,
@@ -496,6 +501,7 @@ export const routing: Routing = {
         get: getFarmAnimalsEndpoint,
         post: createAnimalEndpoint,
       },
+      batch: updateAnimalsEndpoint,
       import: importAnimalsFromExcelEndpoint,
       living: getLivingAnimalsEndpoint,
       byId: {

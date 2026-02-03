@@ -3,7 +3,7 @@ import createHttpError from "http-errors";
 import { z } from "zod";
 import * as tables from "../db/schema";
 import { farmEndpointFactory } from "../endpoint-factory";
-import { ensureDateRange } from "../utils";
+import { ensureDateRange } from "../date-utils";
 import { harvestingMachinerySchema } from "../equipment/harvesting-machinery.endpoint";
 import { cropSchema } from "../crops/crops.endpoint";
 import { plotSchema } from "../plots/plots.endpoint";
@@ -25,6 +25,7 @@ const harvestSchema = z.object({
   crop: cropSchema,
   plotId: z.string(),
   plot: plotSchema.omit({ cropRotations: true }),
+  size: z.number(),
   createdAt: ez.dateOut(),
   createdBy: z.string().nullable(),
 });

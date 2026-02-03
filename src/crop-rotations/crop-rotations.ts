@@ -1,13 +1,8 @@
-import { and, count, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
+import { endOfDay, startOfDay, subDays } from "date-fns";
+import { and, count, desc, eq, gte, lte } from "drizzle-orm";
+import { hasOverlappingRanges, isInfiniteDate } from "../date-utils";
 import { RlsDb } from "../db/db";
-import {
-  cropRotations,
-  crops,
-  farmIdColumnValue,
-  plots,
-  tillages,
-} from "../db/schema";
-import { MultiPolygon } from "../geo/geojson";
+import { cropRotations, crops, farmIdColumnValue, plots } from "../db/schema";
 
 export type CropRotation = typeof cropRotations.$inferSelect & {
   crop: typeof crops.$inferSelect;
@@ -21,11 +16,22 @@ export type CropRotationCreateInput = Omit<
   "id" | "farmId"
 >;
 
-export type CropRotationCreateManyInput = {
+export type CropRotationByCropCreateManyInput = {
   cropId: string;
-  fromDate: Date;
-  toDate?: Date;
-  plotIds: string[];
+  plots: Array<
+    Omit<CropRotationCreateInput, "toDate"> &
+      Required<Pick<CropRotationCreateInput, "toDate">>
+  >;
+};
+
+export type CropRotationByPlotCreateManyInput = {
+  plotId: string;
+  crops: Array<{
+    cropId: string;
+    sowingDate?: Date;
+    fromDate: Date;
+    toDate: Date;
+  }>;
 };
 export type CropRotationUpdateInput = Partial<CropRotationCreateInput>;
 
@@ -40,14 +46,14 @@ export function cropRotationsApi(rlsDb: RlsDb) {
       });
     },
 
-    async getCurreentCropRotationsForPlots(plotIds: string[]) {
+    async getCropRotationsForPlots(plotIds: string[], onlyCurrent: boolean) {
       return rlsDb.rls(async (tx) => {
         const results = await tx.query.plots.findMany({
           where: { id: { in: plotIds } },
           with: {
             cropRotations: {
               orderBy: { fromDate: "desc" },
-              limit: 1,
+              limit: onlyCurrent ? 1 : undefined,
               with: { crop: true },
             },
           },
@@ -141,46 +147,135 @@ export function cropRotationsApi(rlsDb: RlsDb) {
       const cropRotation = await this.getCropRotationById(result.id);
       return cropRotation!;
     },
-
-    async createCropRotations(
-      input: CropRotationCreateManyInput,
+    async createCropRotationsByPlot(
+      input: CropRotationByPlotCreateManyInput,
     ): Promise<CropRotation[]> {
       return rlsDb.rls(async (tx) => {
-        if (input.plotIds.length === 0) {
+        if (input.crops.length === 0) {
           return [];
         }
+        const sortedCrops = input.crops.sort(
+          (a, b) => a.fromDate.getTime() - b.fromDate.getTime(),
+        );
 
-        const plotsWithExistingRotations = await tx.query.plots.findMany({
-          where: { id: { in: input.plotIds } },
-          with: { cropRotations: { orderBy: { fromDate: "desc" } } },
+        let existingCropRotations = await tx.query.cropRotations.findMany({
+          where: {
+            plotId: input.plotId,
+          },
+          columns: {
+            id: true,
+            plotId: true,
+            fromDate: true,
+            toDate: true,
+          },
+          orderBy: { fromDate: "asc" },
         });
 
-        const cropRotationIdsToUpdate: string[] = [];
+        const newDateRanges = input.crops.map((crop) => ({
+          fromDate: crop.fromDate,
+          toDate: crop.toDate,
+        }));
 
-        for (const plot of plotsWithExistingRotations) {
-          const lastRotation = plot.cropRotations[0];
-          if (lastRotation && !lastRotation.toDate) {
-            cropRotationIdsToUpdate.push(lastRotation.id);
-          }
-        }
+        const lastCropRotation = existingCropRotations.at(-1);
 
-        if (cropRotationIdsToUpdate.length > 0) {
+        if (lastCropRotation && isInfiniteDate(lastCropRotation.toDate)) {
+          // if the last rotation was a permanent one marked with infinite date, we set the end date to the day before start date of the first new rotation
           await tx
             .update(cropRotations)
-            .set({
-              toDate: input.fromDate,
-            })
-            .where(inArray(cropRotations.id, cropRotationIdsToUpdate));
+            .set({ toDate: endOfDay(subDays(sortedCrops[0].fromDate, 1)) })
+            .where(eq(cropRotations.id, lastCropRotation.id));
+
+          existingCropRotations = existingCropRotations.slice(0, -1);
         }
 
-        // we set the 'toDate' date from the latest entry to the 'fromDate' of the new entry
+        const hasOverlap = hasOverlappingRanges([
+          ...existingCropRotations,
+          ...newDateRanges,
+        ]);
+
+        if (hasOverlap) {
+          throw new Error("Overlapping date ranges");
+        }
+
         const createdCropRotations = await tx
           .insert(cropRotations)
           .values(
-            input.plotIds.map((plotId) => ({
-              plotId,
-              fromDate: input.fromDate,
-              toDate: input.toDate,
+            input.crops.map((plotRotation) => ({
+              plotId: input.plotId,
+              fromDate: plotRotation.fromDate,
+              toDate: plotRotation.toDate,
+              cropId: plotRotation.cropId,
+              ...farmIdColumnValue,
+            })),
+          )
+          .returning();
+
+        return tx.query.cropRotations.findMany({
+          where: {
+            id: {
+              in: createdCropRotations.map((cropRotation) => cropRotation.id),
+            },
+          },
+          with: { crop: true },
+        });
+      });
+    },
+
+    async createCropRotationsByCrop(
+      input: CropRotationByCropCreateManyInput,
+    ): Promise<CropRotation[]> {
+      return rlsDb.rls(async (tx) => {
+        if (input.plots.length === 0) {
+          return [];
+        }
+
+        const existingCropRotations = await tx.query.cropRotations.findMany({
+          where: {
+            plotId: { in: input.plots.map((plot) => plot.plotId) },
+          },
+          columns: {
+            id: true,
+            plotId: true,
+            fromDate: true,
+            toDate: true,
+          },
+          orderBy: { fromDate: "asc" },
+        });
+
+        for (const plot of input.plots) {
+          let cropRotationsForPlot = existingCropRotations.filter(
+            (cropRotation) => cropRotation.plotId === plot.plotId,
+          );
+
+          const lastCropRotationForPlot = cropRotationsForPlot.at(-1);
+          if (
+            lastCropRotationForPlot &&
+            isInfiniteDate(lastCropRotationForPlot.toDate)
+          ) {
+            // if the last rotation was a permanent one marked with infinite date, we set the end date to the day before start date of the new rotation
+            await tx
+              .update(cropRotations)
+              .set({ toDate: startOfDay(subDays(plot.fromDate, 1)) })
+              .where(eq(cropRotations.id, lastCropRotationForPlot.id));
+
+            cropRotationsForPlot = cropRotationsForPlot.slice(0, -1);
+          }
+          const hasOverlap = hasOverlappingRanges([
+            ...cropRotationsForPlot,
+            { fromDate: plot.fromDate, toDate: plot.toDate },
+          ]);
+          if (hasOverlap) {
+            throw new Error("Overlapping date ranges");
+          }
+        }
+
+        const createdCropRotations = await tx
+          .insert(cropRotations)
+          .values(
+            input.plots.map((plotRotation) => ({
+              plotId: plotRotation.plotId,
+              fromDate: plotRotation.fromDate,
+              toDate: plotRotation.toDate,
               cropId: input.cropId,
               ...farmIdColumnValue,
             })),

@@ -9,7 +9,7 @@ import {
 import { fertilizerSpreaderSchema } from "../equipment/fertilizer-spreaders.endpoint";
 import { fertilizerSchema } from "./fertilizers.endpoint";
 import { farmEndpointFactory } from "../endpoint-factory";
-import { ensureDateRange } from "../utils";
+import { ensureDateRange } from "../date-utils";
 
 const plotMinimalSchema = z.object({
   id: z.string(),

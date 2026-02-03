@@ -16,7 +16,7 @@ export const farmSchema = z.object({
   tvdId: z.string().nullable(),
   name: z.string(),
   address: z.string(),
-  location: pointSchema.nullable(),
+  location: pointSchema,
 });
 
 const createFarmSchema = z.object({
