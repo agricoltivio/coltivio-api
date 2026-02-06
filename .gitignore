@@ -135,3 +135,7 @@ dist
 __generated__
 # Sentry Config File
 .sentryclirc
+
+# Claude Capsule Kit (generated at runtime)
+.claude/**
+CLAUDE.md

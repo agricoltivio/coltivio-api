@@ -22,7 +22,7 @@ const harvestSchema = z.object({
   machinery: harvestingMachinerySchema.nullable(),
   geometry: tables.multiPolygonSchema,
   cropId: z.string(),
-  crop: cropSchema,
+  crop: cropSchema.omit({ family: true }),
   plotId: z.string(),
   plot: plotSchema.omit({ cropRotations: true }),
   size: z.number(),

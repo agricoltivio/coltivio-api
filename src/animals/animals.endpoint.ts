@@ -27,6 +27,12 @@ export const animalSchema = z.object({
   fatherId: z.string().nullable(),
   dateOfDeath: ez.dateOut().nullable(),
   deathReason: deathReasonSchema.nullable(),
+  herdId: z.string().nullable(),
+});
+
+const herdSchema = z.object({
+  id: z.string(),
+  name: z.string(),
 });
 
 const animalWithRelationsSchema = animalSchema.extend({
@@ -41,6 +47,7 @@ const animalWithRelationsSchema = animalSchema.extend({
   get treatments() {
     return z.array(treatmentSchema);
   },
+  herd: herdSchema.optional().nullable(),
 });
 
 const createAnimalSchema = z.object({

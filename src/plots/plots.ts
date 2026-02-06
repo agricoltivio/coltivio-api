@@ -8,9 +8,18 @@ import {
   sql,
 } from "drizzle-orm";
 import { RlsDb } from "../db/db";
-import { farmIdColumnValue, cropRotations, plots, crops } from "../db/schema";
+import {
+  farmIdColumnValue,
+  cropRotations,
+  cropRotationRecurrences,
+  plots,
+  crops,
+} from "../db/schema";
 import { MultiPolygon } from "../geo/geojson";
-import { CropRotation } from "../crop-rotations/crop-rotations";
+import {
+  CropRotation,
+  RecurrenceFrequency,
+} from "../crop-rotations/crop-rotations";
 import { getParcelsForEnvelopes } from "../geoadmin/geoadmin";
 import { writeFileSync } from "fs";
 import path from "path";
@@ -45,11 +54,26 @@ export function plotsApi(rlsDb: RlsDb) {
           })
           .returning({ ...plotSelectColumns, geom: plots.geometry });
 
-        await tx.insert(cropRotations).values({
-          ...farmIdColumnValue,
-          plotId: plot.id,
-          cropId: plotInput.cropId,
-          fromDate: new Date(),
+        const currentYear = new Date().getFullYear();
+        const fromDate = new Date(currentYear, 0, 1); // Jan 1
+        const toDate = new Date(currentYear, 11, 31); // Dec 31
+
+        const [createdRotation] = await tx
+          .insert(cropRotations)
+          .values({
+            ...farmIdColumnValue,
+            plotId: plot.id,
+            cropId: plotInput.cropId,
+            fromDate,
+            toDate,
+          })
+          .returning();
+
+        // Create yearly recurrence for permanent rotation
+        await tx.insert(cropRotationRecurrences).values({
+          cropRotationId: createdRotation.id,
+          frequency: RecurrenceFrequency.yearly,
+          interval: 1,
         });
 
         await tx
@@ -77,7 +101,7 @@ export function plotsApi(rlsDb: RlsDb) {
           with: {
             cropRotations: {
               orderBy: { fromDate: "desc" },
-              with: { crop: true },
+              with: { crop: { with: { family: true } } },
             },
           },
           extras: {
@@ -103,7 +127,7 @@ export function plotsApi(rlsDb: RlsDb) {
           with: {
             cropRotations: {
               orderBy: { fromDate: "desc" },
-              with: { crop: true },
+              with: { crop: { with: { family: true } } },
             },
           },
           extras: {

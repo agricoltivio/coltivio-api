@@ -1,8 +1,9 @@
 import { ez } from "express-zod-api";
 import createHttpError from "http-errors";
 import { z } from "zod";
-import { cropSchema } from "../crops/crops.endpoint";
+import { cropSchema, cropFamilySchema } from "../crops/crops.endpoint";
 import { ensureDateRange } from "../date-utils";
+import { frequencySchema, weekdaySchema } from "../db/schema";
 import { farmEndpointFactory } from "../endpoint-factory";
 
 export const cropRotationSchema = z.object({
@@ -16,12 +17,22 @@ export const cropRotationSchema = z.object({
   crop: cropSchema,
 });
 
+const recurrenceSchema = z.object({
+  frequency: frequencySchema,
+  interval: z.number().int().min(1).default(1),
+  byWeekday: z.array(weekdaySchema).optional(),
+  byMonthDay: z.number().int().min(1).max(31).optional(),
+  until: ez.dateIn().optional(),
+  count: z.number().int().min(1).optional(),
+});
+
 const createCropRotationSchema = z.object({
   plotId: z.string(),
   cropId: z.string(),
   sowingDate: ez.dateIn().optional(),
   fromDate: ez.dateIn(),
   toDate: ez.dateIn(),
+  recurrence: recurrenceSchema.optional(),
 });
 
 const updateCropRotationSchema = z.object({
@@ -29,17 +40,26 @@ const updateCropRotationSchema = z.object({
   sowingDate: ez.dateIn().optional(),
   fromDate: ez.dateIn().optional(),
   toDate: ez.dateIn().optional(),
+  recurrence: recurrenceSchema.optional().nullable(),
 });
 
 export const getCropRotationsForPlotEndpoint = farmEndpointFactory.build({
   method: "get",
-  input: z.object({ plotId: z.string() }),
+  input: z.object({
+    plotId: z.string(),
+    fromDate: ez.dateIn(),
+    toDate: ez.dateIn(),
+  }),
   output: z.object({
     result: z.array(cropRotationSchema),
     count: z.number(),
   }),
-  handler: async ({ input: { plotId }, ctx: { cropRotations } }) => {
-    const result = await cropRotations.getCropRotationsForPlot(plotId);
+  handler: async ({ input, ctx: { cropRotations } }) => {
+    const result = await cropRotations.getCropRotationsForPlot(
+      input.plotId,
+      input.fromDate,
+      input.toDate,
+    );
     return {
       result,
       count: result.length,
@@ -60,15 +80,20 @@ export const getCurrentCropRotationsForPlotsEndpoint =
         .optional()
         .transform((val) => val === "true")
         .default(true),
+      fromDate: ez.dateIn(),
+      toDate: ez.dateIn(),
     }),
     output: z.object({
       result: z.array(cropRotationSchema),
       count: z.number(),
     }),
     handler: async ({ input, ctx: { cropRotations } }) => {
+      console.log(input.plotIds, input.onlyCurrent);
       const result = await cropRotations.getCropRotationsForPlots(
         input.plotIds,
         input.onlyCurrent,
+        input.fromDate,
+        input.toDate,
       );
       return {
         result,
@@ -133,6 +158,7 @@ export const createCropRotationsByPlotEndpoint = farmEndpointFactory.build({
         sowingDate: ez.dateIn().optional(),
         fromDate: ez.dateIn(),
         toDate: ez.dateIn(),
+        recurrence: recurrenceSchema.optional(),
       }),
     ),
   }),
@@ -142,6 +168,37 @@ export const createCropRotationsByPlotEndpoint = farmEndpointFactory.build({
   }),
   handler: async ({ input, ctx: { cropRotations } }) => {
     const result = await cropRotations.createCropRotationsByPlot(input);
+    return {
+      result,
+      count: result.length,
+    };
+  },
+});
+
+export const createCropRotationsPlanEndpoint = farmEndpointFactory.build({
+  method: "post",
+  input: z.object({
+    plots: z.array(
+      z.object({
+        plotId: z.string(),
+        crops: z.array(
+          z.object({
+            cropId: z.string(),
+            sowingDate: ez.dateIn().optional(),
+            fromDate: ez.dateIn(),
+            toDate: ez.dateIn(),
+            recurrence: recurrenceSchema.optional(),
+          }),
+        ),
+      }),
+    ),
+  }),
+  output: z.object({
+    result: cropRotationSchema.array(),
+    count: z.number(),
+  }),
+  handler: async ({ input, ctx: { cropRotations } }) => {
+    const result = await cropRotations.createCropRotationsPlan(input);
     return {
       result,
       count: result.length,

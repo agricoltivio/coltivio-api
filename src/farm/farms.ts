@@ -7,6 +7,7 @@ import { FertilizerCreateInput } from "../fertilization/fertilizers";
 import { CropCreateInput } from "../crops/crops";
 import { PlotCreateInput } from "../plots/plots";
 import { TFunction } from "i18next";
+import { RecurrenceFrequency } from "../crop-rotations/crop-rotations";
 import {
   mapCodesToCrops as mapCodesToCrops,
   UNKNOWN_CROP_CODE,
@@ -135,16 +136,33 @@ export function farmsApi(rlsDb: RlsDb, t: TFunction) {
             )
             .returning();
 
+          const currentYear = new Date().getFullYear();
+          const fromDate = new Date(currentYear, 0, 1); // Jan 1
+          const toDate = new Date(currentYear, 11, 31); // Dec 31
+
           const cropRotationInputs = plots.map((plot) => ({
             farmId: createdFarm.id,
             cropId: crops.find((crop) =>
               crop.usageCodes.includes(plot.usage ?? UNKNOWN_CROP_CODE)
             )!.id,
-            fromDate: new Date(),
+            fromDate,
+            toDate,
             plotId: plot.id,
           }));
 
-          await tx.insert(tables.cropRotations).values(cropRotationInputs);
+          const createdRotations = await tx
+            .insert(tables.cropRotations)
+            .values(cropRotationInputs)
+            .returning();
+
+          // Create yearly recurrences for permanent rotations
+          await tx.insert(tables.cropRotationRecurrences).values(
+            createdRotations.map((rotation) => ({
+              cropRotationId: rotation.id,
+              frequency: RecurrenceFrequency.yearly,
+              interval: 1,
+            }))
+          );
         }
 
         return createdFarm;

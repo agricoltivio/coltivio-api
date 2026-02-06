@@ -181,7 +181,6 @@ export const parcels = pgTable.withRLS(
     }),
   ],
 );
-
 export const cropRotations = pgTable.withRLS(
   "crop_rotations",
   {
@@ -199,7 +198,7 @@ export const cropRotations = pgTable.withRLS(
       .references(() => crops.id),
     sowingDate: date({ mode: "date" }),
     fromDate: date({ mode: "date" }).notNull(),
-    toDate: date({ mode: "date" }).notNull().default(INFINITE_DATE),
+    toDate: date({ mode: "date" }).notNull(),
   },
   (table) => [
     pgPolicy("only farm members", {
@@ -210,6 +209,35 @@ export const cropRotations = pgTable.withRLS(
     }),
   ],
 );
+
+export const frequency = pgEnum("frequency", ["weekly", "monthly", "yearly"]);
+
+export const weekday = pgEnum("weekday", [
+  "MO",
+  "TU",
+  "WE",
+  "TH",
+  "FR",
+  "SA",
+  "SU",
+]);
+
+export const cropRotationRecurrences = pgTable("crop_rotation_recurrences", {
+  id: uuid("id").defaultRandom().primaryKey(),
+
+  cropRotationId: uuid("crop_rotation_id")
+    .references(() => cropRotations.id, { onDelete: "cascade" })
+    .notNull(),
+
+  frequency: frequency("frequency").notNull(),
+  interval: integer("interval").default(1).notNull(),
+
+  byWeekday: weekday("by_weekday").array(),
+  byMonthDay: integer("by_month_day"),
+
+  until: date({ mode: "date" }),
+  count: integer("count"),
+});
 
 export const tillageReason = pgEnum("tillage_reason", [
   "weed_control",
@@ -443,6 +471,29 @@ export const cropCategory = pgEnum("crop_category", [
   "other",
 ]);
 
+export const cropFamilies = pgTable.withRLS(
+  "crop_families",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    farmId: uuid()
+      .notNull()
+      .references(() => farms.id, {
+        onDelete: "cascade",
+      }),
+    name: text().notNull(),
+    waitingTimeInYears: integer().notNull().default(0),
+    additionalNotes: text(),
+  },
+  (table) => [
+    pgPolicy("only farm members", {
+      as: "permissive",
+      to: authenticatedRole,
+      using: eq(table.farmId, currentFarmId),
+      withCheck: eq(table.farmId, currentFarmId),
+    }),
+  ],
+);
+
 export const crops = pgTable.withRLS(
   "crops",
   {
@@ -454,7 +505,11 @@ export const crops = pgTable.withRLS(
       }),
     name: text().notNull(),
     category: cropCategory().notNull(),
+    familyId: uuid().references(() => cropFamilies.id, {
+      onDelete: "set null",
+    }),
     variety: text(),
+    waitingTimeInYears: integer(),
     usageCodes: integer().array().notNull().default([]),
     additionalNotes: text(),
   },
@@ -492,6 +547,12 @@ export const harvestingMachinery = pgTable.withRLS(
     }),
   ],
 );
+
+export const harvestUnits = pgEnum("harvest_unit", [
+  "lose",
+  "square_bale",
+  "round_bale",
+]);
 
 export const harvests = pgTable.withRLS(
   "harvests",
@@ -942,6 +1003,7 @@ export const animals = pgTable.withRLS(
     fatherId: uuid(),
     dateOfDeath: date({ mode: "date" }),
     deathReason: deathReason(),
+    herdId: uuid().references(() => herds.id, { onDelete: "set null" }),
   },
   (table) => [
     foreignKey({
@@ -961,6 +1023,73 @@ export const animals = pgTable.withRLS(
       withCheck: eq(table.farmId, currentFarmId),
     }),
   ],
+);
+
+export const herds = pgTable.withRLS(
+  "herds",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    farmId: uuid()
+      .notNull()
+      .references(() => farms.id, {
+        onDelete: "cascade",
+      }),
+    outdoorScheduleId: uuid().references(() => outdoorSchedules.id, {
+      onDelete: "set null",
+    }),
+    name: text().notNull(),
+  },
+  (table) => [
+    pgPolicy("only farm members", {
+      as: "permissive",
+      to: authenticatedRole,
+      using: eq(table.farmId, currentFarmId),
+      withCheck: eq(table.farmId, currentFarmId),
+    }),
+  ],
+);
+
+export const outdoorSchedules = pgTable.withRLS(
+  "outdoor_shedules",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    farmId: uuid()
+      .notNull()
+      .references(() => farms.id, {
+        onDelete: "cascade",
+      }),
+    startDate: date({ mode: "date" }).notNull(),
+    endDate: date({ mode: "date" }),
+    notes: text(),
+  },
+  (table) => [
+    pgPolicy("only farm members", {
+      as: "permissive",
+      to: authenticatedRole,
+      using: eq(table.farmId, currentFarmId),
+      withCheck: eq(table.farmId, currentFarmId),
+    }),
+  ],
+);
+
+export const outdoorScheduleRecurrences = pgTable(
+  "outdoor_schedule_recurrences",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+
+    outdoorScheduleId: uuid("outdoor_schedule_id")
+      .references(() => outdoorSchedules.id, { onDelete: "cascade" })
+      .notNull(),
+
+    frequency: frequency("frequency").notNull(),
+    interval: integer("interval").default(1).notNull(),
+
+    byWeekday: weekday("by_weekday").array(),
+    byMonthDay: integer("by_month_day"),
+
+    until: date("until"),
+    count: integer("count"),
+  },
 );
 
 export const drugs = pgTable.withRLS(
@@ -1110,12 +1239,14 @@ const tables = {
   farms,
   parcels,
   cropRotations,
+  cropRotationRecurrences,
   tillageEquipment,
   tillages,
   cropProtectionProducts,
   cropProtectionEquipment,
   cropProtectionApplications,
   plots,
+  cropFamilies,
   crops,
   harvestingMachinery,
   harvests,
@@ -1134,6 +1265,9 @@ const tables = {
   drugs,
   drugTreatment,
   treatments,
+  herds,
+  outdoorSchedules,
+  outdoorScheduleRecurrences,
   animalGroups,
   outdoorJournalEntries,
 };
@@ -1161,6 +1295,12 @@ export const relations = defineRelations(tables, (r) => ({
       optional: false,
     }),
   },
+  crops: {
+    family: r.one.cropFamilies({
+      from: r.crops.familyId,
+      to: r.cropFamilies.id,
+    }),
+  },
   cropRotations: {
     farm: r.one.farms({
       from: r.cropRotations.farmId,
@@ -1175,6 +1315,17 @@ export const relations = defineRelations(tables, (r) => ({
     crop: r.one.crops({
       from: r.cropRotations.cropId,
       to: r.crops.id,
+      optional: false,
+    }),
+    recurrence: r.one.cropRotationRecurrences({
+      from: r.cropRotations.id,
+      to: r.cropRotationRecurrences.cropRotationId,
+    }),
+  },
+  cropRotationRecurrences: {
+    cropRotation: r.one.cropRotations({
+      from: r.cropRotationRecurrences.cropRotationId,
+      to: r.cropRotations.id,
       optional: false,
     }),
   },
@@ -1430,6 +1581,38 @@ export const relations = defineRelations(tables, (r) => ({
     }),
     sponsorships: r.many.sponsorships(),
     treatments: r.many.treatments(),
+    herd: r.one.herds({
+      from: r.animals.herdId,
+      to: r.herds.id,
+    }),
+  },
+  herds: {
+    farm: r.one.farms({
+      from: r.herds.farmId,
+      to: r.farms.id,
+      optional: false,
+    }),
+    animals: r.many.animals(),
+    outdoorSchedule: r.one.outdoorSchedules({
+      from: r.herds.outdoorScheduleId,
+      to: r.outdoorSchedules.id,
+    }),
+  },
+  outdoorSchedules: {
+    farm: r.one.farms({
+      from: r.outdoorSchedules.farmId,
+      to: r.farms.id,
+      optional: false,
+    }),
+    herd: r.one.herds(),
+    recurrence: r.one.outdoorScheduleRecurrences(),
+  },
+  outdoorScheduleRecurrences: {
+    outdoorSchedule: r.one.outdoorSchedules({
+      from: r.outdoorScheduleRecurrences.outdoorScheduleId,
+      to: r.outdoorSchedules.id,
+      optional: false,
+    }),
   },
   drugs: {
     farm: r.one.farms({
@@ -1525,6 +1708,9 @@ export const deathReasonSchema = z.enum(deathReason.enumValues);
 export const preferredCommunicationSchema = z.enum(
   preferredCommunication.enumValues,
 );
+
+export const frequencySchema = z.enum(frequency.enumValues);
+export const weekdaySchema = z.enum(weekday.enumValues);
 
 export const paymentMethodSchema = z.enum(paymentMethod.enumValues);
 

@@ -118,6 +118,12 @@ import {
   getCropByIdEndpoint,
   updateCropEndpoint,
   cropInUseEndpoint,
+  createCropFamilyEndpoint,
+  deleteCropFamilyEndpoint,
+  getFarmCropFamiliesEndpoint,
+  getCropFamilyByIdEndpoint,
+  updateCropFamilyEndpoint,
+  cropFamilyInUseEndpoint,
 } from "./crops/crops.endpoint";
 import {
   createPlotEndpoint,
@@ -152,6 +158,7 @@ import {
   getCropRotationYearsEndpoint,
   getCurrentCropRotationsForPlotsEndpoint as getCropRotationsForPlotsEndpoint,
   updateCropRotationEndpoint,
+  createCropRotationsPlanEndpoint,
 } from "./crop-rotations/crop-rotations.endpoint";
 import {
   createTillageEquipmentEndpoint,
@@ -343,6 +350,22 @@ export const routing: Routing = {
           inUse: cropInUseEndpoint,
         },
       },
+      families: {
+        "": {
+          get: getFarmCropFamiliesEndpoint,
+          post: createCropFamilyEndpoint,
+        },
+        byId: {
+          ":familyId": {
+            "": {
+              get: getCropFamilyByIdEndpoint,
+              delete: deleteCropFamilyEndpoint,
+              patch: updateCropFamilyEndpoint,
+            },
+            inUse: cropFamilyInUseEndpoint,
+          },
+        },
+      },
     },
     cropProtectionProducts: {
       "": {
@@ -422,6 +445,7 @@ export const routing: Routing = {
         get: getCropRotationsForFarmEndpoint,
         post: createCropRotationEndpoint,
       },
+      plan: createCropRotationsPlanEndpoint,
       batch: {
         byCrop: createCropRotationsByCropEndpoint,
         byPlot: createCropRotationsByPlotEndpoint,
