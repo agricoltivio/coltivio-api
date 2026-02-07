@@ -4,13 +4,21 @@ import {
   farmIdColumnValue,
   cropProtectionApplications,
   cropProtectionUnitSchema,
+  cropProtectionApplicationPresets,
 } from "../db/schema";
 import { MultiPolygon } from "../geo/geojson";
 import { Plot } from "../plots/plots";
-import { CropProtectionEquipment } from "../equipment/crop-protection-equipment";
-import { toDate } from "date-fns";
 import { CropProtectionProduct } from "./crop-protection-products";
 import { z } from "zod";
+
+export type CropProtectionApplicationPreset =
+  typeof cropProtectionApplicationPresets.$inferSelect;
+export type CropProtectionApplicationPresetCreateInput = Omit<
+  typeof cropProtectionApplicationPresets.$inferInsert,
+  "id" | "farmId"
+>;
+export type CropProtectionApplicationPresetUpdateInput =
+  Partial<CropProtectionApplicationPresetCreateInput>;
 
 export type CropProtectionUnit = z.infer<typeof cropProtectionUnitSchema>;
 
@@ -24,17 +32,16 @@ export type CropProtectionApplicationCreateInput = Omit<
 export type CropProtectionApplicationBatchCreateInput = {
   createdBy: string;
   dateTime: Date;
-  method: CropProtectionApplication["method"];
-  equipmentId?: string;
+  method?: CropProtectionApplication["method"];
   unit: CropProtectionApplication["unit"];
   additionalNotes?: string;
   productId: string;
-  amountPerApplication: number;
+  amountPerUnit: number;
   plots: {
     plotId: string;
     geometry: MultiPolygon;
     size: number;
-    numberOfApplications: number;
+    numberOfUnits: number;
   }[];
 };
 export type CropProtectionApplicationUpdateInput =
@@ -42,7 +49,6 @@ export type CropProtectionApplicationUpdateInput =
 
 export type CropProtectionApplication =
   typeof cropProtectionApplications.$inferSelect & {
-    equipment: CropProtectionEquipment | null;
     geometry: MultiPolygon;
     product: CropProtectionProduct;
     plot: Omit<Plot, "cropRotations" | "geometry">;
@@ -113,7 +119,6 @@ export function cropProtectionApplicationsApi(rlsDb: RlsDb) {
         return tx.query.cropProtectionApplications.findMany({
           where: { id: { in: ids } },
           with: {
-            equipment: true,
             plot: true,
             product: true,
           },
@@ -133,7 +138,6 @@ export function cropProtectionApplicationsApi(rlsDb: RlsDb) {
         return tx.query.cropProtectionApplications.findFirst({
           where: { id },
           with: {
-            equipment: true,
             plot: true,
             product: true,
           },
@@ -153,7 +157,6 @@ export function cropProtectionApplicationsApi(rlsDb: RlsDb) {
         return tx.query.cropProtectionApplications.findMany({
           where: { plotId },
           with: {
-            equipment: true,
             plot: true,
             product: true,
           },
@@ -182,7 +185,6 @@ export function cropProtectionApplicationsApi(rlsDb: RlsDb) {
             ],
           },
           with: {
-            equipment: true,
             plot: true,
             product: true,
           },
@@ -260,16 +262,64 @@ export function cropProtectionApplicationsApi(rlsDb: RlsDb) {
         return mapToMonthlySummary(result);
       });
     },
+    async createCropProtectionApplicationPreset(
+      input: CropProtectionApplicationPresetCreateInput,
+    ): Promise<CropProtectionApplicationPreset> {
+      return rlsDb.rls(async (tx) => {
+        const [preset] = await tx
+          .insert(cropProtectionApplicationPresets)
+          .values({ ...farmIdColumnValue, ...input })
+          .returning();
+        return preset;
+      });
+    },
+    async getCropProtectionApplicationPresets(): Promise<
+      CropProtectionApplicationPreset[]
+    > {
+      return rlsDb.rls(async (tx) => {
+        return tx.query.cropProtectionApplicationPresets.findMany({
+          orderBy: { name: "asc" },
+        });
+      });
+    },
+    async getCropProtectionApplicationPresetById(
+      id: string,
+    ): Promise<CropProtectionApplicationPreset | undefined> {
+      return rlsDb.rls(async (tx) => {
+        return tx.query.cropProtectionApplicationPresets.findFirst({
+          where: { id },
+        });
+      });
+    },
+    async updateCropProtectionApplicationPreset(
+      id: string,
+      input: CropProtectionApplicationPresetUpdateInput,
+    ): Promise<CropProtectionApplicationPreset> {
+      return rlsDb.rls(async (tx) => {
+        const [preset] = await tx
+          .update(cropProtectionApplicationPresets)
+          .set(input)
+          .where(eq(cropProtectionApplicationPresets.id, id))
+          .returning();
+        return preset;
+      });
+    },
+    async deleteCropProtectionApplicationPreset(id: string): Promise<void> {
+      return rlsDb.rls(async (tx) => {
+        await tx
+          .delete(cropProtectionApplicationPresets)
+          .where(eq(cropProtectionApplicationPresets.id, id));
+      });
+    },
   };
 }
 
 function mapToMonthlySummary(
   result: {
-    unit: CropProtectionUnit;
-    numberOfApplications: number;
-    amountPerApplication: number;
+    numberOfUnits: number;
+    amountPerUnit: number;
     dateTime: Date;
-    product: { id: string; name: string };
+    product: { id: string; name: string; unit: CropProtectionUnit };
   }[],
 ) {
   const applications = result.reduce<{
@@ -295,21 +345,20 @@ function mapToMonthlySummary(
         appliedCropProtections: {
           [product.id]: {
             totalAmount: 0,
-            unit: application.unit,
+            unit: application.product.unit,
             productName: product.name,
           },
         },
       };
     } else if (!acc[key].appliedCropProtections[product.id]) {
       acc[key].appliedCropProtections[product.id] = {
-        totalAmount:
-          application.numberOfApplications * application.amountPerApplication,
-        unit: application.unit,
+        totalAmount: application.numberOfUnits * application.amountPerUnit,
+        unit: application.product.unit,
         productName: product.name,
       };
     } else {
       acc[key].appliedCropProtections[product.id].totalAmount +=
-        application.numberOfApplications * application.amountPerApplication;
+        application.numberOfUnits * application.amountPerUnit;
     }
     return acc;
   }, {});

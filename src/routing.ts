@@ -5,7 +5,6 @@ import {
   getAnimalByIdEndpoint,
   getAnimalChildrenEndpoint,
   getFarmAnimalsEndpoint,
-  getLivingAnimalsEndpoint,
   importAnimalsFromExcelEndpoint,
   updateAnimalEndpoint,
   updateAnimalsEndpoint,
@@ -79,6 +78,11 @@ import {
   getHarvestSummaryForFarmEndpoint,
   getHarvestSummaryForPlotEndpoint,
   getHarvestYearsEndpoint,
+  getHarvestPresetsEndpoint,
+  getHarvestPresetByIdEndpoint,
+  createHarvestPresetEndpoint,
+  updateHarvestPresetEndpoint,
+  deleteHarvestPresetEndpoint,
 } from "./harvests/harvests.endoint";
 import {
   getFarmAndNearbyPlotsEndpoint,
@@ -102,6 +106,11 @@ import {
   getFertilizerApplicationSummaryForFarmEndpoint,
   getFertilizerApplicationSummaryForPlotEndpoint,
   getFertilizerApplicationYearsEndpoint,
+  getFertilizerApplicationPresetsEndpoint,
+  getFertilizerApplicationPresetByIdEndpoint,
+  createFertilizerApplicationPresetEndpoint,
+  updateFertilizerApplicationPresetEndpoint,
+  deleteFertilizerApplicationPresetEndpoint,
 } from "./fertilization/fertilizer-applications.endpoint";
 import {
   createFertilizerEndpoint,
@@ -134,20 +143,6 @@ import {
   updatePlotEndpoint,
 } from "./plots/plots.endpoint";
 import {
-  createFertilizerSpreaderEndpoint,
-  deleteFertilizerSpreaderEndpoint,
-  getFarmFertilizerSpreadersEndpoint,
-  getFertilizerSpreaderByIdEndpoint,
-  updateFertilizerSpreaderEndpoint,
-} from "./equipment/fertilizer-spreaders.endpoint";
-import {
-  createHarvestingMachineryEndpoint,
-  deleteHarvestingMachineryEndpoint,
-  getFarmHarvestingMachineryEndpoint,
-  getHarvestingMachineryByIdEndpoint,
-  updateHarvestingMachineryEndpoint,
-} from "./equipment/harvesting-machinery.endpoint";
-import {
   createCropRotationEndpoint,
   createCropRotationsByCropEndpoint,
   createCropRotationsByPlotEndpoint,
@@ -161,13 +156,6 @@ import {
   createCropRotationsPlanEndpoint,
 } from "./crop-rotations/crop-rotations.endpoint";
 import {
-  createTillageEquipmentEndpoint,
-  deleteTillageEquipmentEndpoint,
-  getFarmTillageEquipmentsEndpoint,
-  getTillageEquipmentByIdEndpoint,
-  updateTillageEquipmentEndpoint,
-} from "./equipment/tillage-equipment.endpoint";
-import {
   createTillageEndpoint,
   createTillagesEndpoint,
   deleteTillageEndpoint,
@@ -176,14 +164,12 @@ import {
   getTillageByIdEndpoint,
   getTillagesYearsEndpoint,
   updateTillageEndpoint,
+  getTillagePresetsEndpoint,
+  getTillagePresetByIdEndpoint,
+  createTillagePresetEndpoint,
+  updateTillagePresetEndpoint,
+  deleteTillagePresetEndpoint,
 } from "./tillages/tillages.endpoint";
-import {
-  updateCropProtectionEquipmentEndpoint,
-  createCropProtectionEquipmentEndpoint,
-  deleteCropProtectionEquipmentEndpoint,
-  getCropProtectionEquipmentByIdEndpoint,
-  getFarmCropProtectionEquipmentsEndpoint,
-} from "./equipment/crop-protection-equipment.endpoint";
 import {
   createCropProtectionApplicationEndpoint,
   createCropProtectionApplicationsEndpoint,
@@ -195,6 +181,11 @@ import {
   getFarmCropProtectionApplicationsEndpoint,
   getPlotCropProtectionApplicationsEndpoint,
   updateCropProtectionApplicationEndpoint,
+  getCropProtectionApplicationPresetsEndpoint,
+  getCropProtectionApplicationPresetByIdEndpoint,
+  createCropProtectionApplicationPresetEndpoint,
+  updateCropProtectionApplicationPresetEndpoint,
+  deleteCropProtectionApplicationPresetEndpoint,
 } from "./crop-protection/crop-protection-applications.endpoint";
 import {
   createCropProtectionProductEndpoint,
@@ -225,21 +216,6 @@ import {
 } from "./products/products.endpoint";
 import { generateFieldCalendarReport } from "./reports/field-calendar-reports.endpoint";
 import { healthEndpoint } from "./chore/chore.endpoint";
-import {
-  createAnimalGroupEndpoint,
-  deleteAnimalGroupEndpoint,
-  getAnimalGroupByIdEndpoint,
-  getAnimalGroupsEndpoint,
-  updateAnimalGroupEndpoint,
-} from "./outdoor-journal/animal-groups.endpoint";
-import {
-  createOutdoorJournalEntryEndpoint,
-  deleteOutdoorJournalEntryEndpoint,
-  getOutdoorJournalCalendarEndpoint,
-  getOutdoorJournalEntriesEndpoint,
-  getOutdoorJournalEntryByIdEndpoint,
-  updateOutdoorJournalEntryEndpoint,
-} from "./outdoor-journal/outdoor-journal.endpoint";
 
 export const routing: Routing = {
   healthz: healthEndpoint,
@@ -276,21 +252,6 @@ export const routing: Routing = {
       "": {
         patch: updateUserProfileEndpoint,
         get: getMyUserProfileEndpoint,
-      },
-    },
-    harvestingMachinery: {
-      "": {
-        get: getFarmHarvestingMachineryEndpoint,
-        post: createHarvestingMachineryEndpoint,
-      },
-      byId: {
-        ":harvestingMachineryId": {
-          "": {
-            get: getHarvestingMachineryByIdEndpoint,
-            delete: deleteHarvestingMachineryEndpoint,
-            patch: updateHarvestingMachineryEndpoint,
-          },
-        },
       },
     },
     // parcels: {
@@ -383,19 +344,6 @@ export const routing: Routing = {
         },
       },
     },
-    cropProtectionEquipments: {
-      "": {
-        post: createCropProtectionEquipmentEndpoint,
-        get: getFarmCropProtectionEquipmentsEndpoint,
-      },
-      byId: {
-        ":cropProtectionEquipmentId": {
-          get: getCropProtectionEquipmentByIdEndpoint,
-          delete: deleteCropProtectionEquipmentEndpoint,
-          patch: updateCropProtectionEquipmentEndpoint,
-        },
-      },
-    },
     cropProtectionApplications: {
       "": {
         post: createCropProtectionApplicationEndpoint,
@@ -411,17 +359,17 @@ export const routing: Routing = {
       },
       summaries: getCropProtectionApplicationSummaryForFarmEndpoint,
       years: getCropProtectionApplicationYearsEndpoint,
-    },
-    tillageEquipments: {
-      "": {
-        post: createTillageEquipmentEndpoint,
-        get: getFarmTillageEquipmentsEndpoint,
-      },
-      byId: {
-        ":tillageEquipmentId": {
-          get: getTillageEquipmentByIdEndpoint,
-          delete: deleteTillageEquipmentEndpoint,
-          patch: updateTillageEquipmentEndpoint,
+      presets: {
+        "": {
+          get: getCropProtectionApplicationPresetsEndpoint,
+          post: createCropProtectionApplicationPresetEndpoint,
+        },
+        byId: {
+          ":presetId": {
+            get: getCropProtectionApplicationPresetByIdEndpoint,
+            patch: updateCropProtectionApplicationPresetEndpoint,
+            delete: deleteCropProtectionApplicationPresetEndpoint,
+          },
         },
       },
     },
@@ -439,6 +387,19 @@ export const routing: Routing = {
         },
       },
       years: getTillagesYearsEndpoint,
+      presets: {
+        "": {
+          get: getTillagePresetsEndpoint,
+          post: createTillagePresetEndpoint,
+        },
+        byId: {
+          ":presetId": {
+            get: getTillagePresetByIdEndpoint,
+            patch: updateTillagePresetEndpoint,
+            delete: deleteTillagePresetEndpoint,
+          },
+        },
+      },
     },
     cropRotations: {
       "": {
@@ -473,6 +434,19 @@ export const routing: Routing = {
       },
       summaries: getHarvestSummaryForFarmEndpoint,
       years: getHarvestYearsEndpoint,
+      presets: {
+        "": {
+          get: getHarvestPresetsEndpoint,
+          post: createHarvestPresetEndpoint,
+        },
+        byId: {
+          ":presetId": {
+            get: getHarvestPresetByIdEndpoint,
+            patch: updateHarvestPresetEndpoint,
+            delete: deleteHarvestPresetEndpoint,
+          },
+        },
+      },
     },
     fertilizerApplications: {
       "": {
@@ -487,6 +461,19 @@ export const routing: Routing = {
       },
       summaries: getFertilizerApplicationSummaryForFarmEndpoint,
       years: getFertilizerApplicationYearsEndpoint,
+      presets: {
+        "": {
+          get: getFertilizerApplicationPresetsEndpoint,
+          post: createFertilizerApplicationPresetEndpoint,
+        },
+        byId: {
+          ":presetId": {
+            get: getFertilizerApplicationPresetByIdEndpoint,
+            patch: updateFertilizerApplicationPresetEndpoint,
+            delete: deleteFertilizerApplicationPresetEndpoint,
+          },
+        },
+      },
     },
     fertilizers: {
       "": {
@@ -504,19 +491,6 @@ export const routing: Routing = {
         },
       },
     },
-    fertilizerSpreaders: {
-      "": {
-        get: getFarmFertilizerSpreadersEndpoint,
-        post: createFertilizerSpreaderEndpoint,
-      },
-      byId: {
-        ":fertilizerSpreaderId": {
-          get: getFertilizerSpreaderByIdEndpoint,
-          patch: updateFertilizerSpreaderEndpoint,
-          delete: deleteFertilizerSpreaderEndpoint,
-        },
-      },
-    },
     reports: {
       fieldcalendar: generateFieldCalendarReport,
     },
@@ -527,7 +501,6 @@ export const routing: Routing = {
       },
       batch: updateAnimalsEndpoint,
       import: importAnimalsFromExcelEndpoint,
-      living: getLivingAnimalsEndpoint,
       byId: {
         ":animalId": {
           "": {
@@ -674,37 +647,6 @@ export const routing: Routing = {
           },
         },
       },
-    },
-    animalGroups: {
-      "": {
-        get: getAnimalGroupsEndpoint,
-        post: createAnimalGroupEndpoint,
-      },
-      byId: {
-        ":groupId": {
-          "": {
-            get: getAnimalGroupByIdEndpoint,
-            patch: updateAnimalGroupEndpoint,
-            delete: deleteAnimalGroupEndpoint,
-          },
-        },
-      },
-    },
-    outdoorJournal: {
-      "": {
-        get: getOutdoorJournalEntriesEndpoint,
-        post: createOutdoorJournalEntryEndpoint,
-      },
-      byId: {
-        ":entryId": {
-          "": {
-            get: getOutdoorJournalEntryByIdEndpoint,
-            patch: updateOutdoorJournalEntryEndpoint,
-            delete: deleteOutdoorJournalEntryEndpoint,
-          },
-        },
-      },
-      calendar: getOutdoorJournalCalendarEndpoint,
     },
   },
 };

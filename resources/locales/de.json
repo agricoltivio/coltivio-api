@@ -239,6 +239,7 @@
       "hoeing": "Hacken",
       "weed_harrowing": "Striegeln",
       "flame_weeding": "Abflammen",
+      "custom": "Benutzerdefiniert",
       "other": "Andere"
     }
   },
@@ -258,10 +259,12 @@
     "kilos_per_unit": "kg pro Einheit",
     "total_kilos": "kg Total",
     "labels": {
-      "unit": {
-        "none": "Fuder",
+      "harvest_units": {
+        "load": "Fuder",
         "round_bale": "Rundballen",
         "square_bale": "Quaderballen",
+        "crate": "Harass",
+        "total_amount": "Gesamtmenge",
         "other": "Einheit"
       },
       "conservation_method": {
@@ -270,12 +273,6 @@
         "haylage": "Heulage",
         "other": "Anderes",
         "none": "Keine"
-      },
-      "processing_type": {
-        "none": "Lose",
-        "round_bale": "Rundballen",
-        "square_bale": "Quaderballen",
-        "other": "Anderes"
       }
     }
   }

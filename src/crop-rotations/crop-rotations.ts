@@ -1,9 +1,4 @@
-import {
-  addMonths,
-  addWeeks,
-  addYears,
-  isWithinInterval,
-} from "date-fns";
+import { addMonths, addWeeks, addYears, isWithinInterval } from "date-fns";
 import { count, eq } from "drizzle-orm";
 import { Crop } from "../crops/crops";
 import { hasOverlappingRanges } from "../date-utils";
@@ -48,7 +43,7 @@ export type CropRotationCreateInput = Omit<
 
 export type CropRotationRecurrenceInput = Omit<
   typeof cropRotationRecurrences.$inferInsert,
-  "id" | "cropRotationId"
+  "id" | "cropRotationId" | "farmId"
 >;
 
 export type CropRotationByCropCreateManyInput = {
@@ -132,8 +127,14 @@ function expandRecurrence(
 
     // Only include if within the query range
     if (
-      isWithinInterval(currentDate, { start: queryFromDate, end: queryToDate }) ||
-      isWithinInterval(occurrenceEnd, { start: queryFromDate, end: queryToDate }) ||
+      isWithinInterval(currentDate, {
+        start: queryFromDate,
+        end: queryToDate,
+      }) ||
+      isWithinInterval(occurrenceEnd, {
+        start: queryFromDate,
+        end: queryToDate,
+      }) ||
       (currentDate <= queryFromDate && occurrenceEnd >= queryToDate)
     ) {
       entries.push({
@@ -200,6 +201,7 @@ function createMockRotation(
     recurrence: recurrence
       ? {
           id: "",
+          farmId: "",
           cropRotationId: "",
           frequency: recurrence.frequency,
           interval: recurrence.interval ?? 1,
@@ -239,7 +241,9 @@ async function checkRotationOverlaps(
   // Use a reasonable time window for checking overlaps (100 years)
   const allDates = [
     ...newRotations.map((r: { fromDate: Date }) => r.fromDate.getTime()),
-    ...existingRotations.map((r: CropRotationWithRecurrence) => r.fromDate.getTime()),
+    ...existingRotations.map((r: CropRotationWithRecurrence) =>
+      r.fromDate.getTime(),
+    ),
   ];
   const checkFromDate = new Date(Math.min(...allDates));
   const checkToDate = addYears(checkFromDate, 100);
@@ -266,7 +270,10 @@ async function checkRotationOverlaps(
     expandRecurrence(rotation, checkFromDate, checkToDate),
   );
 
-  const hasOverlap = hasOverlappingRanges([...expandedExisting, ...expandedNew]);
+  const hasOverlap = hasOverlappingRanges([
+    ...expandedExisting,
+    ...expandedNew,
+  ]);
 
   if (hasOverlap) {
     throw new Error("Overlapping date ranges");
@@ -402,6 +409,7 @@ export function cropRotationsApi(rlsDb: RlsDb) {
         if (recurrence) {
           await tx.insert(cropRotationRecurrences).values({
             cropRotationId: plotCrop.id,
+            ...farmIdColumnValue,
             ...recurrence,
           });
         }
@@ -442,6 +450,7 @@ export function cropRotationsApi(rlsDb: RlsDb) {
           const recurrence = input.crops[i].recurrence;
           if (recurrence) {
             await tx.insert(cropRotationRecurrences).values({
+              ...farmIdColumnValue,
               cropRotationId: createdCropRotations[i].id,
               ...recurrence,
             });
@@ -503,6 +512,7 @@ export function cropRotationsApi(rlsDb: RlsDb) {
           const recurrence = input.plots[i].recurrence;
           if (recurrence) {
             await tx.insert(cropRotationRecurrences).values({
+              ...farmIdColumnValue,
               cropRotationId: createdCropRotations[i].id,
               ...recurrence,
             });
@@ -560,6 +570,7 @@ export function cropRotationsApi(rlsDb: RlsDb) {
           for (const crop of plotPlan.crops) {
             if (crop.recurrence) {
               await tx.insert(cropRotationRecurrences).values({
+                ...farmIdColumnValue,
                 cropRotationId: createdCropRotations[rotationIndex].id,
                 ...crop.recurrence,
               });
@@ -653,6 +664,7 @@ export function cropRotationsApi(rlsDb: RlsDb) {
                 .where(eq(cropRotationRecurrences.cropRotationId, id));
             } else {
               await tx.insert(cropRotationRecurrences).values({
+                ...farmIdColumnValue,
                 cropRotationId: id,
                 ...recurrence,
               });

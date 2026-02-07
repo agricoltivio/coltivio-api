@@ -5,10 +5,16 @@ import * as tables from "../db/schema";
 import { MultiPolygon } from "../geo/geojson";
 import { Plot } from "../plots/plots";
 
+export type HarvestPreset = typeof tables.harvestPresets.$inferSelect;
+export type HarvestPresetCreateInput = Omit<
+  typeof tables.harvestPresets.$inferInsert,
+  "id" | "farmId"
+>;
+export type HarvestPresetUpdateInput = Partial<HarvestPresetCreateInput>;
+
 export type Harvest = Omit<typeof tables.harvests.$inferSelect, "geometry"> & {
   geometry: MultiPolygon;
   crop: typeof tables.crops.$inferSelect;
-  machinery: typeof tables.harvestingMachinery.$inferSelect | null;
   plot: Omit<Plot, "cropRotations">;
 };
 
@@ -17,29 +23,29 @@ export type HarvestCreateInput = {
   plotId: string;
   cropId: string;
   conservationMethod: z.infer<typeof tables.conservationMethodEnumSchema>;
-  processingType: z.infer<typeof tables.processingTypeEnumSchema>;
   producedUnits: number;
   kilosPerUnit: number;
   createdBy: string;
   harvestCount?: number | null;
-  machineConfigId?: string;
+  unit: z.infer<typeof tables.harvestUnitsSchema>;
   additionalNotes?: string | null;
 };
 export type HarvestsBatchCreateInput = {
   date: Date;
   cropId: string;
-  conservationMethod: z.infer<typeof tables.conservationMethodEnumSchema>;
-  processingType: z.infer<typeof tables.processingTypeEnumSchema>;
+  conservationMethod?: z.infer<
+    typeof tables.conservationMethodEnumSchema
+  > | null;
   kilosPerUnit: number;
   createdBy: string;
   harvestCount?: number | null;
-  machineryId?: string;
+  unit: z.infer<typeof tables.harvestUnitsSchema>;
   additionalNotes?: string | null;
   plots: {
     plotId: string;
     geometry: MultiPolygon;
     size: number;
-    producedUnits: number;
+    numberOfUnits: number;
   }[];
 };
 export type HarvestUpdateInput = Partial<HarvestCreateInput>;
@@ -47,9 +53,9 @@ export type HarvestUpdateInput = Partial<HarvestCreateInput>;
 interface ProducedQuantity {
   totalAmountInKilos: number;
   forageName: string;
-  conservationMethod: string;
+  conservationMethod: string | null;
   producedUnits: {
-    processingMethod: string;
+    unit: string;
     totalAmountInKilos: number;
     totalProducedUnits: number;
   }[];
@@ -101,7 +107,6 @@ export function harvestsApi(rlsDb: RlsDb) {
           where: { id: { in: ids } },
           with: {
             crop: true,
-            machinery: true,
             plot: {
               extras: {
                 geometry: (t) =>
@@ -126,7 +131,6 @@ export function harvestsApi(rlsDb: RlsDb) {
           where: { id },
           with: {
             crop: true,
-            machinery: true,
             plot: {
               extras: {
                 geometry: (t) =>
@@ -158,7 +162,6 @@ export function harvestsApi(rlsDb: RlsDb) {
           },
           with: {
             crop: true,
-            machinery: true,
             plot: {
               extras: {
                 geometry: (t) =>
@@ -184,7 +187,6 @@ export function harvestsApi(rlsDb: RlsDb) {
           where: { plotId },
           with: {
             crop: true,
-            machinery: true,
           },
           extras: {
             geometry: (t) =>
@@ -244,6 +246,49 @@ export function harvestsApi(rlsDb: RlsDb) {
         return mapToMonthlySummaries(results);
       });
     },
+    async createHarvestPreset(
+      input: HarvestPresetCreateInput,
+    ): Promise<HarvestPreset> {
+      return rlsDb.rls(async (tx) => {
+        const [preset] = await tx
+          .insert(tables.harvestPresets)
+          .values({ ...tables.farmIdColumnValue, ...input })
+          .returning();
+        return preset;
+      });
+    },
+    async getHarvestPresets(): Promise<HarvestPreset[]> {
+      return rlsDb.rls(async (tx) => {
+        return tx.query.harvestPresets.findMany({
+          orderBy: { name: "asc" },
+        });
+      });
+    },
+    async getHarvestPresetById(id: string): Promise<HarvestPreset | undefined> {
+      return rlsDb.rls(async (tx) => {
+        return tx.query.harvestPresets.findFirst({ where: { id } });
+      });
+    },
+    async updateHarvestPreset(
+      id: string,
+      input: HarvestPresetUpdateInput,
+    ): Promise<HarvestPreset> {
+      return rlsDb.rls(async (tx) => {
+        const [preset] = await tx
+          .update(tables.harvestPresets)
+          .set(input)
+          .where(eq(tables.harvestPresets.id, id))
+          .returning();
+        return preset;
+      });
+    },
+    async deleteHarvestPreset(id: string): Promise<void> {
+      return rlsDb.rls(async (tx) => {
+        await tx
+          .delete(tables.harvestPresets)
+          .where(eq(tables.harvestPresets.id, id));
+      });
+    },
   };
 
   function mapToMonthlySummaries(
@@ -260,10 +305,10 @@ export function harvestsApi(rlsDb: RlsDb) {
             {
               totalAmountInKilos: number;
               forageName: string;
-              conservationMethod: string;
+              conservationMethod: string | null;
               producedUnits: {
-                [processingMethod: string]: {
-                  processingMethod: string;
+                [unit: string]: {
+                  unit: string;
                   totalAmountInKilos: number;
                   totalProducedUnits: number;
                 };
@@ -296,28 +341,22 @@ export function harvestsApi(rlsDb: RlsDb) {
         };
       }
 
-      if (
-        !acc[key].producedQuantities[forageKey].producedUnits[
-          harvest.processingType
-        ]
-      ) {
-        acc[key].producedQuantities[forageKey].producedUnits[
-          harvest.processingType
-        ] = {
-          processingMethod: harvest.processingType,
+      if (!acc[key].producedQuantities[forageKey].producedUnits[harvest.unit]) {
+        acc[key].producedQuantities[forageKey].producedUnits[harvest.unit] = {
+          unit: harvest.unit,
           totalAmountInKilos: 0,
           totalProducedUnits: 0,
         };
       }
 
       acc[key].producedQuantities[forageKey].totalAmountInKilos +=
-        harvest.producedUnits * harvest.kilosPerUnit;
+        harvest.numberOfUnits * harvest.kilosPerUnit;
       acc[key].producedQuantities[forageKey].producedUnits[
-        harvest.processingType
-      ].totalAmountInKilos += harvest.producedUnits * harvest.kilosPerUnit;
+        harvest.unit
+      ].totalAmountInKilos += harvest.numberOfUnits * harvest.kilosPerUnit;
       acc[key].producedQuantities[forageKey].producedUnits[
-        harvest.processingType
-      ].totalProducedUnits += harvest.producedUnits;
+        harvest.unit
+      ].totalProducedUnits += harvest.numberOfUnits;
 
       return acc;
     }, {});

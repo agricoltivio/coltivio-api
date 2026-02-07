@@ -71,6 +71,7 @@ export function plotsApi(rlsDb: RlsDb) {
 
         // Create yearly recurrence for permanent rotation
         await tx.insert(cropRotationRecurrences).values({
+          ...farmIdColumnValue,
           cropRotationId: createdRotation.id,
           frequency: RecurrenceFrequency.yearly,
           interval: 1,

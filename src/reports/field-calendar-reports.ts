@@ -1,10 +1,8 @@
 import * as Sentry from "@sentry/node";
-import { and, gte, lte } from "drizzle-orm";
 import ExcelJS from "exceljs";
 import { TFunction } from "i18next";
-import { RlsDb } from "../db/db";
-import * as tables from "../db/schema";
 import { txEmailApi } from "../brevo/brevo";
+import { RlsDb } from "../db/db";
 
 export function fieldCalendarReportsApi(
   rlsDb: RlsDb,
@@ -49,28 +47,27 @@ export function fieldCalendarReportsApi(
               },
             },
             tillages: {
-              with: { equipment: true },
               orderBy: { date: "desc" },
               where: {
                 AND: [{ date: { gte: fromDate } }, { date: { lte: toDate } }],
               },
             },
             harvests: {
-              with: { crop: true, machinery: true },
+              with: { crop: true },
               orderBy: { date: "desc" },
               where: {
                 AND: [{ date: { gte: fromDate } }, { date: { lte: toDate } }],
               },
             },
             fertilizerApplications: {
-              with: { fertilizer: true, spreader: true },
+              with: { fertilizer: true },
               orderBy: { date: "desc" },
               where: {
                 AND: [{ date: { gte: fromDate } }, { date: { lte: toDate } }],
               },
             },
             cropProtectionApplications: {
-              with: { equipment: true, product: true },
+              with: { product: true },
               orderBy: { dateTime: "desc" },
               where: {
                 AND: [
@@ -115,7 +112,6 @@ export function fieldCalendarReportsApi(
                   (tillage.size / 100).toFixed(2),
                   t(`tillages.reasons.${tillage.reason}`),
                   t(`tillages.actions.${tillage.action}`),
-                  tillage.equipment?.name,
                 ]);
               });
             }
@@ -128,12 +124,10 @@ export function fieldCalendarReportsApi(
                   application.date.toLocaleDateString(locale),
                   (application.size / 100).toFixed(2),
                   application.fertilizer.name,
-                  t(`units.short.${application.unit}`),
-                  application.spreader?.name,
-                  application.numberOfApplications,
-                  application.amountPerApplication,
-                  application.amountPerApplication *
-                    application.numberOfApplications,
+                  t(`units.short.${application.fertilizer.unit}`),
+                  application.numberOfUnits,
+                  application.amountPerUnit,
+                  application.amountPerUnit * application.numberOfUnits,
                 ]);
               });
             }
@@ -149,12 +143,10 @@ export function fieldCalendarReportsApi(
                   }),
                   (application.size / 100).toFixed(2),
                   application.product.name,
-                  t(`units.short.${application.unit}`),
-                  application.equipment?.name,
-                  application.numberOfApplications,
-                  application.amountPerApplication,
-                  application.amountPerApplication *
-                    application.numberOfApplications,
+                  t(`units.short.${application.product.unit}`),
+                  application.numberOfUnits,
+                  application.amountPerUnit,
+                  application.amountPerUnit * application.numberOfUnits,
                 ]);
               });
             }
@@ -167,16 +159,15 @@ export function fieldCalendarReportsApi(
                   harvest.date.toLocaleDateString(locale),
                   (harvest.size / 100).toFixed(2),
                   harvest.crop.name,
-                  harvest.machinery?.name,
-                  t(
-                    `harvests.labels.processing_type.${harvest.processingType}`,
-                  ),
-                  t(
-                    `harvests.labels.conservation_method.${harvest.conservationMethod}`,
-                  ),
-                  harvest.producedUnits,
+                  t(`harvests.labels.harvest_units.${harvest.unit}`),
+                  harvest.conservationMethod
+                    ? t(
+                        `harvests.labels.conservation_method.${harvest.conservationMethod}`,
+                      )
+                    : "",
+                  harvest.numberOfUnits,
                   harvest.kilosPerUnit,
-                  harvest.producedUnits * harvest.kilosPerUnit,
+                  harvest.numberOfUnits * harvest.kilosPerUnit,
                 ]);
               });
             }
@@ -490,14 +481,12 @@ export function fieldCalendarReportsApi(
                   { key: "size", value: t("common.size_a") },
                   { key: "reason", value: t("common.reason") },
                   { key: "action", value: t("common.action") },
-                  { key: "equipment", value: t("common.machinery") },
                 ],
                 plot.tillages.map((tillage) => ({
                   date: tillage.date.toLocaleDateString(locale),
                   size: (tillage.size / 100).toFixed(2),
                   reason: t(`tillages.reasons.${tillage.reason}`),
                   action: t(`tillages.actions.${tillage.action}`),
-                  equipment: tillage.equipment?.name,
                 })),
                 plotIndex,
               );
@@ -513,14 +502,12 @@ export function fieldCalendarReportsApi(
                     key: "fertilizer",
                     value: t("fertilizer_applications.fertilizer"),
                   },
-                  { key: "unit", value: t("common.unit") },
-                  { key: "spreader", value: t("common.machinery") },
                   {
-                    key: "numberOfApplications",
+                    key: "numberOfUnits",
                     value: t("common.amount_of_loads"),
                   },
                   {
-                    key: "amountPerApplication",
+                    key: "amountPerUnit",
                     value: t("common.amount_per_load"),
                   },
                   {
@@ -532,13 +519,10 @@ export function fieldCalendarReportsApi(
                   date: application.date.toLocaleDateString(locale),
                   size: (application.size / 100).toFixed(2),
                   fertilizer: application.fertilizer.name,
-                  unit: t(`units.short.${application.unit}`),
-                  spreader: application.spreader?.name,
-                  numberOfApplications: application.numberOfApplications,
-                  amountPerApplication: application.amountPerApplication,
-                  total:
-                    application.amountPerApplication *
-                    application.numberOfApplications,
+                  unit: t(`units.short.${application.fertilizer.unit}`),
+                  numberOfUnits: application.numberOfUnits,
+                  amountPerUnit: application.amountPerUnit,
+                  total: application.amountPerUnit * application.numberOfUnits,
                 })),
                 plotIndex,
               );
@@ -554,14 +538,12 @@ export function fieldCalendarReportsApi(
                     key: "product",
                     value: t("crop_protections.product"),
                   },
-                  { key: "unit", value: t("common.unit") },
-                  { key: "equipment", value: t("common.machinery") },
                   {
-                    key: "numberOfApplications",
+                    key: "numberOfUnits",
                     value: t("common.amount_of_loads"),
                   },
                   {
-                    key: "amountPerApplication",
+                    key: "amountPerUnit",
                     value: t("common.amount_per_load"),
                   },
                   {
@@ -576,13 +558,10 @@ export function fieldCalendarReportsApi(
                   }),
                   size: (application.size / 100).toFixed(2),
                   product: application.product.name,
-                  unit: t(`units.short.${application.unit}`),
-                  equipment: application.equipment?.name,
-                  numberOfApplications: application.numberOfApplications,
-                  amountPerApplication: application.amountPerApplication,
-                  total:
-                    application.amountPerApplication *
-                    application.numberOfApplications,
+                  unit: t(`units.short.${application.product.unit}`),
+                  numberOfUnits: application.numberOfUnits,
+                  amountPerUnit: application.amountPerUnit,
+                  total: application.amountPerUnit * application.numberOfUnits,
                 })),
                 plotIndex,
               );
@@ -595,7 +574,6 @@ export function fieldCalendarReportsApi(
                   { key: "date", value: t("common.date") },
                   { key: "size", value: t("common.size_a") },
                   { key: "crop", value: t("crops.crop") },
-                  { key: "machinery", value: t("common.machinery") },
                   {
                     key: "processingType",
                     value: t(`harvests.processing_type`),
@@ -621,16 +599,17 @@ export function fieldCalendarReportsApi(
                   date: harvest.date.toLocaleDateString(locale),
                   size: (harvest.size / 100).toFixed(2),
                   crop: harvest.crop.name,
-                  machinery: harvest.machinery?.name,
                   processingType: t(
-                    `harvests.labels.processing_type.${harvest.processingType}`,
+                    `harvests.labels.harvest_units.${harvest.unit}`,
                   ),
-                  conservationMethod: t(
-                    `harvests.labels.conservation_method.${harvest.conservationMethod}`,
-                  ),
-                  producedUnits: harvest.producedUnits,
+                  conservationMethod: harvest.conservationMethod
+                    ? t(
+                        `harvests.labels.conservation_method.${harvest.conservationMethod}`,
+                      )
+                    : "",
+                  producedUnits: harvest.numberOfUnits,
                   kilosPerUnit: harvest.kilosPerUnit,
-                  totalKilos: harvest.producedUnits * harvest.kilosPerUnit,
+                  totalKilos: harvest.numberOfUnits * harvest.kilosPerUnit,
                 })),
                 plotIndex,
               );

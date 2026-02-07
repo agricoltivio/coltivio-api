@@ -17,7 +17,7 @@ export const animalSchema = z.object({
   name: z.string(),
   type: animalTypeSchema,
   sex: animalSexSchema,
-  dateOfBirth: ez.dateOut().nullable(),
+  dateOfBirth: ez.dateOut(),
   registered: z.boolean(),
   earTagId: z.string().nullable(),
   get earTag() {
@@ -54,7 +54,7 @@ const createAnimalSchema = z.object({
   name: z.string(),
   type: animalTypeSchema,
   sex: animalSexSchema,
-  dateOfBirth: ez.dateIn().optional(),
+  dateOfBirth: ez.dateIn(),
   registered: z.boolean(),
   earTagId: z.string().optional().nullable(),
   motherId: z.string().optional().nullable(),
@@ -98,22 +98,6 @@ export const getFarmAnimalsEndpoint = farmEndpointFactory.build({
       input.onlyLiving,
       input.animalTypes,
     );
-    return {
-      result,
-      count: result.length,
-    };
-  },
-});
-
-export const getLivingAnimalsEndpoint = farmEndpointFactory.build({
-  method: "get",
-  input: z.object({}),
-  output: z.object({
-    result: z.array(animalSchema),
-    count: z.number(),
-  }),
-  handler: async ({ ctx: { animals, farmId } }) => {
-    const result = await animals.getLivingAnimalsForFarm(farmId);
     return {
       result,
       count: result.length,

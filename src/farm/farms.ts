@@ -123,7 +123,7 @@ export function farmsApi(rlsDb: RlsDb, t: TFunction) {
 
           const cropCreateInputs = mapCodesToCrops(
             plots.map((plot) => plot.usage ?? UNKNOWN_CROP_CODE),
-            t
+            t,
           );
 
           const crops = await tx
@@ -132,7 +132,7 @@ export function farmsApi(rlsDb: RlsDb, t: TFunction) {
               cropCreateInputs.map((crop) => ({
                 ...crop,
                 farmId: createdFarm.id,
-              }))
+              })),
             )
             .returning();
 
@@ -143,7 +143,7 @@ export function farmsApi(rlsDb: RlsDb, t: TFunction) {
           const cropRotationInputs = plots.map((plot) => ({
             farmId: createdFarm.id,
             cropId: crops.find((crop) =>
-              crop.usageCodes.includes(plot.usage ?? UNKNOWN_CROP_CODE)
+              crop.usageCodes.includes(plot.usage ?? UNKNOWN_CROP_CODE),
             )!.id,
             fromDate,
             toDate,
@@ -158,10 +158,11 @@ export function farmsApi(rlsDb: RlsDb, t: TFunction) {
           // Create yearly recurrences for permanent rotations
           await tx.insert(tables.cropRotationRecurrences).values(
             createdRotations.map((rotation) => ({
+              farmId: createdFarm.id,
               cropRotationId: rotation.id,
               frequency: RecurrenceFrequency.yearly,
               interval: 1,
-            }))
+            })),
           );
         }
 

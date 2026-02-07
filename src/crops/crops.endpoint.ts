@@ -20,6 +20,7 @@ export const cropSchema = z.object({
   familyId: z.string().nullable(),
   variety: z.string().nullable(),
   usageCodes: z.array(z.number()),
+  waitingTimeInYears: z.number().nullable(),
   additionalNotes: z.string().nullable(),
   family: cropFamilySchema.nullable(),
 });

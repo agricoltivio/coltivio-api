@@ -20,7 +20,6 @@ import {
 import { authenticatedRole, authUid, authUsers } from "drizzle-orm/supabase";
 
 import { z } from "zod";
-import { INFINITE_DATE } from "../date-utils";
 
 const polygon = customType<{ data: string }>({
   dataType() {
@@ -222,22 +221,35 @@ export const weekday = pgEnum("weekday", [
   "SU",
 ]);
 
-export const cropRotationRecurrences = pgTable("crop_rotation_recurrences", {
-  id: uuid("id").defaultRandom().primaryKey(),
+export const cropRotationRecurrences = pgTable.withRLS(
+  "crop_rotation_recurrences",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    farmId: uuid()
+      .notNull()
+      .references(() => farms.id, { onDelete: "cascade" }),
+    cropRotationId: uuid("crop_rotation_id")
+      .references(() => cropRotations.id, { onDelete: "cascade" })
+      .notNull(),
 
-  cropRotationId: uuid("crop_rotation_id")
-    .references(() => cropRotations.id, { onDelete: "cascade" })
-    .notNull(),
+    frequency: frequency("frequency").notNull(),
+    interval: integer("interval").default(1).notNull(),
 
-  frequency: frequency("frequency").notNull(),
-  interval: integer("interval").default(1).notNull(),
+    byWeekday: weekday("by_weekday").array(),
+    byMonthDay: integer("by_month_day"),
 
-  byWeekday: weekday("by_weekday").array(),
-  byMonthDay: integer("by_month_day"),
-
-  until: date({ mode: "date" }),
-  count: integer("count"),
-});
+    until: date({ mode: "date" }),
+    count: integer("count"),
+  },
+  (table) => [
+    pgPolicy("only farm members", {
+      as: "permissive",
+      to: authenticatedRole,
+      using: eq(table.farmId, currentFarmId),
+      withCheck: eq(table.farmId, currentFarmId),
+    }),
+  ],
+);
 
 export const tillageReason = pgEnum("tillage_reason", [
   "weed_control",
@@ -257,21 +269,22 @@ export const tillageAction = pgEnum("tillage_action", [
   "weed_harrowing", // striegel
   "hoeing",
   "flame_weeding",
-  "other",
+  "custom",
 ]);
 
-export const tillageEquipment = pgTable.withRLS(
-  "tillage_equipment",
+export const tillagePresets = pgTable.withRLS(
+  "tillage_presets",
   {
-    id: uuid().primaryKey().defaultRandom(),
+    id: uuid().defaultRandom().primaryKey(),
     farmId: uuid()
       .notNull()
       .references(() => farms.id, {
         onDelete: "cascade",
       }),
     name: text().notNull(),
-    action: tillageAction().notNull(),
     reason: tillageReason().notNull(),
+    action: tillageAction().notNull(),
+    customAction: text(),
   },
   (table) => [
     pgPolicy("only farm members", {
@@ -301,9 +314,7 @@ export const tillages = pgTable.withRLS(
     size: integer().notNull(),
     reason: tillageReason().notNull(),
     action: tillageAction().notNull(),
-    equipmentId: uuid().references(() => tillageEquipment.id, {
-      onDelete: "set null",
-    }),
+    customAction: text(),
     date: date({ mode: "date" }).notNull(),
     additionalNotes: text(),
   },
@@ -336,9 +347,6 @@ export const cropProtectionProducts = pgTable.withRLS(
     name: text().notNull(),
     unit: cropProtectionUnit().notNull(),
     description: text(),
-    defaultEquipmentId: uuid().references(() => cropProtectionEquipment.id, {
-      onDelete: "set null",
-    }),
   },
   (table) => [
     pgPolicy("only farm members", {
@@ -355,20 +363,25 @@ export const cropProtectionApplicationMethod = pgEnum(
   ["spraying", "misting", "broadcasting", "injecting", "other"],
 );
 
-export const cropProtectionEquipment = pgTable.withRLS(
-  "crop_protection_equipment",
+export const cropProtectionApplicationUnit = pgEnum(
+  "crop_protection_application_unit",
+  ["load", "bag", "total_amount", "amount_per_hectare", "other"],
+);
+
+export const cropProtectionApplicationPresets = pgTable.withRLS(
+  "crop_protection_application_presets",
   {
-    id: uuid().primaryKey().defaultRandom(),
+    id: uuid().defaultRandom().primaryKey(),
     farmId: uuid()
       .notNull()
       .references(() => farms.id, {
         onDelete: "cascade",
       }),
     name: text().notNull(),
-    description: text(),
     method: cropProtectionApplicationMethod().notNull(),
-    unit: cropProtectionUnit().notNull(),
-    capacity: real().notNull(),
+    unit: cropProtectionApplicationUnit().notNull(),
+    customUnit: text(),
+    amountPerUnit: real().notNull(),
   },
   (table) => [
     pgPolicy("only farm members", {
@@ -395,18 +408,15 @@ export const cropProtectionApplications = pgTable.withRLS(
       .notNull()
       .references(() => plots.id, { onDelete: "cascade" }),
     dateTime: timestamp().notNull(),
-    equipmentId: uuid().references(() => cropProtectionEquipment.id, {
-      onDelete: "set null",
-    }),
     productId: uuid()
       .notNull()
       .references(() => cropProtectionProducts.id),
     geometry: polygon().notNull(),
     size: integer().notNull(),
-    method: cropProtectionApplicationMethod().notNull(),
-    amountPerApplication: real().notNull(),
-    numberOfApplications: real().notNull(),
-    unit: cropProtectionUnit().notNull(),
+    method: cropProtectionApplicationMethod(),
+    unit: cropProtectionApplicationUnit().notNull(),
+    amountPerUnit: real().notNull(),
+    numberOfUnits: real().notNull(),
     additionalNotes: text(),
   },
   (table) => [
@@ -455,12 +465,6 @@ export const conservationMethod = pgEnum("conservation_method", [
   "haylage",
   "other",
   "none",
-]);
-export const processingType = pgEnum("processing_type", [
-  "none",
-  "square_bale",
-  "round_bale",
-  "other",
 ]);
 
 export const cropCategory = pgEnum("crop_category", [
@@ -523,8 +527,17 @@ export const crops = pgTable.withRLS(
   ],
 );
 
-export const harvestingMachinery = pgTable.withRLS(
-  "harvesting_machinery",
+export const harvestUnits = pgEnum("harvest_unit", [
+  "load",
+  "square_bale",
+  "round_bale",
+  "crate",
+  "total_amount",
+  "other",
+]);
+
+export const harvestPresets = pgTable.withRLS(
+  "harvest_presets",
   {
     id: uuid().primaryKey().defaultRandom(),
     farmId: uuid()
@@ -533,10 +546,9 @@ export const harvestingMachinery = pgTable.withRLS(
         onDelete: "cascade",
       }),
     name: text().notNull(),
-    default: boolean().notNull().default(false),
-    defaultConservationMethod: conservationMethod().notNull(),
-    defaultProcessingType: processingType().notNull(),
-    defaultKilosPerUnit: integer().notNull(),
+    unit: harvestUnits().notNull(),
+    kilosPerUnit: real().notNull(),
+    conservationMethod: conservationMethod(),
   },
   (table) => [
     pgPolicy("only farm members", {
@@ -547,12 +559,6 @@ export const harvestingMachinery = pgTable.withRLS(
     }),
   ],
 );
-
-export const harvestUnits = pgEnum("harvest_unit", [
-  "lose",
-  "square_bale",
-  "round_bale",
-]);
 
 export const harvests = pgTable.withRLS(
   "harvests",
@@ -572,14 +578,11 @@ export const harvests = pgTable.withRLS(
     cropId: uuid()
       .notNull()
       .references(() => crops.id),
-    conservationMethod: conservationMethod().notNull(),
-    processingType: processingType().notNull(),
+    conservationMethod: conservationMethod(),
+    unit: harvestUnits().notNull(),
     kilosPerUnit: real().notNull(),
-    producedUnits: real().notNull(),
+    numberOfUnits: real().notNull(),
     harvestCount: integer(),
-    machineryId: uuid().references(() => harvestingMachinery.id, {
-      onDelete: "set null",
-    }),
     geometry: polygon().notNull(),
     size: integer().notNull(),
     additionalNotes: text(),
@@ -868,30 +871,6 @@ export const fertilizationMethod = pgEnum("fertilization_method", [
   "other",
 ]);
 
-export const fertilizerSpreaders = pgTable.withRLS(
-  "fertilizer_spreaders",
-  {
-    id: uuid().primaryKey().defaultRandom(),
-    farmId: uuid()
-      .notNull()
-      .references(() => farms.id, {
-        onDelete: "cascade",
-      }),
-    name: text().notNull(),
-    unit: fertilizerUnit().notNull(),
-    defaultMethod: fertilizationMethod().notNull(),
-    capacity: real().notNull(),
-  },
-  (table) => [
-    pgPolicy("only farm members", {
-      as: "permissive",
-      to: authenticatedRole,
-      using: eq(table.farmId, currentFarmId),
-      withCheck: eq(table.farmId, currentFarmId),
-    }),
-  ],
-);
-
 export const fertilizers = pgTable.withRLS(
   "fertilizers",
   {
@@ -905,12 +884,46 @@ export const fertilizers = pgTable.withRLS(
     description: text(),
     type: fertilizerType().notNull(),
     unit: fertilizerUnit().notNull(),
-    defaultSpreaderId: uuid().references(() => fertilizerSpreaders.id, {
-      onDelete: "set null",
-    }),
     // nitrogenPerUnit: real(),
     // phosphorusPerUnit: real(),
     // potassiumPerUnit: real(),
+  },
+  (table) => [
+    pgPolicy("only farm members", {
+      as: "permissive",
+      to: authenticatedRole,
+      using: eq(table.farmId, currentFarmId),
+      withCheck: eq(table.farmId, currentFarmId),
+    }),
+  ],
+);
+
+export const fertilizerApplicationUnit = pgEnum("fertilizer_application_unit", [
+  "load",
+  "bag",
+  "total_amount",
+  "amount_per_hectare",
+  "other",
+]);
+
+export const fertilizerApplicationPresets = pgTable.withRLS(
+  "fertilizer_application_presets",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    farmId: uuid()
+      .notNull()
+      .references(() => farms.id, {
+        onDelete: "cascade",
+      }),
+    name: text().notNull(),
+    fertilizerId: uuid()
+      .notNull()
+      .references(() => fertilizers.id, {
+        onDelete: "cascade",
+      }),
+    unit: fertilizerApplicationUnit().notNull(),
+    method: fertilizationMethod(),
+    amountPerUnit: real().notNull(),
   },
   (table) => [
     pgPolicy("only farm members", {
@@ -939,16 +952,13 @@ export const fertilizerApplications = pgTable.withRLS(
       .notNull()
       .references(() => plots.id, { onDelete: "cascade" }),
     date: date({ mode: "date" }).notNull(),
-    unit: fertilizerUnit().notNull(),
-    method: fertilizationMethod().notNull(),
-    amountPerApplication: real().notNull(),
-    numberOfApplications: real().notNull(),
+    method: fertilizationMethod(),
+    unit: fertilizerApplicationUnit().notNull(),
+    amountPerUnit: real().notNull(),
+    numberOfUnits: real().notNull(),
     fertilizerId: uuid()
       .references(() => fertilizers.id)
       .notNull(),
-    spreaderId: uuid().references(() => fertilizerSpreaders.id, {
-      onDelete: "set null",
-    }),
     geometry: polygon().notNull(),
     size: integer().notNull(),
     additionalNotes: text(),
@@ -984,6 +994,32 @@ export const earTags = pgTable.withRLS(
   ],
 );
 
+export const animalCategory = pgEnum("animal_category", [
+  "A1",
+  "A2",
+  "A3",
+  "A4",
+  "A5",
+  "A6",
+  "A7",
+  "A8",
+  "A9",
+  "B1",
+  "B2",
+  "B3",
+  "C1",
+  "C2",
+  "D1",
+  "D2",
+  "D3",
+  "E1",
+  "E2",
+  "E3",
+  "E4",
+  "F1",
+  "F2",
+]);
+
 export const animals = pgTable.withRLS(
   "animals",
   {
@@ -995,8 +1031,9 @@ export const animals = pgTable.withRLS(
       }),
     name: text().notNull(),
     type: animalType().notNull(),
+    category: animalCategory(),
     sex: animalSex().notNull(),
-    dateOfBirth: date({ mode: "date" }),
+    dateOfBirth: date({ mode: "date" }).notNull(),
     registered: boolean().notNull().default(false),
     earTagId: uuid().references(() => earTags.id, { onDelete: "restrict" }),
     motherId: uuid(),
@@ -1072,11 +1109,15 @@ export const outdoorSchedules = pgTable.withRLS(
   ],
 );
 
-export const outdoorScheduleRecurrences = pgTable(
+export const outdoorScheduleRecurrences = pgTable.withRLS(
   "outdoor_schedule_recurrences",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-
+    farmId: uuid()
+      .notNull()
+      .references(() => farms.id, {
+        onDelete: "cascade",
+      }),
     outdoorScheduleId: uuid("outdoor_schedule_id")
       .references(() => outdoorSchedules.id, { onDelete: "cascade" })
       .notNull(),
@@ -1090,6 +1131,15 @@ export const outdoorScheduleRecurrences = pgTable(
     until: date("until"),
     count: integer("count"),
   },
+
+  (table) => [
+    pgPolicy("only farm members", {
+      as: "permissive",
+      to: authenticatedRole,
+      using: eq(table.farmId, currentFarmId),
+      withCheck: eq(table.farmId, currentFarmId),
+    }),
+  ],
 );
 
 export const drugs = pgTable.withRLS(
@@ -1179,59 +1229,6 @@ export const treatments = pgTable.withRLS(
   ],
 );
 
-export const animalGroups = pgTable.withRLS(
-  "animal_groups",
-  {
-    id: uuid().primaryKey().defaultRandom(),
-    farmId: uuid()
-      .notNull()
-      .references(() => farms.id, {
-        onDelete: "cascade",
-      }),
-    name: text().notNull(),
-    description: text(),
-  },
-  (table) => [
-    pgPolicy("only farm members", {
-      as: "permissive",
-      to: authenticatedRole,
-      using: eq(table.farmId, currentFarmId),
-      withCheck: eq(table.farmId, currentFarmId),
-    }),
-  ],
-);
-
-export const outdoorJournalEntries = pgTable.withRLS(
-  "outdoor_journal_entries",
-  {
-    id: uuid().primaryKey().defaultRandom(),
-    farmId: uuid()
-      .notNull()
-      .references(() => farms.id, {
-        onDelete: "cascade",
-      }),
-    animalGroupId: uuid()
-      .notNull()
-      .references(() => animalGroups.id, { onDelete: "cascade" }),
-    startDate: date("start_date", { mode: "date" }).notNull(),
-    endDate: date("end_date", { mode: "date" }).notNull(),
-    animalCount: integer("animal_count").notNull(),
-  },
-  (table) => [
-    index("outdoor_journal_entries_animal_group_id_idx").on(
-      table.animalGroupId,
-    ),
-    index("outdoor_journal_entries_start_date_idx").on(table.startDate),
-    index("outdoor_journal_entries_end_date_idx").on(table.endDate),
-    pgPolicy("only farm members", {
-      as: "permissive",
-      to: authenticatedRole,
-      using: eq(table.farmId, currentFarmId),
-      withCheck: eq(table.farmId, currentFarmId),
-    }),
-  ],
-);
-
 // Schema object for defineRelations (contains all tables)
 const tables = {
   federalFarmPlots,
@@ -1240,18 +1237,18 @@ const tables = {
   parcels,
   cropRotations,
   cropRotationRecurrences,
-  tillageEquipment,
+  tillagePresets,
   tillages,
   cropProtectionProducts,
-  cropProtectionEquipment,
+  cropProtectionApplicationPresets,
   cropProtectionApplications,
   plots,
   cropFamilies,
   crops,
-  harvestingMachinery,
+  harvestPresets,
   harvests,
-  fertilizerSpreaders,
   fertilizers,
+  fertilizerApplicationPresets,
   fertilizerApplications,
   contacts,
   products,
@@ -1268,8 +1265,6 @@ const tables = {
   herds,
   outdoorSchedules,
   outdoorScheduleRecurrences,
-  animalGroups,
-  outdoorJournalEntries,
 };
 
 // Define all relations using the new Drizzle v1 API
@@ -1286,7 +1281,6 @@ export const relations = defineRelations(tables, (r) => ({
     plots: r.many.plots(),
     harvests: r.many.harvests(),
     fertilizerApplications: r.many.fertilizerApplications(),
-    harvestingMachinery: r.many.harvestingMachinery(),
   },
   parcels: {
     farm: r.one.farms({
@@ -1329,22 +1323,28 @@ export const relations = defineRelations(tables, (r) => ({
       optional: false,
     }),
   },
+  tillagePresets: {
+    farm: r.one.farms({
+      from: r.tillagePresets.farmId,
+      to: r.farms.id,
+      optional: false,
+    }),
+  },
   tillages: {
-    equipment: r.one.tillageEquipment({
-      from: r.tillages.equipmentId,
-      to: r.tillageEquipment.id,
-    }), // optional - equipmentId can be null
     plot: r.one.plots({
       from: r.tillages.plotId,
       to: r.plots.id,
       optional: false,
     }),
   },
+  cropProtectionApplicationPresets: {
+    farm: r.one.farms({
+      from: r.cropProtectionApplicationPresets.farmId,
+      to: r.farms.id,
+      optional: false,
+    }),
+  },
   cropProtectionApplications: {
-    equipment: r.one.cropProtectionEquipment({
-      from: r.cropProtectionApplications.equipmentId,
-      to: r.cropProtectionEquipment.id,
-    }), // optional - equipmentId can be null
     plot: r.one.plots({
       from: r.cropProtectionApplications.plotId,
       to: r.plots.id,
@@ -1368,13 +1368,12 @@ export const relations = defineRelations(tables, (r) => ({
     cropProtectionApplications: r.many.cropProtectionApplications(),
     fertilizerApplications: r.many.fertilizerApplications(),
   },
-  harvestingMachinery: {
+  harvestPresets: {
     farm: r.one.farms({
-      from: r.harvestingMachinery.farmId,
+      from: r.harvestPresets.farmId,
       to: r.farms.id,
       optional: false,
     }),
-    harvests: r.many.harvests(),
   },
   harvests: {
     farm: r.one.farms({
@@ -1392,18 +1391,6 @@ export const relations = defineRelations(tables, (r) => ({
       to: r.crops.id,
       optional: false,
     }),
-    machinery: r.one.harvestingMachinery({
-      from: r.harvests.machineryId,
-      to: r.harvestingMachinery.id,
-    }), // optional - machineryId can be null
-  },
-  fertilizerSpreaders: {
-    farm: r.one.farms({
-      from: r.fertilizerSpreaders.farmId,
-      to: r.farms.id,
-      optional: false,
-    }),
-    fertilizerApplications: r.many.fertilizerApplications(),
   },
   fertilizers: {
     farm: r.one.farms({
@@ -1412,10 +1399,19 @@ export const relations = defineRelations(tables, (r) => ({
       optional: false,
     }),
     fertilizerApplications: r.many.fertilizerApplications(),
-    defaultSpreader: r.one.fertilizerSpreaders({
-      from: r.fertilizers.defaultSpreaderId,
-      to: r.fertilizerSpreaders.id,
-    }), // optional - defaultSpreaderId can be null
+    fertilizerApplicationPresets: r.many.fertilizerApplicationPresets(),
+  },
+  fertilizerApplicationPresets: {
+    farm: r.one.farms({
+      from: r.fertilizerApplicationPresets.farmId,
+      to: r.farms.id,
+      optional: false,
+    }),
+    fertilizer: r.one.fertilizers({
+      from: r.fertilizerApplicationPresets.fertilizerId,
+      to: r.fertilizers.id,
+      optional: false,
+    }),
   },
   fertilizerApplications: {
     fertilizer: r.one.fertilizers({
@@ -1428,10 +1424,6 @@ export const relations = defineRelations(tables, (r) => ({
       to: r.farms.id,
       optional: false,
     }),
-    spreader: r.one.fertilizerSpreaders({
-      from: r.fertilizerApplications.spreaderId,
-      to: r.fertilizerSpreaders.id,
-    }), // optional - spreaderId can be null
     plot: r.one.plots({
       from: r.fertilizerApplications.plotId,
       to: r.plots.id,
@@ -1604,7 +1596,7 @@ export const relations = defineRelations(tables, (r) => ({
       to: r.farms.id,
       optional: false,
     }),
-    herd: r.one.herds(),
+    herd: r.one.herds({ optional: false }),
     recurrence: r.one.outdoorScheduleRecurrences(),
   },
   outdoorScheduleRecurrences: {
@@ -1650,26 +1642,6 @@ export const relations = defineRelations(tables, (r) => ({
       to: r.profiles.id,
     }), // optional - createdBy can be null
   },
-  animalGroups: {
-    farm: r.one.farms({
-      from: r.animalGroups.farmId,
-      to: r.farms.id,
-      optional: false,
-    }),
-    outdoorJournalEntries: r.many.outdoorJournalEntries(),
-  },
-  outdoorJournalEntries: {
-    farm: r.one.farms({
-      from: r.outdoorJournalEntries.farmId,
-      to: r.farms.id,
-      optional: false,
-    }),
-    animalGroup: r.one.animalGroups({
-      from: r.outdoorJournalEntries.animalGroupId,
-      to: r.animalGroups.id,
-      optional: false,
-    }),
-  },
 }));
 
 export const idSchema = z.object({ id: z.string() });
@@ -1684,6 +1656,9 @@ export const pointSchema = z.object({
 });
 
 export const cropCategorySchema = z.enum(cropCategory.enumValues);
+export const cropProtectionApplicationUnitSchema = z.enum(
+  cropProtectionApplicationUnit.enumValues,
+);
 export const cropProtectionApplicationMethodSchema = z.enum(
   cropProtectionApplicationMethod.enumValues,
 );
@@ -1692,16 +1667,20 @@ export const tillageReasonSchema = z.enum(tillageReason.enumValues);
 
 export const cropProtectionUnitSchema = z.enum(cropProtectionUnit.enumValues);
 
-export const processingTypeEnumSchema = z.enum(processingType.enumValues);
+export const harvestUnitsSchema = z.enum(harvestUnits.enumValues);
 export const conservationMethodEnumSchema = z.enum(
   conservationMethod.enumValues,
 );
 
+export const fertilizerApplicationUnitSchema = z.enum(
+  fertilizerApplicationUnit.enumValues,
+);
 export const fertilizerUnitSchema = z.enum(fertilizerUnit.enumValues);
 export const fertilizerTypeSchema = z.enum(fertilizerType.enumValues);
 export const fertilizationMethodSchema = z.enum(fertilizationMethod.enumValues);
 
 export const animalTypeSchema = z.enum(animalType.enumValues);
+export const animalCateogrySchema = z.enum(animalCategory.enumValues);
 export const animalSexSchema = z.enum(animalSex.enumValues);
 export const deathReasonSchema = z.enum(deathReason.enumValues);
 

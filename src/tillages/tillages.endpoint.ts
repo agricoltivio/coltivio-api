@@ -6,7 +6,6 @@ import {
   tillageActionSchema,
   tillageReasonSchema,
 } from "../db/schema";
-import { tillageEquipmentSchema } from "../equipment/tillage-equipment.endpoint";
 import { farmEndpointFactory } from "../endpoint-factory";
 import { ensureDateRange } from "../date-utils";
 
@@ -33,10 +32,9 @@ export const tillageSchema = z.object({
   size: z.number(),
   reason: tillageReasonSchema,
   action: tillageActionSchema,
-  equipmentId: z.string().nullable(),
+  customAction: z.string().nullable(),
   date: ez.dateOut(),
   additionalNotes: z.string().nullable(),
-  equipment: tillageEquipmentSchema.nullable(),
   plot: plotBasicSchema,
 });
 
@@ -48,7 +46,7 @@ const tillageCreateSchema = z.object({
   size: z.number(),
   reason: tillageReasonSchema,
   action: tillageActionSchema,
-  equipmentId: z.string().optional(),
+  customAction: z.string().optional(),
   date: ez.dateIn(),
   additionalNotes: z.string().optional(),
 });
@@ -117,9 +115,9 @@ export const createTillagesEndpoint = farmEndpointFactory.build({
   input: z.object({
     reason: tillageReasonSchema,
     action: tillageActionSchema,
+    customAction: z.string().optional(),
     date: ez.dateIn(),
     additionalNotes: z.string().optional(),
-    equipmentId: z.string().optional(),
     plots: z
       .object({
         plotId: z.string(),
@@ -148,6 +146,7 @@ export const updateTillageEndpoint = farmEndpointFactory.build({
   method: "patch",
   input: tillageCreateSchema.omit({ plotId: true }).partial().extend({
     tillageId: z.string(),
+    customAction: z.string().optional().nullable(),
   }),
   output: tillagesResponseSchema,
   handler: async ({ input, ctx: { tillages } }) => {
@@ -178,5 +177,79 @@ export const getTillagesYearsEndpoint = farmEndpointFactory.build({
       result,
       count: result.length,
     };
+  },
+});
+
+const tillagePresetSchema = z.object({
+  id: z.string(),
+  farmId: z.string(),
+  name: z.string(),
+  reason: tillageReasonSchema,
+  action: tillageActionSchema,
+  customAction: z.string().nullable(),
+});
+
+export const getTillagePresetsEndpoint = farmEndpointFactory.build({
+  method: "get",
+  input: z.object({}),
+  output: z.object({
+    result: z.array(tillagePresetSchema),
+    count: z.number(),
+  }),
+  handler: async ({ ctx: { tillages } }) => {
+    const result = await tillages.getTillagePresets();
+    return { result, count: result.length };
+  },
+});
+
+export const getTillagePresetByIdEndpoint = farmEndpointFactory.build({
+  method: "get",
+  input: z.object({ presetId: z.string() }),
+  output: tillagePresetSchema,
+  handler: async ({ input, ctx: { tillages } }) => {
+    const preset = await tillages.getTillagePresetById(input.presetId);
+    if (!preset) {
+      throw createHttpError(404, "Tillage preset not found");
+    }
+    return preset;
+  },
+});
+
+export const createTillagePresetEndpoint = farmEndpointFactory.build({
+  method: "post",
+  input: z.object({
+    name: z.string(),
+    reason: tillageReasonSchema,
+    action: tillageActionSchema,
+    customAction: z.string().optional(),
+  }),
+  output: tillagePresetSchema,
+  handler: async ({ input, ctx: { tillages } }) => {
+    return tillages.createTillagePreset(input);
+  },
+});
+
+export const updateTillagePresetEndpoint = farmEndpointFactory.build({
+  method: "patch",
+  input: z.object({
+    presetId: z.string(),
+    name: z.string().optional(),
+    reason: tillageReasonSchema.optional(),
+    action: tillageActionSchema.optional(),
+    customAction: z.string().optional().nullable(),
+  }),
+  output: tillagePresetSchema,
+  handler: async ({ input: { presetId, ...data }, ctx: { tillages } }) => {
+    return tillages.updateTillagePreset(presetId, data);
+  },
+});
+
+export const deleteTillagePresetEndpoint = farmEndpointFactory.build({
+  method: "delete",
+  input: z.object({ presetId: z.string() }),
+  output: z.object({}),
+  handler: async ({ input: { presetId }, ctx: { tillages } }) => {
+    await tillages.deleteTillagePreset(presetId);
+    return {};
   },
 });

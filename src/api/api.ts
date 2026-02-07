@@ -11,10 +11,6 @@ import { sponsorshipProgramsApi } from "../sponsorships/sponsorship-programs";
 import { sponsorshipsApi } from "../sponsorships/sponsorships";
 import { cropApi } from "../crops/crops";
 import { RlsDb } from "../db/db";
-import { cropProtectionEquipmentApi } from "../equipment/crop-protection-equipment";
-import { fertilizerSpreaderApi } from "../equipment/fertilizer-spreaders";
-import { harvestingMachineryApi } from "../equipment/harvesting-machinery";
-import { tillageEquipmentApi } from "../equipment/tillage-equipment";
 import { farmsApi } from "../farm/farms";
 import { fertilizerApplicationsApi } from "../fertilization/fertilizer-applications";
 import { fertilizersApi } from "../fertilization/fertilizers";
@@ -27,8 +23,6 @@ import { usersApi } from "../user/users";
 import { cropProtectionProductsApi } from "../crop-protection/crop-protection-products";
 import { TFunction } from "i18next";
 import { fieldCalendarReportsApi } from "../reports/field-calendar-reports";
-import { animalGroupsApi } from "../outdoor-journal/animal-groups";
-import { outdoorJournalApi } from "../outdoor-journal/outdoor-journal";
 
 export function sessionApi(db: RlsDb, t: TFunction, locale: string) {
   return {
@@ -38,15 +32,11 @@ export function sessionApi(db: RlsDb, t: TFunction, locale: string) {
     federalParcelLayer: federalPlotsLayerApi(db),
     crops: cropApi(db),
     cropRotations: cropRotationsApi(db),
-    harvestingMachinery: harvestingMachineryApi(db),
     harvests: harvestsApi(db),
     fertilizerApplications: fertilizerApplicationsApi(db),
     fertilizers: fertilizersApi(db),
-    fertilizerSpreader: fertilizerSpreaderApi(db),
     tillages: tillagesApi(db),
-    tillageEquipments: tillageEquipmentApi(db),
     cropProtectionProducts: cropProtectionProductsApi(db),
-    cropProtectionEquipment: cropProtectionEquipmentApi(db),
     cropProtectionApplications: cropProtectionApplicationsApi(db),
     fieldCalendarReports: fieldCalendarReportsApi(db, t, locale),
     animals: animalsApi(db),
@@ -59,7 +49,5 @@ export function sessionApi(db: RlsDb, t: TFunction, locale: string) {
     payments: paymentsApi(db),
     sponsorshipPrograms: sponsorshipProgramsApi(db),
     sponsorships: sponsorshipsApi(db),
-    animalGroups: animalGroupsApi(db),
-    outdoorJournal: outdoorJournalApi(db),
   };
 }

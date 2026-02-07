@@ -33,6 +33,10 @@ export type ImportResult = {
 };
 
 export type AnimalType = (typeof tables.animalType.enumValues)[number];
+export type AnimalCategory = (typeof tables.animalCategory.enumValues)[number];
+export type AnimalSex = (typeof tables.animalSex.enumValues)[number];
+
+export type Herd = typeof tables.herds.$inferSelect;
 
 export type AnimalCreateInput = Omit<
   typeof tables.animals.$inferInsert,
@@ -48,6 +52,7 @@ export type AnimalWithRelations = Animal & {
   childrenAsMother: Animal[];
   childrenAsFather: Animal[];
   treatments: Treatment[];
+  herd: Herd | null;
 };
 
 export function animalsApi(rlsDb: RlsDb) {
@@ -98,6 +103,7 @@ export function animalsApi(rlsDb: RlsDb) {
               },
             },
             treatments: true,
+            herd: true,
           },
         });
       });
@@ -275,8 +281,7 @@ export function animalsApi(rlsDb: RlsDb) {
           return;
         }
 
-        // Parse date of birth (optional)
-        let dateOfBirth: Date | undefined;
+        let dateOfBirth: Date;
         if (dobCell.value) {
           if (dobCell.value instanceof Date) {
             dateOfBirth = dobCell.value;
@@ -297,7 +302,23 @@ export function animalsApi(rlsDb: RlsDb) {
             dateOfBirth = new Date(
               Math.round((dobCell.value - 25569) * 86400 * 1000),
             );
+          } else {
+            skippedRows.push({
+              row: rowNumber,
+              earTagNumber,
+              name,
+              reason: "Invalid date format",
+            });
+            return;
           }
+        } else {
+          skippedRows.push({
+            row: rowNumber,
+            earTagNumber,
+            name,
+            reason: "Date of birth is required",
+          });
+          return;
         }
 
         // Check ear tag status

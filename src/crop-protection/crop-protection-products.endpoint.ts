@@ -10,7 +10,6 @@ export const cropProtectionProductSchema = z.object({
   name: z.string(),
   unit: cropProtectionUnitSchema,
   description: z.string().nullable(),
-  defaultEquipmentId: z.string().nullable(),
 });
 
 const createCropProtectionProductSchema = z.object({
@@ -20,7 +19,8 @@ const createCropProtectionProductSchema = z.object({
   defaultEquipmentId: z.string().optional(),
 });
 
-const updateCropProtectionProductSchema = createCropProtectionProductSchema.partial();
+const updateCropProtectionProductSchema =
+  createCropProtectionProductSchema.partial();
 
 export const getCropProtectionProductByIdEndpoint = farmEndpointFactory.build({
   method: "get",
@@ -29,7 +29,7 @@ export const getCropProtectionProductByIdEndpoint = farmEndpointFactory.build({
   handler: async ({ input, ctx: { cropProtectionProducts } }) => {
     const cropProtectionProduct =
       await cropProtectionProducts.getCropProtectionProductById(
-        input.cropProtectionProductId
+        input.cropProtectionProductId,
       );
     if (!cropProtectionProduct) {
       throw createHttpError(404, "CropProtectionProduct not found");
@@ -73,7 +73,7 @@ export const updateCropProtectionProductEndpoint = farmEndpointFactory.build({
   handler: async ({ input, ctx: { cropProtectionProducts } }) => {
     return cropProtectionProducts.updateCropProtectionProduct(
       input.cropProtectionProductId,
-      input
+      input,
     );
   },
 });
@@ -87,7 +87,7 @@ export const deleteCropProtectionProductEndpoint = farmEndpointFactory.build({
     ctx: { cropProtectionProducts: cropProtectionProduct },
   }) => {
     await cropProtectionProduct.deleteCropProtectionProduct(
-      cropProtectionProductId
+      cropProtectionProductId,
     );
     return {};
   },
@@ -102,7 +102,7 @@ export const cropProtectionProductInUseEndpoint = farmEndpointFactory.build({
     ctx: { cropProtectionProducts },
   }) => {
     const inUse = await cropProtectionProducts.cropProtectionProductInUse(
-      cropProtectionProductId
+      cropProtectionProductId,
     );
     return { inUse };
   },

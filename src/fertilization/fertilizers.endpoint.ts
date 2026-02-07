@@ -11,7 +11,6 @@ export const fertilizerSchema = z.object({
   description: z.string().nullable(),
   type: fertilizerTypeSchema,
   unit: fertilizerUnitSchema,
-  defaultSpreaderId: z.string().nullable(),
 });
 
 const createFertilizerSchema = z.object({
