@@ -1,11 +1,41 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "1e39c54b-02ce-4040-a556-5fc75c4bee33",
+  "id": "a743137b-ce4f-4cc3-80cb-b70e6c4a75d8",
   "prevIds": [
-    "5a8639d7-a839-45f3-8824-dc61f52b097d"
+    "150c9734-712b-4a6e-8bfa-2c963fb28e5c"
   ],
   "ddl": [
+    {
+      "values": [
+        "A1",
+        "A2",
+        "A3",
+        "A4",
+        "A5",
+        "A6",
+        "A7",
+        "A8",
+        "A9",
+        "B1",
+        "B2",
+        "B3",
+        "C1",
+        "C2",
+        "D1",
+        "D2",
+        "D3",
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "F1",
+        "F2"
+      ],
+      "name": "animal_category",
+      "entityType": "enums",
+      "schema": "public"
+    },
     {
       "values": [
         "male",
@@ -526,6 +556,19 @@
       "table": "animals"
     },
     {
+      "type": "animal_category",
+      "typeSchema": "public",
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "category",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "animals"
+    },
+    {
       "type": "animal_sex",
       "typeSchema": "public",
       "notNull": true,
@@ -892,7 +935,7 @@
     {
       "type": "crop_protection_application_method",
       "typeSchema": "public",
-      "notNull": true,
+      "notNull": false,
       "dimensions": 0,
       "default": null,
       "generated": null,
@@ -2444,7 +2487,7 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "produced_units",
+      "name": "number_of_units",
       "entityType": "columns",
       "schema": "public",
       "table": "harvests"
@@ -3635,7 +3678,7 @@
     {
       "type": "tillage_reason",
       "typeSchema": "public",
-      "notNull": true,
+      "notNull": false,
       "dimensions": 0,
       "default": null,
       "generated": null,
@@ -3765,7 +3808,7 @@
     {
       "type": "tillage_reason",
       "typeSchema": "public",
-      "notNull": true,
+      "notNull": false,
       "dimensions": 0,
       "default": null,
       "generated": null,
@@ -6185,10 +6228,5 @@
       "table": "treatments"
     }
   ],
-  "renames": [
-    "public.crop_protection_applications.amount_per_application->public.crop_protection_applications.amount_per_unit",
-    "public.crop_protection_applications.number_of_applications->public.crop_protection_applications.number_of_units",
-    "public.fertilizer_applications.amount_per_application->public.fertilizer_applications.amount_per_unit",
-    "public.fertilizer_applications.number_of_applications->public.fertilizer_applications.number_of_units"
-  ]
+  "renames": []
 }

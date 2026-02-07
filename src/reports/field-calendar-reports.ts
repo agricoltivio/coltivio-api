@@ -110,7 +110,7 @@ export function fieldCalendarReportsApi(
                   plot.usage,
                   tillage.date.toLocaleDateString(locale),
                   (tillage.size / 100).toFixed(2),
-                  t(`tillages.reasons.${tillage.reason}`),
+                  tillage.reason ? t(`tillages.reasons.${tillage.reason}`) : "",
                   t(`tillages.actions.${tillage.action}`),
                 ]);
               });
@@ -485,7 +485,9 @@ export function fieldCalendarReportsApi(
                 plot.tillages.map((tillage) => ({
                   date: tillage.date.toLocaleDateString(locale),
                   size: (tillage.size / 100).toFixed(2),
-                  reason: t(`tillages.reasons.${tillage.reason}`),
+                  reason: tillage.reason
+                    ? t(`tillages.reasons.${tillage.reason}`)
+                    : "",
                   action: t(`tillages.actions.${tillage.action}`),
                 })),
                 plotIndex,

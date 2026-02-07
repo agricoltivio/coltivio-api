@@ -263,7 +263,7 @@ const cropProtectionApplicationPresetSchema = z.object({
   id: z.string(),
   farmId: z.string(),
   name: z.string(),
-  method: cropProtectionApplicationMethodSchema,
+  method: cropProtectionApplicationMethodSchema.nullable(),
   unit: cropProtectionApplicationUnitSchema,
   customUnit: z.string().nullable(),
   amountPerUnit: z.number(),
@@ -309,7 +309,7 @@ export const createCropProtectionApplicationPresetEndpoint =
     method: "post",
     input: z.object({
       name: z.string(),
-      method: cropProtectionApplicationMethodSchema,
+      method: cropProtectionApplicationMethodSchema.optional().nullable(),
       unit: cropProtectionApplicationUnitSchema,
       customUnit: z.string().optional(),
       amountPerUnit: z.number(),
@@ -328,7 +328,7 @@ export const updateCropProtectionApplicationPresetEndpoint =
     input: z.object({
       presetId: z.string(),
       name: z.string().optional(),
-      method: cropProtectionApplicationMethodSchema.optional(),
+      method: cropProtectionApplicationMethodSchema.nullable().optional(),
       unit: cropProtectionApplicationUnitSchema.optional(),
       customUnit: z.string().optional().nullable(),
       amountPerUnit: z.number().optional(),

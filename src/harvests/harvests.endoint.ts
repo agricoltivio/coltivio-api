@@ -214,7 +214,9 @@ export const createHarvestPresetEndpoint = farmEndpointFactory.build({
     name: z.string(),
     unit: tables.harvestUnitsSchema,
     kilosPerUnit: z.number(),
-    conservationMethod: tables.conservationMethodEnumSchema.optional(),
+    conservationMethod: tables.conservationMethodEnumSchema
+      .optional()
+      .nullable(),
   }),
   output: harvestPresetSchema,
   handler: async ({ input, ctx: { harvests } }) => {
