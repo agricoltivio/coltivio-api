@@ -18,12 +18,18 @@ export const cropRotationSchema = z.object({
 });
 
 const recurrenceSchema = z.object({
-  frequency: frequencySchema,
   interval: z.number().int().min(1).default(1),
-  byWeekday: z.array(weekdaySchema).optional(),
-  byMonthDay: z.number().int().min(1).max(31).optional(),
   until: ez.dateIn().optional(),
-  count: z.number().int().min(1).optional(),
+});
+
+const recurrenceOutSchema = z.object({
+  id: z.string(),
+  interval: z.number(),
+  until: ez.dateOut().nullable(),
+});
+
+export const cropRotationWithRecurrenceSchema = cropRotationSchema.extend({
+  recurrence: recurrenceOutSchema.nullable(),
 });
 
 const createCropRotationSchema = z.object({
@@ -67,6 +73,12 @@ export const getCropRotationsForPlotEndpoint = farmEndpointFactory.build({
   },
 });
 
+const booleanQueryParam = (defaultValue: boolean) =>
+  z
+    .string()
+    .optional()
+    .transform((val) => (val === undefined ? defaultValue : val === "true"));
+
 export const getCurrentCropRotationsForPlotsEndpoint =
   farmEndpointFactory.build({
     method: "get",
@@ -75,26 +87,26 @@ export const getCurrentCropRotationsForPlotsEndpoint =
         (val) => (typeof val === "string" ? [val] : val),
         z.array(z.string()).min(1),
       ),
-      onlyCurrent: z
-        .string()
-        .optional()
-        .transform((val) => val === "true")
-        .default(true),
+      onlyCurrent: booleanQueryParam(true),
+      expand: booleanQueryParam(true),
+      withRecurrences: booleanQueryParam(false),
       fromDate: ez.dateIn(),
       toDate: ez.dateIn(),
     }),
     output: z.object({
-      result: z.array(cropRotationSchema),
+      result: z.array(cropRotationWithRecurrenceSchema),
       count: z.number(),
     }),
     handler: async ({ input, ctx: { cropRotations } }) => {
-      console.log(input.plotIds, input.onlyCurrent);
+      console.log(input.expand, input.withRecurrences);
       const result = await cropRotations.getCropRotationsForPlots(
         input.plotIds,
         input.onlyCurrent,
         input.fromDate,
         input.toDate,
+        { expand: input.expand, withRecurrences: input.withRecurrences },
       );
+      console.log(result);
       return {
         result,
         count: result.length,
@@ -175,14 +187,15 @@ export const createCropRotationsByPlotEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const createCropRotationsPlanEndpoint = farmEndpointFactory.build({
-  method: "post",
+export const planCropRotationsEndpoint = farmEndpointFactory.build({
+  method: "patch",
   input: z.object({
     plots: z.array(
       z.object({
         plotId: z.string(),
-        crops: z.array(
+        rotations: z.array(
           z.object({
+            id: z.string().optional(),
             cropId: z.string(),
             sowingDate: ez.dateIn().optional(),
             fromDate: ez.dateIn(),
@@ -198,7 +211,7 @@ export const createCropRotationsPlanEndpoint = farmEndpointFactory.build({
     count: z.number(),
   }),
   handler: async ({ input, ctx: { cropRotations } }) => {
-    const result = await cropRotations.createCropRotationsPlan(input);
+    const result = await cropRotations.planCropRotations(input);
     return {
       result,
       count: result.length,

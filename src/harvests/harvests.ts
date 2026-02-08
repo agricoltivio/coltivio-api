@@ -15,7 +15,7 @@ export type HarvestPresetUpdateInput = Partial<HarvestPresetCreateInput>;
 export type Harvest = Omit<typeof tables.harvests.$inferSelect, "geometry"> & {
   geometry: MultiPolygon;
   crop: typeof tables.crops.$inferSelect;
-  plot: Omit<Plot, "cropRotations">;
+  plot: Omit<Plot, "currentCropRotation">;
 };
 
 export type HarvestCreateInput = {

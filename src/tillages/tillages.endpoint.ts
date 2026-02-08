@@ -1,25 +1,13 @@
-import createHttpError from "http-errors";
 import { ez } from "express-zod-api";
+import createHttpError from "http-errors";
 import { z } from "zod";
-import {
-  multiPolygonSchema,
-  tillageActionSchema,
-  tillageReasonSchema,
-} from "../db/schema";
-import { farmEndpointFactory } from "../endpoint-factory";
 import { ensureDateRange } from "../date-utils";
+import { multiPolygonSchema, tillageActionSchema } from "../db/schema";
+import { farmEndpointFactory } from "../endpoint-factory";
 
-// API Schemas - decoupled from database schema for stable API contract
-const plotBasicSchema = z.object({
+const plotMinimalSchema = z.object({
   id: z.string(),
-  farmId: z.string(),
   name: z.string(),
-  localId: z.string().nullable(),
-  usage: z.number().nullable(),
-  additionalUsages: z.string().nullable(),
-  cuttingDate: ez.dateOut().nullable(),
-  size: z.number(),
-  additionalNotes: z.string().nullable(),
 });
 
 export const tillageSchema = z.object({
@@ -30,12 +18,11 @@ export const tillageSchema = z.object({
   plotId: z.string(),
   geometry: multiPolygonSchema,
   size: z.number(),
-  reason: tillageReasonSchema.nullable(),
   action: tillageActionSchema,
   customAction: z.string().nullable(),
   date: ez.dateOut(),
   additionalNotes: z.string().nullable(),
-  plot: plotBasicSchema,
+  plot: plotMinimalSchema,
 });
 
 const tillagesResponseSchema = tillageSchema;
@@ -44,7 +31,6 @@ const tillageCreateSchema = z.object({
   plotId: z.string(),
   geometry: multiPolygonSchema,
   size: z.number(),
-  reason: tillageReasonSchema.optional().nullable(),
   action: tillageActionSchema,
   customAction: z.string().optional(),
   date: ez.dateIn(),
@@ -113,7 +99,6 @@ export const createTillageEndpoint = farmEndpointFactory.build({
 export const createTillagesEndpoint = farmEndpointFactory.build({
   method: "post",
   input: z.object({
-    reason: tillageReasonSchema,
     action: tillageActionSchema,
     customAction: z.string().optional(),
     date: ez.dateIn(),
@@ -184,7 +169,6 @@ const tillagePresetSchema = z.object({
   id: z.string(),
   farmId: z.string(),
   name: z.string(),
-  reason: tillageReasonSchema.nullable(),
   action: tillageActionSchema,
   customAction: z.string().nullable(),
 });
@@ -219,7 +203,6 @@ export const createTillagePresetEndpoint = farmEndpointFactory.build({
   method: "post",
   input: z.object({
     name: z.string(),
-    reason: tillageReasonSchema.optional(),
     action: tillageActionSchema,
     customAction: z.string().optional(),
   }),
@@ -234,7 +217,6 @@ export const updateTillagePresetEndpoint = farmEndpointFactory.build({
   input: z.object({
     presetId: z.string(),
     name: z.string().optional(),
-    reason: tillageReasonSchema.optional().nullable(),
     action: tillageActionSchema.optional(),
     customAction: z.string().optional().nullable(),
   }),

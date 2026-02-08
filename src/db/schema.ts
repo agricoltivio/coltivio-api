@@ -221,8 +221,8 @@ export const weekday = pgEnum("weekday", [
   "SU",
 ]);
 
-export const cropRotationRecurrences = pgTable.withRLS(
-  "crop_rotation_recurrences",
+export const cropRotationYearlyRecurrences = pgTable.withRLS(
+  "crop_rotation_yearly_recurrences",
   {
     id: uuid("id").defaultRandom().primaryKey(),
     farmId: uuid()
@@ -232,14 +232,8 @@ export const cropRotationRecurrences = pgTable.withRLS(
       .references(() => cropRotations.id, { onDelete: "cascade" })
       .notNull(),
 
-    frequency: frequency("frequency").notNull(),
     interval: integer("interval").default(1).notNull(),
-
-    byWeekday: weekday("by_weekday").array(),
-    byMonthDay: integer("by_month_day"),
-
     until: date({ mode: "date" }),
-    count: integer("count"),
   },
   (table) => [
     pgPolicy("only farm members", {
@@ -1236,7 +1230,7 @@ const tables = {
   farms,
   parcels,
   cropRotations,
-  cropRotationRecurrences,
+  cropRotationRecurrences: cropRotationYearlyRecurrences,
   tillagePresets,
   tillages,
   cropProtectionProducts,

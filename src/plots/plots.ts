@@ -7,22 +7,21 @@ import {
   ne,
   sql,
 } from "drizzle-orm";
-import { RlsDb } from "../db/db";
-import {
-  farmIdColumnValue,
-  cropRotations,
-  cropRotationRecurrences,
-  plots,
-  crops,
-} from "../db/schema";
-import { MultiPolygon } from "../geo/geojson";
-import {
-  CropRotation,
-  RecurrenceFrequency,
-} from "../crop-rotations/crop-rotations";
-import { getParcelsForEnvelopes } from "../geoadmin/geoadmin";
 import { writeFileSync } from "fs";
 import path from "path";
+import {
+  CropRotation,
+  expandRecurrence,
+} from "../crop-rotations/crop-rotations";
+import { RlsDb } from "../db/db";
+import {
+  cropRotations,
+  cropRotationYearlyRecurrences,
+  farmIdColumnValue,
+  plots,
+} from "../db/schema";
+import { MultiPolygon } from "../geo/geojson";
+import { getParcelsForEnvelopes } from "../geoadmin/geoadmin";
 
 export type PlotCreateInput = Omit<
   typeof plots.$inferInsert,
@@ -34,7 +33,7 @@ export type PlotCreateInput = Omit<
 export type PlotUpdateInput = Partial<PlotCreateInput>;
 export type Plot = Omit<typeof plots.$inferSelect, "geometry"> & {
   geometry: MultiPolygon;
-  cropRotations: CropRotation[];
+  currentCropRotation: CropRotation | null;
 };
 const plotSelectColumns = {
   ...getTableColumns(plots),
@@ -70,10 +69,9 @@ export function plotsApi(rlsDb: RlsDb) {
           .returning();
 
         // Create yearly recurrence for permanent rotation
-        await tx.insert(cropRotationRecurrences).values({
+        await tx.insert(cropRotationYearlyRecurrences).values({
           ...farmIdColumnValue,
           cropRotationId: createdRotation.id,
-          frequency: RecurrenceFrequency.yearly,
           interval: 1,
         });
 
@@ -97,12 +95,30 @@ export function plotsApi(rlsDb: RlsDb) {
 
     async getPlotById(id: string): Promise<Plot | undefined> {
       return rlsDb.rls(async (tx) => {
+        const today = new Date();
         const plot = await tx.query.plots.findFirst({
           where: { id },
           with: {
             cropRotations: {
+              where: {
+                fromDate: { lte: today },
+                OR: [
+                  { toDate: { gte: today } },
+                  {
+                    recurrence: {
+                      OR: [
+                        { until: { isNull: true } },
+                        { until: { gte: today } },
+                      ],
+                    },
+                  },
+                ],
+              },
               orderBy: { fromDate: "desc" },
-              with: { crop: { with: { family: true } } },
+              with: {
+                crop: { with: { family: true } },
+                recurrence: true,
+              },
             },
           },
           extras: {
@@ -112,13 +128,26 @@ export function plotsApi(rlsDb: RlsDb) {
               ),
           },
         });
-        return plot;
+        if (plot) {
+          const { cropRotations, ...rest } = plot;
+          const [currentRotation] = cropRotations;
+          return {
+            ...rest,
+            currentCropRotation: currentRotation
+              ? (expandRecurrence(currentRotation, today, today).find(
+                  (rotation) =>
+                    rotation.fromDate <= today && rotation.toDate >= today,
+                ) ?? null)
+              : null,
+          };
+        }
       });
     },
 
     async getPlotsForFarm(farmId: string): Promise<Plot[]> {
       return rlsDb.rls(async (tx) => {
-        return tx.query.plots.findMany({
+        const today = new Date();
+        const plots = await tx.query.plots.findMany({
           where: { farmId },
           orderBy: (plots, { asc }) => [
             asc(plots.name),
@@ -128,7 +157,24 @@ export function plotsApi(rlsDb: RlsDb) {
           with: {
             cropRotations: {
               orderBy: { fromDate: "desc" },
-              with: { crop: { with: { family: true } } },
+              where: {
+                fromDate: { lte: today },
+                OR: [
+                  { toDate: { gte: today } },
+                  {
+                    recurrence: {
+                      OR: [
+                        { until: { isNull: true } },
+                        { until: { gte: today } },
+                      ],
+                    },
+                  },
+                ],
+              },
+              with: {
+                crop: { with: { family: true } },
+                recurrence: true,
+              },
             },
           },
           extras: {
@@ -138,6 +184,15 @@ export function plotsApi(rlsDb: RlsDb) {
               ),
           },
         });
+        return plots.map(({ cropRotations, ...plot }) => ({
+          ...plot,
+          currentCropRotation: cropRotations[0]
+            ? (expandRecurrence(cropRotations[0], today, today).find(
+                (rotation) =>
+                  rotation.fromDate <= today && rotation.toDate >= today,
+              ) ?? null)
+            : null,
+        }));
       });
     },
 

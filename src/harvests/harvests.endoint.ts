@@ -1,11 +1,15 @@
 import { ez } from "express-zod-api";
 import createHttpError from "http-errors";
 import { z } from "zod";
+import { cropSchema } from "../crops/crops.endpoint";
+import { ensureDateRange } from "../date-utils";
 import * as tables from "../db/schema";
 import { farmEndpointFactory } from "../endpoint-factory";
-import { ensureDateRange } from "../date-utils";
-import { cropSchema } from "../crops/crops.endpoint";
-import { plotSchema } from "../plots/plots.endpoint";
+
+const plotMinimalSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+});
 
 const harvestSchema = z.object({
   id: z.string(),
@@ -21,7 +25,7 @@ const harvestSchema = z.object({
   cropId: z.string(),
   crop: cropSchema.omit({ family: true }),
   plotId: z.string(),
-  plot: plotSchema.omit({ cropRotations: true }),
+  plot: plotMinimalSchema,
   size: z.number(),
   createdAt: ez.dateOut(),
   createdBy: z.string().nullable(),

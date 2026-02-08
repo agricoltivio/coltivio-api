@@ -51,7 +51,7 @@ export type CropProtectionApplication =
   typeof cropProtectionApplications.$inferSelect & {
     geometry: MultiPolygon;
     product: CropProtectionProduct;
-    plot: Omit<Plot, "cropRotations" | "geometry">;
+    plot: Omit<Plot, "currentCropRotation" | "geometry">;
   };
 
 interface AppliedCropProtection {

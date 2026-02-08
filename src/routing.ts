@@ -153,7 +153,7 @@ import {
   getCropRotationYearsEndpoint,
   getCurrentCropRotationsForPlotsEndpoint as getCropRotationsForPlotsEndpoint,
   updateCropRotationEndpoint,
-  createCropRotationsPlanEndpoint,
+  planCropRotationsEndpoint,
 } from "./crop-rotations/crop-rotations.endpoint";
 import {
   createTillageEndpoint,
@@ -406,7 +406,7 @@ export const routing: Routing = {
         get: getCropRotationsForFarmEndpoint,
         post: createCropRotationEndpoint,
       },
-      plan: createCropRotationsPlanEndpoint,
+      plan: planCropRotationsEndpoint,
       batch: {
         byCrop: createCropRotationsByCropEndpoint,
         byPlot: createCropRotationsByPlotEndpoint,

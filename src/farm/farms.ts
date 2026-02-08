@@ -1,17 +1,11 @@
-import { eq, getTableColumns, inArray, sql } from "drizzle-orm";
+import { eq, getTableColumns, sql } from "drizzle-orm";
+import { TFunction } from "i18next";
+import {} from "../crop-rotations/crop-rotations";
+import { mapCodesToCrops, UNKNOWN_CROP_CODE } from "../crops/codeToCropsMapper";
 import { RlsDb } from "../db/db";
 import * as tables from "../db/schema";
 import { MultiPolygon, Point } from "../geo/geojson";
 import { User } from "../user/users";
-import { FertilizerCreateInput } from "../fertilization/fertilizers";
-import { CropCreateInput } from "../crops/crops";
-import { PlotCreateInput } from "../plots/plots";
-import { TFunction } from "i18next";
-import { RecurrenceFrequency } from "../crop-rotations/crop-rotations";
-import {
-  mapCodesToCrops as mapCodesToCrops,
-  UNKNOWN_CROP_CODE,
-} from "../crops/codeToCropsMapper";
 
 const farmSelectColumns = {
   ...getTableColumns(tables.farms),
@@ -156,11 +150,10 @@ export function farmsApi(rlsDb: RlsDb, t: TFunction) {
             .returning();
 
           // Create yearly recurrences for permanent rotations
-          await tx.insert(tables.cropRotationRecurrences).values(
+          await tx.insert(tables.cropRotationYearlyRecurrences).values(
             createdRotations.map((rotation) => ({
               farmId: createdFarm.id,
               cropRotationId: rotation.id,
-              frequency: RecurrenceFrequency.yearly,
               interval: 1,
             })),
           );

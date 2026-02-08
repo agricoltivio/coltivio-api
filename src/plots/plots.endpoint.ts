@@ -16,7 +16,7 @@ export const plotSchema = z.object({
   geometry: multiPolygonSchema,
   size: z.number(),
   additionalNotes: z.string().nullable(),
-  cropRotations: z.array(cropRotationSchema),
+  currentCropRotation: cropRotationSchema.nullable(),
 });
 
 const createPlotSchema = z.object({

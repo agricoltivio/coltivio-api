@@ -21,7 +21,6 @@ export type TillageCreateInput = Omit<
 export type TillageBatchCreateInput = {
   createdBy: string;
   date: Date;
-  reason: Tillage["reason"];
   action: Tillage["action"];
   customAction?: string;
   additionalNotes?: string | null;
@@ -35,7 +34,7 @@ export type TillageUpdateInput = Partial<TillageCreateInput>;
 
 export type Tillage = typeof tillages.$inferSelect & {
   geometry: MultiPolygon;
-  plot: Omit<Plot, "cropRotations" | "geometry">;
+  plot: Omit<Plot, "currentCropRotation" | "geometry">;
 };
 
 export function tillagesApi(rlsDb: RlsDb) {
