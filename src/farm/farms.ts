@@ -131,8 +131,8 @@ export function farmsApi(rlsDb: RlsDb, t: TFunction) {
             .returning();
 
           const currentYear = new Date().getFullYear();
-          const fromDate = new Date(currentYear, 0, 1); // Jan 1
-          const toDate = new Date(currentYear, 11, 31); // Dec 31
+          const fromDate = new Date(Date.UTC(currentYear, 0, 1)); // Jan 1
+          const toDate = new Date(Date.UTC(currentYear, 11, 31)); // Dec 31
 
           const cropRotationInputs = plots.map((plot) => ({
             farmId: createdFarm.id,

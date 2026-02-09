@@ -98,7 +98,6 @@ export const getCurrentCropRotationsForPlotsEndpoint =
       count: z.number(),
     }),
     handler: async ({ input, ctx: { cropRotations } }) => {
-      console.log(input.expand, input.withRecurrences);
       const result = await cropRotations.getCropRotationsForPlots(
         input.plotIds,
         input.onlyCurrent,
@@ -106,7 +105,6 @@ export const getCurrentCropRotationsForPlotsEndpoint =
         input.toDate,
         { expand: input.expand, withRecurrences: input.withRecurrences },
       );
-      console.log(result);
       return {
         result,
         count: result.length,

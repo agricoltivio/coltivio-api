@@ -5,6 +5,7 @@ import {
   animalSexSchema,
   animalTypeSchema,
   deathReasonSchema,
+  treatments,
 } from "../db/schema";
 import { earTagSchema } from "../ear-tags/ear-tags.endpoint";
 import { farmEndpointFactory } from "../endpoint-factory";
@@ -89,7 +90,11 @@ export const getFarmAnimalsEndpoint = farmEndpointFactory.build({
       .default(true),
   }),
   output: z.object({
-    result: z.array(animalSchema),
+    result: z.array(
+      animalSchema.extend({
+        milkAndMeatUsable: z.boolean(),
+      }),
+    ),
     count: z.number(),
   }),
   handler: async ({ input, ctx: { animals, farmId } }) => {

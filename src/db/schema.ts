@@ -1166,9 +1166,9 @@ export const drugTreatment = pgTable.withRLS(
       .notNull()
       .references(() => drugs.id, { onDelete: "cascade" }),
     animalType: animalType().notNull(),
-    dosePerKg: real("dose_per_kg").notNull(),
-    milkWaitingDays: integer("milk_waiting_days").notNull(),
-    meatWaitingDays: integer("meat_waiting_days").notNull(),
+    dosePerKgInMl: real().notNull(),
+    milkWaitingDays: integer().notNull(),
+    meatWaitingDays: integer().notNull(),
   },
   (table) => [
     index("drug_treatment_drug_id_idx").on(table.drugId),
@@ -1203,7 +1203,6 @@ export const treatments = pgTable.withRLS(
     drugId: uuid().references(() => drugs.id, { onDelete: "restrict" }),
     date: date({ mode: "date" }).notNull(),
     name: text().notNull(),
-    reason: text().notNull(),
     notes: text(),
     milkUsableDate: date("milk_usable_date", { mode: "date" }),
     meatUsableDate: date("meat_usable_date", { mode: "date" }),

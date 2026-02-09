@@ -1,9 +1,16 @@
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import ExcelJS from "exceljs";
 import { RlsDb } from "../db/db";
 import * as tables from "../db/schema";
 import { EarTag } from "../ear-tags/ear-tags";
 import { Treatment } from "../treatments/treatments";
+
+// SQL fragment to compute if animal has no active waiting times from treatments
+const milkAndMeatUsableExtra = sql<boolean>`NOT EXISTS (
+  SELECT 1 FROM ${tables.treatments}
+  WHERE ${tables.treatments.animalId} = ${tables.animals.id}
+  AND (${tables.treatments.milkUsableDate} > NOW() OR ${tables.treatments.meatUsableDate} > NOW())
+)`.as("milk_and_meat_usable");
 
 // German sex value mapping for Excel imports
 const SEX_MAP: Record<string, "male" | "female"> = {
@@ -113,7 +120,7 @@ export function animalsApi(rlsDb: RlsDb) {
       farmId: string,
       onlyLiving: boolean,
       animalTypes?: AnimalType[],
-    ): Promise<Animal[]> {
+    ): Promise<Array<Animal & { milkAndMeatUsable: boolean }>> {
       return rlsDb.rls(async (tx) => {
         return tx.query.animals.findMany({
           where: {
@@ -124,21 +131,18 @@ export function animalsApi(rlsDb: RlsDb) {
           with: {
             earTag: true,
           },
-        });
-      });
-    },
-
-    // Returns only living animals (dateOfDeath is null)
-    async getLivingAnimalsForFarm(farmId: string): Promise<Animal[]> {
-      return rlsDb.rls(async (tx) => {
-        return tx.query.animals.findMany({
-          where: { farmId, dateOfDeath: { isNull: true } },
-          with: {
-            earTag: true,
+          extras: {
+            milkAndMeatUsable: (table) =>
+              sql<boolean>`NOT EXISTS (
+                  SELECT 1 FROM ${tables.treatments}
+                  WHERE ${tables.treatments.animalId} = ${table.id}
+                  AND (${tables.treatments.milkUsableDate} > NOW() OR ${tables.treatments.meatUsableDate} > NOW())
+              )`.as("milk_and_meat_usable"),
           },
         });
       });
     },
+
     async updateAnimals(
       data: Array<AnimalUpdateInput & { id: string }>,
     ): Promise<Animal[]> {

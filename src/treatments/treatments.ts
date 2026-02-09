@@ -1,8 +1,8 @@
 import { addDays } from "date-fns";
-import { and, eq } from "drizzle-orm";
-import { RlsDb } from "../db/db";
-import { treatments, farmIdColumnValue, drugTreatment } from "../db/schema";
+import { eq } from "drizzle-orm";
 import type { Animal } from "../animals/animals";
+import { RlsDb } from "../db/db";
+import { farmIdColumnValue, treatments } from "../db/schema";
 import type { DrugWithTreatment } from "../drugs/drugs";
 
 export type TreatmentCreateInput = Omit<

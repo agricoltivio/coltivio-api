@@ -7,7 +7,7 @@ export const drugTreatmentSchema = z.object({
   id: z.string(),
   drugId: z.string(),
   animalType: animalTypeSchema,
-  dosePerKg: z.number(),
+  dosePerKgInMl: z.number(),
   milkWaitingDays: z.number().int(),
   meatWaitingDays: z.number().int(),
 });
@@ -22,7 +22,7 @@ export const drugSchema = z.object({
 
 const createDrugTreatmentSchema = z.object({
   animalType: animalTypeSchema,
-  dosePerKg: z.number().positive(),
+  dosePerKgInMl: z.number().positive(),
   milkWaitingDays: z.number().int().min(0),
   meatWaitingDays: z.number().int().min(0),
 });
