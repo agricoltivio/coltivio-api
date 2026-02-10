@@ -8,7 +8,6 @@ import { drugSchema } from "../drugs/drugs.endpoint";
 export const treatmentSchema = z.object({
   id: z.string(),
   farmId: z.string(),
-  animalId: z.string(),
   drugId: z.string().nullable(),
   date: ez.dateOut(),
   name: z.string(),
@@ -20,8 +19,8 @@ export const treatmentSchema = z.object({
 });
 
 export const treatmentWithRelationsSchema = treatmentSchema.extend({
-  get animal() {
-    return animalSchema;
+  get animals() {
+    return z.array(animalSchema);
   },
   get drug() {
     return drugSchema.nullable();
@@ -29,7 +28,7 @@ export const treatmentWithRelationsSchema = treatmentSchema.extend({
 });
 
 const createTreatmentSchema = z.object({
-  animalId: z.string(),
+  animalIds: z.array(z.string()).min(1),
   drugId: z.string().nullable(),
   date: ez.dateIn(),
   name: z.string().min(1),
@@ -40,7 +39,7 @@ const createTreatmentSchema = z.object({
 
 const updateTreatmentSchema = z.object({
   treatmentId: z.string(),
-  animalId: z.string().optional(),
+  animalIds: z.array(z.string()).optional(),
   drugId: z.string().nullable(),
   date: ez.dateIn().optional(),
   name: z.string().min(1).optional(),
@@ -75,18 +74,18 @@ export const getFarmTreatmentsEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const getAnimalTreatmentsEndpoint = farmEndpointFactory.build({
-  method: "get",
-  input: z.object({ animalId: z.string() }),
-  output: z.object({
-    result: z.array(treatmentWithRelationsSchema.omit({ animal: true })),
-    count: z.number(),
-  }),
-  handler: async ({ input, ctx: { treatments } }) => {
-    const result = await treatments.getTreatmentsForAnimal(input.animalId);
-    return { result: result as any, count: result.length };
-  },
-});
+// export const getAnimalTreatmentsEndpoint = farmEndpointFactory.build({
+//   method: "get",
+//   input: z.object({ animalId: z.string() }),
+//   output: z.object({
+//     result: z.array(treatmentWithRelationsSchema),
+//     count: z.number(),
+//   }),
+//   handler: async ({ input, ctx: { treatments } }) => {
+//     const result = await treatments.getTreatmentsForAnimal(input.animalId);
+//     return { result: result as any, count: result.length };
+//   },
+// });
 
 export const createTreatmentEndpoint = farmEndpointFactory.build({
   method: "post",

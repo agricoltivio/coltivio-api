@@ -1197,9 +1197,6 @@ export const treatments = pgTable.withRLS(
       .references(() => farms.id, {
         onDelete: "cascade",
       }),
-    animalId: uuid()
-      .notNull()
-      .references(() => animals.id, { onDelete: "cascade" }),
     drugId: uuid().references(() => drugs.id, { onDelete: "restrict" }),
     date: date({ mode: "date" }).notNull(),
     name: text().notNull(),
@@ -1210,9 +1207,35 @@ export const treatments = pgTable.withRLS(
     createdBy: uuid().references(() => profiles.id, { onDelete: "set null" }),
   },
   (table) => [
-    index("treatments_animal_id_idx").on(table.animalId),
     index("treatments_drug_id_idx").on(table.drugId),
     index("treatments_date_idx").on(table.date),
+    pgPolicy("only farm members", {
+      as: "permissive",
+      to: authenticatedRole,
+      using: eq(table.farmId, currentFarmId),
+      withCheck: eq(table.farmId, currentFarmId),
+    }),
+  ],
+);
+
+export const animalTreatments = pgTable.withRLS(
+  "animal_treatments",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    animalId: uuid()
+      .notNull()
+      .references(() => animals.id, { onDelete: "cascade" }),
+    treatmentId: uuid()
+      .notNull()
+      .references(() => treatments.id, { onDelete: "cascade" }),
+    farmId: uuid()
+      .notNull()
+      .references(() => farms.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    index("animal_treatments_animal_id_idx").on(table.animalId),
+    index("animal_treatments_treatment_id_idx").on(table.treatmentId),
+    unique("animal_treatments_unique").on(table.animalId, table.treatmentId),
     pgPolicy("only farm members", {
       as: "permissive",
       to: authenticatedRole,
@@ -1255,6 +1278,7 @@ const tables = {
   drugs,
   drugTreatment,
   treatments,
+  animalTreatments,
   herds,
   outdoorSchedules,
   outdoorScheduleRecurrences,
@@ -1565,7 +1589,7 @@ export const relations = defineRelations(tables, (r) => ({
       alias: "childrenAsFather",
     }),
     sponsorships: r.many.sponsorships(),
-    treatments: r.many.treatments(),
+    animalTreatments: r.many.animalTreatments(),
     herd: r.one.herds({
       from: r.animals.herdId,
       to: r.herds.id,
@@ -1606,7 +1630,6 @@ export const relations = defineRelations(tables, (r) => ({
       optional: false,
     }),
     drugTreatment: r.many.drugTreatment(),
-    treatments: r.many.treatments(),
   },
   drugTreatment: {
     drug: r.one.drugs({
@@ -1621,11 +1644,6 @@ export const relations = defineRelations(tables, (r) => ({
       to: r.farms.id,
       optional: false,
     }),
-    animal: r.one.animals({
-      from: r.treatments.animalId,
-      to: r.animals.id,
-      optional: false,
-    }),
     drug: r.one.drugs({
       from: r.treatments.drugId,
       to: r.drugs.id,
@@ -1634,6 +1652,19 @@ export const relations = defineRelations(tables, (r) => ({
       from: r.treatments.createdBy,
       to: r.profiles.id,
     }), // optional - createdBy can be null
+    animalTreatments: r.many.animalTreatments(),
+  },
+  animalTreatments: {
+    animal: r.one.animals({
+      from: r.animalTreatments.animalId,
+      to: r.animals.id,
+      optional: false,
+    }),
+    treatment: r.one.treatments({
+      from: r.animalTreatments.treatmentId,
+      to: r.treatments.id,
+      optional: false,
+    }),
   },
 }));
 

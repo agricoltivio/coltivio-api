@@ -58,7 +58,6 @@ import {
 import {
   createTreatmentEndpoint,
   deleteTreatmentEndpoint,
-  getAnimalTreatmentsEndpoint,
   getFarmTreatmentsEndpoint,
   getTreatmentByIdEndpoint,
   updateTreatmentEndpoint,
@@ -510,7 +509,6 @@ export const routing: Routing = {
           },
           children: getAnimalChildrenEndpoint,
           sponsorships: getAnimalSponsorshipsEndpoint,
-          treatments: getAnimalTreatmentsEndpoint,
         },
       },
     },

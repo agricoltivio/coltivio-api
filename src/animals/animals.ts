@@ -7,8 +7,9 @@ import { Treatment } from "../treatments/treatments";
 
 // SQL fragment to compute if animal has no active waiting times from treatments
 const milkAndMeatUsableExtra = sql<boolean>`NOT EXISTS (
-  SELECT 1 FROM ${tables.treatments}
-  WHERE ${tables.treatments.animalId} = ${tables.animals.id}
+  SELECT 1 FROM ${tables.animalTreatments}
+  JOIN ${tables.treatments} ON ${tables.treatments.id} = ${tables.animalTreatments.treatmentId}
+  WHERE ${tables.animalTreatments.animalId} = ${tables.animals.id}
   AND (${tables.treatments.milkUsableDate} > NOW() OR ${tables.treatments.meatUsableDate} > NOW())
 )`.as("milk_and_meat_usable");
 
@@ -85,7 +86,7 @@ export function animalsApi(rlsDb: RlsDb) {
 
     async getAnimalById(id: string): Promise<AnimalWithRelations | undefined> {
       return rlsDb.rls(async (tx) => {
-        return tx.query.animals.findFirst({
+        const result = await tx.query.animals.findFirst({
           where: { id },
           with: {
             earTag: true,
@@ -109,10 +110,19 @@ export function animalsApi(rlsDb: RlsDb) {
                 earTag: true,
               },
             },
-            treatments: true,
+            animalTreatments: {
+              with: {
+                treatment: true,
+              },
+            },
             herd: true,
           },
         });
+        if (!result) return undefined;
+        return {
+          ...result,
+          treatments: result.animalTreatments.map((at) => at.treatment),
+        };
       });
     },
 
@@ -134,8 +144,9 @@ export function animalsApi(rlsDb: RlsDb) {
           extras: {
             milkAndMeatUsable: (table) =>
               sql<boolean>`NOT EXISTS (
-                  SELECT 1 FROM ${tables.treatments}
-                  WHERE ${tables.treatments.animalId} = ${table.id}
+                  SELECT 1 FROM ${tables.animalTreatments}
+                  JOIN ${tables.treatments} ON ${tables.treatments.id} = ${tables.animalTreatments.treatmentId}
+                  WHERE ${tables.animalTreatments.animalId} = ${table.id}
                   AND (${tables.treatments.milkUsableDate} > NOW() OR ${tables.treatments.meatUsableDate} > NOW())
               )`.as("milk_and_meat_usable"),
           },
