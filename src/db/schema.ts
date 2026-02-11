@@ -1081,6 +1081,34 @@ export const herds = pgTable.withRLS(
   ],
 );
 
+export const herdMemberships = pgTable.withRLS(
+  "herd_memberships",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    farmId: uuid()
+      .notNull()
+      .references(() => farms.id, { onDelete: "cascade" }),
+    animalId: uuid()
+      .notNull()
+      .references(() => animals.id, { onDelete: "cascade" }),
+    herdId: uuid()
+      .notNull()
+      .references(() => herds.id, { onDelete: "cascade" }),
+    fromDate: date({ mode: "date" }).notNull(),
+    toDate: date({ mode: "date" }), // null = still active
+  },
+  (table) => [
+    index("herd_memberships_animal_id_idx").on(table.animalId),
+    index("herd_memberships_herd_id_idx").on(table.herdId),
+    pgPolicy("only farm members", {
+      as: "permissive",
+      to: authenticatedRole,
+      using: eq(table.farmId, currentFarmId),
+      withCheck: eq(table.farmId, currentFarmId),
+    }),
+  ],
+);
+
 export const outdoorSchedules = pgTable.withRLS(
   "outdoor_shedules",
   {
@@ -1314,6 +1342,7 @@ const tables = {
   treatments,
   animalTreatments,
   herds,
+  herdMemberships,
   outdoorSchedules,
   outdoorScheduleRecurrences,
 };
@@ -1628,6 +1657,7 @@ export const relations = defineRelations(tables, (r) => ({
       from: r.animals.herdId,
       to: r.herds.id,
     }),
+    herdMemberships: r.many.herdMemberships(),
   },
   herds: {
     farm: r.one.farms({
@@ -1636,7 +1666,25 @@ export const relations = defineRelations(tables, (r) => ({
       optional: false,
     }),
     animals: r.many.animals(),
+    herdMemberships: r.many.herdMemberships(),
     outdoorSchedules: r.many.outdoorSchedules(),
+  },
+  herdMemberships: {
+    farm: r.one.farms({
+      from: r.herdMemberships.farmId,
+      to: r.farms.id,
+      optional: false,
+    }),
+    animal: r.one.animals({
+      from: r.herdMemberships.animalId,
+      to: r.animals.id,
+      optional: false,
+    }),
+    herd: r.one.herds({
+      from: r.herdMemberships.herdId,
+      to: r.herds.id,
+      optional: false,
+    }),
   },
   outdoorSchedules: {
     farm: r.one.farms({

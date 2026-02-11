@@ -1,5 +1,5 @@
 import createHttpError from "http-errors";
-import { eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import ExcelJS from "exceljs";
 import { RlsDb } from "../db/db";
 import * as tables from "../db/schema";
@@ -71,6 +71,7 @@ export type AnimalCategory = (typeof tables.animalCategory.enumValues)[number];
 export type AnimalSex = (typeof tables.animalSex.enumValues)[number];
 
 export type Herd = typeof tables.herds.$inferSelect;
+export type HerdMembership = typeof tables.herdMemberships.$inferSelect;
 export type OutdoorSchedule = typeof tables.outdoorSchedules.$inferSelect;
 export type OutdoorScheduleRecurrence =
   typeof tables.outdoorScheduleRecurrences.$inferSelect;
@@ -337,10 +338,31 @@ export function animalsApi(rlsDb: RlsDb) {
           .returning();
 
         if (animalIds.length > 0) {
+          // Update denormalized herdId on animals
           await tx
             .update(tables.animals)
             .set({ herdId: herd.id })
             .where(inArray(tables.animals.id, animalIds));
+
+          // Close any active memberships and create new ones
+          const today = new Date();
+          for (const animalId of animalIds) {
+            await tx
+              .update(tables.herdMemberships)
+              .set({ toDate: today })
+              .where(
+                and(
+                  eq(tables.herdMemberships.animalId, animalId),
+                  isNull(tables.herdMemberships.toDate),
+                ),
+              );
+            await tx.insert(tables.herdMemberships).values({
+              ...tables.farmIdColumnValue,
+              animalId,
+              herdId: herd.id,
+              fromDate: today,
+            });
+          }
         }
 
         return herd;
@@ -357,6 +379,20 @@ export function animalsApi(rlsDb: RlsDb) {
 
         // If animalIds provided, replace all assignments: clear existing, set new
         if (animalIds !== undefined) {
+          const today = new Date();
+
+          // Close all active memberships for this herd
+          await tx
+            .update(tables.herdMemberships)
+            .set({ toDate: today })
+            .where(
+              and(
+                eq(tables.herdMemberships.herdId, id),
+                isNull(tables.herdMemberships.toDate),
+              ),
+            );
+
+          // Update denormalized herdId on animals
           await tx
             .update(tables.animals)
             .set({ herdId: null })
@@ -367,6 +403,25 @@ export function animalsApi(rlsDb: RlsDb) {
               .update(tables.animals)
               .set({ herdId: id })
               .where(inArray(tables.animals.id, animalIds));
+
+            // Close any other active membership for each animal, then create new
+            for (const animalId of animalIds) {
+              await tx
+                .update(tables.herdMemberships)
+                .set({ toDate: today })
+                .where(
+                  and(
+                    eq(tables.herdMemberships.animalId, animalId),
+                    isNull(tables.herdMemberships.toDate),
+                  ),
+                );
+              await tx.insert(tables.herdMemberships).values({
+                ...tables.farmIdColumnValue,
+                animalId,
+                herdId: id,
+                fromDate: today,
+              });
+            }
           }
         }
 
@@ -557,12 +612,26 @@ export function animalsApi(rlsDb: RlsDb) {
       });
     },
 
+    async getHerdsWithMembershipsForFarm(farmId: string) {
+      return rlsDb.rls(async (tx) => {
+        return tx.query.herds.findMany({
+          where: { farmId },
+          with: {
+            herdMemberships: {
+              with: { animal: { with: { earTag: true } } },
+            },
+            outdoorSchedules: { with: { recurrence: true } },
+          },
+        });
+      });
+    },
+
     async getOutdoorJournal(
       farmId: string,
       fromDate: Date,
       toDate: Date,
     ): Promise<OutdoorJournalResult> {
-      const herds = await this.getHerdsForFarm(farmId);
+      const herds = await this.getHerdsWithMembershipsForFarm(farmId);
       return buildOutdoorJournal(herds, fromDate, toDate);
     },
 

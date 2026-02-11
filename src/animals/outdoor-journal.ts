@@ -14,6 +14,7 @@ import {
 import {
   AnimalCategory,
   Animal,
+  HerdMembership,
   OutdoorScheduleWithRecurrence,
   Herd,
 } from "./animals";
@@ -177,14 +178,14 @@ export function expandOutdoorSchedule(
   return ranges;
 }
 
-type HerdWithAnimalsAndSchedules = Herd & {
-  animals: Animal[];
+type HerdWithMembershipsAndSchedules = Herd & {
+  herdMemberships: (HerdMembership & { animal: Animal })[];
   outdoorSchedules: OutdoorScheduleWithRecurrence[];
 };
 
 // Main orchestration: expand schedules, compute category ranges, merge with sweep-line
 export function buildOutdoorJournal(
-  herds: HerdWithAnimalsAndSchedules[],
+  herds: HerdWithMembershipsAndSchedules[],
   queryFrom: Date,
   queryTo: Date,
 ): OutdoorJournalResult {
@@ -203,17 +204,27 @@ export function buildOutdoorJournal(
       occurrences.push(...expandOutdoorSchedule(schedule, queryFrom, queryTo));
     }
 
-    // For each occurrence, compute category ranges for each living animal
+    // For each occurrence, intersect with each membership period
     for (const occ of occurrences) {
-      for (const animal of herd.animals) {
-        // Skip dead animals (died before this occurrence started)
-        if (animal.dateOfDeath && isBefore(animal.dateOfDeath, occ.startDate))
+      for (const membership of herd.herdMemberships) {
+        const animal = membership.animal;
+
+        // Compute effective period: intersection of membership range and occurrence range
+        const memberTo = membership.toDate ?? occ.endDate;
+        const effectiveStart = max([membership.fromDate, occ.startDate]);
+        const effectiveEnd = min([memberTo, occ.endDate]);
+
+        // Skip if no overlap
+        if (isAfter(effectiveStart, effectiveEnd)) continue;
+
+        // Skip dead animals (died before effective start)
+        if (animal.dateOfDeath && isBefore(animal.dateOfDeath, effectiveStart))
           continue;
 
         const transitions = getAnimalCategoryTransitions(
           animal,
-          occ.startDate,
-          occ.endDate,
+          effectiveStart,
+          effectiveEnd,
         );
 
         for (const t of transitions) {
