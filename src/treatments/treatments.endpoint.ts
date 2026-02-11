@@ -1,19 +1,27 @@
-import createHttpError from "http-errors";
 import { ez } from "express-zod-api";
+import createHttpError from "http-errors";
 import { z } from "zod";
-import { farmEndpointFactory } from "../endpoint-factory";
 import { animalSchema } from "../animals/animals.endpoint";
+import { drugDosePerUnitSchema, drugDoseUnitSchema } from "../db/schema";
 import { drugSchema } from "../drugs/drugs.endpoint";
+import { farmEndpointFactory } from "../endpoint-factory";
 
 export const treatmentSchema = z.object({
   id: z.string(),
   farmId: z.string(),
   drugId: z.string().nullable(),
+  drugDoseUnit: drugDoseUnitSchema.nullable(),
+  drugDosePerUnit: drugDosePerUnitSchema.nullable(),
+  drugDoseValue: z.number().nullable(),
+  drugReceivedFrom: z.string().nullable(),
+  criticalAntibiotic: z.boolean(),
+  antibiogramAvailable: z.boolean(),
   date: ez.dateOut(),
   name: z.string(),
   notes: z.string().nullable(),
   milkUsableDate: ez.dateOut().nullable(),
   meatUsableDate: ez.dateOut().nullable(),
+  organsUsableDate: ez.dateOut().nullable(),
   createdAt: ez.dateOut(),
   createdBy: z.string().nullable(),
 });
@@ -29,23 +37,23 @@ export const treatmentWithRelationsSchema = treatmentSchema.extend({
 
 const createTreatmentSchema = z.object({
   animalIds: z.array(z.string()).min(1),
-  drugId: z.string().nullable(),
+  drugId: z.string().optional().nullable(),
   date: ez.dateIn(),
   name: z.string().min(1),
   notes: z.string().optional(),
-  milkUsableDate: ez.dateIn().nullable(),
-  meatUsableDate: ez.dateIn().nullable(),
+  milkUsableDate: ez.dateIn().optional().nullable(),
+  meatUsableDate: ez.dateIn().optional().nullable(),
+  organsUsableDate: ez.dateIn().optional().nullable(),
+  drugDoseUnit: drugDoseUnitSchema.optional().nullable(),
+  drugDosePerUnit: drugDosePerUnitSchema.optional().nullable(),
+  drugDoseValue: z.number().optional().nullable(),
+  drugReceivedFrom: z.string().optional().nullable(),
+  criticalAntibiotic: z.boolean(),
+  antibiogramAvailable: z.boolean(),
 });
 
-const updateTreatmentSchema = z.object({
+const updateTreatmentSchema = createTreatmentSchema.partial().extend({
   treatmentId: z.string(),
-  animalIds: z.array(z.string()).optional(),
-  drugId: z.string().nullable(),
-  date: ez.dateIn().optional(),
-  name: z.string().min(1).optional(),
-  notes: z.string().optional(),
-  milkUsableDate: ez.dateIn().nullable(),
-  meatUsableDate: ez.dateIn().nullable(),
 });
 
 export const getTreatmentByIdEndpoint = farmEndpointFactory.build({

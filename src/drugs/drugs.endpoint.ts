@@ -1,15 +1,22 @@
 import createHttpError from "http-errors";
 import { z } from "zod";
-import { animalTypeSchema } from "../db/schema";
+import {
+  animalTypeSchema,
+  drugDosePerUnitSchema,
+  drugDoseUnitSchema,
+} from "../db/schema";
 import { farmEndpointFactory } from "../endpoint-factory";
 
 export const drugTreatmentSchema = z.object({
   id: z.string(),
   drugId: z.string(),
   animalType: animalTypeSchema,
-  dosePerKgInMl: z.number(),
+  doseUnit: drugDoseUnitSchema,
+  dosePerUnit: drugDosePerUnitSchema,
+  doseValue: z.number().positive(),
   milkWaitingDays: z.number().int(),
   meatWaitingDays: z.number().int(),
+  organsWaitingDays: z.number().int(),
 });
 
 export const drugSchema = z.object({
@@ -17,18 +24,25 @@ export const drugSchema = z.object({
   farmId: z.string(),
   name: z.string(),
   notes: z.string().nullable(),
+  criticalAntibiotic: z.boolean(),
+  receivedFrom: z.string(),
   drugTreatment: z.array(drugTreatmentSchema),
 });
 
 const createDrugTreatmentSchema = z.object({
   animalType: animalTypeSchema,
-  dosePerKgInMl: z.number().positive(),
+  doseValue: z.number().positive(),
+  doseUnit: drugDoseUnitSchema,
+  dosePerUnit: drugDosePerUnitSchema,
   milkWaitingDays: z.number().int().min(0),
   meatWaitingDays: z.number().int().min(0),
+  organsWaitingDays: z.number().int().min(0),
 });
 
 const createDrugSchema = z.object({
   name: z.string().min(1),
+  criticalAntibiotic: z.boolean(),
+  receivedFrom: z.string(),
   notes: z.string().optional(),
   drugTreatment: z.array(createDrugTreatmentSchema),
 });

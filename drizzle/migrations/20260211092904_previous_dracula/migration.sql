@@ -1,0 +1,1 @@
+ALTER TABLE "treatments" ADD COLUMN "drug_received_from" text;

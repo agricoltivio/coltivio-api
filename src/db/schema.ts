@@ -1146,6 +1146,8 @@ export const drugs = pgTable.withRLS(
         onDelete: "cascade",
       }),
     name: text().notNull(),
+    criticalAntibiotic: boolean().notNull(),
+    receivedFrom: text().notNull(),
     notes: text(),
   },
   (table) => [
@@ -1157,6 +1159,24 @@ export const drugs = pgTable.withRLS(
     }),
   ],
 );
+export const drugDoseUnit = pgEnum("drug_dose_unit", [
+  "tablet",
+  "capsule",
+  "patch",
+  "dose",
+  "mg",
+  "mcg",
+  "g",
+  "ml",
+  "drop",
+]);
+
+export const drugDosePerUnit = pgEnum("dose_per_unit", [
+  "kg",
+  "animal",
+  "day",
+  "total_amount",
+]);
 
 export const drugTreatment = pgTable.withRLS(
   "drug_treatment",
@@ -1166,9 +1186,12 @@ export const drugTreatment = pgTable.withRLS(
       .notNull()
       .references(() => drugs.id, { onDelete: "cascade" }),
     animalType: animalType().notNull(),
-    dosePerKgInMl: real().notNull(),
+    doseUnit: drugDoseUnit().notNull(),
+    doseValue: real().notNull(),
+    dosePerUnit: drugDosePerUnit().notNull(),
     milkWaitingDays: integer().notNull(),
     meatWaitingDays: integer().notNull(),
+    organsWaitingDays: integer().notNull(),
   },
   (table) => [
     index("drug_treatment_drug_id_idx").on(table.drugId),
@@ -1201,8 +1224,15 @@ export const treatments = pgTable.withRLS(
     date: date({ mode: "date" }).notNull(),
     name: text().notNull(),
     notes: text(),
+    drugDoseUnit: drugDoseUnit(),
+    drugDoseValue: real(),
+    drugDosePerUnit: drugDosePerUnit(),
+    drugReceivedFrom: text(),
+    criticalAntibiotic: boolean().notNull(),
+    antibiogramAvailable: boolean().notNull(),
     milkUsableDate: date("milk_usable_date", { mode: "date" }),
     meatUsableDate: date("meat_usable_date", { mode: "date" }),
+    organsUsableDate: date("organs_usable_date", { mode: "date" }),
     createdAt: timestamp().notNull().defaultNow(),
     createdBy: uuid().references(() => profiles.id, { onDelete: "set null" }),
   },
@@ -1707,6 +1737,8 @@ export const animalTypeSchema = z.enum(animalType.enumValues);
 export const animalCateogrySchema = z.enum(animalCategory.enumValues);
 export const animalSexSchema = z.enum(animalSex.enumValues);
 export const deathReasonSchema = z.enum(deathReason.enumValues);
+export const drugDoseUnitSchema = z.enum(drugDoseUnit.enumValues);
+export const drugDosePerUnitSchema = z.enum(drugDosePerUnit.enumValues);
 
 export const preferredCommunicationSchema = z.enum(
   preferredCommunication.enumValues,
