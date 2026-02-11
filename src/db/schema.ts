@@ -1014,6 +1014,8 @@ export const animalCategory = pgEnum("animal_category", [
   "F2",
 ]);
 
+export const animalUsage = pgEnum("animal_usage", ["milk", "other"]);
+
 export const animals = pgTable.withRLS(
   "animals",
   {
@@ -1025,7 +1027,9 @@ export const animals = pgTable.withRLS(
       }),
     name: text().notNull(),
     type: animalType().notNull(),
-    category: animalCategory(),
+    usage: animalUsage().notNull(),
+    requiresCategoryOverride: boolean().notNull().default(false),
+    categoryOverride: animalCategory(),
     sex: animalSex().notNull(),
     dateOfBirth: date({ mode: "date" }).notNull(),
     registered: boolean().notNull().default(false),
@@ -1065,9 +1069,6 @@ export const herds = pgTable.withRLS(
       .references(() => farms.id, {
         onDelete: "cascade",
       }),
-    outdoorScheduleId: uuid().references(() => outdoorSchedules.id, {
-      onDelete: "set null",
-    }),
     name: text().notNull(),
   },
   (table) => [
@@ -1089,6 +1090,9 @@ export const outdoorSchedules = pgTable.withRLS(
       .references(() => farms.id, {
         onDelete: "cascade",
       }),
+    herdId: uuid()
+      .notNull()
+      .references(() => herds.id, { onDelete: "cascade" }),
     startDate: date({ mode: "date" }).notNull(),
     endDate: date({ mode: "date" }),
     notes: text(),
@@ -1632,10 +1636,7 @@ export const relations = defineRelations(tables, (r) => ({
       optional: false,
     }),
     animals: r.many.animals(),
-    outdoorSchedule: r.one.outdoorSchedules({
-      from: r.herds.outdoorScheduleId,
-      to: r.outdoorSchedules.id,
-    }),
+    outdoorSchedules: r.many.outdoorSchedules(),
   },
   outdoorSchedules: {
     farm: r.one.farms({
@@ -1643,7 +1644,11 @@ export const relations = defineRelations(tables, (r) => ({
       to: r.farms.id,
       optional: false,
     }),
-    herd: r.one.herds({ optional: false }),
+    herd: r.one.herds({
+      from: r.outdoorSchedules.herdId,
+      to: r.herds.id,
+      optional: false,
+    }),
     recurrence: r.one.outdoorScheduleRecurrences(),
   },
   outdoorScheduleRecurrences: {
@@ -1734,6 +1739,7 @@ export const fertilizerTypeSchema = z.enum(fertilizerType.enumValues);
 export const fertilizationMethodSchema = z.enum(fertilizationMethod.enumValues);
 
 export const animalTypeSchema = z.enum(animalType.enumValues);
+export const animalUsageSchema = z.enum(animalUsage.enumValues);
 export const animalCateogrySchema = z.enum(animalCategory.enumValues);
 export const animalSexSchema = z.enum(animalSex.enumValues);
 export const deathReasonSchema = z.enum(deathReason.enumValues);

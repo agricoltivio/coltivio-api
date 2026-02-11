@@ -1,11 +1,14 @@
-import createHttpError from "http-errors";
 import { ez } from "express-zod-api";
+import createHttpError from "http-errors";
 import { z } from "zod";
 import {
+  animalCateogrySchema,
   animalSexSchema,
   animalTypeSchema,
+  animalUsageSchema,
   deathReasonSchema,
-  treatments,
+  frequencySchema,
+  weekdaySchema,
 } from "../db/schema";
 import { earTagSchema } from "../ear-tags/ear-tags.endpoint";
 import { farmEndpointFactory } from "../endpoint-factory";
@@ -20,6 +23,9 @@ export const animalSchema = z.object({
   sex: animalSexSchema,
   dateOfBirth: ez.dateOut(),
   registered: z.boolean(),
+  requiresCategoryOverride: z.boolean().nullable(),
+  categoryOverride: animalCateogrySchema.nullable(),
+  usage: animalUsageSchema,
   earTagId: z.string().nullable(),
   get earTag() {
     return earTagSchema.nullable();
@@ -33,8 +39,59 @@ export const animalSchema = z.object({
 
 const herdSchema = z.object({
   id: z.string(),
+  farmId: z.string(),
   name: z.string(),
 });
+
+const recurrenceSchema = z.object({
+  id: z.string(),
+  frequency: frequencySchema,
+  interval: z.number(),
+  byWeekday: z.array(weekdaySchema).nullable(),
+  byMonthDay: z.number().nullable(),
+  until: z.string().nullable(),
+  count: z.number().nullable(),
+});
+
+const outdoorScheduleSchema = z.object({
+  id: z.string(),
+  farmId: z.string(),
+  herdId: z.string(),
+  startDate: ez.dateOut(),
+  endDate: ez.dateOut().nullable(),
+  notes: z.string().nullable(),
+  recurrence: recurrenceSchema.nullable(),
+});
+
+const herdWithRelationsSchema = herdSchema.extend({
+  animals: z.array(animalSchema),
+  outdoorSchedules: z.array(outdoorScheduleSchema),
+});
+
+const createHerdSchema = z.object({
+  name: z.string(),
+  animalIds: z.array(z.string()),
+});
+const updateHerdSchema = createHerdSchema.partial();
+
+const createOutdoorScheduleSchema = z.object({
+  startDate: ez.dateIn(),
+  endDate: ez.dateIn().optional().nullable(),
+  notes: z.string().optional().nullable(),
+  recurrence: z
+    .object({
+      frequency: frequencySchema,
+      interval: z.number(),
+      byWeekday: z.array(weekdaySchema).optional().nullable(),
+      byMonthDay: z.number().optional().nullable(),
+      until: z.string().optional().nullable(),
+      count: z.number().optional().nullable(),
+    })
+    .optional()
+    .nullable(),
+});
+
+const updateOutdoorScheduleSchema = createOutdoorScheduleSchema.partial();
 
 const animalWithRelationsSchema = animalSchema.extend({
   get earTag() {
@@ -57,11 +114,14 @@ const createAnimalSchema = z.object({
   sex: animalSexSchema,
   dateOfBirth: ez.dateIn(),
   registered: z.boolean(),
+  categoryOverride: animalCateogrySchema.optional().nullable(),
+  usage: animalUsageSchema,
   earTagId: z.string().optional().nullable(),
   motherId: z.string().optional().nullable(),
   fatherId: z.string().optional().nullable(),
   dateOfDeath: ez.dateIn().optional().nullable(),
   deathReason: deathReasonSchema.optional().nullable(),
+  herdId: z.string().optional().nullable(),
 });
 
 const updateAnimalSchema = createAnimalSchema.partial();
@@ -207,8 +267,155 @@ export const importAnimalsFromExcelEndpoint = farmEndpointFactory.build({
     skipped: z.array(skippedRowSchema),
     summary: importSummarySchema,
   }),
-  handler: async ({ input, ctx: { animals, farmId } }) => {
+  handler: async ({ input, ctx: { animals, farmId, preferredLanguage } }) => {
     const { file, type, skipHeaderRow } = input;
-    return animals.importFromExcel(file.data, type, skipHeaderRow, farmId);
+    return animals.importFromExcel(
+      file.data,
+      type,
+      skipHeaderRow,
+      farmId,
+      preferredLanguage,
+    );
+  },
+});
+
+// --- Outdoor Journal ---
+
+const outdoorJournalEntrySchema = z.object({
+  category: animalCateogrySchema,
+  startDate: ez.dateOut(),
+  endDate: ez.dateOut(),
+  animalCount: z.number(),
+});
+
+export const getOutdoorJournalEndpoint = farmEndpointFactory.build({
+  method: "get",
+  input: z.object({ fromDate: ez.dateIn(), toDate: ez.dateIn() }),
+  output: z.object({
+    entries: z.array(outdoorJournalEntrySchema),
+    uncategorizedAnimalCount: z.number(),
+  }),
+  handler: async ({ input, ctx: { animals, farmId } }) => {
+    return animals.getOutdoorJournal(farmId, input.fromDate, input.toDate);
+  },
+});
+
+// --- Herd Endpoints ---
+
+export const getFarmHerdsEndpoint = farmEndpointFactory.build({
+  method: "get",
+  input: z.object({}),
+  output: z.object({
+    result: z.array(herdWithRelationsSchema),
+    count: z.number(),
+  }),
+  handler: async ({ ctx: { animals, farmId } }) => {
+    const result = await animals.getHerdsForFarm(farmId);
+    return { result, count: result.length };
+  },
+});
+
+export const createHerdEndpoint = farmEndpointFactory.build({
+  method: "post",
+  input: createHerdSchema,
+  output: herdSchema,
+  handler: async ({ input, ctx: { animals } }) => {
+    const { animalIds, ...herdData } = input;
+    return animals.createHerd(herdData, animalIds);
+  },
+});
+
+export const getHerdByIdEndpoint = farmEndpointFactory.build({
+  method: "get",
+  input: z.object({ herdId: z.string() }),
+  output: herdWithRelationsSchema,
+  handler: async ({ input, ctx: { animals } }) => {
+    const herd = await animals.getHerdById(input.herdId);
+    if (!herd) {
+      throw createHttpError(404, "Herd not found");
+    }
+    return herd;
+  },
+});
+
+export const updateHerdEndpoint = farmEndpointFactory.build({
+  method: "patch",
+  input: updateHerdSchema.extend({ herdId: z.string() }),
+  output: herdSchema,
+  handler: async ({ input, ctx: { animals } }) => {
+    const { herdId, animalIds, ...data } = input;
+    return animals.updateHerd(herdId, data, animalIds);
+  },
+});
+
+export const deleteHerdEndpoint = farmEndpointFactory.build({
+  method: "delete",
+  input: z.object({ herdId: z.string() }),
+  output: z.object({}),
+  handler: async ({ input: { herdId }, ctx: { animals } }) => {
+    await animals.deleteHerd(herdId);
+    return {};
+  },
+});
+
+// --- Outdoor Schedule Endpoints ---
+
+export const getHerdOutdoorSchedulesEndpoint = farmEndpointFactory.build({
+  method: "get",
+  input: z.object({ herdId: z.string() }),
+  output: z.object({
+    result: z.array(outdoorScheduleSchema),
+    count: z.number(),
+  }),
+  handler: async ({ input, ctx: { animals } }) => {
+    const result = await animals.getOutdoorSchedulesForHerd(input.herdId);
+    return { result, count: result.length };
+  },
+});
+
+export const createOutdoorScheduleEndpoint = farmEndpointFactory.build({
+  method: "post",
+  input: createOutdoorScheduleSchema.extend({ herdId: z.string() }),
+  output: outdoorScheduleSchema,
+  handler: async ({ input, ctx: { animals } }) => {
+    const { herdId, ...data } = input;
+    return animals.createOutdoorSchedule(herdId, data);
+  },
+});
+
+export const getOutdoorScheduleByIdEndpoint = farmEndpointFactory.build({
+  method: "get",
+  input: z.object({ outdoorScheduleId: z.string() }),
+  output: outdoorScheduleSchema,
+  handler: async ({ input, ctx: { animals } }) => {
+    const schedule = await animals.getOutdoorScheduleById(
+      input.outdoorScheduleId,
+    );
+    if (!schedule) {
+      throw createHttpError(404, "Outdoor schedule not found");
+    }
+    return schedule;
+  },
+});
+
+export const updateOutdoorScheduleEndpoint = farmEndpointFactory.build({
+  method: "patch",
+  input: updateOutdoorScheduleSchema.extend({
+    outdoorScheduleId: z.string(),
+  }),
+  output: outdoorScheduleSchema,
+  handler: async ({ input, ctx: { animals } }) => {
+    const { outdoorScheduleId, ...data } = input;
+    return animals.updateOutdoorSchedule(outdoorScheduleId, data);
+  },
+});
+
+export const deleteOutdoorScheduleEndpoint = farmEndpointFactory.build({
+  method: "delete",
+  input: z.object({ outdoorScheduleId: z.string() }),
+  output: z.object({}),
+  handler: async ({ input: { outdoorScheduleId }, ctx: { animals } }) => {
+    await animals.deleteOutdoorSchedule(outdoorScheduleId);
+    return {};
   },
 });

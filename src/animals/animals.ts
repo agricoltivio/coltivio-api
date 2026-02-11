@@ -1,9 +1,14 @@
-import { eq, sql } from "drizzle-orm";
+import createHttpError from "http-errors";
+import { eq, inArray, sql } from "drizzle-orm";
 import ExcelJS from "exceljs";
 import { RlsDb } from "../db/db";
 import * as tables from "../db/schema";
 import { EarTag } from "../ear-tags/ear-tags";
 import { Treatment } from "../treatments/treatments";
+import {
+  buildOutdoorJournal,
+  OutdoorJournalResult,
+} from "./outdoor-journal";
 
 // SQL fragment to compute if animal has no active waiting times from treatments
 const milkAndMeatUsableExtra = sql<boolean>`NOT EXISTS (
@@ -22,6 +27,27 @@ const SEX_MAP: Record<string, "male" | "female"> = {
   männlich: "male",
   m: "male",
   bock: "male",
+};
+
+type AnimalUsage = (typeof tables.animalUsage.enumValues)[number];
+
+// German usage value mapping for Excel imports
+const USAGE_MAP: Record<string, AnimalUsage> = {
+  milch: "milk",
+  milk: "milk",
+  andere: "other",
+  other: "other",
+};
+
+// Header name to logical field mapping, keyed by locale
+const HEADER_MAP: Record<string, Record<string, string>> = {
+  de: {
+    ohrmarkennummer: "earTag",
+    tiername: "name",
+    geschlecht: "sex",
+    geburtsdatum: "dateOfBirth",
+    nutzungsart: "usage",
+  },
 };
 
 export type SkippedRow = {
@@ -45,6 +71,59 @@ export type AnimalCategory = (typeof tables.animalCategory.enumValues)[number];
 export type AnimalSex = (typeof tables.animalSex.enumValues)[number];
 
 export type Herd = typeof tables.herds.$inferSelect;
+export type OutdoorSchedule = typeof tables.outdoorSchedules.$inferSelect;
+export type OutdoorScheduleRecurrence =
+  typeof tables.outdoorScheduleRecurrences.$inferSelect;
+
+export type OutdoorScheduleWithRecurrence = OutdoorSchedule & {
+  recurrence: OutdoorScheduleRecurrence | null;
+};
+
+export type OutdoorScheduleCreateInput = {
+  startDate: Date;
+  endDate?: Date | null;
+  notes?: string | null;
+  recurrence?: {
+    frequency: (typeof tables.frequency.enumValues)[number];
+    interval: number;
+    byWeekday?: (typeof tables.weekday.enumValues)[number][] | null;
+    byMonthDay?: number | null;
+    until?: string | null;
+    count?: number | null;
+  } | null;
+};
+
+export type OutdoorScheduleUpdateInput = Partial<OutdoorScheduleCreateInput>;
+
+// Pure date validation: checks if newRange overlaps with any existing range.
+// null end = infinity (always overlaps with future dates).
+export function hasScheduleOverlap(
+  existingRanges: { start: Date; end: Date | null }[],
+  newRange: { start: Date; end: Date | null },
+): boolean {
+  for (const existing of existingRanges) {
+    const existingEnd = existing.end ?? new Date("9999-12-31");
+    const newEnd = newRange.end ?? new Date("9999-12-31");
+    if (newRange.start <= existingEnd && newEnd >= existing.start) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Compute effective date range for a schedule (considering recurrence)
+function effectiveRange(schedule: OutdoorScheduleWithRecurrence): {
+  start: Date;
+  end: Date | null;
+} {
+  if (schedule.recurrence) {
+    const until = schedule.recurrence.until
+      ? new Date(schedule.recurrence.until)
+      : null;
+    return { start: schedule.startDate, end: until };
+  }
+  return { start: schedule.startDate, end: schedule.endDate };
+}
 
 export type AnimalCreateInput = Omit<
   typeof tables.animals.$inferInsert,
@@ -224,12 +303,276 @@ export function animalsApi(rlsDb: RlsDb) {
       });
     },
 
-    // Import animals from an Excel file buffer. Columns: A=ear tag, B=name, C=sex, D=date of birth
+    // --- Herds CRUD ---
+
+    async getHerdsForFarm(farmId: string) {
+      return rlsDb.rls(async (tx) => {
+        return tx.query.herds.findMany({
+          where: { farmId },
+          with: {
+            animals: { with: { earTag: true } },
+            outdoorSchedules: { with: { recurrence: true } },
+          },
+        });
+      });
+    },
+
+    async getHerdById(id: string) {
+      return rlsDb.rls(async (tx) => {
+        return tx.query.herds.findFirst({
+          where: { id },
+          with: {
+            animals: { with: { earTag: true } },
+            outdoorSchedules: { with: { recurrence: true } },
+          },
+        });
+      });
+    },
+
+    async createHerd(input: { name: string }, animalIds: string[]) {
+      return rlsDb.rls(async (tx) => {
+        const [herd] = await tx
+          .insert(tables.herds)
+          .values({ ...tables.farmIdColumnValue, ...input })
+          .returning();
+
+        if (animalIds.length > 0) {
+          await tx
+            .update(tables.animals)
+            .set({ herdId: herd.id })
+            .where(inArray(tables.animals.id, animalIds));
+        }
+
+        return herd;
+      });
+    },
+
+    async updateHerd(id: string, input: { name?: string }, animalIds?: string[]) {
+      return rlsDb.rls(async (tx) => {
+        const [herd] = await tx
+          .update(tables.herds)
+          .set(input)
+          .where(eq(tables.herds.id, id))
+          .returning();
+
+        // If animalIds provided, replace all assignments: clear existing, set new
+        if (animalIds !== undefined) {
+          await tx
+            .update(tables.animals)
+            .set({ herdId: null })
+            .where(eq(tables.animals.herdId, id));
+
+          if (animalIds.length > 0) {
+            await tx
+              .update(tables.animals)
+              .set({ herdId: id })
+              .where(inArray(tables.animals.id, animalIds));
+          }
+        }
+
+        return herd;
+      });
+    },
+
+    async deleteHerd(id: string) {
+      return rlsDb.rls(async (tx) => {
+        await tx.delete(tables.herds).where(eq(tables.herds.id, id));
+      });
+    },
+
+    // --- Outdoor Schedules CRUD ---
+
+    async getOutdoorSchedulesForHerd(herdId: string) {
+      return rlsDb.rls(async (tx) => {
+        return tx.query.outdoorSchedules.findMany({
+          where: { herdId },
+          with: { recurrence: true },
+        });
+      });
+    },
+
+    async getOutdoorScheduleById(id: string) {
+      return rlsDb.rls(async (tx) => {
+        return tx.query.outdoorSchedules.findFirst({
+          where: { id },
+          with: { recurrence: true },
+        });
+      });
+    },
+
+    async createOutdoorSchedule(
+      herdId: string,
+      input: OutdoorScheduleCreateInput,
+    ): Promise<OutdoorScheduleWithRecurrence> {
+      const { recurrence, ...scheduleInput } = input;
+
+      // Validate no overlap with existing schedules for this herd
+      const existing = await this.getOutdoorSchedulesForHerd(herdId);
+      const existingRanges = existing.map(effectiveRange);
+      const newRecurrenceUntil =
+        recurrence?.until ? new Date(recurrence.until) : null;
+      const newRange = recurrence
+        ? { start: scheduleInput.startDate, end: newRecurrenceUntil }
+        : {
+            start: scheduleInput.startDate,
+            end: scheduleInput.endDate ?? null,
+          };
+
+      if (hasScheduleOverlap(existingRanges, newRange)) {
+        throw createHttpError(409, "Schedule overlaps with existing schedule");
+      }
+
+      const result = await rlsDb.rls(async (tx) => {
+        const [schedule] = await tx
+          .insert(tables.outdoorSchedules)
+          .values({
+            ...tables.farmIdColumnValue,
+            herdId,
+            ...scheduleInput,
+          })
+          .returning();
+
+        if (recurrence) {
+          await tx.insert(tables.outdoorScheduleRecurrences).values({
+            ...tables.farmIdColumnValue,
+            outdoorScheduleId: schedule.id,
+            ...recurrence,
+          });
+        }
+
+        return schedule;
+      });
+
+      const created = await this.getOutdoorScheduleById(result.id);
+      return created!;
+    },
+
+    async updateOutdoorSchedule(
+      id: string,
+      input: OutdoorScheduleUpdateInput,
+    ): Promise<OutdoorScheduleWithRecurrence> {
+      const { recurrence, ...scheduleData } = input;
+
+      // Fetch current schedule to know its herdId
+      const current = await this.getOutdoorScheduleById(id);
+      if (!current) {
+        throw createHttpError(404, "Outdoor schedule not found");
+      }
+
+      // Validate no overlap (exclude self)
+      if (
+        scheduleData.startDate !== undefined ||
+        scheduleData.endDate !== undefined ||
+        recurrence !== undefined
+      ) {
+        const existing = await this.getOutdoorSchedulesForHerd(current.herdId);
+        const existingRanges = existing
+          .filter((s) => s.id !== id)
+          .map(effectiveRange);
+
+        const updatedStartDate = scheduleData.startDate ?? current.startDate;
+        const updatedEndDate =
+          scheduleData.endDate !== undefined
+            ? scheduleData.endDate
+            : current.endDate;
+
+        let updatedRange: { start: Date; end: Date | null };
+        if (recurrence !== undefined) {
+          if (recurrence) {
+            const until = recurrence.until ? new Date(recurrence.until) : null;
+            updatedRange = { start: updatedStartDate, end: until };
+          } else {
+            updatedRange = { start: updatedStartDate, end: updatedEndDate };
+          }
+        } else if (current.recurrence) {
+          const until = current.recurrence.until
+            ? new Date(current.recurrence.until)
+            : null;
+          updatedRange = { start: updatedStartDate, end: until };
+        } else {
+          updatedRange = { start: updatedStartDate, end: updatedEndDate };
+        }
+
+        if (hasScheduleOverlap(existingRanges, updatedRange)) {
+          throw createHttpError(
+            409,
+            "Schedule overlaps with existing schedule",
+          );
+        }
+      }
+
+      await rlsDb.rls(async (tx) => {
+        // Update schedule fields if any provided
+        if (Object.keys(scheduleData).length > 0) {
+          await tx
+            .update(tables.outdoorSchedules)
+            .set(scheduleData)
+            .where(eq(tables.outdoorSchedules.id, id));
+        }
+
+        // Handle recurrence upsert/delete
+        if (recurrence !== undefined) {
+          const existingRecurrence =
+            await tx.query.outdoorScheduleRecurrences.findFirst({
+              where: { outdoorScheduleId: id },
+            });
+
+          if (recurrence === null) {
+            if (existingRecurrence) {
+              await tx
+                .delete(tables.outdoorScheduleRecurrences)
+                .where(
+                  eq(
+                    tables.outdoorScheduleRecurrences.outdoorScheduleId,
+                    id,
+                  ),
+                );
+            }
+          } else if (existingRecurrence) {
+            await tx
+              .update(tables.outdoorScheduleRecurrences)
+              .set(recurrence)
+              .where(
+                eq(tables.outdoorScheduleRecurrences.outdoorScheduleId, id),
+              );
+          } else {
+            await tx.insert(tables.outdoorScheduleRecurrences).values({
+              ...tables.farmIdColumnValue,
+              outdoorScheduleId: id,
+              ...recurrence,
+            });
+          }
+        }
+      });
+
+      const updated = await this.getOutdoorScheduleById(id);
+      return updated!;
+    },
+
+    async deleteOutdoorSchedule(id: string) {
+      return rlsDb.rls(async (tx) => {
+        await tx
+          .delete(tables.outdoorSchedules)
+          .where(eq(tables.outdoorSchedules.id, id));
+      });
+    },
+
+    async getOutdoorJournal(
+      farmId: string,
+      fromDate: Date,
+      toDate: Date,
+    ): Promise<OutdoorJournalResult> {
+      const herds = await this.getHerdsForFarm(farmId);
+      return buildOutdoorJournal(herds, fromDate, toDate);
+    },
+
+    // Import animals from an Excel file buffer. Uses header row to detect columns by name.
     async importFromExcel(
       fileBuffer: Buffer,
       type: AnimalType,
       skipHeaderRow: boolean,
       farmId: string,
+      locale: string = "de",
     ): Promise<ImportResult> {
       // Load Excel workbook from buffer
       const workbook = new ExcelJS.Workbook();
@@ -238,6 +581,30 @@ export function animalsApi(rlsDb: RlsDb) {
       if (!worksheet) {
         throw new Error("Excel file has no worksheets");
       }
+
+      // Build column index map from header row
+      const headerMap = HEADER_MAP[locale] ?? HEADER_MAP["de"];
+      const columnIndex: Record<string, number> = {};
+
+      if (skipHeaderRow) {
+        const headerRow = worksheet.getRow(1);
+        headerRow.eachCell((cell, colNumber) => {
+          const headerText = cell.text?.trim().toLowerCase();
+          if (headerText) {
+            const field = headerMap[headerText];
+            if (field) {
+              columnIndex[field] = colNumber;
+            }
+          }
+        });
+      }
+
+      // Fallback to positional columns if headers weren't detected
+      if (!columnIndex["earTag"]) columnIndex["earTag"] = 1;
+      if (!columnIndex["name"]) columnIndex["name"] = 2;
+      if (!columnIndex["sex"]) columnIndex["sex"] = 3;
+      if (!columnIndex["dateOfBirth"]) columnIndex["dateOfBirth"] = 4;
+      // usage has no positional fallback — it's optional if header not found
 
       // Fetch all existing ear tags for this farm to check for duplicates (with animal assignment info)
       const existingEarTags = await rlsDb.rls(async (tx) => {
@@ -261,10 +628,15 @@ export function animalsApi(rlsDb: RlsDb) {
         rowIndex++;
         if (skipHeaderRow && rowNumber === 1) return;
 
-        const earTagNumber = row.getCell(1).text?.trim() || null;
-        const name = row.getCell(2).text?.trim() || null;
-        const sexValue = row.getCell(3).text?.trim().toLowerCase() || null;
-        const dobCell = row.getCell(4);
+        const earTagNumber =
+          row.getCell(columnIndex["earTag"]).text?.trim() || null;
+        const name = row.getCell(columnIndex["name"]).text?.trim() || null;
+        const sexValue =
+          row.getCell(columnIndex["sex"]).text?.trim().toLowerCase() || null;
+        const dobCell = row.getCell(columnIndex["dateOfBirth"]);
+        const usageValue = columnIndex["usage"]
+          ? row.getCell(columnIndex["usage"]).text?.trim().toLowerCase() || null
+          : null;
 
         if (!name) {
           skippedRows.push({
@@ -294,6 +666,15 @@ export function animalsApi(rlsDb: RlsDb) {
             reason: `Unknown sex value: ${sexValue}`,
           });
           return;
+        }
+
+        // Parse usage — default to "other" if column not present or value not recognized
+        let usage: AnimalUsage = "other";
+        if (usageValue) {
+          const mapped = USAGE_MAP[usageValue];
+          if (mapped) {
+            usage = mapped;
+          }
         }
 
         let dateOfBirth: Date;
@@ -360,6 +741,7 @@ export function animalsApi(rlsDb: RlsDb) {
           name,
           type,
           sex,
+          usage,
           dateOfBirth,
           earTagId,
           earTagNumber: earTagNumber || undefined,

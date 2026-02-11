@@ -292,7 +292,7 @@ export function harvestsApi(rlsDb: RlsDb) {
   };
 
   function mapToMonthlySummaries(
-    harvests: Omit<Harvest, "machinery" | "geometry" | "plot">[],
+    harvests: Omit<Harvest, "geometry" | "plot">[],
   ): HarvestSummary {
     const monthlyHarvests = harvests.reduce<
       Record<

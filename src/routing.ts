@@ -1,13 +1,24 @@
 import { Routing } from "express-zod-api";
 import {
   createAnimalEndpoint,
+  createHerdEndpoint,
+  createOutdoorScheduleEndpoint,
   deleteAnimalEndpoint,
+  deleteHerdEndpoint,
+  deleteOutdoorScheduleEndpoint,
+  getOutdoorJournalEndpoint,
   getAnimalByIdEndpoint,
   getAnimalChildrenEndpoint,
   getFarmAnimalsEndpoint,
+  getFarmHerdsEndpoint,
+  getHerdByIdEndpoint,
+  getHerdOutdoorSchedulesEndpoint,
+  getOutdoorScheduleByIdEndpoint,
   importAnimalsFromExcelEndpoint,
   updateAnimalEndpoint,
   updateAnimalsEndpoint,
+  updateHerdEndpoint,
+  updateOutdoorScheduleEndpoint,
 } from "./animals/animals.endpoint";
 import {
   createContactEndpoint,
@@ -509,6 +520,34 @@ export const routing: Routing = {
           },
           children: getAnimalChildrenEndpoint,
           sponsorships: getAnimalSponsorshipsEndpoint,
+        },
+      },
+      outdoorJournal: getOutdoorJournalEndpoint,
+      herds: {
+        "": { get: getFarmHerdsEndpoint, post: createHerdEndpoint },
+        byId: {
+          ":herdId": {
+            "": {
+              get: getHerdByIdEndpoint,
+              patch: updateHerdEndpoint,
+              delete: deleteHerdEndpoint,
+            },
+            outdoorSchedules: {
+              "": {
+                get: getHerdOutdoorSchedulesEndpoint,
+                post: createOutdoorScheduleEndpoint,
+              },
+            },
+          },
+        },
+        outdoorSchedules: {
+          byId: {
+            ":outdoorScheduleId": {
+              get: getOutdoorScheduleByIdEndpoint,
+              patch: updateOutdoorScheduleEndpoint,
+              delete: deleteOutdoorScheduleEndpoint,
+            },
+          },
         },
       },
     },
