@@ -149,6 +149,8 @@ import {
   deletePlotEndpoint,
   getFarmPlotsEndpoint,
   getPlotByIdEndpoint,
+  mergePlotsEndpoint,
+  splitPlotEndpoint,
   syncMissingLocalIdsEndpoint,
   updatePlotEndpoint,
 } from "./plots/plots.endpoint";
@@ -302,8 +304,10 @@ export const routing: Routing = {
             getFertilizerApplicationSummaryForPlotEndpoint,
           harvests: getHarvestsForPlotEndpoint,
           harvestSummary: getHarvestSummaryForPlotEndpoint,
+          split: splitPlotEndpoint,
         },
       },
+      merge: mergePlotsEndpoint,
       syncMissingLocalIds: syncMissingLocalIdsEndpoint,
     },
     crops: {

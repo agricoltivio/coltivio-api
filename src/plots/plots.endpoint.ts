@@ -28,7 +28,6 @@ const createPlotSchema = z.object({
   geometry: multiPolygonSchema,
   size: z.number(),
   additionalNotes: z.string().optional(),
-  cropId: z.string(),
 });
 
 const updatePlotSchema = z.object({
@@ -40,7 +39,6 @@ const updatePlotSchema = z.object({
   geometry: multiPolygonSchema.optional(),
   size: z.number().optional(),
   additionalNotes: z.string().optional(),
-  cropId: z.string().optional(),
 });
 
 export const getPlotByIdEndpoint = farmEndpointFactory.build({
@@ -99,6 +97,75 @@ export const deletePlotEndpoint = farmEndpointFactory.build({
   handler: async ({ input: { plotId }, ctx: { plots: plot } }) => {
     await plot.deletePlot(plotId);
     return {};
+  },
+});
+
+const subPlotSchema = z.object({
+  geometry: multiPolygonSchema,
+  name: z.string(),
+  size: z.number(),
+});
+
+const splitPlotInputSchema = z.discriminatedUnion("strategy", [
+  z.object({
+    plotId: z.string(),
+    strategy: z.literal("keep_reference"),
+    originalPlotName: z.string().optional(),
+    subPlots: z.array(subPlotSchema).min(1),
+  }),
+  z.object({
+    plotId: z.string(),
+    strategy: z.literal("delete_and_migrate"),
+    migrateToIndex: z.number().int().min(0),
+    subPlots: z.array(subPlotSchema).min(1),
+  }),
+]);
+
+export const splitPlotEndpoint = farmEndpointFactory.build({
+  method: "post",
+  input: splitPlotInputSchema,
+  output: z.object({ result: z.array(plotSchema) }),
+  handler: async ({ input, ctx: { plots } }) => {
+    const { plotId, subPlots, ...strategyOptions } = input;
+    const result = await plots.splitPlot(plotId, subPlots, strategyOptions);
+    return { result };
+  },
+});
+
+const mergePlotsInputSchema = z.discriminatedUnion("strategy", [
+  z.object({
+    strategy: z.literal("keep_reference"),
+    plotIds: z.array(z.string()).min(2),
+    name: z.string(),
+    localId: z.string().optional(),
+    usage: z.number().optional(),
+    additionalUsages: z.string().optional(),
+    cuttingDate: z.coerce.date().nullable().optional(),
+    geometry: multiPolygonSchema,
+    size: z.number(),
+    additionalNotes: z.string().optional(),
+  }),
+  z.object({
+    strategy: z.literal("delete_and_migrate"),
+    plotIds: z.array(z.string()).min(2),
+    name: z.string(),
+    localId: z.string().optional(),
+    usage: z.number().optional(),
+    additionalUsages: z.string().optional(),
+    cuttingDate: z.coerce.date().nullable().optional(),
+    geometry: multiPolygonSchema,
+    size: z.number(),
+    additionalNotes: z.string().optional(),
+  }),
+]);
+
+export const mergePlotsEndpoint = farmEndpointFactory.build({
+  method: "post",
+  input: mergePlotsInputSchema,
+  output: plotSchema,
+  handler: async ({ input, ctx: { plots } }) => {
+    const { strategy, plotIds, ...plotData } = input;
+    return plots.mergePlots(plotIds, plotData, { strategy });
   },
 });
 

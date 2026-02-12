@@ -15,19 +15,27 @@ import {
 } from "../crop-rotations/crop-rotations";
 import { RlsDb } from "../db/db";
 import {
+  cropProtectionApplications,
   cropRotations,
-  cropRotationYearlyRecurrences,
   farmIdColumnValue,
+  fertilizerApplications,
+  harvests,
   plots,
+  tillages,
 } from "../db/schema";
 import { MultiPolygon } from "../geo/geojson";
 import { getParcelsForEnvelopes } from "../geoadmin/geoadmin";
+
+export type SplitPlotInput = {
+  geometry: MultiPolygon;
+  name: string;
+  size: number;
+};
 
 export type PlotCreateInput = Omit<
   typeof plots.$inferInsert,
   "id" | "farmId" | "geometry"
 > & {
-  cropId: string;
   geometry: MultiPolygon;
 };
 export type PlotUpdateInput = Partial<PlotCreateInput>;
@@ -52,28 +60,6 @@ export function plotsApi(rlsDb: RlsDb) {
             geometry: sql<MultiPolygon>`ST_GeomFromGeoJSON(${JSON.stringify(plotInput.geometry)})`,
           })
           .returning({ ...plotSelectColumns, geom: plots.geometry });
-
-        const currentYear = new Date().getFullYear();
-        const fromDate = new Date(currentYear, 0, 1); // Jan 1
-        const toDate = new Date(currentYear, 11, 31); // Dec 31
-
-        const [createdRotation] = await tx
-          .insert(cropRotations)
-          .values({
-            ...farmIdColumnValue,
-            plotId: plot.id,
-            cropId: plotInput.cropId,
-            fromDate,
-            toDate,
-          })
-          .returning();
-
-        // Create yearly recurrence for permanent rotation
-        await tx.insert(cropRotationYearlyRecurrences).values({
-          ...farmIdColumnValue,
-          cropRotationId: createdRotation.id,
-          interval: 1,
-        });
 
         await tx
           .update(plots)
@@ -233,6 +219,154 @@ export function plotsApi(rlsDb: RlsDb) {
       return rlsDb.rls(async (tx) => {
         await tx.delete(plots).where(eq(plots.id, id));
       });
+    },
+
+    async splitPlot(
+      plotId: string,
+      subPlots: SplitPlotInput[],
+      options:
+        | { strategy: "keep_reference"; originalPlotName?: string }
+        | { strategy: "delete_and_migrate"; migrateToIndex: number },
+    ): Promise<Plot[]> {
+      const createdIds = await rlsDb.rls(async (tx) => {
+        const originalPlot = await tx.query.plots.findFirst({
+          where: { id: plotId },
+        });
+        if (!originalPlot) throw new Error("Plot not found");
+
+        const ids: string[] = [];
+
+        // Create sub-plots
+        for (const subPlot of subPlots) {
+          const [created] = await tx
+            .insert(plots)
+            .values({
+              ...farmIdColumnValue,
+              name: subPlot.name,
+              size: subPlot.size,
+              usage: originalPlot.usage,
+              additionalUsages: originalPlot.additionalUsages,
+              cuttingDate: originalPlot.cuttingDate,
+              localId: originalPlot.localId,
+              geometry: sql<MultiPolygon>`ST_GeomFromGeoJSON(${JSON.stringify(subPlot.geometry)})`,
+            })
+            .returning({ id: plots.id });
+          ids.push(created.id);
+        }
+
+        if (options.strategy === "keep_reference") {
+          // Shrink original plot geometry by subtracting sub-plots
+          const unionGeom = sql.join(
+            subPlots.map(
+              (sp) =>
+                sql`ST_GeomFromGeoJSON(${JSON.stringify(sp.geometry)})`,
+            ),
+            sql`,`,
+          );
+          const unionCollect = sql`ST_Union(ARRAY[${unionGeom}])`;
+          const remaining = sql`ST_Difference(${plots.geometry}, ${unionCollect})`;
+
+          await tx
+            .update(plots)
+            .set({
+              geometry: sql<MultiPolygon>`ST_ForcePolygonCCW(ST_Multi(${remaining}))`,
+              size: sql<number>`ST_Area(ST_Transform(${remaining}, 2056))`,
+              ...(options.originalPlotName
+                ? { name: options.originalPlotName }
+                : {}),
+            })
+            .where(eq(plots.id, plotId));
+        } else {
+          // Migrate all historical references to the chosen sub-plot, then delete original
+          const targetId = ids[options.migrateToIndex];
+          if (!targetId) throw new Error("migrateToIndex out of bounds");
+
+          const migrationTables = [
+            cropRotations,
+            tillages,
+            cropProtectionApplications,
+            harvests,
+            fertilizerApplications,
+          ] as const;
+          for (const table of migrationTables) {
+            await tx
+              .update(table)
+              .set({ plotId: targetId })
+              .where(eq(table.plotId, plotId));
+          }
+
+          await tx.delete(plots).where(eq(plots.id, plotId));
+        }
+
+        return ids;
+      });
+
+      // Fetch and return all created sub-plots
+      const result: Plot[] = [];
+      for (const id of createdIds) {
+        const plot = await this.getPlotById(id);
+        if (plot) result.push(plot);
+      }
+      return result;
+    },
+
+    async mergePlots(
+      plotIds: string[],
+      plotData: {
+        name: string;
+        geometry: MultiPolygon;
+        size: number;
+        localId?: string;
+        usage?: number;
+        additionalUsages?: string;
+        cuttingDate?: Date | null;
+        additionalNotes?: string;
+      },
+      options:
+        | { strategy: "keep_reference" }
+        | { strategy: "delete_and_migrate" },
+    ): Promise<Plot> {
+      const newPlotId = await rlsDb.rls(async (tx) => {
+        // Create the merged plot
+        const [newPlot] = await tx
+          .insert(plots)
+          .values({
+            ...farmIdColumnValue,
+            name: plotData.name,
+            localId: plotData.localId,
+            usage: plotData.usage,
+            additionalUsages: plotData.additionalUsages,
+            cuttingDate: plotData.cuttingDate,
+            additionalNotes: plotData.additionalNotes,
+            size: plotData.size,
+            geometry: sql<MultiPolygon>`ST_GeomFromGeoJSON(${JSON.stringify(plotData.geometry)})`,
+          })
+          .returning({ id: plots.id });
+
+        if (options.strategy === "delete_and_migrate") {
+          // Migrate relation tables (excluding cropRotations) from source plots to new plot
+          const migrationTables = [
+            tillages,
+            cropProtectionApplications,
+            harvests,
+            fertilizerApplications,
+          ] as const;
+          for (const table of migrationTables) {
+            await tx
+              .update(table)
+              .set({ plotId: newPlot.id })
+              .where(inArray(table.plotId, plotIds));
+          }
+
+          // Delete source plots (cascade deletes their crop rotations)
+          await tx.delete(plots).where(inArray(plots.id, plotIds));
+        }
+
+        return newPlot.id;
+      });
+
+      const plot = await this.getPlotById(newPlotId);
+      return plot!;
     },
 
     async syncMissingLocalIds(): Promise<void> {
