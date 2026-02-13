@@ -258,8 +258,7 @@ export function plotsApi(rlsDb: RlsDb) {
           // Shrink original plot geometry by subtracting sub-plots
           const unionGeom = sql.join(
             subPlots.map(
-              (sp) =>
-                sql`ST_GeomFromGeoJSON(${JSON.stringify(sp.geometry)})`,
+              (sp) => sql`ST_GeomFromGeoJSON(${JSON.stringify(sp.geometry)})`,
             ),
             sql`,`,
           );
@@ -360,6 +359,18 @@ export function plotsApi(rlsDb: RlsDb) {
 
           // Delete source plots (cascade deletes their crop rotations)
           await tx.delete(plots).where(inArray(plots.id, plotIds));
+        } else {
+          // Set the source plots geometry and size to empty
+          await tx
+            .update(plots)
+            .set({
+              geometry: sql<MultiPolygon>`ST_GeomFromGeoJSON(${JSON.stringify({
+                type: "MultiPolygon",
+                coordinates: [],
+              })})`,
+              size: 0,
+            })
+            .where(inArray(plots.id, plotIds));
         }
 
         return newPlot.id;
