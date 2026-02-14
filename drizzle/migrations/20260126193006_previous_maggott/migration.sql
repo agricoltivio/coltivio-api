@@ -1,1 +1,0 @@
-ALTER TABLE "treatments" ALTER COLUMN "drug_id" DROP NOT NULL;
