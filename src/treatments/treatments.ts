@@ -2,11 +2,7 @@ import { addDays } from "date-fns";
 import { eq } from "drizzle-orm";
 import type { Animal } from "../animals/animals";
 import { RlsDb } from "../db/db";
-import {
-  animalTreatments,
-  farmIdColumnValue,
-  treatments,
-} from "../db/schema";
+import { animalTreatments, farmIdColumnValue, treatments } from "../db/schema";
 import type { DrugWithTreatment } from "../drugs/drugs";
 
 export type TreatmentCreateInput = Omit<
@@ -63,13 +59,13 @@ export function treatmentsApi(rlsDb: RlsDb) {
 
           if (!milkUsableDate) {
             milkUsableDate = addDays(
-              treatmentData.date,
+              treatmentData.endDate,
               drugTreatmentData.milkWaitingDays,
             );
           }
           if (!meatUsableDate) {
             meatUsableDate = addDays(
-              treatmentData.date,
+              treatmentData.endDate,
               drugTreatmentData.meatWaitingDays,
             );
           }
@@ -151,7 +147,7 @@ export function treatmentsApi(rlsDb: RlsDb) {
               },
             },
           },
-          orderBy: { date: "desc" },
+          orderBy: { startDate: "desc" },
         });
         return results.map((r) => ({
           ...r,
@@ -191,7 +187,7 @@ export function treatmentsApi(rlsDb: RlsDb) {
             ...at.treatment,
             animals: at.treatment.animalTreatments.map((at2) => at2.animal),
           }))
-          .sort((a, b) => b.date.getTime() - a.date.getTime());
+          .sort((a, b) => b.startDate.getTime() - a.startDate.getTime());
       });
     },
 

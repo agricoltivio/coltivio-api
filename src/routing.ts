@@ -226,7 +226,12 @@ import {
   getProductByIdEndpoint,
   updateProductEndpoint,
 } from "./products/products.endpoint";
-import { generateFieldCalendarReport } from "./reports/field-calendar-reports.endpoint";
+import {
+  sendFieldCalendarReport,
+  downloadFieldCalendarReport,
+} from "./reports/field-calendar-reports.endpoint";
+import { downloadTreatmentReport } from "./reports/treatment-reports.endpoint";
+import { downloadOutdoorJournalReport } from "./reports/outdoor-journal-reports.endpoint";
 import { healthEndpoint } from "./chore/chore.endpoint";
 
 export const routing: Routing = {
@@ -506,7 +511,16 @@ export const routing: Routing = {
       },
     },
     reports: {
-      fieldcalendar: generateFieldCalendarReport,
+      fieldcalendar: {
+        email: sendFieldCalendarReport,
+        download: downloadFieldCalendarReport,
+      },
+      treatments: {
+        download: downloadTreatmentReport,
+      },
+      "outdoor-journal": {
+        download: downloadOutdoorJournalReport,
+      },
     },
     animals: {
       "": {

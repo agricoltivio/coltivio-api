@@ -11,7 +11,6 @@ export const plotSchema = z.object({
   name: z.string(),
   localId: z.string().nullable(),
   usage: z.number().nullable(),
-  additionalUsages: z.string().nullable(),
   cuttingDate: ez.dateOut().nullable(),
   geometry: multiPolygonSchema,
   size: z.number(),

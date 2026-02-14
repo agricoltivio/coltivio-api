@@ -10,8 +10,7 @@ export function fieldCalendarReportsApi(
   locale: string = "de",
 ) {
   return {
-    async generateReport(
-      userId: string,
+    async generateReportBuffer(
       fromDate: Date,
       toDate: Date,
       cropRotations: boolean,
@@ -19,7 +18,7 @@ export function fieldCalendarReportsApi(
       fertilizerApplications: boolean,
       cropProtectionApplications: boolean,
       harvests: boolean,
-    ): Promise<void> {
+    ): Promise<{ buffer: Buffer; fileName: string }> {
       const selectedFlags = {
         cropRotations,
         tillages,
@@ -27,13 +26,7 @@ export function fieldCalendarReportsApi(
         cropProtectionApplications,
         harvests,
       };
-      await rlsDb.rls(async (tx) => {
-        const user = await tx.query.profiles.findFirst({
-          where: { id: userId },
-        });
-        if (!user) {
-          throw new Error(`User with id ${userId} not found`);
-        }
+      return await rlsDb.rls(async (tx) => {
         const plots = await tx.query.plots.findMany({
           with: {
             cropRotations: {
@@ -242,7 +235,6 @@ export function fieldCalendarReportsApi(
                 { name: t("common.size_a") },
                 { name: t("common.reason") },
                 { name: t("common.action") },
-                { name: t("common.machinery") },
               ],
               rows: tillageRows,
             });
@@ -272,7 +264,6 @@ export function fieldCalendarReportsApi(
                 { name: t("common.size_a") },
                 { name: t("fertilizer_applications.fertilizer") },
                 { name: t("common.unit") },
-                { name: t("common.machinery") },
                 { name: t("common.amount_of_loads") },
                 { name: t("common.amount_per_load") },
                 { name: t("common.total") },
@@ -308,7 +299,6 @@ export function fieldCalendarReportsApi(
                 { name: t("common.size_a") },
                 { name: t("crop_protections.product") },
                 { name: t("common.unit") },
-                { name: t("common.machinery") },
                 { name: t("common.amount_of_loads") },
                 { name: t("common.amount_per_load") },
                 { name: t("common.total") },
@@ -339,7 +329,6 @@ export function fieldCalendarReportsApi(
                 { name: t("common.date") },
                 { name: t("common.size_a") },
                 { name: t("crops.crop") },
-                { name: t("common.machinery") },
                 { name: t("harvests.processing_type") },
                 { name: t("harvests.conservation") },
                 { name: t("harvests.produced_units") },
@@ -376,14 +365,6 @@ export function fieldCalendarReportsApi(
 
           let plotIndex = 0;
           for (const plot of plots) {
-            // if (
-            //   plot.harvests.length === 0 &&
-            //   plot.tillages.length === 0 &&
-            //   plot.fertilizerApplications.length === 0 &&
-            //   plot.cropProtectionApplications.length === 0
-            // ) {
-            //   continue;
-            // }
             if (
               (
                 Object.entries(selectedFlags) as Array<
@@ -444,12 +425,11 @@ export function fieldCalendarReportsApi(
                   headers.map((header) => entry[header.key] || ""),
                 );
                 sheet.addTable({
-                  name: `${title}_${name}_${index}`.replace(/\s+/g, "_"),
+                  name: `${title}_${name}_${index}`.replace(/[^a-zA-Z0-9_]/g, "_"),
                   ref: `A${rowIndex}`,
                   headerRow: true,
                   style: { showRowStripes: true },
                   columns: headers.map((header, i) => ({ name: header.value })),
-                  // columns:
                   rows: tableRows,
                 });
 
@@ -621,13 +601,37 @@ export function fieldCalendarReportsApi(
         }
 
         const fileName = `${t("field_calendar_report.file_name", { fromDate: fromDate.toLocaleDateString("de"), toDate: toDate.toLocaleDateString("de") })}.xlsx`;
+        const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
+        return { buffer, fileName };
+      });
+    },
 
-        const buffer = await workbook.xlsx.writeBuffer();
-        const attachement = Buffer.from(buffer).toString("base64");
-
-        // await workbook.xlsx.writeFile(
-        //   `${t("file_name", { fromDate: fromDate.toLocaleDateString(locale), toDate: toDate.toLocaleDateString(locale) })}.xlsx`
-        // );
+    async generateReport(
+      userId: string,
+      fromDate: Date,
+      toDate: Date,
+      cropRotations: boolean,
+      tillages: boolean,
+      fertilizerApplications: boolean,
+      cropProtectionApplications: boolean,
+      harvests: boolean,
+    ): Promise<void> {
+      const { buffer, fileName } = await this.generateReportBuffer(
+        fromDate,
+        toDate,
+        cropRotations,
+        tillages,
+        fertilizerApplications,
+        cropProtectionApplications,
+        harvests,
+      );
+      await rlsDb.rls(async (tx) => {
+        const user = await tx.query.profiles.findFirst({
+          where: { id: userId },
+        });
+        if (!user) {
+          throw new Error(`User with id ${userId} not found`);
+        }
         try {
           await txEmailApi.sendTransacEmail({
             sender: { email: "noreply@app.coltivio.ch", name: "Coltivio" },
@@ -636,7 +640,7 @@ export function fieldCalendarReportsApi(
             htmlContent: `<p>${t("field_calendar_report.mail_content", { fromDate: fromDate.toLocaleDateString("de"), toDate: toDate.toLocaleDateString("de") })}</p>`,
             attachment: [
               {
-                content: attachement,
+                content: buffer.toString("base64"),
                 name: fileName,
               },
             ],
@@ -645,7 +649,6 @@ export function fieldCalendarReportsApi(
           console.error(error);
           Sentry.captureException(error);
         }
-        return;
       });
     },
   };

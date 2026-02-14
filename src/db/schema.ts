@@ -43,10 +43,9 @@ export const federalFarmPlots = pgTable.withRLS(
   {
     id: integer().primaryKey(),
     federalFarmId: text("farm_id").notNull(),
-    localId: text(),
+    localId: text("local_id"),
     usage: integer().notNull(),
-    additionalUsages: text("a_usages"),
-    area: integer().notNull(),
+    size: integer().notNull(),
     cuttingDate: date("cut_date", { mode: "date" }),
     canton: text().notNull(),
     geometry: polygon().notNull(),
@@ -435,7 +434,6 @@ export const plots = pgTable.withRLS(
     name: text().notNull(),
     localId: text(), // parcel number
     usage: integer(),
-    additionalUsages: text(),
     cuttingDate: date({ mode: "date" }),
     geometry: polygon().notNull(),
     size: integer().notNull(),
@@ -1109,6 +1107,11 @@ export const herdMemberships = pgTable.withRLS(
   ],
 );
 
+export const outdoorScheduleType = pgEnum("outdoor_schedule_type", [
+  "pasture",
+  "exercise_yard",
+]);
+
 export const outdoorSchedules = pgTable.withRLS(
   "outdoor_shedules",
   {
@@ -1123,6 +1126,7 @@ export const outdoorSchedules = pgTable.withRLS(
       .references(() => herds.id, { onDelete: "cascade" }),
     startDate: date({ mode: "date" }).notNull(),
     endDate: date({ mode: "date" }),
+    type: outdoorScheduleType().notNull(),
     notes: text(),
   },
   (table) => [
@@ -1253,7 +1257,8 @@ export const treatments = pgTable.withRLS(
         onDelete: "cascade",
       }),
     drugId: uuid().references(() => drugs.id, { onDelete: "restrict" }),
-    date: date({ mode: "date" }).notNull(),
+    startDate: date({ mode: "date" }).notNull(),
+    endDate: date({ mode: "date" }).notNull(),
     name: text().notNull(),
     notes: text(),
     drugDoseUnit: drugDoseUnit(),
@@ -1270,7 +1275,7 @@ export const treatments = pgTable.withRLS(
   },
   (table) => [
     index("treatments_drug_id_idx").on(table.drugId),
-    index("treatments_date_idx").on(table.date),
+    index("treatments_date_idx").on(table.startDate),
     pgPolicy("only farm members", {
       as: "permissive",
       to: authenticatedRole,
@@ -1793,6 +1798,7 @@ export const animalSexSchema = z.enum(animalSex.enumValues);
 export const deathReasonSchema = z.enum(deathReason.enumValues);
 export const drugDoseUnitSchema = z.enum(drugDoseUnit.enumValues);
 export const drugDosePerUnitSchema = z.enum(drugDosePerUnit.enumValues);
+export const outdoorScheduleTypeSchema = z.enum(outdoorScheduleType.enumValues);
 
 export const preferredCommunicationSchema = z.enum(
   preferredCommunication.enumValues,

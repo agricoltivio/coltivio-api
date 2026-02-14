@@ -23,6 +23,8 @@ import { usersApi } from "../user/users";
 import { cropProtectionProductsApi } from "../crop-protection/crop-protection-products";
 import { TFunction } from "i18next";
 import { fieldCalendarReportsApi } from "../reports/field-calendar-reports";
+import { treatmentReportsApi } from "../reports/treatment-reports";
+import { outdoorJournalReportsApi } from "../reports/outdoor-journal-reports";
 
 export function sessionApi(db: RlsDb, t: TFunction, locale: string) {
   return {
@@ -39,6 +41,8 @@ export function sessionApi(db: RlsDb, t: TFunction, locale: string) {
     cropProtectionProducts: cropProtectionProductsApi(db),
     cropProtectionApplications: cropProtectionApplicationsApi(db),
     fieldCalendarReports: fieldCalendarReportsApi(db, t, locale),
+    treatmentReports: treatmentReportsApi(db, t, locale),
+    outdoorJournalReports: outdoorJournalReportsApi(db, t, locale),
     animals: animalsApi(db),
     earTags: earTagsApi(db),
     drugs: drugsApi(db),

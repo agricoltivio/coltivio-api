@@ -1,14 +1,11 @@
-import createHttpError from "http-errors";
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import ExcelJS from "exceljs";
+import createHttpError from "http-errors";
 import { RlsDb } from "../db/db";
 import * as tables from "../db/schema";
 import { EarTag } from "../ear-tags/ear-tags";
 import { Treatment } from "../treatments/treatments";
-import {
-  buildOutdoorJournal,
-  OutdoorJournalResult,
-} from "./outdoor-journal";
+import { buildOutdoorJournal, OutdoorJournalResult } from "./outdoor-journal";
 
 // SQL fragment to compute if animal has no active waiting times from treatments
 const milkAndMeatUsableExtra = sql<boolean>`NOT EXISTS (
@@ -79,10 +76,13 @@ export type OutdoorScheduleRecurrence =
 export type OutdoorScheduleWithRecurrence = OutdoorSchedule & {
   recurrence: OutdoorScheduleRecurrence | null;
 };
+export type OutdoorScheduleType =
+  (typeof tables.outdoorScheduleType.enumValues)[number];
 
 export type OutdoorScheduleCreateInput = {
   startDate: Date;
   endDate?: Date | null;
+  type: OutdoorScheduleType;
   notes?: string | null;
   recurrence?: {
     frequency: (typeof tables.frequency.enumValues)[number];
@@ -369,7 +369,11 @@ export function animalsApi(rlsDb: RlsDb) {
       });
     },
 
-    async updateHerd(id: string, input: { name?: string }, animalIds?: string[]) {
+    async updateHerd(
+      id: string,
+      input: { name?: string },
+      animalIds?: string[],
+    ) {
       return rlsDb.rls(async (tx) => {
         const [herd] = await tx
           .update(tables.herds)
@@ -464,8 +468,9 @@ export function animalsApi(rlsDb: RlsDb) {
       // Validate no overlap with existing schedules for this herd
       const existing = await this.getOutdoorSchedulesForHerd(herdId);
       const existingRanges = existing.map(effectiveRange);
-      const newRecurrenceUntil =
-        recurrence?.until ? new Date(recurrence.until) : null;
+      const newRecurrenceUntil = recurrence?.until
+        ? new Date(recurrence.until)
+        : null;
       const newRange = recurrence
         ? { start: scheduleInput.startDate, end: newRecurrenceUntil }
         : {
@@ -577,10 +582,7 @@ export function animalsApi(rlsDb: RlsDb) {
               await tx
                 .delete(tables.outdoorScheduleRecurrences)
                 .where(
-                  eq(
-                    tables.outdoorScheduleRecurrences.outdoorScheduleId,
-                    id,
-                  ),
+                  eq(tables.outdoorScheduleRecurrences.outdoorScheduleId, id),
                 );
             }
           } else if (existingRecurrence) {
@@ -814,6 +816,7 @@ export function animalsApi(rlsDb: RlsDb) {
           dateOfBirth,
           earTagId,
           earTagNumber: earTagNumber || undefined,
+          registered: true,
         });
       });
 

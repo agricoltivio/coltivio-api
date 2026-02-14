@@ -101,10 +101,9 @@ export function farmsApi(rlsDb: RlsDb, t: TFunction) {
             return {
               farmId: createdFarm.id,
               name: plot.localId ?? `${index + 1}`,
-              size: plot.area,
+              size: plot.size,
               localId: plot.localId,
               usage: plot.usage,
-              additionalUsages: plot.additionalUsages,
               cuttingDate: plot.cuttingDate,
               geometry: sql`ST_GeomFromGeoJSON(${JSON.stringify(plot.geometry)})`,
             };

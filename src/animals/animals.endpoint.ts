@@ -8,6 +8,7 @@ import {
   animalUsageSchema,
   deathReasonSchema,
   frequencySchema,
+  outdoorScheduleTypeSchema,
   weekdaySchema,
 } from "../db/schema";
 import { earTagSchema } from "../ear-tags/ear-tags.endpoint";
@@ -59,6 +60,7 @@ const outdoorScheduleSchema = z.object({
   herdId: z.string(),
   startDate: ez.dateOut(),
   endDate: ez.dateOut().nullable(),
+  type: outdoorScheduleTypeSchema,
   notes: z.string().nullable(),
   recurrence: recurrenceSchema.nullable(),
 });
@@ -77,6 +79,7 @@ const updateHerdSchema = createHerdSchema.partial();
 const createOutdoorScheduleSchema = z.object({
   startDate: ez.dateIn(),
   endDate: ez.dateIn().optional().nullable(),
+  type: outdoorScheduleTypeSchema,
   notes: z.string().optional().nullable(),
   recurrence: z
     .object({

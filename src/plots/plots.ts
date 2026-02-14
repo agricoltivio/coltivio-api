@@ -245,7 +245,6 @@ export function plotsApi(rlsDb: RlsDb) {
               name: subPlot.name,
               size: subPlot.size,
               usage: originalPlot.usage,
-              additionalUsages: originalPlot.additionalUsages,
               cuttingDate: originalPlot.cuttingDate,
               localId: originalPlot.localId,
               geometry: sql<MultiPolygon>`ST_GeomFromGeoJSON(${JSON.stringify(subPlot.geometry)})`,
@@ -334,9 +333,7 @@ export function plotsApi(rlsDb: RlsDb) {
             name: plotData.name,
             localId: plotData.localId,
             usage: plotData.usage,
-            additionalUsages: plotData.additionalUsages,
             cuttingDate: plotData.cuttingDate,
-            additionalNotes: plotData.additionalNotes,
             size: plotData.size,
             geometry: sql<MultiPolygon>`ST_GeomFromGeoJSON(${JSON.stringify(plotData.geometry)})`,
           })
