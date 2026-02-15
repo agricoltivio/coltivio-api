@@ -1,0 +1,1 @@
+delete from federal_farm_plots;

@@ -299,10 +299,8 @@
     "total_amount": "Gesamtmenge"
   },
   "outdoor_journal_report": {
-    "file_name": "Weidejournal {{year}}",
-    "title": "Weidejournal {{year}}",
-    "sheet_first_half": "Januar - Juni",
-    "sheet_second_half": "Juli - Dezember",
+    "file_name": "Weidejournal {{fromDate}} - {{toDate}}",
+    "title": "Weidejournal {{fromDate}} - {{toDate}}",
     "day": "Tag",
     "animal_category": "Tierkategorie",
     "total_pasture": "Total Weide",

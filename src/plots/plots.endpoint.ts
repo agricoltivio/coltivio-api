@@ -140,8 +140,6 @@ const mergePlotsInputSchema = z.discriminatedUnion("strategy", [
     usage: z.number().optional(),
     additionalUsages: z.string().optional(),
     cuttingDate: ez.dateIn().nullable().optional(),
-    geometry: multiPolygonSchema,
-    size: z.number(),
     additionalNotes: z.string().optional(),
   }),
   z.object({
@@ -152,8 +150,6 @@ const mergePlotsInputSchema = z.discriminatedUnion("strategy", [
     usage: z.number().optional(),
     additionalUsages: z.string().optional(),
     cuttingDate: ez.dateIn().nullable().optional(),
-    geometry: multiPolygonSchema,
-    size: z.number(),
     additionalNotes: z.string().optional(),
   }),
 ]);

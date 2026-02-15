@@ -312,8 +312,6 @@ export function plotsApi(rlsDb: RlsDb) {
       plotIds: string[],
       plotData: {
         name: string;
-        geometry: MultiPolygon;
-        size: number;
         localId?: string;
         usage?: number;
         additionalUsages?: string;
@@ -325,7 +323,10 @@ export function plotsApi(rlsDb: RlsDb) {
         | { strategy: "delete_and_migrate" },
     ): Promise<Plot> {
       const newPlotId = await rlsDb.rls(async (tx) => {
-        // Create the merged plot
+        // Collect source plot geometries into a single MultiPolygon (preserving individual polygon boundaries for future splitting)
+        const collectedGeometry = sql<MultiPolygon>`(SELECT ST_CollectionExtract(ST_Collect(${plots.geometry}), 3) FROM ${plots} WHERE ${inArray(plots.id, plotIds)})`;
+        const collectedSize = sql<number>`(SELECT ST_Area(ST_Transform(ST_Collect(${plots.geometry}), 2056)) FROM ${plots} WHERE ${inArray(plots.id, plotIds)})`;
+
         const [newPlot] = await tx
           .insert(plots)
           .values({
@@ -334,8 +335,8 @@ export function plotsApi(rlsDb: RlsDb) {
             localId: plotData.localId,
             usage: plotData.usage,
             cuttingDate: plotData.cuttingDate,
-            size: plotData.size,
-            geometry: sql<MultiPolygon>`ST_GeomFromGeoJSON(${JSON.stringify(plotData.geometry)})`,
+            size: collectedSize,
+            geometry: collectedGeometry,
           })
           .returning({ id: plots.id });
 

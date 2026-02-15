@@ -89,6 +89,7 @@ export function federalPlotsLayerApi(authDb: RlsDb) {
       return authDb.rls(async (tx) => {
         await tx.execute(sql.raw("select set_limit(0.2)"));
         const radiusInDegrees = (radiusInKm * 1000) / 111000.0;
+        console.log("radiusInDegrees", radiusInDegrees);
         const result = await tx
           .selectDistinct({
             federalFarmId: federalFarmPlots.federalFarmId,

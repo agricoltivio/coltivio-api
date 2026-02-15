@@ -13,12 +13,10 @@ export function outdoorJournalReportsApi(
 ) {
   return {
     async generateReportBuffer(
-      year: number,
+      fromDate: Date,
+      toDate: Date,
     ): Promise<{ buffer: Buffer; fileName: string }> {
       return await rlsDb.rls(async (tx) => {
-        const yearStart = new Date(year, 0, 1);
-        const yearEnd = new Date(year, 11, 31);
-
         const herds = await tx.query.herds.findMany({
           with: {
             herdMemberships: {
@@ -30,7 +28,7 @@ export function outdoorJournalReportsApi(
           },
         });
 
-        // Pre-expand all outdoor schedules into concrete date ranges for the year
+        // Pre-expand all outdoor schedules into concrete date ranges
         type ExpandedOccurrence = {
           herdId: string;
           type: "pasture" | "exercise_yard";
@@ -40,7 +38,7 @@ export function outdoorJournalReportsApi(
         const allOccurrences: ExpandedOccurrence[] = [];
         for (const herd of herds) {
           for (const schedule of herd.outdoorSchedules) {
-            const ranges = expandOutdoorSchedule(schedule, yearStart, yearEnd);
+            const ranges = expandOutdoorSchedule(schedule, fromDate, toDate);
             for (const range of ranges) {
               allOccurrences.push({
                 herdId: herd.id,
@@ -54,17 +52,28 @@ export function outdoorJournalReportsApi(
 
         const herdById = new Map(herds.map((h) => [h.id, h]));
 
+        // Collect all months in the range
+        type MonthKey = { year: number; month: number };
+        const months: MonthKey[] = [];
+        const cursor = new Date(fromDate.getFullYear(), fromDate.getMonth(), 1);
+        const lastMonth = new Date(toDate.getFullYear(), toDate.getMonth(), 1);
+        while (cursor <= lastMonth) {
+          months.push({ year: cursor.getFullYear(), month: cursor.getMonth() });
+          cursor.setMonth(cursor.getMonth() + 1);
+        }
+
         // Build day-by-day matrix per month: for each category, whether pasture/exerciseYard was active
         type DayFlags = { pasture: boolean; exerciseYard: boolean };
         const monthlyData: Map<AnimalCategory, DayFlags[]>[] = [];
         const allCategories = new Set<AnimalCategory>();
 
-        for (let month = 0; month < 12; month++) {
+        for (const { year, month } of months) {
           const days = getDaysInMonth(new Date(year, month));
           const monthData = new Map<AnimalCategory, DayFlags[]>();
 
           for (let day = 1; day <= days; day++) {
             const date = new Date(year, month, day);
+            if (date < fromDate || date > toDate) continue;
 
             for (const occ of allOccurrences) {
               if (date < occ.startDate || date > occ.endDate) continue;
@@ -104,152 +113,160 @@ export function outdoorJournalReportsApi(
         }
 
         const sortedCategories = Array.from(allCategories).sort();
-        const numCatCols = sortedCategories.length;
+        const numCats = sortedCategories.length;
+        const numMonths = months.length;
+        const totalDataCols = numMonths * numCats;
 
         const workbook = new ExcelJS.Workbook();
+        const thinSide: Partial<ExcelJS.Border> = { style: "thin", color: { argb: "FFB4C6E7" } };
+        const thickSide: Partial<ExcelJS.Border> = { style: "medium", color: { argb: "FF2F5496" } };
+        const border: Partial<ExcelJS.Borders> = { top: thinSide, bottom: thinSide, left: thinSide, right: thinSide };
+        // Thick left/right borders at month boundaries
+        const borderFor = (c: number): Partial<ExcelJS.Borders> => ({
+          top: thinSide, bottom: thinSide,
+          left: c === 0 ? thickSide : thinSide,
+          right: c === numCats - 1 ? thickSide : thinSide,
+        });
 
-        // 2 sheets: Jan-Jun and Jul-Dec for landscape printing
-        for (let half = 0; half < 2; half++) {
-          const startMonth = half * 6;
-          const sheetName =
-            half === 0
-              ? t("outdoor_journal_report.sheet_first_half")
-              : t("outdoor_journal_report.sheet_second_half");
-          const sheet = workbook.addWorksheet(sheetName);
-          sheet.pageSetup = { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0 };
+        const sheet = workbook.addWorksheet(t("outdoor_journal_report.title", {
+          fromDate: fromDate.toLocaleDateString(locale),
+          toDate: toDate.toLocaleDateString(locale),
+        }));
+        sheet.pageSetup = { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0 };
 
-          let rowIndex = 1;
+        // Column for month m, category c: 2 + m * numCats + c
+        const colFor = (m: number, c: number) => 2 + m * numCats + c;
 
-          // Report title
-          sheet.mergeCells(rowIndex, 1, rowIndex, 1 + numCatCols);
-          sheet.getCell(rowIndex, 1).value = t(
-            "outdoor_journal_report.title",
-            { year: year.toString() },
-          );
-          sheet.getCell(rowIndex, 1).font = { bold: true, size: 18 };
-          rowIndex += 2;
+        sheet.getColumn(1).width = 8;
+        for (let col = 2; col <= 1 + totalDataCols; col++) {
+          sheet.getColumn(col).width = 8;
+        }
 
-          for (let month = startMonth; month < startMonth + 6; month++) {
-            const days = getDaysInMonth(new Date(year, month));
-            const monthData = monthlyData[month];
+        let rowIndex = 1;
 
-            // Header row 1: month name merged across all columns
-            sheet.mergeCells(rowIndex, 1, rowIndex, 1 + numCatCols);
-            sheet.getCell(rowIndex, 1).value = t(
-              `outdoor_journal_report.months.${month}` as `outdoor_journal_report.months.0`,
-            );
-            sheet.getCell(rowIndex, 1).font = { bold: true, size: 14 };
-            sheet.getCell(rowIndex, 1).alignment = { horizontal: "center" };
-            rowIndex++;
+        // Header row 1: Report title
+        sheet.mergeCells(rowIndex, 1, rowIndex, 1 + totalDataCols);
+        const titleCell = sheet.getCell(rowIndex, 1);
+        titleCell.value = t("outdoor_journal_report.title", {
+          fromDate: fromDate.toLocaleDateString(locale),
+          toDate: toDate.toLocaleDateString(locale),
+        });
+        titleCell.font = { bold: true, size: 16, color: { argb: "FFFFFFFF" } };
+        titleCell.alignment = { horizontal: "center", vertical: "middle" };
+        titleCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF2F5496" } };
+        rowIndex++;
 
-            // Header rows 2-3: "Tag" merged vertically, "Tierkategorie" merged horizontally, then category names
-            const headerStart = rowIndex;
-            sheet.mergeCells(headerStart, 1, headerStart + 1, 1);
-            sheet.getCell(headerStart, 1).value = t(
-              "outdoor_journal_report.day",
-            );
-            sheet.getCell(headerStart, 1).font = { bold: true };
-            sheet.getCell(headerStart, 1).alignment = {
-              horizontal: "center",
-              vertical: "middle",
-            };
+        // Header row 2: "Tag" merged with row 3, month names each spanning numCats columns
+        sheet.mergeCells(rowIndex, 1, rowIndex + 1, 1);
+        const tagCell = sheet.getCell(rowIndex, 1);
+        tagCell.value = t("outdoor_journal_report.day");
+        tagCell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+        tagCell.alignment = { horizontal: "center", vertical: "middle" };
+        tagCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF4472C4" } };
+        tagCell.border = { top: thinSide, bottom: thinSide, left: thinSide, right: thickSide };
 
-            if (numCatCols > 0) {
-              sheet.mergeCells(
-                headerStart,
-                2,
-                headerStart,
-                1 + numCatCols,
-              );
-              sheet.getCell(headerStart, 2).value = t(
-                "outdoor_journal_report.animal_category",
-              );
-              sheet.getCell(headerStart, 2).font = { bold: true };
-              sheet.getCell(headerStart, 2).alignment = {
-                horizontal: "center",
-              };
-            }
+        for (let m = 0; m < numMonths; m++) {
+          const startCol = colFor(m, 0);
+          const endCol = colFor(m, numCats - 1);
+          if (endCol > startCol) sheet.mergeCells(rowIndex, startCol, rowIndex, endCol);
+          const monthCell = sheet.getCell(rowIndex, startCol);
+          monthCell.value = t(`outdoor_journal_report.months.${months[m].month}` as `outdoor_journal_report.months.0`);
+          monthCell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+          monthCell.alignment = { horizontal: "center" };
+          monthCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF4472C4" } };
+          monthCell.border = { top: thinSide, bottom: thinSide, left: thickSide, right: thickSide };
+        }
+        rowIndex++;
 
-            // Row 3: individual category labels
-            rowIndex++;
-            for (let c = 0; c < numCatCols; c++) {
-              sheet.getCell(rowIndex, 2 + c).value = sortedCategories[c];
-              sheet.getCell(rowIndex, 2 + c).font = { bold: true };
-              sheet.getCell(rowIndex, 2 + c).alignment = {
-                horizontal: "center",
-              };
-            }
-            rowIndex++;
+        // Header row 3: Category names repeated under each month
+        for (let m = 0; m < numMonths; m++) {
+          for (let c = 0; c < numCats; c++) {
+            const catCell = sheet.getCell(rowIndex, colFor(m, c));
+            catCell.value = sortedCategories[c];
+            catCell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+            catCell.alignment = { horizontal: "center" };
+            catCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF5B9BD5" } };
+            catCell.border = borderFor(c);
+          }
+        }
+        rowIndex++;
 
-            // Day rows + count totals
-            const pastureCount = new Array(numCatCols).fill(0);
-            const exerciseYardCount = new Array(numCatCols).fill(0);
+        // Day rows (1-31), columns = month * category grid
+        const pastureCount = Array.from({ length: numMonths }, () => new Array(numCats).fill(0));
+        const exerciseYardCount = Array.from({ length: numMonths }, () => new Array(numCats).fill(0));
 
-            for (let day = 1; day <= days; day++) {
-              sheet.getCell(rowIndex, 1).value = day;
-              sheet.getCell(rowIndex, 1).alignment = { horizontal: "center" };
+        for (let day = 1; day <= 31; day++) {
+          const dayCell = sheet.getCell(rowIndex, 1);
+          dayCell.value = day;
+          dayCell.alignment = { horizontal: "center" };
+          dayCell.border = border;
 
-              for (let c = 0; c < numCatCols; c++) {
-                const cat = sortedCategories[c];
-                const dayFlags = monthData.get(cat)?.[day - 1];
-                let cellValue = "";
-                if (dayFlags) {
-                  if (dayFlags.pasture && dayFlags.exerciseYard) {
-                    cellValue = "W/L";
-                    pastureCount[c]++;
-                    exerciseYardCount[c]++;
-                  } else if (dayFlags.pasture) {
-                    cellValue = "W";
-                    pastureCount[c]++;
-                  } else if (dayFlags.exerciseYard) {
-                    cellValue = "L";
-                    exerciseYardCount[c]++;
-                  }
+          for (let m = 0; m < numMonths; m++) {
+            const { year, month } = months[m];
+            const daysInMonth = getDaysInMonth(new Date(year, month));
+
+            for (let c = 0; c < numCats; c++) {
+              const cell = sheet.getCell(rowIndex, colFor(m, c));
+              cell.alignment = { horizontal: "center" };
+              cell.border = borderFor(c);
+
+              if (day > daysInMonth) continue;
+
+              const dayFlags = monthlyData[m].get(sortedCategories[c])?.[day - 1];
+              if (dayFlags) {
+                if (dayFlags.pasture && dayFlags.exerciseYard) {
+                  cell.value = "W/L";
+                  pastureCount[m][c]++;
+                  exerciseYardCount[m][c]++;
+                } else if (dayFlags.pasture) {
+                  cell.value = "W";
+                  pastureCount[m][c]++;
+                } else if (dayFlags.exerciseYard) {
+                  cell.value = "L";
+                  exerciseYardCount[m][c]++;
                 }
-                sheet.getCell(rowIndex, 2 + c).value = cellValue;
-                sheet.getCell(rowIndex, 2 + c).alignment = {
-                  horizontal: "center",
-                };
               }
-              rowIndex++;
             }
+          }
+          rowIndex++;
+        }
 
-            // Total Weide row
-            sheet.getCell(rowIndex, 1).value = t(
-              "outdoor_journal_report.total_pasture",
-            );
-            sheet.getCell(rowIndex, 1).font = { bold: true };
-            for (let c = 0; c < numCatCols; c++) {
-              sheet.getCell(rowIndex, 2 + c).value =
-                pastureCount[c] || "";
-              sheet.getCell(rowIndex, 2 + c).alignment = {
-                horizontal: "center",
-              };
-              sheet.getCell(rowIndex, 2 + c).font = { bold: true };
-            }
-            rowIndex++;
+        // Total Weide row
+        const pastureLabelCell = sheet.getCell(rowIndex, 1);
+        pastureLabelCell.value = t("outdoor_journal_report.total_pasture");
+        pastureLabelCell.font = { bold: true };
+        pastureLabelCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFD9E2F3" } };
+        pastureLabelCell.border = border;
+        for (let m = 0; m < numMonths; m++) {
+          for (let c = 0; c < numCats; c++) {
+            const cell = sheet.getCell(rowIndex, colFor(m, c));
+            cell.value = pastureCount[m][c] || "";
+            cell.alignment = { horizontal: "center" };
+            cell.font = { bold: true };
+            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFD9E2F3" } };
+            cell.border = borderFor(c);
+          }
+        }
+        rowIndex++;
 
-            // Total Laufhof row
-            sheet.getCell(rowIndex, 1).value = t(
-              "outdoor_journal_report.total_exercise_yard",
-            );
-            sheet.getCell(rowIndex, 1).font = { bold: true };
-            for (let c = 0; c < numCatCols; c++) {
-              sheet.getCell(rowIndex, 2 + c).value =
-                exerciseYardCount[c] || "";
-              sheet.getCell(rowIndex, 2 + c).alignment = {
-                horizontal: "center",
-              };
-              sheet.getCell(rowIndex, 2 + c).font = { bold: true };
-            }
-            rowIndex++;
-
-            // Spacing between months
-            rowIndex += 2;
+        // Total Laufhof row
+        const yardLabelCell = sheet.getCell(rowIndex, 1);
+        yardLabelCell.value = t("outdoor_journal_report.total_exercise_yard");
+        yardLabelCell.font = { bold: true };
+        yardLabelCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFD9E2F3" } };
+        yardLabelCell.border = border;
+        for (let m = 0; m < numMonths; m++) {
+          for (let c = 0; c < numCats; c++) {
+            const cell = sheet.getCell(rowIndex, colFor(m, c));
+            cell.value = exerciseYardCount[m][c] || "";
+            cell.alignment = { horizontal: "center" };
+            cell.font = { bold: true };
+            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFD9E2F3" } };
+            cell.border = borderFor(c);
           }
         }
 
-        const fileName = `${t("outdoor_journal_report.file_name", { year: year.toString() })}.xlsx`;
+        const fileName = `${t("outdoor_journal_report.file_name", { fromDate: fromDate.toLocaleDateString(locale), toDate: toDate.toLocaleDateString(locale) })}.xlsx`;
         const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
         return { buffer, fileName };
       });

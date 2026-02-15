@@ -518,7 +518,7 @@ export const routing: Routing = {
       treatments: {
         download: downloadTreatmentReport,
       },
-      "outdoor-journal": {
+      outdoorjournal: {
         download: downloadOutdoorJournalReport,
       },
     },
