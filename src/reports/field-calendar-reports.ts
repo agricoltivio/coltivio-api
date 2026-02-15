@@ -170,7 +170,9 @@ export function fieldCalendarReportsApi(
             t("field_calendar_report.sheet_titles.main_short"),
           );
           let rowIndex = 1;
-          sheet.getCell(`A${rowIndex}`).value = t(
+          sheet.mergeCells(`A${rowIndex}:J${rowIndex}`);
+          const mainTitle = sheet.getCell(`A${rowIndex}`);
+          mainTitle.value = t(
             "field_calendar_report.sheet_titles.main",
             {
               fromDate: fromDate.toLocaleDateString("de", {
@@ -183,18 +185,19 @@ export function fieldCalendarReportsApi(
               }),
             },
           );
-          sheet.getCell(`A${rowIndex}`).font = { bold: true, size: 24 };
+          mainTitle.font = { bold: true, size: 20, color: { argb: "FFFFFFFF" } };
+          mainTitle.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF2F5496" } };
+          mainTitle.alignment = { vertical: "middle" };
           rowIndex += 3;
 
           if (cropRotations && cropRotationRows.length > 0) {
             // crop rotations table
+            sheet.mergeCells(`A${rowIndex}:J${rowIndex}`);
             sheet.getCell(`A${rowIndex}`).value = t(
               "crop_rotations.crop_rotation",
             );
-            sheet.getCell(`A${rowIndex}`).font = {
-              bold: true,
-              size: 16,
-            };
+            sheet.getCell(`A${rowIndex}`).font = { bold: true, size: 14, color: { argb: "FFFFFFFF" } };
+            sheet.getCell(`A${rowIndex}`).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF4472C4" } };
             rowIndex += 2;
 
             sheet.addTable({
@@ -216,11 +219,10 @@ export function fieldCalendarReportsApi(
 
           if (tillages && tillageRows.length > 0) {
             //tillages table
+            sheet.mergeCells(`A${rowIndex}:J${rowIndex}`);
             sheet.getCell(`A${rowIndex}`).value = t("tillages.tillage");
-            sheet.getCell(`A${rowIndex}`).font = {
-              bold: true,
-              size: 16,
-            };
+            sheet.getCell(`A${rowIndex}`).font = { bold: true, size: 14, color: { argb: "FFFFFFFF" } };
+            sheet.getCell(`A${rowIndex}`).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF4472C4" } };
             rowIndex += 2;
 
             sheet.addTable({
@@ -243,13 +245,12 @@ export function fieldCalendarReportsApi(
 
           if (fertilizerApplications && fertilizerApplicationRows.length > 0) {
             // table fertilizer applications
+            sheet.mergeCells(`A${rowIndex}:J${rowIndex}`);
             sheet.getCell(`A${rowIndex}`).value = t(
               "fertilizer_applications.fertilizer_application",
             );
-            sheet.getCell(`A${rowIndex}`).font = {
-              bold: true,
-              size: 16,
-            };
+            sheet.getCell(`A${rowIndex}`).font = { bold: true, size: 14, color: { argb: "FFFFFFFF" } };
+            sheet.getCell(`A${rowIndex}`).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF4472C4" } };
             rowIndex += 2;
 
             sheet.addTable({
@@ -278,13 +279,12 @@ export function fieldCalendarReportsApi(
             cropProtectionApplicationRows.length > 0
           ) {
             // table crop protection applications
+            sheet.mergeCells(`A${rowIndex}:J${rowIndex}`);
             sheet.getCell(`A${rowIndex}`).value = t(
               "crop_protections.crop_protection",
             );
-            sheet.getCell(`A${rowIndex}`).font = {
-              bold: true,
-              size: 16,
-            };
+            sheet.getCell(`A${rowIndex}`).font = { bold: true, size: 14, color: { argb: "FFFFFFFF" } };
+            sheet.getCell(`A${rowIndex}`).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF4472C4" } };
             rowIndex += 2;
 
             sheet.addTable({
@@ -311,11 +311,10 @@ export function fieldCalendarReportsApi(
 
           if (harvests && harvestRows.length > 0) {
             // table harvests
+            sheet.mergeCells(`A${rowIndex}:J${rowIndex}`);
             sheet.getCell(`A${rowIndex}`).value = t("harvests.harvest");
-            sheet.getCell(`A${rowIndex}`).font = {
-              bold: true,
-              size: 16,
-            };
+            sheet.getCell(`A${rowIndex}`).font = { bold: true, size: 14, color: { argb: "FFFFFFFF" } };
+            sheet.getCell(`A${rowIndex}`).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF4472C4" } };
             rowIndex += 2;
 
             sheet.addTable({
@@ -347,7 +346,9 @@ export function fieldCalendarReportsApi(
           );
           let rowIndex = 1;
 
-          sheet.getCell(`A${rowIndex}`).value = t(
+          sheet.mergeCells(`A${rowIndex}:H${rowIndex}`);
+          const perPlotTitle = sheet.getCell(`A${rowIndex}`);
+          perPlotTitle.value = t(
             "field_calendar_report.sheet_titles.per_plot",
             {
               fromDate: fromDate.toLocaleDateString("de", {
@@ -360,7 +361,9 @@ export function fieldCalendarReportsApi(
               }),
             },
           );
-          sheet.getCell(`A${rowIndex}`).font = { bold: true, size: 24 };
+          perPlotTitle.font = { bold: true, size: 20, color: { argb: "FFFFFFFF" } };
+          perPlotTitle.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF2F5496" } };
+          perPlotTitle.alignment = { vertical: "middle" };
           rowIndex += 3;
 
           let plotIndex = 0;
@@ -379,30 +382,30 @@ export function fieldCalendarReportsApi(
 
             const { name, size, usage } = plot;
 
-            // add plot name as title
-            sheet.getCell(`A${rowIndex}`).value = t("plots.plot");
-            sheet.getCell(`A${rowIndex}`).font = {
-              bold: true,
-              size: 14,
-            };
-            sheet.getCell(`B${rowIndex}`).value = name;
-            sheet.getCell(`B${rowIndex}`).font = {
-              bold: true,
-              size: 14,
-            };
+            // Plot banner
+            sheet.mergeCells(`A${rowIndex}:H${rowIndex}`);
+            const plotBanner = sheet.getCell(`A${rowIndex}`);
+            plotBanner.value = `${t("plots.plot")}: ${name}`;
+            plotBanner.font = { bold: true, size: 14, color: { argb: "FFFFFFFF" } };
+            plotBanner.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF2F5496" } };
+            plotBanner.alignment = { vertical: "middle" };
             rowIndex += 2;
 
-            // add plot details
+            // Plot details
+            const detailFill: ExcelJS.Fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFD9E2F3" } };
             sheet.getCell(`A${rowIndex}`).value = t("plots.usage");
             sheet.getCell(`A${rowIndex}`).font = { bold: true };
+            sheet.getCell(`A${rowIndex}`).fill = detailFill;
             sheet.getCell(`B${rowIndex}`).value = usage ?? t("common.unknown");
             rowIndex++;
             sheet.getCell(`A${rowIndex}`).value = t("common.size_ha");
             sheet.getCell(`A${rowIndex}`).font = { bold: true };
+            sheet.getCell(`A${rowIndex}`).fill = detailFill;
             sheet.getCell(`B${rowIndex}`).value = (size / 10000).toFixed(2);
             rowIndex++;
             sheet.getCell(`A${rowIndex}`).value = t("crops.crop");
             sheet.getCell(`A${rowIndex}`).font = { bold: true };
+            sheet.getCell(`A${rowIndex}`).fill = detailFill;
             sheet.getCell(`B${rowIndex}`).value =
               plot.cropRotations[0]?.crop.name;
             rowIndex += 2;
@@ -414,11 +417,10 @@ export function fieldCalendarReportsApi(
               index: number,
             ) => {
               if (data.length > 0) {
+                sheet.mergeCells(`A${rowIndex}:H${rowIndex}`);
                 sheet.getCell(`A${rowIndex}`).value = title;
-                sheet.getCell(`A${rowIndex}`).font = {
-                  bold: true,
-                  size: 12,
-                };
+                sheet.getCell(`A${rowIndex}`).font = { bold: true, size: 12, color: { argb: "FFFFFFFF" } };
+                sheet.getCell(`A${rowIndex}`).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF4472C4" } };
                 rowIndex++;
 
                 const tableRows = data.map((entry) =>
