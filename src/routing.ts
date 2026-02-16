@@ -19,6 +19,8 @@ import {
   updateAnimalsEndpoint,
   updateHerdEndpoint,
   updateOutdoorScheduleEndpoint,
+  batchUpdateAnimalsEndpoint,
+  deleteAnimalsEndpoint,
 } from "./animals/animals.endpoint";
 import {
   createContactEndpoint,
@@ -526,8 +528,9 @@ export const routing: Routing = {
       "": {
         get: getFarmAnimalsEndpoint,
         post: createAnimalEndpoint,
+        delete: deleteAnimalsEndpoint,
       },
-      batch: updateAnimalsEndpoint,
+      batch: batchUpdateAnimalsEndpoint,
       import: importAnimalsFromExcelEndpoint,
       byId: {
         ":animalId": {

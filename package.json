@@ -78,7 +78,8 @@
   "jest": {
     "preset": "ts-jest",
     "testEnvironment": "node",
-    "globalSetup": "./src/jest.globalSetup.js",
-    "globalTeardown": "./src/jest.globalTeardown.js"
+    "globalSetup": "./src/test/globalSetup.ts",
+    "globalTeardown": "./src/test/globalTeardown.ts",
+    "setupFiles": ["./src/test/setup.ts"]
   }
 }

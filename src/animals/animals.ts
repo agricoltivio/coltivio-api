@@ -5,6 +5,7 @@ import { RlsDb } from "../db/db";
 import * as tables from "../db/schema";
 import { EarTag } from "../ear-tags/ear-tags";
 import { Treatment } from "../treatments/treatments";
+import { mapAnimalToCategory } from "./animal-key-mapping";
 import { buildOutdoorJournal, OutdoorJournalResult } from "./outdoor-journal";
 
 // SQL fragment to compute if animal has no active waiting times from treatments
@@ -66,6 +67,7 @@ export type ImportResult = {
 export type AnimalType = (typeof tables.animalType.enumValues)[number];
 export type AnimalCategory = (typeof tables.animalCategory.enumValues)[number];
 export type AnimalSex = (typeof tables.animalSex.enumValues)[number];
+export type AnimalDeathReason = (typeof tables.deathReason.enumValues)[number];
 
 export type Herd = typeof tables.herds.$inferSelect;
 export type HerdMembership = typeof tables.herdMemberships.$inferSelect;
@@ -131,6 +133,17 @@ export type AnimalCreateInput = Omit<
   "id" | "farmId"
 >;
 export type AnimalUpdateInput = Partial<AnimalCreateInput>;
+export type BatchUpdateAnimalInput = {
+  type?: AnimalType;
+  categoryOverride?: AnimalCategory;
+  requiresCategoryOverride?: boolean;
+  usage?: AnimalUsage;
+  registered?: boolean;
+  dateOfDeath?: Date;
+  deathReason?: AnimalDeathReason;
+  motherId?: string | null;
+  fatherId?: string | null;
+};
 export type Animal = typeof tables.animals.$inferSelect & {
   earTag: EarTag | null;
 };
@@ -146,10 +159,29 @@ export type AnimalWithRelations = Animal & {
 export function animalsApi(rlsDb: RlsDb) {
   return {
     async createAnimal(animalInput: AnimalCreateInput): Promise<Animal> {
+      // Check if animal can be mapped to a category; if not, flag it
+      const requiresCategoryOverride =
+        animalInput.dateOfBirth && animalInput.sex && animalInput.type
+          ? mapAnimalToCategory(
+              {
+                type: animalInput.type,
+                sex: animalInput.sex,
+                usage: animalInput.usage ?? "other",
+                dateOfBirth: animalInput.dateOfBirth,
+                categoryOverride: animalInput.categoryOverride ?? null,
+              },
+              new Date(),
+            ) === null
+          : false;
+
       const result = await rlsDb.rls(async (tx) => {
         const [result] = await tx
           .insert(tables.animals)
-          .values({ ...tables.farmIdColumnValue, ...animalInput })
+          .values({
+            ...tables.farmIdColumnValue,
+            ...animalInput,
+            requiresCategoryOverride,
+          })
           .returning();
         return result;
       });
@@ -240,6 +272,9 @@ export function animalsApi(rlsDb: RlsDb) {
       await rlsDb.rls(async (tx) => {
         await Promise.all(
           data.map(async ({ id, ...animal }) => {
+            if (animal.categoryOverride) {
+              animal.requiresCategoryOverride = false;
+            }
             await tx
               .update(tables.animals)
               .set(animal)
@@ -260,6 +295,9 @@ export function animalsApi(rlsDb: RlsDb) {
 
     async updateAnimal(id: string, data: AnimalUpdateInput): Promise<Animal> {
       const result = await rlsDb.rls(async (tx) => {
+        if (data.categoryOverride) {
+          data.requiresCategoryOverride = false;
+        }
         const [result] = await tx
           .update(tables.animals)
           .set(data)
@@ -276,6 +314,35 @@ export function animalsApi(rlsDb: RlsDb) {
         });
       });
       return animal!;
+    },
+
+    async batchUpdateAnimals(
+      animalIds: string[],
+      data: BatchUpdateAnimalInput,
+    ): Promise<Animal[]> {
+      return rlsDb.rls(async (tx) => {
+        if (data.categoryOverride) {
+          data.requiresCategoryOverride = false;
+        }
+        await tx
+          .update(tables.animals)
+          .set(data)
+          .where(inArray(tables.animals.id, animalIds));
+        return tx.query.animals.findMany({
+          where: { id: { in: animalIds } },
+          with: {
+            earTag: true,
+          },
+        });
+      });
+    },
+
+    async deleteAnimals(animalIds: string[]) {
+      return rlsDb.rls(async (tx) => {
+        await tx
+          .delete(tables.animals)
+          .where(inArray(tables.animals.id, animalIds));
+      });
     },
 
     async deleteAnimal(id: string): Promise<void> {
@@ -840,14 +907,25 @@ export function animalsApi(rlsDb: RlsDb) {
         newEarTags.map((tag) => [tag.number.toLowerCase(), tag.id]),
       );
 
-      // Assign ear tag IDs to animals that need new ear tags
+      // Assign ear tag IDs and compute requiresCategoryOverride
       const animalsToCreate: AnimalCreateInput[] = validAnimals.map(
         (animal) => {
           const { earTagNumber, ...animalData } = animal;
           if (earTagNumber && !animalData.earTagId) {
             animalData.earTagId = newEarTagMap.get(earTagNumber.toLowerCase());
           }
-          return animalData;
+          const requiresCategoryOverride =
+            mapAnimalToCategory(
+              {
+                type: animalData.type!,
+                sex: animalData.sex!,
+                usage: animalData.usage ?? "other",
+                dateOfBirth: animalData.dateOfBirth!,
+                categoryOverride: null,
+              },
+              new Date(),
+            ) === null;
+          return { ...animalData, requiresCategoryOverride };
         },
       );
 

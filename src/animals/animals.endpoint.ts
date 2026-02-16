@@ -14,6 +14,7 @@ import {
 import { earTagSchema } from "../ear-tags/ear-tags.endpoint";
 import { farmEndpointFactory } from "../endpoint-factory";
 import { treatmentSchema } from "../treatments/treatments.endpoint";
+import { ca } from "zod/v4/locales";
 
 // API Schemas - decoupled from database schema for stable API contract
 export const animalSchema = z.object({
@@ -216,12 +217,54 @@ export const updateAnimalsEndpoint = farmEndpointFactory.build({
   },
 });
 
+export const batchUpdateAnimalsEndpoint = farmEndpointFactory.build({
+  method: "patch",
+  input: z.object({
+    animalIds: z.array(z.string()),
+    data: z.object({
+      type: animalTypeSchema.optional(),
+      categoryOverride: animalCateogrySchema.optional(),
+      usage: animalUsageSchema.optional(),
+      registered: z.boolean().optional(),
+      dateOfDeath: ez.dateIn().optional(),
+      deathReason: deathReasonSchema.optional(),
+      motherId: z.string().optional(),
+      fatherId: z.string().optional(),
+    }),
+  }),
+  output: z.object({
+    result: z.array(animalSchema),
+    count: z.number(),
+  }),
+  handler: async ({ input, ctx: { animals } }) => {
+    console.log(input.data);
+    const result = await animals.batchUpdateAnimals(
+      input.animalIds,
+      input.data,
+    );
+    return {
+      result,
+      count: result.length,
+    };
+  },
+});
+
 export const deleteAnimalEndpoint = farmEndpointFactory.build({
   method: "delete",
   input: z.object({ animalId: z.string() }),
   output: z.object({}),
   handler: async ({ input: { animalId }, ctx: { animals } }) => {
     await animals.deleteAnimal(animalId);
+    return {};
+  },
+});
+
+export const deleteAnimalsEndpoint = farmEndpointFactory.build({
+  method: "delete",
+  input: z.object({ animalIds: z.array(z.string()) }),
+  output: z.object({}),
+  handler: async ({ input: { animalIds }, ctx: { animals } }) => {
+    await animals.deleteAnimals(animalIds);
     return {};
   },
 });
