@@ -136,6 +136,9 @@ __generated__
 # Sentry Config File
 .sentryclirc
 
+# Supabase scratch queries
+supabase/snippets/
+
 # Claude Capsule Kit (generated at runtime)
 .claude/**
 CLAUDE.md

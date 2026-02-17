@@ -61,15 +61,6 @@ export function rlsDb(token: SupabaseToken, farmId?: string | null) {
 
         // Using sql.raw() is safe here because validatedRole is guaranteed to be one of the ALLOWED_ROLES
         await tx.execute(sql`set local role ${sql.raw(validatedRole)}`);
-        // await tx.execute(sql`
-        //   -- auth.uid()
-        //   select set_config('request.jwt.claim.sub', '${sql.raw(
-        //     token.sub ?? ""
-        //   )}', TRUE);
-        //   select set_config('request.farm_id',${farmId ? `'${sql.raw(farmId)}'` : sql.raw("NULL")}, TRUE);
-        //   -- set local role
-        //   set local role ${sql.raw(token.role ?? "anon")};
-        //   `);
         const result = await transaction(tx);
         await tx.execute(
           sql`select set_config('request.jwt.claim.sub', NULL, TRUE)`,
@@ -82,12 +73,6 @@ export function rlsDb(token: SupabaseToken, farmId?: string | null) {
         await tx.execute(sql`reset role`);
         return result;
       } finally {
-        // await tx.execute(sql`
-        //     -- reset
-        //     select set_config('request.jwt.claim.sub', NULL, TRUE);
-        //     select set_config('request.farm_id', NULL, TRUE);
-        //     reset role;
-        //     `);
       }
     }) as Promise<T>;
   }
