@@ -160,51 +160,92 @@ export type DateRangeWithRecurrence = {
   recurrence?: { interval: number; until: Date | null } | null;
 };
 
-// Check if two date ranges overlap considering yearly recurrences
-// For yearly recurrences we check: do day-of-year ranges overlap AND is there an overlapping active year?
+const MS_PER_DAY = 86400000;
+
+function getDayOfYear(date: Date): number {
+  const start = new Date(date.getFullYear(), 0, 0);
+  const diff = date.getTime() - start.getTime();
+  return Math.floor(diff / MS_PER_DAY);
+}
+
+function dayRangesOverlap(
+  aFromDay: number,
+  aToDay: number,
+  bFromDay: number,
+  bToDay: number,
+): boolean {
+  // Both ranges stay within a single year
+  if (aFromDay <= aToDay && bFromDay <= bToDay) {
+    return aFromDay <= bToDay && aToDay >= bFromDay;
+  }
+  // If either range wraps year boundary (e.g., Nov–Feb), conservatively treat as overlapping
+  return true;
+}
+
+// Enumerate all years a recurring rotation occurs in, within a bounded range
+function getOccurrenceYears(
+  startYear: number,
+  interval: number,
+  untilYear: number | null,
+  rangeStart: number,
+  rangeEnd: number,
+): Set<number> {
+  const years = new Set<number>();
+  const effectiveEnd = untilYear !== null ? Math.min(untilYear, rangeEnd) : rangeEnd;
+  for (let year = startYear; year <= effectiveEnd; year += interval) {
+    if (year >= rangeStart) {
+      years.add(year);
+    }
+  }
+  return years;
+}
+
+// Check if two date ranges overlap considering yearly recurrences.
+// For recurrences: check day-of-year overlap AND that they share a common occurrence year.
 function rangesOverlap(a: DateRangeWithRecurrence, b: DateRangeWithRecurrence): boolean {
-  const aHasRecurrence = a.recurrence && a.recurrence.interval === 1;
-  const bHasRecurrence = b.recurrence && b.recurrence.interval === 1;
+  const aHasRecurrence = !!a.recurrence;
+  const bHasRecurrence = !!b.recurrence;
 
   if (!aHasRecurrence && !bHasRecurrence) {
-    // Simple case: neither has recurrence, just check date overlap
     return a.fromDate <= b.toDate && b.fromDate <= a.toDate;
   }
 
-  // Get the active period for each range (from start year to until year or far future)
+  // At least one has recurrence — check day-of-year overlap
+  const aFromDay = getDayOfYear(a.fromDate);
+  const aToDay = getDayOfYear(a.toDate);
+  const bFromDay = getDayOfYear(b.fromDate);
+  const bToDay = getDayOfYear(b.toDate);
+
+  if (!dayRangesOverlap(aFromDay, aToDay, bFromDay, bToDay)) {
+    return false;
+  }
+
+  // Check if they share a common occurrence year
   const aStartYear = a.fromDate.getFullYear();
-  const aEndYear = a.recurrence?.until?.getFullYear() ?? 9999;
   const bStartYear = b.fromDate.getFullYear();
-  const bEndYear = b.recurrence?.until?.getFullYear() ?? 9999;
+  const aInterval = a.recurrence?.interval ?? 1;
+  const bInterval = b.recurrence?.interval ?? 1;
+  const aUntilYear = a.recurrence?.until?.getFullYear() ?? null;
+  const bUntilYear = b.recurrence?.until?.getFullYear() ?? null;
 
-  // Check if there's any overlapping year where both are active
-  const overlapStartYear = Math.max(aStartYear, bStartYear);
-  const overlapEndYear = Math.min(aEndYear, bEndYear);
-  if (overlapStartYear > overlapEndYear) {
-    return false; // No overlapping active years
+  // Derive a bounded range from the actual dates (deterministic, no dependency on current time)
+  const rangeStart = Math.min(aStartYear, bStartYear);
+  const maxUntil = Math.max(
+    aUntilYear ?? aStartYear + 100,
+    bUntilYear ?? bStartYear + 100,
+  );
+  const rangeEnd = Math.min(maxUntil, rangeStart + 200);
+
+  const aYears = aHasRecurrence
+    ? getOccurrenceYears(aStartYear, aInterval, aUntilYear, rangeStart, rangeEnd)
+    : new Set([aStartYear]);
+  const bYears = bHasRecurrence
+    ? getOccurrenceYears(bStartYear, bInterval, bUntilYear, rangeStart, rangeEnd)
+    : new Set([bStartYear]);
+
+  for (const year of aYears) {
+    if (bYears.has(year)) return true;
   }
-
-  // Normalize dates to same year for day-of-year comparison
-  const normalize = (date: Date, baseYear: number) =>
-    new Date(baseYear, date.getMonth(), date.getDate());
-
-  // For ranges that span year boundaries, we need special handling
-  const aDuration = a.toDate.getTime() - a.fromDate.getTime();
-  const bDuration = b.toDate.getTime() - b.fromDate.getTime();
-
-  // Check overlap in any of the overlapping active years
-  for (let year = overlapStartYear; year <= Math.min(overlapEndYear, overlapStartYear + 2); year++) {
-    // Calculate actual dates for this year's occurrence
-    const aFrom = aHasRecurrence ? normalize(a.fromDate, year) : a.fromDate;
-    const aTo = aHasRecurrence ? new Date(aFrom.getTime() + aDuration) : a.toDate;
-    const bFrom = bHasRecurrence ? normalize(b.fromDate, year) : b.fromDate;
-    const bTo = bHasRecurrence ? new Date(bFrom.getTime() + bDuration) : b.toDate;
-
-    if (aFrom <= bTo && bFrom <= aTo) {
-      return true;
-    }
-  }
-
   return false;
 }
 
