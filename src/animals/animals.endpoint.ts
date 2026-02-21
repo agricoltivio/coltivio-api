@@ -146,7 +146,12 @@ export const getAnimalByIdEndpoint = farmEndpointFactory.build({
 export const getFarmAnimalsEndpoint = farmEndpointFactory.build({
   method: "get",
   input: z.object({
-    animalTypes: z.array(animalTypeSchema).optional(),
+    animalTypes: z
+      .preprocess(
+        (val) => (typeof val === "string" ? [val] : val),
+        z.array(animalTypeSchema),
+      )
+      .optional(),
     onlyLiving: z
       .string()
       .optional()

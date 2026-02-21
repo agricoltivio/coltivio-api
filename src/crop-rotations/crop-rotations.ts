@@ -1,5 +1,5 @@
 import { addYears, isWithinInterval } from "date-fns";
-import { count, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { Crop } from "../crops/crops";
 import { hasOverlappingRanges } from "../date-utils";
 import { RlsDb } from "../db/db";
@@ -781,12 +781,6 @@ export function cropRotationsApi(rlsDb: RlsDb) {
 
     async deleteCropRotation(id: string): Promise<void> {
       return rlsDb.rls(async (tx) => {
-        const [countResult] = await tx
-          .select({ count: count() })
-          .from(cropRotations);
-        if (countResult.count === 1) {
-          throw new Error("Cannot delete last crop rotation");
-        }
         await tx.delete(cropRotations).where(eq(cropRotations.id, id));
       });
     },

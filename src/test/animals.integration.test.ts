@@ -1,0 +1,783 @@
+import { describe, it, expect, beforeEach } from "@jest/globals";
+
+import { cleanDb, getAdminDb, request } from "./helpers";
+import * as schema from "../db/schema";
+import {
+  createUserWithFarm,
+  createAnimal,
+  createHerd,
+  createOutdoorSchedule,
+} from "./test-utils";
+
+// ---------------------------------------------------------------------------
+// Animals CRUD
+// ---------------------------------------------------------------------------
+describe("Animals CRUD", () => {
+  beforeEach(cleanDb);
+
+  it("creates an animal and retrieves it by id", async () => {
+    const { jwt, farmId } = await createUserWithFarm();
+    const animal = await createAnimal(jwt, {
+      name: "Daisy",
+      type: "cow",
+      sex: "female",
+      dateOfBirth: "2022-03-10",
+      usage: "milk",
+      registered: true,
+    });
+
+    expect(animal.name).toBe("Daisy");
+    expect(animal.type).toBe("cow");
+    expect(animal.sex).toBe("female");
+    expect(animal.farmId).toBe(farmId);
+    expect(animal.usage).toBe("milk");
+
+    // Verify DB
+    const db = getAdminDb();
+    const dbAnimal = await db.query.animals.findFirst({
+      where: { id: animal.id },
+    });
+    expect(dbAnimal!.name).toBe("Daisy");
+    expect(dbAnimal!.type).toBe("cow");
+    expect(dbAnimal!.sex).toBe("female");
+    expect(dbAnimal!.usage).toBe("milk");
+    expect(dbAnimal!.registered).toBe(true);
+    expect(dbAnimal!.farmId).toBe(farmId);
+
+    // GET by id
+    const getRes = await request(
+      "GET",
+      `/v1/animals/byId/${animal.id}`,
+      undefined,
+      jwt,
+    );
+    expect(getRes.status).toBe(200);
+    const getBody = (await getRes.json()) as {
+      data: {
+        id: string;
+        mother: unknown | null;
+        father: unknown | null;
+        childrenAsMother: unknown[];
+        childrenAsFather: unknown[];
+      };
+    };
+    expect(getBody.data.id).toBe(animal.id);
+    expect(getBody.data.mother).toBeNull();
+    expect(getBody.data.childrenAsMother).toEqual([]);
+  });
+
+  it("lists animals for farm with count", async () => {
+    const { jwt } = await createUserWithFarm();
+    await createAnimal(jwt, { name: "A1" });
+    await createAnimal(jwt, { name: "A2" });
+
+    const res = await request("GET", "/v1/animals", undefined, jwt);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      data: { result: Array<{ milkAndMeatUsable?: boolean }>; count: number };
+    };
+    expect(body.data.count).toBe(2);
+    expect(body.data.result).toHaveLength(2);
+    expect(body.data.result[0].milkAndMeatUsable).toBeDefined();
+  });
+
+  it("filters animals by single type (string→array preprocessing)", async () => {
+    const { jwt } = await createUserWithFarm();
+    await createAnimal(jwt, { name: "Cow1", type: "cow" });
+    await createAnimal(jwt, { name: "Goat1", type: "goat" });
+
+    // Single value: query string sends it as a plain string, preprocess wraps it
+    const res = await request(
+      "GET",
+      "/v1/animals?animalTypes=cow",
+      undefined,
+      jwt,
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      data: { result: Array<{ type: string }>; count: number };
+    };
+    expect(body.data.count).toBe(1);
+    expect(body.data.result[0].type).toBe("cow");
+  });
+
+  it("filters animals by multiple types", async () => {
+    const { jwt } = await createUserWithFarm();
+    await createAnimal(jwt, { name: "Cow1", type: "cow" });
+    await createAnimal(jwt, { name: "Goat1", type: "goat" });
+    await createAnimal(jwt, { name: "Sheep1", type: "sheep" });
+
+    const res = await request(
+      "GET",
+      "/v1/animals?animalTypes=cow&animalTypes=goat",
+      undefined,
+      jwt,
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      data: { result: Array<{ type: string }>; count: number };
+    };
+    expect(body.data.count).toBe(2);
+    const types = body.data.result.map((a) => a.type);
+    expect(types).toContain("cow");
+    expect(types).toContain("goat");
+  });
+
+  it("filters out dead animals with onlyLiving=true", async () => {
+    const { jwt } = await createUserWithFarm();
+    await createAnimal(jwt, { name: "Alive" });
+    await createAnimal(jwt, {
+      name: "Dead",
+      dateOfDeath: "2024-06-01",
+      deathReason: "died",
+    });
+
+    // onlyLiving defaults to true
+    const res = await request("GET", "/v1/animals", undefined, jwt);
+    const body = (await res.json()) as {
+      data: { result: Array<{ name: string }>; count: number };
+    };
+    expect(body.data.count).toBe(1);
+    expect(body.data.result[0].name).toBe("Alive");
+
+    // onlyLiving=false shows all
+    const allRes = await request(
+      "GET",
+      "/v1/animals?onlyLiving=false",
+      undefined,
+      jwt,
+    );
+    const allBody = (await allRes.json()) as {
+      data: { result: unknown[]; count: number };
+    };
+    expect(allBody.data.count).toBe(2);
+  });
+
+  it("updates an animal", async () => {
+    const { jwt } = await createUserWithFarm();
+    const animal = await createAnimal(jwt, { name: "OldName", usage: "milk" });
+
+    const res = await request(
+      "PATCH",
+      `/v1/animals/byId/${animal.id}`,
+      { name: "NewName", usage: "other" },
+      jwt,
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { data: { name: string; usage: string } };
+    expect(body.data.name).toBe("NewName");
+    expect(body.data.usage).toBe("other");
+
+    // Verify DB
+    const db = getAdminDb();
+    const dbAnimal = await db.query.animals.findFirst({
+      where: { id: animal.id },
+    });
+    expect(dbAnimal!.name).toBe("NewName");
+    expect(dbAnimal!.usage).toBe("other");
+  });
+
+  it("deletes a single animal", async () => {
+    const { jwt } = await createUserWithFarm();
+    const animal = await createAnimal(jwt);
+
+    const res = await request(
+      "DELETE",
+      `/v1/animals/byId/${animal.id}`,
+      undefined,
+      jwt,
+    );
+    expect(res.status).toBe(200);
+
+    // Verify DB
+    const db = getAdminDb();
+    const dbAnimal = await db.query.animals.findFirst({
+      where: { id: animal.id },
+    });
+    expect(dbAnimal).toBeUndefined();
+  });
+
+  it("batch deletes multiple animals", async () => {
+    const { jwt } = await createUserWithFarm();
+    const a1 = await createAnimal(jwt, { name: "D1" });
+    const a2 = await createAnimal(jwt, { name: "D2" });
+    const keep = await createAnimal(jwt, { name: "Keep" });
+
+    const qs = `animalIds=${a1.id}&animalIds=${a2.id}`;
+    const res = await request("DELETE", `/v1/animals?${qs}`, undefined, jwt);
+    expect(res.status).toBe(200);
+
+    // Verify DB
+    const db = getAdminDb();
+    const remaining = await db.query.animals.findMany({});
+    expect(remaining).toHaveLength(1);
+    expect(remaining[0].id).toBe(keep.id);
+  });
+
+  it("batch updates multiple animals", async () => {
+    const { jwt } = await createUserWithFarm();
+    const a1 = await createAnimal(jwt, { name: "B1", usage: "milk" });
+    const a2 = await createAnimal(jwt, { name: "B2", usage: "milk" });
+
+    const res = await request(
+      "PATCH",
+      "/v1/animals/batch",
+      { animalIds: [a1.id, a2.id], data: { usage: "other" } },
+      jwt,
+    );
+    expect(res.status).toBe(200);
+
+    // Verify DB
+    const db = getAdminDb();
+    const dbAnimals = await db.query.animals.findMany({
+      where: { id: { in: [a1.id, a2.id] } },
+    });
+    expect(dbAnimals).toHaveLength(2);
+    expect(dbAnimals.every((a) => a.usage === "other")).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Parent-child relationships
+// ---------------------------------------------------------------------------
+describe("Animal parent-child relationships", () => {
+  beforeEach(cleanDb);
+
+  it("sets mother/father and retrieves children", async () => {
+    const { jwt } = await createUserWithFarm();
+    const mother = await createAnimal(jwt, { name: "Mother", sex: "female" });
+    const father = await createAnimal(jwt, { name: "Father", sex: "male" });
+    const calf = await createAnimal(jwt, {
+      name: "Calf",
+      dateOfBirth: "2024-06-01",
+      motherId: mother.id,
+      fatherId: father.id,
+    });
+
+    // Verify DB
+    const db = getAdminDb();
+    const dbCalf = await db.query.animals.findFirst({
+      where: { id: calf.id },
+    });
+    expect(dbCalf!.motherId).toBe(mother.id);
+    expect(dbCalf!.fatherId).toBe(father.id);
+
+    // Verify via API - GET by id
+    const calfRes = await request(
+      "GET",
+      `/v1/animals/byId/${calf.id}`,
+      undefined,
+      jwt,
+    );
+    const calfBody = (await calfRes.json()) as {
+      data: { mother: { id: string } | null; father: { id: string } | null };
+    };
+    expect(calfBody.data.mother!.id).toBe(mother.id);
+    expect(calfBody.data.father!.id).toBe(father.id);
+
+    // Children of mother
+    const childrenRes = await request(
+      "GET",
+      `/v1/animals/byId/${mother.id}/children`,
+      undefined,
+      jwt,
+    );
+    expect(childrenRes.status).toBe(200);
+    const childrenBody = (await childrenRes.json()) as {
+      data: { result: Array<{ id: string }>; count: number };
+    };
+    expect(childrenBody.data.count).toBe(1);
+    expect(childrenBody.data.result[0].id).toBe(calf.id);
+
+    // Children of father
+    const fatherChildrenRes = await request(
+      "GET",
+      `/v1/animals/byId/${father.id}/children`,
+      undefined,
+      jwt,
+    );
+    const fatherChildrenBody = (await fatherChildrenRes.json()) as {
+      data: { count: number };
+    };
+    expect(fatherChildrenBody.data.count).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Herds CRUD
+// ---------------------------------------------------------------------------
+describe("Herds CRUD", () => {
+  beforeEach(cleanDb);
+
+  it("creates a herd with animals and retrieves it", async () => {
+    const { jwt, farmId } = await createUserWithFarm();
+    const a1 = await createAnimal(jwt, { name: "H1" });
+    const a2 = await createAnimal(jwt, { name: "H2" });
+    const herd = await createHerd(jwt, {
+      name: "Pasture Herd",
+      animalIds: [a1.id, a2.id],
+    });
+
+    expect(herd.name).toBe("Pasture Herd");
+
+    // Verify DB
+    const db = getAdminDb();
+    const dbHerd = await db.query.herds.findFirst({
+      where: { id: herd.id },
+    });
+    expect(dbHerd!.name).toBe("Pasture Herd");
+    expect(dbHerd!.farmId).toBe(farmId);
+
+    // Verify animals got herdId in DB
+    const dbAnimals = await db.query.animals.findMany({
+      where: { id: { in: [a1.id, a2.id] } },
+    });
+    expect(dbAnimals.every((a) => a.herdId === herd.id)).toBe(true);
+
+    // GET by id includes animals
+    const getRes = await request(
+      "GET",
+      `/v1/animals/herds/byId/${herd.id}`,
+      undefined,
+      jwt,
+    );
+    expect(getRes.status).toBe(200);
+    const getBody = (await getRes.json()) as {
+      data: { animals: unknown[] };
+    };
+    expect(getBody.data.animals).toHaveLength(2);
+  });
+
+  it("lists herds for farm", async () => {
+    const { jwt } = await createUserWithFarm();
+    await createHerd(jwt, { name: "Herd A" });
+    await createHerd(jwt, { name: "Herd B" });
+
+    const res = await request("GET", "/v1/animals/herds", undefined, jwt);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { data: { count: number } };
+    expect(body.data.count).toBe(2);
+  });
+
+  it("updates a herd name and animal assignments", async () => {
+    const { jwt } = await createUserWithFarm();
+    const a1 = await createAnimal(jwt, { name: "OrigAnimal" });
+    const a2 = await createAnimal(jwt, { name: "NewAnimal" });
+    const herd = await createHerd(jwt, { name: "OldName", animalIds: [a1.id] });
+
+    const res = await request(
+      "PATCH",
+      `/v1/animals/herds/byId/${herd.id}`,
+      { name: "NewName", animalIds: [a2.id] },
+      jwt,
+    );
+    expect(res.status).toBe(200);
+
+    // Verify DB
+    const db = getAdminDb();
+    const dbHerd = await db.query.herds.findFirst({
+      where: { id: herd.id },
+    });
+    expect(dbHerd!.name).toBe("NewName");
+
+    const dbA1 = await db.query.animals.findFirst({
+      where: { id: a1.id },
+    });
+    expect(dbA1!.herdId).toBeNull();
+    const dbA2 = await db.query.animals.findFirst({
+      where: { id: a2.id },
+    });
+    expect(dbA2!.herdId).toBe(herd.id);
+  });
+
+  it("deletes a herd", async () => {
+    const { jwt } = await createUserWithFarm();
+    const herd = await createHerd(jwt, { name: "ToDelete" });
+
+    const res = await request(
+      "DELETE",
+      `/v1/animals/herds/byId/${herd.id}`,
+      undefined,
+      jwt,
+    );
+    expect(res.status).toBe(200);
+
+    // Verify DB
+    const db = getAdminDb();
+    const dbHerd = await db.query.herds.findFirst({
+      where: { id: herd.id },
+    });
+    expect(dbHerd).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Outdoor Schedules CRUD
+// ---------------------------------------------------------------------------
+describe("Outdoor Schedules CRUD", () => {
+  beforeEach(cleanDb);
+
+  it("creates a schedule without recurrence", async () => {
+    const { jwt } = await createUserWithFarm();
+    const herd = await createHerd(jwt, { name: "OutdoorHerd" });
+
+    const schedule = await createOutdoorSchedule(jwt, herd.id, {
+      startDate: "2025-05-01",
+      endDate: "2025-09-30",
+      type: "pasture",
+    });
+    expect(schedule.herdId).toBe(herd.id);
+    expect(schedule.type).toBe("pasture");
+    expect(schedule.recurrence).toBeNull();
+
+    // Verify DB
+    const db = getAdminDb();
+    const dbSchedule = await db.query.outdoorSchedules.findFirst({
+      where: { id: schedule.id },
+    });
+    expect(dbSchedule!.herdId).toBe(herd.id);
+    expect(dbSchedule!.type).toBe("pasture");
+  });
+
+  it("creates a schedule with weekly recurrence", async () => {
+    const { jwt } = await createUserWithFarm();
+    const herd = await createHerd(jwt, { name: "RecurHerd" });
+
+    const schedule = await createOutdoorSchedule(jwt, herd.id, {
+      startDate: "2025-05-01",
+      endDate: "2025-05-01",
+      type: "exercise_yard",
+      recurrence: {
+        frequency: "weekly",
+        interval: 1,
+        byWeekday: ["MO", "WE", "FR"],
+      },
+    });
+    expect(schedule.recurrence).not.toBeNull();
+    const rec = schedule.recurrence as Record<string, unknown>;
+    expect(rec.frequency).toBe("weekly");
+    expect(rec.byWeekday).toEqual(["MO", "WE", "FR"]);
+  });
+
+  it("updates a schedule", async () => {
+    const { jwt } = await createUserWithFarm();
+    const herd = await createHerd(jwt);
+    const schedule = await createOutdoorSchedule(jwt, herd.id);
+
+    const res = await request(
+      "PATCH",
+      `/v1/animals/herds/outdoorSchedules/byId/${schedule.id}`,
+      { type: "exercise_yard", notes: "Updated notes" },
+      jwt,
+    );
+    expect(res.status).toBe(200);
+
+    // Verify DB
+    const db = getAdminDb();
+    const dbSchedule = await db.query.outdoorSchedules.findFirst({
+      where: { id: schedule.id },
+    });
+    expect(dbSchedule!.type).toBe("exercise_yard");
+    expect(dbSchedule!.notes).toBe("Updated notes");
+  });
+
+  it("deletes a schedule", async () => {
+    const { jwt } = await createUserWithFarm();
+    const herd = await createHerd(jwt);
+    const schedule = await createOutdoorSchedule(jwt, herd.id);
+
+    const res = await request(
+      "DELETE",
+      `/v1/animals/herds/outdoorSchedules/byId/${schedule.id}`,
+      undefined,
+      jwt,
+    );
+    expect(res.status).toBe(200);
+
+    // Verify DB
+    const db = getAdminDb();
+    const dbSchedule = await db.query.outdoorSchedules.findFirst({
+      where: { id: schedule.id },
+    });
+    expect(dbSchedule).toBeUndefined();
+  });
+
+  it("rejects overlapping schedules for the same herd", async () => {
+    const { jwt } = await createUserWithFarm();
+    const herd = await createHerd(jwt);
+    await createOutdoorSchedule(jwt, herd.id, {
+      startDate: "2025-05-01",
+      endDate: "2025-09-30",
+    });
+
+    // Overlapping range should fail
+    const res = await request(
+      "POST",
+      `/v1/animals/herds/byId/${herd.id}/outdoorSchedules`,
+      { startDate: "2025-08-01", endDate: "2025-10-31", type: "pasture" },
+      jwt,
+    );
+    expect(res.status).toBe(409);
+
+    // Verify DB: still only one schedule
+    const db = getAdminDb();
+    const dbSchedules = await db.query.outdoorSchedules.findMany({
+      where: { herdId: herd.id },
+    });
+    expect(dbSchedules).toHaveLength(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Outdoor Journal
+// ---------------------------------------------------------------------------
+describe("Outdoor Journal", () => {
+  beforeEach(cleanDb);
+
+  it("returns journal entries for animals in a herd with outdoor schedules", async () => {
+    const { jwt } = await createUserWithFarm();
+    const sheep = await createAnimal(jwt, {
+      name: "OldSheep",
+      type: "sheep",
+      sex: "female",
+      dateOfBirth: "2020-01-01",
+      usage: "other",
+    });
+    const herd = await createHerd(jwt, { animalIds: [sheep.id] });
+    await createOutdoorSchedule(jwt, herd.id, {
+      startDate: "2027-05-01",
+      endDate: "2027-09-30",
+    });
+
+    const res = await request(
+      "GET",
+      "/v1/animals/outdoorJournal?fromDate=2027-01-01&toDate=2027-12-31",
+      undefined,
+      jwt,
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      data: {
+        entries: Array<{ category: string; animalCount: number }>;
+        uncategorizedAnimalCount: number;
+      };
+    };
+    expect(body.data.entries.length).toBeGreaterThanOrEqual(1);
+    expect(body.data.entries[0].category).toBe("D1");
+    expect(body.data.entries[0].animalCount).toBe(1);
+    expect(body.data.uncategorizedAnimalCount).toBe(0);
+  });
+
+  it("counts uncategorized animals (e.g. pigs)", async () => {
+    const { jwt } = await createUserWithFarm();
+    const pig = await createAnimal(jwt, {
+      type: "pig",
+      sex: "female",
+      dateOfBirth: "2024-01-01",
+      usage: "other",
+    });
+    const herd = await createHerd(jwt, { animalIds: [pig.id] });
+    await createOutdoorSchedule(jwt, herd.id, {
+      startDate: "2027-05-01",
+      endDate: "2027-09-30",
+    });
+
+    const res = await request(
+      "GET",
+      "/v1/animals/outdoorJournal?fromDate=2027-01-01&toDate=2027-12-31",
+      undefined,
+      jwt,
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      data: { entries: unknown[]; uncategorizedAnimalCount: number };
+    };
+    expect(body.data.entries).toHaveLength(0);
+    expect(body.data.uncategorizedAnimalCount).toBe(1);
+  });
+
+  it("returns empty when no herds have outdoor schedules", async () => {
+    const { jwt } = await createUserWithFarm();
+    await createAnimal(jwt);
+
+    const res = await request(
+      "GET",
+      "/v1/animals/outdoorJournal?fromDate=2027-01-01&toDate=2027-12-31",
+      undefined,
+      jwt,
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      data: { entries: unknown[]; uncategorizedAnimalCount: number };
+    };
+    expect(body.data.entries).toHaveLength(0);
+    expect(body.data.uncategorizedAnimalCount).toBe(0);
+  });
+
+  it("splits journal entries when animal changes category mid-schedule", async () => {
+    const { jwt } = await createUserWithFarm();
+    // Female sheep born 2026-07-01 → turns 365 days on ~2027-07-01 (D3 → D1)
+    const youngSheep = await createAnimal(jwt, {
+      type: "sheep",
+      sex: "female",
+      dateOfBirth: "2026-07-01",
+      usage: "other",
+    });
+    const herd = await createHerd(jwt, { animalIds: [youngSheep.id] });
+    await createOutdoorSchedule(jwt, herd.id, {
+      startDate: "2027-05-01",
+      endDate: "2027-09-30",
+    });
+
+    const res = await request(
+      "GET",
+      "/v1/animals/outdoorJournal?fromDate=2027-01-01&toDate=2027-12-31",
+      undefined,
+      jwt,
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      data: { entries: Array<{ category: string }> };
+    };
+    const categories = body.data.entries.map((e) => e.category);
+    expect(categories).toContain("D3");
+    expect(categories).toContain("D1");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Category override
+// ---------------------------------------------------------------------------
+describe("Category override", () => {
+  beforeEach(cleanDb);
+
+  it("sets categoryOverride on creation", async () => {
+    const { jwt } = await createUserWithFarm();
+    const animal = await createAnimal(jwt, {
+      type: "cow",
+      sex: "female",
+      dateOfBirth: "2020-01-01",
+      categoryOverride: "A3",
+      usage: "other",
+    });
+    expect(animal.categoryOverride).toBe("A3");
+
+    // Verify DB
+    const db = getAdminDb();
+    const dbAnimal = await db.query.animals.findFirst({
+      where: { id: animal.id },
+    });
+    expect(dbAnimal!.categoryOverride).toBe("A3");
+  });
+
+  it("updates categoryOverride clears requiresCategoryOverride", async () => {
+    const { jwt } = await createUserWithFarm();
+    // Deer has no category rules → requiresCategoryOverride should be set
+    const deer = await createAnimal(jwt, {
+      type: "deer",
+      sex: "female",
+      usage: "other",
+    });
+    expect(deer.requiresCategoryOverride).toBe(true);
+
+    const res = await request(
+      "PATCH",
+      `/v1/animals/byId/${deer.id}`,
+      { categoryOverride: "A1" },
+      jwt,
+    );
+    expect(res.status).toBe(200);
+
+    // Verify DB
+    const db = getAdminDb();
+    const dbAnimal = await db.query.animals.findFirst({
+      where: { id: deer.id },
+    });
+    expect(dbAnimal!.categoryOverride).toBe("A1");
+    expect(dbAnimal!.requiresCategoryOverride).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Herd detail includes outdoor schedules
+// ---------------------------------------------------------------------------
+describe("Herd detail includes outdoor schedules", () => {
+  beforeEach(cleanDb);
+
+  it("GET herd by id includes associated outdoor schedules", async () => {
+    const { jwt } = await createUserWithFarm();
+    const herd = await createHerd(jwt);
+    await createOutdoorSchedule(jwt, herd.id, {
+      startDate: "2025-06-01",
+      endDate: "2025-08-31",
+      type: "pasture",
+    });
+
+    const res = await request(
+      "GET",
+      `/v1/animals/herds/byId/${herd.id}`,
+      undefined,
+      jwt,
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      data: { outdoorSchedules: Array<{ type: string }> };
+    };
+    expect(body.data.outdoorSchedules).toHaveLength(1);
+    expect(body.data.outdoorSchedules[0].type).toBe("pasture");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Validation
+// ---------------------------------------------------------------------------
+describe("Animals input validation", () => {
+  beforeEach(cleanDb);
+
+  it("rejects invalid animal type", async () => {
+    const { jwt } = await createUserWithFarm();
+    const res = await request(
+      "POST",
+      "/v1/animals",
+      {
+        name: "Bad",
+        type: "dragon",
+        sex: "female",
+        dateOfBirth: "2020-01-01",
+        registered: true,
+        usage: "other",
+      },
+      jwt,
+    );
+    expect(res.status).toBe(400);
+
+    // Verify nothing was created in DB
+    const db = getAdminDb();
+    const dbAnimals = await db.query.animals.findMany({});
+    expect(dbAnimals).toHaveLength(0);
+  });
+
+  it("rejects missing required fields", async () => {
+    const { jwt } = await createUserWithFarm();
+    const res = await request("POST", "/v1/animals", { name: "Incomplete" }, jwt);
+    expect(res.status).toBe(400);
+  });
+
+  it("rejects invalid sex", async () => {
+    const { jwt } = await createUserWithFarm();
+    const res = await request(
+      "POST",
+      "/v1/animals",
+      {
+        name: "Bad",
+        type: "cow",
+        sex: "unknown",
+        dateOfBirth: "2020-01-01",
+        registered: true,
+        usage: "milk",
+      },
+      jwt,
+    );
+    expect(res.status).toBe(400);
+  });
+});
