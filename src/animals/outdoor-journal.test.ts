@@ -162,14 +162,25 @@ describe("expandOutdoorSchedule", () => {
     expect(ranges).toEqual([]);
   });
 
-  test("no recurrence: single-day schedule (endDate = null)", () => {
+  test("no recurrence: open-ended schedule (endDate = null) extends to queryTo", () => {
     const schedule = makeSchedule({
       startDate: d("2025-05-10"),
       endDate: null,
     });
     const ranges = expandOutdoorSchedule(schedule, d("2025-01-01"), d("2025-12-31"));
     expect(ranges).toEqual([
-      { startDate: d("2025-05-10"), endDate: d("2025-05-10") },
+      { startDate: d("2025-05-10"), endDate: d("2025-12-31") },
+    ]);
+  });
+
+  test("no recurrence: open-ended schedule clamps to query window", () => {
+    const schedule = makeSchedule({
+      startDate: d("2025-03-01"),
+      endDate: null,
+    });
+    const ranges = expandOutdoorSchedule(schedule, d("2025-04-01"), d("2025-06-30"));
+    expect(ranges).toEqual([
+      { startDate: d("2025-04-01"), endDate: d("2025-06-30") },
     ]);
   });
 
@@ -782,6 +793,25 @@ describe("buildOutdoorJournal", () => {
     expect(result.uncategorizedAnimals).toHaveLength(0);
     expect(result.entries).toHaveLength(1);
     expect(result.entries[0].category).toBe("D1");
+  });
+
+  test("open-ended schedule (no endDate) spans from startDate to query end", () => {
+    const animal = makeAnimal({
+      type: "sheep",
+      sex: "female",
+      dateOfBirth: d("2020-01-01"), // old enough for D1
+    });
+    const herd = makeHerd(
+      [makeMembership(animal, d("2024-01-01"))],
+      [makeSchedule({ startDate: d("2025-05-01"), endDate: null })],
+    );
+    const result = buildOutdoorJournal([herd], d("2025-01-01"), d("2025-12-31"));
+    expect(result.uncategorizedAnimals).toHaveLength(0);
+    expect(result.entries).toHaveLength(1);
+    expect(result.entries[0].category).toBe("D1");
+    expect(result.entries[0].animalCount).toBe(1);
+    expect(result.entries[0].startDate).toEqual(d("2025-05-01"));
+    expect(result.entries[0].endDate).toEqual(d("2025-12-31"));
   });
 
   test("entries are sorted by category then startDate", () => {

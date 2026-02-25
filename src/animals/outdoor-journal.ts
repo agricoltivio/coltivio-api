@@ -58,7 +58,7 @@ export function expandOutdoorSchedule(
   // No recurrence: return single range if it overlaps query window
   if (!recurrence) {
     const start = schedule.startDate;
-    const end = schedule.endDate ?? schedule.startDate;
+    const end = schedule.endDate ?? queryTo;
     if (isAfter(start, queryTo) || isBefore(end, queryFrom)) return [];
     return [
       { startDate: max([start, queryFrom]), endDate: min([end, queryTo]) },
