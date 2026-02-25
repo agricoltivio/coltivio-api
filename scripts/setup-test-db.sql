@@ -41,7 +41,7 @@ CREATE INDEX IF NOT EXISTS "federal_farm_plots_geometries_idx" ON federal_farm_p
 -- App-specific function: farm_id() reads from pg session setting
 CREATE OR REPLACE FUNCTION public.farm_id() RETURNS uuid AS $$
   SELECT NULLIF(current_setting('request.farm_id', true), '')::uuid;
-$$ LANGUAGE sql STABLE;
+$$ LANGUAGE sql STABLE SET search_path = '';
 
 -- Trigger: auto-create profile row when GoTrue inserts into auth.users
 CREATE OR REPLACE FUNCTION public.handle_new_user()

@@ -119,13 +119,7 @@ export const farms = pgTable.withRLS(
     location: point(),
   },
   (table) => [
-    pgPolicy("any user can create a new farm", {
-      as: "permissive",
-      to: authenticatedRole,
-      for: "insert",
-      withCheck: sql`true`,
-    }),
-    pgPolicy("only farm members can read", {
+pgPolicy("only farm members can read", {
       as: "permissive",
       to: authenticatedRole,
       for: "select",

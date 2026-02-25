@@ -22,6 +22,7 @@
     "db:push": "npx drizzle-kit push",
     "db:generate": "yarn drizzle-kit generate",
     "db:migrate": "yarn drizzle-kit migrate",
+    "db:backup": "supabase db dump --data-only --exclude=public.federal_farm_plots -f backup_data_$(date +%Y%m%d).sql",
     "fix": "ts-node ./to_geojson.ts",
     "sentry:sourcemaps": "sentry-cli sourcemaps inject --org agricoltivio --project node-express ./dist && sentry-cli sourcemaps upload --org agricoltivio --project node-express ./dist"
   },
@@ -84,6 +85,8 @@
     "testEnvironment": "node",
     "globalSetup": "./src/test/globalSetup.ts",
     "globalTeardown": "./src/test/globalTeardown.ts",
-    "setupFiles": ["./src/test/setup.ts"]
+    "setupFiles": [
+      "./src/test/setup.ts"
+    ]
   }
 }

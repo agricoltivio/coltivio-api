@@ -1,0 +1,1 @@
+DROP POLICY "any user can create a new farm" ON "farms";
