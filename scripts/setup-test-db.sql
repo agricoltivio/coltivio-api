@@ -7,13 +7,14 @@ BEGIN
     CREATE ROLE app WITH LOGIN PASSWORD 'postgres';
   END IF;
   IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'rls_client') THEN
-    CREATE ROLE rls_client WITH LOGIN PASSWORD 'rls';
+    CREATE ROLE rls_client WITH LOGIN PASSWORD 'rls' NOINHERIT;
   END IF;
 END $$;
 
 -- Grant authenticated role so these can SET ROLE authenticated
 GRANT authenticated TO app;
 GRANT authenticated TO rls_client;
+GRANT anon TO rls_client;
 
 -- Grant schema access to authenticated role
 GRANT USAGE ON SCHEMA public TO authenticated;
@@ -22,7 +23,7 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO authenticate
 
 -- Ensure search_path includes extensions (for PostGIS, pg_trgm)
 ALTER ROLE app SET search_path TO public, extensions;
-ALTER ROLE rls_client SET search_path TO public, extensions;
+ALTER ROLE rls_client SET search_path TO "$user", public, extensions;
 ALTER ROLE authenticated SET search_path TO public, extensions;
 
 -- Enable PostGIS and pg_trgm, then set search_path so geometry type is visible
@@ -50,10 +51,24 @@ $$ LANGUAGE sql STABLE SET search_path = '';
 
 -- Trigger: auto-create profile row when GoTrue inserts into auth.users
 CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS trigger AS $$
+RETURNS trigger
+SET search_path = ''
+AS $$
 BEGIN
-  INSERT INTO public.profiles (id, email)
-  VALUES (NEW.id, NEW.email);
+  INSERT INTO public.profiles (id, email, full_name)
+  VALUES (NEW.id, NEW.email, NEW.raw_user_meta_data->>'full_name');
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION public.update_profile()
+RETURNS trigger
+SET search_path = ''
+AS $$
+BEGIN
+  UPDATE public.profiles
+  SET (email, full_name) = (NEW.email, NEW.raw_user_meta_data->>'full_name')
+  WHERE id = NEW.id;
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -67,5 +82,12 @@ BEGIN
     CREATE TRIGGER on_auth_user_created
       AFTER INSERT ON auth.users
       FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger WHERE tgname = 'update_profile'
+  ) THEN
+    CREATE TRIGGER update_profile
+      AFTER UPDATE ON auth.users
+      FOR EACH ROW EXECUTE PROCEDURE public.update_profile();
   END IF;
 END $$;

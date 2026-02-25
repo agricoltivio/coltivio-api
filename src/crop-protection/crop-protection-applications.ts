@@ -344,7 +344,7 @@ function mapToMonthlySummary(
         year,
         appliedCropProtections: {
           [product.id]: {
-            totalAmount: 0,
+            totalAmount: application.numberOfUnits * application.amountPerUnit,
             unit: application.product.unit,
             productName: product.name,
           },

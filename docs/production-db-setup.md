@@ -18,18 +18,19 @@ PostGIS is required for geometry columns. pg_trgm is used for fuzzy text search 
 The API connects as `rls_client` (via `APP_DATABASE_URL`) to enforce Row Level Security. On hosted Supabase you cannot create custom roles directly — use the dashboard or contact support. For self-hosted:
 
 ```sql
-CREATE ROLE rls_client WITH LOGIN PASSWORD '<strong-password>';
+CREATE ROLE rls_client WITH LOGIN PASSWORD '<strong-password>' NOINHERIT;
 GRANT authenticated TO rls_client;
+GRANT anon TO rls_client;
 
 GRANT USAGE ON SCHEMA public TO authenticated;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO authenticated;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO authenticated;
 
-ALTER ROLE rls_client SET search_path TO public, extensions;
+ALTER ROLE rls_client SET search_path TO "$user", public, extensions;
 ALTER ROLE authenticated SET search_path TO public, extensions;
 ```
 
-> **Hosted Supabase note:** You may need to use the built-in `postgres` role or configure a custom role through the Supabase dashboard. The key requirement is that the role can `SET ROLE authenticated` so that RLS policies (which target the `authenticated` role) are enforced.
+> **Hosted Supabase note:** You may need to use the built-in `postgres` role or configure a custom role through the Supabase dashboard. The key requirement is that the role can `SET ROLE authenticated` so that RLS policies (which target the `authenticated` role) are enforced. The `NOINHERIT` option ensures the role doesn't automatically inherit privileges — it must explicitly `SET ROLE` first.
 
 ## 3. `farm_id()` function
 
@@ -47,10 +48,12 @@ Auto-creates a `profiles` row when a user signs up via Supabase Auth:
 
 ```sql
 CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS trigger AS $$
+RETURNS trigger
+SET search_path = ''
+AS $$
 BEGIN
-  INSERT INTO public.profiles (id, email)
-  VALUES (NEW.id, NEW.email);
+  INSERT INTO public.profiles (id, email, full_name)
+  VALUES (NEW.id, NEW.email, NEW.raw_user_meta_data->>'full_name');
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -60,9 +63,31 @@ CREATE TRIGGER on_auth_user_created
   FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
 ```
 
-> **Important:** The `profiles` table must exist before the trigger fires. Run Drizzle migrations first, then create the trigger.
+## 5. `update_profile` trigger
 
-## 5. `federal_farm_plots` table
+Syncs profile data when the auth user is updated:
+
+```sql
+CREATE OR REPLACE FUNCTION public.update_profile()
+RETURNS trigger
+SET search_path = ''
+AS $$
+BEGIN
+  UPDATE public.profiles
+  SET (email, full_name) = (NEW.email, NEW.raw_user_meta_data->>'full_name')
+  WHERE id = NEW.id;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE TRIGGER update_profile
+  AFTER UPDATE ON auth.users
+  FOR EACH ROW EXECUTE PROCEDURE public.update_profile();
+```
+
+> **Important:** The `profiles` table must exist before the triggers fire. Run Drizzle migrations first, then create the triggers.
+
+## 6. `federal_farm_plots` table
 
 This table is populated by an ogr2ogr shapefile import and is **not** managed by Drizzle migrations. It must exist before migrations run (migrations reference it for RLS policies and indexes):
 
@@ -81,6 +106,16 @@ CREATE INDEX IF NOT EXISTS federal_farm_plots_geometries_idx
   ON federal_farm_plots USING gist (geometry);
 ```
 
+After creating the table, enable RLS, add a trigram index for fuzzy farm ID search, and allow authenticated users to read:
+
+```sql
+ALTER TABLE "federal_farm_plots" ENABLE ROW LEVEL SECURITY;
+CREATE INDEX IF NOT EXISTS "federal_farm_id_idx" ON "federal_farm_plots" USING gin ("farm_id" gin_trgm_ops);
+CREATE POLICY "authenticated users can read" ON "federal_farm_plots" AS PERMISSIVE FOR SELECT TO "authenticated" USING (true);
+```
+
+> **Note:** The first Drizzle migration expects these to exist. If you run migrations before applying the above, the migration will fail.
+
 Then import the shapefile:
 
 ```bash
@@ -92,7 +127,7 @@ ogr2ogr -f "PostgreSQL" \
   -progress -overwrite
 ```
 
-## 6. Apply Drizzle migrations
+## 7. Apply Drizzle migrations
 
 ```bash
 DATABASE_URL="<production-connection-string>" yarn db:migrate
@@ -101,12 +136,13 @@ DATABASE_URL="<production-connection-string>" yarn db:migrate
 ## Setup order
 
 1. Enable extensions (PostGIS, pg_trgm)
-2. Create `federal_farm_plots` table
+2. Create `federal_farm_plots` table + RLS policy and trigram index
 3. Create `farm_id()` function
 4. Create `rls_client` role + grants
 5. Run Drizzle migrations (creates all other tables)
 6. Create `handle_new_user` trigger (profiles table must exist)
-7. Import federal farm plots shapefile
+7. Create `update_profile` trigger
+8. Import federal farm plots shapefile
 
 ## Environment variables
 
