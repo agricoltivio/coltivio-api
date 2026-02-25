@@ -129,7 +129,6 @@ type CategoryAnimal = {
   sex: AnimalSex;
   usage: "milk" | "other";
   dateOfBirth: Date;
-  categoryOverride: AnimalCategory | null;
 };
 
 // First-match lookup against the mapping rules for a given animal at a reference date
@@ -137,8 +136,6 @@ export function mapAnimalToCategory(
   animal: CategoryAnimal,
   referenceDate: Date,
 ): AnimalCategory | null {
-  if (animal.categoryOverride) return animal.categoryOverride;
-
   const ageDays = differenceInDays(referenceDate, animal.dateOfBirth);
   const rules = animalKeyMapping[animal.type];
 
@@ -158,17 +155,6 @@ export function getAnimalCategoryTransitions(
   periodStart: Date,
   periodEnd: Date,
 ): { category: AnimalCategory | null; startDate: Date; endDate: Date }[] {
-  // Override → single entry for the whole period
-  if (animal.categoryOverride) {
-    return [
-      {
-        category: animal.categoryOverride,
-        startDate: periodStart,
-        endDate: periodEnd,
-      },
-    ];
-  }
-
   const rules = animalKeyMapping[animal.type];
 
   // Collect all age threshold dates that fall within the period

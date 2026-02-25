@@ -412,6 +412,245 @@ describe("Herds CRUD", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Herds with inline outdoor schedules
+// ---------------------------------------------------------------------------
+describe("Herds with inline outdoor schedules", () => {
+  beforeEach(cleanDb);
+
+  it("creates a herd with outdoor schedules", async () => {
+    const { jwt } = await createUserWithFarm();
+    const herd = await createHerd(jwt, {
+      name: "ScheduleHerd",
+      outdoorSchedules: [
+        { startDate: "2025-05-01", endDate: "2025-06-30", type: "pasture" },
+        { startDate: "2025-07-01", endDate: "2025-09-30", type: "exercise_yard" },
+      ],
+    });
+
+    // Verify DB
+    const db = getAdminDb();
+    const dbSchedules = await db.query.outdoorSchedules.findMany({
+      where: { herdId: herd.id },
+    });
+    expect(dbSchedules).toHaveLength(2);
+
+    // Verify API response
+    const res = await request(
+      "GET",
+      `/v1/animals/herds/byId/${herd.id}`,
+      undefined,
+      jwt,
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      data: { outdoorSchedules: Array<{ type: string }> };
+    };
+    expect(body.data.outdoorSchedules).toHaveLength(2);
+  });
+
+  it("creates a herd with outdoor schedules including recurrence", async () => {
+    const { jwt } = await createUserWithFarm();
+    const herd = await createHerd(jwt, {
+      name: "RecurHerd",
+      outdoorSchedules: [
+        {
+          startDate: "2025-05-01",
+          endDate: "2025-05-01",
+          type: "exercise_yard",
+          recurrence: {
+            frequency: "weekly",
+            interval: 1,
+            byWeekday: ["MO", "WE", "FR"],
+            until: "2025-09-30",
+          },
+        },
+      ],
+    });
+
+    // Verify DB
+    const db = getAdminDb();
+    const dbSchedules = await db.query.outdoorSchedules.findMany({
+      where: { herdId: herd.id },
+    });
+    expect(dbSchedules).toHaveLength(1);
+    const dbRecurrences = await db.query.outdoorScheduleRecurrences.findMany({
+      where: { outdoorScheduleId: dbSchedules[0].id },
+    });
+    expect(dbRecurrences).toHaveLength(1);
+    expect(dbRecurrences[0].frequency).toBe("weekly");
+
+    // Verify API response
+    const res = await request(
+      "GET",
+      `/v1/animals/herds/byId/${herd.id}`,
+      undefined,
+      jwt,
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      data: { outdoorSchedules: Array<{ recurrence: Record<string, unknown> | null }> };
+    };
+    expect(body.data.outdoorSchedules).toHaveLength(1);
+    expect(body.data.outdoorSchedules[0].recurrence).not.toBeNull();
+  });
+
+  it("rejects createHerd with overlapping inline schedules", async () => {
+    const { jwt } = await createUserWithFarm();
+    const res = await request(
+      "POST",
+      "/v1/animals/herds",
+      {
+        name: "OverlapHerd",
+        animalIds: [],
+        outdoorSchedules: [
+          { startDate: "2025-05-01", endDate: "2025-08-31", type: "pasture" },
+          { startDate: "2025-07-01", endDate: "2025-09-30", type: "exercise_yard" },
+        ],
+      },
+      jwt,
+    );
+    expect(res.status).toBe(409);
+
+    // Verify nothing was created in DB
+    const db = getAdminDb();
+    const dbHerds = await db.query.herds.findMany({});
+    expect(dbHerds).toHaveLength(0);
+  });
+
+  it("updateHerd replaces outdoor schedules", async () => {
+    const { jwt } = await createUserWithFarm();
+    const herd = await createHerd(jwt, {
+      name: "ReplaceHerd",
+      outdoorSchedules: [
+        { startDate: "2025-05-01", endDate: "2025-09-30", type: "pasture" },
+      ],
+    });
+
+    // Replace with two new schedules
+    const patchRes = await request(
+      "PATCH",
+      `/v1/animals/herds/byId/${herd.id}`,
+      {
+        outdoorSchedules: [
+          { startDate: "2025-05-01", endDate: "2025-06-30", type: "exercise_yard" },
+          { startDate: "2025-07-01", endDate: "2025-09-30", type: "pasture" },
+        ],
+      },
+      jwt,
+    );
+    expect(patchRes.status).toBe(200);
+
+    // Verify DB — old schedule gone, two new ones exist
+    const db = getAdminDb();
+    const dbSchedules = await db.query.outdoorSchedules.findMany({
+      where: { herdId: herd.id },
+    });
+    expect(dbSchedules).toHaveLength(2);
+
+    // Verify API response
+    const res = await request(
+      "GET",
+      `/v1/animals/herds/byId/${herd.id}`,
+      undefined,
+      jwt,
+    );
+    const body = (await res.json()) as {
+      data: { outdoorSchedules: Array<{ type: string }> };
+    };
+    expect(body.data.outdoorSchedules).toHaveLength(2);
+  });
+
+  it("updateHerd with empty outdoorSchedules removes all schedules", async () => {
+    const { jwt } = await createUserWithFarm();
+    const herd = await createHerd(jwt, {
+      name: "ClearHerd",
+      outdoorSchedules: [
+        { startDate: "2025-05-01", endDate: "2025-09-30", type: "pasture" },
+      ],
+    });
+
+    const patchRes = await request(
+      "PATCH",
+      `/v1/animals/herds/byId/${herd.id}`,
+      { outdoorSchedules: [] },
+      jwt,
+    );
+    expect(patchRes.status).toBe(200);
+
+    // Verify DB
+    const db = getAdminDb();
+    const dbSchedules = await db.query.outdoorSchedules.findMany({
+      where: { herdId: herd.id },
+    });
+    expect(dbSchedules).toHaveLength(0);
+  });
+
+  it("rejects updateHerd with overlapping replacement schedules", async () => {
+    const { jwt } = await createUserWithFarm();
+    const herd = await createHerd(jwt, { name: "OverlapUpdate" });
+
+    const res = await request(
+      "PATCH",
+      `/v1/animals/herds/byId/${herd.id}`,
+      {
+        outdoorSchedules: [
+          { startDate: "2025-05-01", endDate: "2025-08-31", type: "pasture" },
+          { startDate: "2025-07-01", endDate: "2025-09-30", type: "exercise_yard" },
+        ],
+      },
+      jwt,
+    );
+    expect(res.status).toBe(409);
+
+    // Verify DB unchanged (no schedules created)
+    const db = getAdminDb();
+    const dbSchedules = await db.query.outdoorSchedules.findMany({
+      where: { herdId: herd.id },
+    });
+    expect(dbSchedules).toHaveLength(0);
+  });
+
+  it("updateHerd without outdoorSchedules leaves existing schedules untouched", async () => {
+    const { jwt } = await createUserWithFarm();
+    const herd = await createHerd(jwt, {
+      name: "KeepSchedules",
+      outdoorSchedules: [
+        { startDate: "2025-05-01", endDate: "2025-09-30", type: "pasture" },
+      ],
+    });
+
+    // Update only the name
+    const patchRes = await request(
+      "PATCH",
+      `/v1/animals/herds/byId/${herd.id}`,
+      { name: "Renamed" },
+      jwt,
+    );
+    expect(patchRes.status).toBe(200);
+
+    // Verify DB — schedule still exists
+    const db = getAdminDb();
+    const dbSchedules = await db.query.outdoorSchedules.findMany({
+      where: { herdId: herd.id },
+    });
+    expect(dbSchedules).toHaveLength(1);
+
+    // Verify API response
+    const res = await request(
+      "GET",
+      `/v1/animals/herds/byId/${herd.id}`,
+      undefined,
+      jwt,
+    );
+    const body = (await res.json()) as {
+      data: { name: string; outdoorSchedules: unknown[] };
+    };
+    expect(body.data.name).toBe("Renamed");
+    expect(body.data.outdoorSchedules).toHaveLength(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Outdoor Schedules CRUD
 // ---------------------------------------------------------------------------
 describe("Outdoor Schedules CRUD", () => {
@@ -457,6 +696,18 @@ describe("Outdoor Schedules CRUD", () => {
     const rec = schedule.recurrence as Record<string, unknown>;
     expect(rec.frequency).toBe("weekly");
     expect(rec.byWeekday).toEqual(["MO", "WE", "FR"]);
+
+    // Verify DB
+    const db = getAdminDb();
+    const dbSchedule = await db.query.outdoorSchedules.findFirst({
+      where: { id: schedule.id },
+    });
+    expect(dbSchedule).toBeDefined();
+    const dbRecurrences = await db.query.outdoorScheduleRecurrences.findMany({
+      where: { outdoorScheduleId: schedule.id },
+    });
+    expect(dbRecurrences).toHaveLength(1);
+    expect(dbRecurrences[0].frequency).toBe("weekly");
   });
 
   it("updates a schedule", async () => {
@@ -559,13 +810,13 @@ describe("Outdoor Journal", () => {
     const body = (await res.json()) as {
       data: {
         entries: Array<{ category: string; animalCount: number }>;
-        uncategorizedAnimalCount: number;
+        uncategorizedAnimals: Array<{ id: string; name: string; earTag: unknown }>;
       };
     };
     expect(body.data.entries.length).toBeGreaterThanOrEqual(1);
     expect(body.data.entries[0].category).toBe("D1");
     expect(body.data.entries[0].animalCount).toBe(1);
-    expect(body.data.uncategorizedAnimalCount).toBe(0);
+    expect(body.data.uncategorizedAnimals).toHaveLength(0);
   });
 
   it("counts uncategorized animals (e.g. pigs)", async () => {
@@ -590,10 +841,11 @@ describe("Outdoor Journal", () => {
     );
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
-      data: { entries: unknown[]; uncategorizedAnimalCount: number };
+      data: { entries: unknown[]; uncategorizedAnimals: Array<{ id: string; name: string }> };
     };
     expect(body.data.entries).toHaveLength(0);
-    expect(body.data.uncategorizedAnimalCount).toBe(1);
+    expect(body.data.uncategorizedAnimals).toHaveLength(1);
+    expect(body.data.uncategorizedAnimals[0].id).toBe(pig.id);
   });
 
   it("returns empty when no herds have outdoor schedules", async () => {
@@ -608,10 +860,133 @@ describe("Outdoor Journal", () => {
     );
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
-      data: { entries: unknown[]; uncategorizedAnimalCount: number };
+      data: { entries: unknown[]; uncategorizedAnimals: unknown[] };
     };
     expect(body.data.entries).toHaveLength(0);
-    expect(body.data.uncategorizedAnimalCount).toBe(0);
+    expect(body.data.uncategorizedAnimals).toHaveLength(0);
+  });
+
+  it("pig alongside categorized sheep both appear correctly", async () => {
+    const { jwt } = await createUserWithFarm();
+    const sheep = await createAnimal(jwt, {
+      name: "OldSheep",
+      type: "sheep",
+      sex: "female",
+      dateOfBirth: "2020-01-01",
+      usage: "other",
+    });
+    const pig = await createAnimal(jwt, {
+      name: "Piggy",
+      type: "pig",
+      sex: "female",
+      dateOfBirth: "2024-01-01",
+      usage: "other",
+    });
+    const herd = await createHerd(jwt, { animalIds: [sheep.id, pig.id] });
+    await createOutdoorSchedule(jwt, herd.id, {
+      startDate: "2027-05-01",
+      endDate: "2027-09-30",
+    });
+
+    const res = await request(
+      "GET",
+      "/v1/animals/outdoorJournal?fromDate=2027-01-01&toDate=2027-12-31",
+      undefined,
+      jwt,
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      data: {
+        entries: Array<{ category: string; animalCount: number }>;
+        uncategorizedAnimals: Array<{ id: string; name: string }>;
+      };
+    };
+    // Sheep should produce a D1 entry
+    expect(body.data.entries.length).toBeGreaterThanOrEqual(1);
+    expect(body.data.entries[0].category).toBe("D1");
+    // Pig should be uncategorized
+    expect(body.data.uncategorizedAnimals).toHaveLength(1);
+    expect(body.data.uncategorizedAnimals[0].id).toBe(pig.id);
+  });
+
+  it("pig added to existing herd via updateHerd shows as uncategorized", async () => {
+    const { jwt } = await createUserWithFarm();
+    const pig = await createAnimal(jwt, {
+      name: "LatePig",
+      type: "pig",
+      sex: "female",
+      dateOfBirth: "2024-01-01",
+      usage: "other",
+    });
+    // Create herd without the pig, add schedule, then add pig via updateHerd
+    const herd = await createHerd(jwt);
+    await createOutdoorSchedule(jwt, herd.id, {
+      startDate: "2027-05-01",
+      endDate: "2027-09-30",
+    });
+    await request(
+      "PATCH",
+      `/v1/animals/herds/byId/${herd.id}`,
+      { animalIds: [pig.id] },
+      jwt,
+    );
+
+    const res = await request(
+      "GET",
+      "/v1/animals/outdoorJournal?fromDate=2027-01-01&toDate=2027-12-31",
+      undefined,
+      jwt,
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      data: {
+        entries: unknown[];
+        uncategorizedAnimals: Array<{ id: string }>;
+      };
+    };
+    expect(body.data.entries).toHaveLength(0);
+    expect(body.data.uncategorizedAnimals).toHaveLength(1);
+    expect(body.data.uncategorizedAnimals[0].id).toBe(pig.id);
+  });
+
+  it("pig added via updateAnimal herdId (no membership) shows as uncategorized", async () => {
+    const { jwt } = await createUserWithFarm();
+    const herd = await createHerd(jwt);
+    await createOutdoorSchedule(jwt, herd.id, {
+      startDate: "2027-05-01",
+      endDate: "2027-09-30",
+    });
+    // Create pig, then set herdId directly via updateAnimal (bypasses membership creation)
+    const pig = await createAnimal(jwt, {
+      name: "DirectPig",
+      type: "pig",
+      sex: "female",
+      dateOfBirth: "2024-01-01",
+      usage: "other",
+    });
+    await request(
+      "PATCH",
+      `/v1/animals/byId/${pig.id}`,
+      { herdId: herd.id },
+      jwt,
+    );
+
+    const res = await request(
+      "GET",
+      "/v1/animals/outdoorJournal?fromDate=2027-01-01&toDate=2027-12-31",
+      undefined,
+      jwt,
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      data: {
+        entries: unknown[];
+        uncategorizedAnimals: Array<{ id: string }>;
+      };
+    };
+    expect(body.data.entries).toHaveLength(0);
+    expect(body.data.uncategorizedAnimals).toHaveLength(1);
+    expect(body.data.uncategorizedAnimals[0].id).toBe(pig.id);
   });
 
   it("splits journal entries when animal changes category mid-schedule", async () => {
@@ -646,55 +1021,316 @@ describe("Outdoor Journal", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Category override
+// Custom Outdoor Journal Categories
 // ---------------------------------------------------------------------------
-describe("Category override", () => {
+describe("Custom Outdoor Journal Categories", () => {
   beforeEach(cleanDb);
 
-  it("sets categoryOverride on creation", async () => {
+  it("sets custom categories for an animal and verifies DB", async () => {
     const { jwt } = await createUserWithFarm();
     const animal = await createAnimal(jwt, {
-      type: "cow",
+      type: "pig",
       sex: "female",
-      dateOfBirth: "2020-01-01",
-      categoryOverride: "A3",
+      dateOfBirth: "2024-01-01",
       usage: "other",
     });
-    expect(animal.categoryOverride).toBe("A3");
+
+    const res = await request(
+      "PUT",
+      `/v1/animals/byId/${animal.id}/customOutdoorJournalCategories`,
+      {
+        entries: [
+          { startDate: "2027-05-01", endDate: "2027-06-30", category: "A1" },
+          { startDate: "2027-07-01", endDate: "2027-09-30", category: "A2" },
+        ],
+      },
+      jwt,
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      data: { result: Array<{ id: string; category: string; animalId: string }> };
+    };
+    expect(body.data.result).toHaveLength(2);
+    expect(body.data.result.map((c) => c.category).sort()).toEqual(["A1", "A2"]);
+    expect(body.data.result.every((c) => c.animalId === animal.id)).toBe(true);
 
     // Verify DB
     const db = getAdminDb();
-    const dbAnimal = await db.query.animals.findFirst({
-      where: { id: animal.id },
-    });
-    expect(dbAnimal!.categoryOverride).toBe("A3");
+    const dbCategories =
+      await db.query.customOutdoorJournalCategories.findMany({
+        where: { animalId: animal.id },
+      });
+    expect(dbCategories).toHaveLength(2);
+    expect(dbCategories.map((c) => c.category).sort()).toEqual(["A1", "A2"]);
   });
 
-  it("updates categoryOverride clears requiresCategoryOverride", async () => {
+  it("replaces existing custom categories on subsequent call", async () => {
     const { jwt } = await createUserWithFarm();
-    // Deer has no category rules → requiresCategoryOverride should be set
-    const deer = await createAnimal(jwt, {
-      type: "deer",
+    const animal = await createAnimal(jwt, {
+      type: "pig",
       sex: "female",
       usage: "other",
     });
-    expect(deer.requiresCategoryOverride).toBe(true);
 
+    // Set initial categories
+    await request(
+      "PUT",
+      `/v1/animals/byId/${animal.id}/customOutdoorJournalCategories`,
+      {
+        entries: [
+          { startDate: "2027-05-01", endDate: "2027-09-30", category: "A1" },
+        ],
+      },
+      jwt,
+    );
+
+    // Replace with new ones
     const res = await request(
-      "PATCH",
-      `/v1/animals/byId/${deer.id}`,
-      { categoryOverride: "A1" },
+      "PUT",
+      `/v1/animals/byId/${animal.id}/customOutdoorJournalCategories`,
+      {
+        entries: [
+          { startDate: "2027-06-01", endDate: "2027-07-31", category: "D1" },
+        ],
+      },
+      jwt,
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      data: { result: Array<{ category: string }> };
+    };
+    expect(body.data.result).toHaveLength(1);
+    expect(body.data.result[0].category).toBe("D1");
+
+    // Verify DB — old entries gone, only new one
+    const db = getAdminDb();
+    const dbCategories =
+      await db.query.customOutdoorJournalCategories.findMany({
+        where: { animalId: animal.id },
+      });
+    expect(dbCategories).toHaveLength(1);
+    expect(dbCategories[0].category).toBe("D1");
+  });
+
+  it("clears all categories when empty array is passed", async () => {
+    const { jwt } = await createUserWithFarm();
+    const animal = await createAnimal(jwt, {
+      type: "pig",
+      sex: "female",
+      usage: "other",
+    });
+
+    // Set initial
+    await request(
+      "PUT",
+      `/v1/animals/byId/${animal.id}/customOutdoorJournalCategories`,
+      {
+        entries: [
+          { startDate: "2027-05-01", endDate: "2027-09-30", category: "A1" },
+        ],
+      },
+      jwt,
+    );
+
+    // Clear
+    const res = await request(
+      "PUT",
+      `/v1/animals/byId/${animal.id}/customOutdoorJournalCategories`,
+      { entries: [] },
       jwt,
     );
     expect(res.status).toBe(200);
 
     // Verify DB
     const db = getAdminDb();
-    const dbAnimal = await db.query.animals.findFirst({
-      where: { id: deer.id },
+    const dbCategories =
+      await db.query.customOutdoorJournalCategories.findMany({
+        where: { animalId: animal.id },
+      });
+    expect(dbCategories).toHaveLength(0);
+  });
+
+  it("rejects overlapping custom categories", async () => {
+    const { jwt } = await createUserWithFarm();
+    const animal = await createAnimal(jwt, {
+      type: "pig",
+      sex: "female",
+      usage: "other",
     });
-    expect(dbAnimal!.categoryOverride).toBe("A1");
-    expect(dbAnimal!.requiresCategoryOverride).toBe(false);
+
+    const res = await request(
+      "PUT",
+      `/v1/animals/byId/${animal.id}/customOutdoorJournalCategories`,
+      {
+        entries: [
+          { startDate: "2027-05-01", endDate: "2027-08-31", category: "A1" },
+          { startDate: "2027-07-01", endDate: "2027-09-30", category: "A2" },
+        ],
+      },
+      jwt,
+    );
+    expect(res.status).toBe(409);
+
+    // Verify DB — nothing was created
+    const db = getAdminDb();
+    const dbCategories =
+      await db.query.customOutdoorJournalCategories.findMany({
+        where: { animalId: animal.id },
+      });
+    expect(dbCategories).toHaveLength(0);
+  });
+
+  it("custom categories are included in GET animal by id", async () => {
+    const { jwt } = await createUserWithFarm();
+    const animal = await createAnimal(jwt, {
+      type: "pig",
+      sex: "female",
+      usage: "other",
+    });
+
+    await request(
+      "PUT",
+      `/v1/animals/byId/${animal.id}/customOutdoorJournalCategories`,
+      {
+        entries: [
+          { startDate: "2027-05-01", endDate: "2027-09-30", category: "A1" },
+        ],
+      },
+      jwt,
+    );
+
+    const res = await request(
+      "GET",
+      `/v1/animals/byId/${animal.id}`,
+      undefined,
+      jwt,
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      data: {
+        customOutdoorJournalCategories: Array<{
+          id: string;
+          category: string;
+          animalId: string;
+        }>;
+      };
+    };
+    expect(body.data.customOutdoorJournalCategories).toHaveLength(1);
+    expect(body.data.customOutdoorJournalCategories[0].category).toBe("A1");
+    expect(body.data.customOutdoorJournalCategories[0].animalId).toBe(
+      animal.id,
+    );
+  });
+
+  it("custom category overrides null age-based category in outdoor journal", async () => {
+    const { jwt } = await createUserWithFarm();
+    // Pig has no age-based rules → normally uncategorized
+    const pig = await createAnimal(jwt, {
+      type: "pig",
+      sex: "female",
+      dateOfBirth: "2024-01-01",
+      usage: "other",
+    });
+
+    // Set a custom category covering the outdoor schedule period
+    await request(
+      "PUT",
+      `/v1/animals/byId/${pig.id}/customOutdoorJournalCategories`,
+      {
+        entries: [
+          { startDate: "2027-01-01", endDate: "2027-12-31", category: "D1" },
+        ],
+      },
+      jwt,
+    );
+
+    const herd = await createHerd(jwt, { animalIds: [pig.id] });
+    await createOutdoorSchedule(jwt, herd.id, {
+      startDate: "2027-05-01",
+      endDate: "2027-09-30",
+    });
+
+    const res = await request(
+      "GET",
+      "/v1/animals/outdoorJournal?fromDate=2027-01-01&toDate=2027-12-31",
+      undefined,
+      jwt,
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      data: {
+        entries: Array<{ category: string; animalCount: number }>;
+        uncategorizedAnimals: unknown[];
+      };
+    };
+    expect(body.data.uncategorizedAnimals).toHaveLength(0);
+    expect(body.data.entries.length).toBeGreaterThanOrEqual(1);
+    expect(body.data.entries[0].category).toBe("D1");
+    expect(body.data.entries[0].animalCount).toBe(1);
+  });
+
+  it("pig without custom category remains uncategorized in outdoor journal", async () => {
+    const { jwt } = await createUserWithFarm();
+    const pig = await createAnimal(jwt, {
+      type: "pig",
+      sex: "female",
+      dateOfBirth: "2024-01-01",
+      usage: "other",
+    });
+
+    const herd = await createHerd(jwt, { animalIds: [pig.id] });
+    await createOutdoorSchedule(jwt, herd.id, {
+      startDate: "2027-05-01",
+      endDate: "2027-09-30",
+    });
+
+    const res = await request(
+      "GET",
+      "/v1/animals/outdoorJournal?fromDate=2027-01-01&toDate=2027-12-31",
+      undefined,
+      jwt,
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      data: {
+        entries: unknown[];
+        uncategorizedAnimals: Array<{ id: string }>;
+      };
+    };
+    expect(body.data.entries).toHaveLength(0);
+    expect(body.data.uncategorizedAnimals).toHaveLength(1);
+    expect(body.data.uncategorizedAnimals[0].id).toBe(pig.id);
+  });
+
+  it("deleting animal cascades to custom categories", async () => {
+    const { jwt } = await createUserWithFarm();
+    const animal = await createAnimal(jwt, {
+      type: "pig",
+      sex: "female",
+      usage: "other",
+    });
+
+    await request(
+      "PUT",
+      `/v1/animals/byId/${animal.id}/customOutdoorJournalCategories`,
+      {
+        entries: [
+          { startDate: "2027-05-01", endDate: "2027-09-30", category: "A1" },
+        ],
+      },
+      jwt,
+    );
+
+    // Delete the animal
+    await request("DELETE", `/v1/animals/byId/${animal.id}`, undefined, jwt);
+
+    // Verify DB — custom categories cascaded
+    const db = getAdminDb();
+    const dbCategories =
+      await db.query.customOutdoorJournalCategories.findMany({
+        where: { animalId: animal.id },
+      });
+    expect(dbCategories).toHaveLength(0);
   });
 });
 
@@ -761,6 +1397,11 @@ describe("Animals input validation", () => {
     const { jwt } = await createUserWithFarm();
     const res = await request("POST", "/v1/animals", { name: "Incomplete" }, jwt);
     expect(res.status).toBe(400);
+
+    // Verify nothing was created in DB
+    const db = getAdminDb();
+    const dbAnimals = await db.query.animals.findMany({});
+    expect(dbAnimals).toHaveLength(0);
   });
 
   it("rejects invalid sex", async () => {
@@ -779,5 +1420,10 @@ describe("Animals input validation", () => {
       jwt,
     );
     expect(res.status).toBe(400);
+
+    // Verify nothing was created in DB
+    const db = getAdminDb();
+    const dbAnimals = await db.query.animals.findMany({});
+    expect(dbAnimals).toHaveLength(0);
   });
 });

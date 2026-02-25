@@ -14,6 +14,7 @@ import {
 import {
   AnimalCategory,
   Animal,
+  CustomOutdoorJournalCategory,
   HerdMembership,
   OutdoorScheduleWithRecurrence,
   Herd,
@@ -29,7 +30,7 @@ export type OutdoorJournalEntry = {
 
 export type OutdoorJournalResult = {
   entries: OutdoorJournalEntry[];
-  uncategorizedAnimalCount: number;
+  uncategorizedAnimals: Animal[];
 };
 
 type DateRange = { startDate: Date; endDate: Date };
@@ -101,7 +102,10 @@ export function expandOutdoorSchedule(
     while (iterations++ < MAX_ITERATIONS) {
       let occStart = current;
       // Override day-of-month if byMonthDay is set
-      if (recurrence.byMonthDay !== null && recurrence.byMonthDay !== undefined) {
+      if (
+        recurrence.byMonthDay !== null &&
+        recurrence.byMonthDay !== undefined
+      ) {
         occStart = new Date(occStart);
         occStart.setDate(recurrence.byMonthDay);
       }
@@ -178,10 +182,50 @@ export function expandOutdoorSchedule(
   return ranges;
 }
 
+type AnimalWithCustomCategories = Animal & {
+  customOutdoorJournalCategories: CustomOutdoorJournalCategory[];
+};
+
 type HerdWithMembershipsAndSchedules = Herd & {
-  herdMemberships: (HerdMembership & { animal: Animal })[];
+  herdMemberships: (HerdMembership & {
+    animal: AnimalWithCustomCategories;
+  })[];
   outdoorSchedules: OutdoorScheduleWithRecurrence[];
 };
+
+// Subtracts covered ranges from a period, returning the uncovered sub-periods.
+// Assumes `covered` is sorted by startDate and already clamped to `period`.
+function subtractDateRanges(
+  period: DateRange,
+  covered: DateRange[],
+): DateRange[] {
+  if (covered.length === 0) return [period];
+
+  const uncovered: DateRange[] = [];
+  let cursor = period.startDate;
+
+  for (const c of covered) {
+    // Gap before this covered range
+    if (isBefore(cursor, c.startDate)) {
+      uncovered.push({
+        startDate: cursor,
+        endDate: addDays(c.startDate, -1),
+      });
+    }
+    // Advance cursor past this covered range
+    const dayAfter = addDays(c.endDate, 1);
+    if (isAfter(dayAfter, cursor)) {
+      cursor = dayAfter;
+    }
+  }
+
+  // Remaining gap after last covered range
+  if (!isAfter(cursor, period.endDate)) {
+    uncovered.push({ startDate: cursor, endDate: period.endDate });
+  }
+
+  return uncovered;
+}
 
 // Main orchestration: expand schedules, compute category ranges, merge with sweep-line
 export function buildOutdoorJournal(
@@ -195,7 +239,10 @@ export function buildOutdoorJournal(
     startDate: Date;
     endDate: Date;
   }[] = [];
-  const uncategorizedAnimals = new Set<string>();
+  // Track animals that have null category in some period vs animals that have a valid category in any period
+  const animalIdsWithNullCategory = new Set<string>();
+  const categorizedAnimalIds = new Set<string>();
+  const uncategorizedAnimalMap = new Map<string, Animal>();
 
   for (const herd of herds) {
     // Expand all outdoor schedules for this herd
@@ -221,21 +268,59 @@ export function buildOutdoorJournal(
         if (animal.dateOfDeath && isBefore(animal.dateOfDeath, effectiveStart))
           continue;
 
-        const transitions = getAnimalCategoryTransitions(
-          animal,
-          effectiveStart,
-          effectiveEnd,
+        // Find custom outdoor journal categories that overlap the effective period
+        const customCats = (animal.customOutdoorJournalCategories ?? [])
+          .filter((c) => {
+            const cEnd = c.endDate ?? effectiveEnd;
+            return (
+              !isAfter(c.startDate, effectiveEnd) &&
+              !isBefore(cEnd, effectiveStart)
+            );
+          })
+          .map((c) => ({
+            category: c.category,
+            startDate: max([c.startDate, effectiveStart]),
+            endDate: min([c.endDate ?? effectiveEnd, effectiveEnd]),
+          }))
+          .sort(
+            (a, b) => a.startDate.getTime() - b.startDate.getTime(),
+          );
+
+        // Add custom category fragments directly
+        for (const c of customCats) {
+          categorizedAnimalIds.add(animal.id);
+          fragments.push({
+            category: c.category,
+            startDate: c.startDate,
+            endDate: c.endDate,
+          });
+        }
+
+        // Compute uncovered sub-periods (parts of effective period not covered by custom categories)
+        const uncovered = subtractDateRanges(
+          { startDate: effectiveStart, endDate: effectiveEnd },
+          customCats,
         );
 
-        for (const t of transitions) {
-          if (t.category === null) {
-            uncategorizedAnimals.add(animal.id);
-          } else {
-            fragments.push({
-              category: t.category,
-              startDate: t.startDate,
-              endDate: t.endDate,
-            });
+        // For uncovered periods, use age-based transitions
+        for (const period of uncovered) {
+          const transitions = getAnimalCategoryTransitions(
+            animal,
+            period.startDate,
+            period.endDate,
+          );
+          for (const t of transitions) {
+            if (t.category === null) {
+              animalIdsWithNullCategory.add(animal.id);
+              uncategorizedAnimalMap.set(animal.id, animal);
+            } else {
+              categorizedAnimalIds.add(animal.id);
+              fragments.push({
+                category: t.category,
+                startDate: t.startDate,
+                endDate: t.endDate,
+              });
+            }
           }
         }
       }
@@ -274,9 +359,16 @@ export function buildOutdoorJournal(
     let currentCount = 0;
 
     for (const event of events) {
-      if (runningCount > 0 && segmentStart !== null && event.date !== segmentStart) {
+      if (
+        runningCount > 0 &&
+        segmentStart !== null &&
+        event.date !== segmentStart
+      ) {
         // Close current segment if count changes at a new date
-        if (currentCount !== runningCount + event.delta || event.date !== segmentStart) {
+        if (
+          currentCount !== runningCount + event.delta ||
+          event.date !== segmentStart
+        ) {
           entries.push({
             category,
             startDate: new Date(segmentStart),
@@ -293,7 +385,11 @@ export function buildOutdoorJournal(
       if (runningCount > 0 && segmentStart === null) {
         segmentStart = event.date;
         currentCount = runningCount;
-      } else if (runningCount > 0 && segmentStart !== null && runningCount !== currentCount) {
+      } else if (
+        runningCount > 0 &&
+        segmentStart !== null &&
+        runningCount !== currentCount
+      ) {
         // Count changed, start new segment
         segmentStart = event.date;
         currentCount = runningCount;
@@ -311,8 +407,13 @@ export function buildOutdoorJournal(
     return a.startDate.getTime() - b.startDate.getTime();
   });
 
+  // Uncategorized = animals that had null category but never had a valid category
+  const uncategorizedAnimals = [...animalIdsWithNullCategory]
+    .filter((id) => !categorizedAnimalIds.has(id))
+    .map((id) => uncategorizedAnimalMap.get(id)!);
+
   return {
     entries,
-    uncategorizedAnimalCount: uncategorizedAnimals.size,
+    uncategorizedAnimals,
   };
 }

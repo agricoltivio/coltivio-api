@@ -1026,8 +1026,6 @@ export const animals = pgTable.withRLS(
     name: text().notNull(),
     type: animalType().notNull(),
     usage: animalUsage().notNull(),
-    requiresCategoryOverride: boolean().notNull().default(false),
-    categoryOverride: animalCategory(),
     sex: animalSex().notNull(),
     dateOfBirth: date({ mode: "date" }).notNull(),
     registered: boolean().notNull().default(false),
@@ -1098,6 +1096,31 @@ export const herdMemberships = pgTable.withRLS(
   (table) => [
     index("herd_memberships_animal_id_idx").on(table.animalId),
     index("herd_memberships_herd_id_idx").on(table.herdId),
+    pgPolicy("only farm members", {
+      as: "permissive",
+      to: authenticatedRole,
+      using: eq(table.farmId, currentFarmId),
+      withCheck: eq(table.farmId, currentFarmId),
+    }),
+  ],
+);
+
+export const customOutdoorJournalCategories = pgTable.withRLS(
+  "custom_outdoor_journal_categories",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    farmId: uuid()
+      .notNull()
+      .references(() => farms.id, { onDelete: "cascade" }),
+    animalId: uuid()
+      .notNull()
+      .references(() => animals.id, { onDelete: "cascade" }),
+    startDate: date({ mode: "date" }).notNull(),
+    endDate: date({ mode: "date" }),
+    category: animalCategory().notNull(),
+  },
+  (table) => [
+    index("custom_outdoor_journal_categories_animal_id_idx").on(table.animalId),
     pgPolicy("only farm members", {
       as: "permissive",
       to: authenticatedRole,
@@ -1348,6 +1371,7 @@ const tables = {
   animalTreatments,
   herds,
   herdMemberships,
+  customOutdoorJournalCategories,
   outdoorSchedules,
   outdoorScheduleRecurrences,
 };
@@ -1663,6 +1687,19 @@ export const relations = defineRelations(tables, (r) => ({
       to: r.herds.id,
     }),
     herdMemberships: r.many.herdMemberships(),
+    customOutdoorJournalCategories: r.many.customOutdoorJournalCategories(),
+  },
+  customOutdoorJournalCategories: {
+    farm: r.one.farms({
+      from: r.customOutdoorJournalCategories.farmId,
+      to: r.farms.id,
+      optional: false,
+    }),
+    animal: r.one.animals({
+      from: r.customOutdoorJournalCategories.animalId,
+      to: r.animals.id,
+      optional: false,
+    }),
   },
   herds: {
     farm: r.one.farms({

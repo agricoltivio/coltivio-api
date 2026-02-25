@@ -11,6 +11,7 @@ import type {
   AnimalCategory,
   AnimalSex,
   AnimalType,
+  CustomOutdoorJournalCategory,
   Herd,
   HerdMembership,
   OutdoorScheduleWithRecurrence,
@@ -32,9 +33,8 @@ function makeAnimal(overrides: {
   sex: AnimalSex;
   dateOfBirth: Date;
   usage?: "milk" | "other";
-  categoryOverride?: AnimalCategory | null;
   dateOfDeath?: Date | null;
-}): Animal {
+}): AnimalWithCustomCategories {
   return {
     id: nextId(),
     farmId: "farm-1",
@@ -43,8 +43,6 @@ function makeAnimal(overrides: {
     sex: overrides.sex,
     dateOfBirth: overrides.dateOfBirth,
     usage: overrides.usage ?? "other",
-    categoryOverride: overrides.categoryOverride ?? null,
-    requiresCategoryOverride: false,
     registered: true,
     earTagId: null,
     earTag: null,
@@ -53,6 +51,7 @@ function makeAnimal(overrides: {
     dateOfDeath: overrides.dateOfDeath ?? null,
     deathReason: null,
     herdId: null,
+    customOutdoorJournalCategories: [],
   };
 }
 
@@ -91,11 +90,15 @@ function makeRecurrence(
   };
 }
 
+type AnimalWithCustomCategories = Animal & {
+  customOutdoorJournalCategories: CustomOutdoorJournalCategory[];
+};
+
 function makeMembership(
-  animal: Animal,
+  animal: AnimalWithCustomCategories,
   fromDate: Date,
   toDate?: Date | null,
-): HerdMembership & { animal: Animal } {
+): HerdMembership & { animal: AnimalWithCustomCategories } {
   return {
     id: nextId(),
     farmId: "farm-1",
@@ -108,12 +111,12 @@ function makeMembership(
 }
 
 type TestHerd = Herd & {
-  herdMemberships: (HerdMembership & { animal: Animal })[];
+  herdMemberships: (HerdMembership & { animal: AnimalWithCustomCategories })[];
   outdoorSchedules: OutdoorScheduleWithRecurrence[];
 };
 
 function makeHerd(
-  memberships: (HerdMembership & { animal: Animal })[],
+  memberships: (HerdMembership & { animal: AnimalWithCustomCategories })[],
   schedules: OutdoorScheduleWithRecurrence[],
 ): TestHerd {
   return {
@@ -305,7 +308,6 @@ describe("getAnimalCategoryTransitions", () => {
       sex: "female" as AnimalSex,
       usage: "other" as const,
       dateOfBirth: d("2025-01-01"),
-      categoryOverride: null,
     };
     const transitions = getAnimalCategoryTransitions(
       animal,
@@ -324,7 +326,6 @@ describe("getAnimalCategoryTransitions", () => {
       sex: "female" as AnimalSex,
       usage: "other" as const,
       dateOfBirth: d("2024-01-01"),
-      categoryOverride: null,
     };
     const transitionDate = addDays(d("2024-01-01"), 365); // 2024-12-31
     const transitions = getAnimalCategoryTransitions(
@@ -347,7 +348,6 @@ describe("getAnimalCategoryTransitions", () => {
       sex: "male" as AnimalSex,
       usage: "other" as const,
       dateOfBirth: d("2024-06-01"),
-      categoryOverride: null,
     };
     // 365 days from 2024-06-01 = 2025-06-01
     const transitions = getAnimalCategoryTransitions(
@@ -367,7 +367,6 @@ describe("getAnimalCategoryTransitions", () => {
       sex: "male" as AnimalSex,
       usage: "other" as const,
       dateOfBirth: d("2024-01-01"),
-      categoryOverride: null,
     };
     // 366 days from 2024-01-01 = 2025-01-02
     const transitions = getAnimalCategoryTransitions(
@@ -388,7 +387,6 @@ describe("getAnimalCategoryTransitions", () => {
       sex: "male" as AnimalSex,
       usage: "other" as const,
       dateOfBirth: d("2023-01-01"),
-      categoryOverride: null,
     };
     // 730 days from 2023-01-01 = 2024-12-31
     const transitions = getAnimalCategoryTransitions(
@@ -407,7 +405,6 @@ describe("getAnimalCategoryTransitions", () => {
       sex: "female" as AnimalSex,
       usage: "other" as const,
       dateOfBirth: d("2020-01-01"),
-      categoryOverride: null,
     };
     const transitions = getAnimalCategoryTransitions(
       animal,
@@ -427,7 +424,6 @@ describe("getAnimalCategoryTransitions", () => {
       sex: "female" as AnimalSex,
       usage: "milk" as const,
       dateOfBirth: d("2020-01-01"),
-      categoryOverride: null,
     };
     const transitions = getAnimalCategoryTransitions(
       animal,
@@ -438,32 +434,12 @@ describe("getAnimalCategoryTransitions", () => {
     expect(transitions[0].category).toBe("A1");
   });
 
-  test("categoryOverride returns single entry for whole period", () => {
-    const animal = {
-      type: "sheep" as AnimalType,
-      sex: "female" as AnimalSex,
-      usage: "other" as const,
-      dateOfBirth: d("2024-01-01"),
-      categoryOverride: "D1" as AnimalCategory,
-    };
-    const transitions = getAnimalCategoryTransitions(
-      animal,
-      d("2024-06-01"),
-      d("2025-06-01"),
-    );
-    // Override skips age-based logic entirely
-    expect(transitions).toEqual([
-      { category: "D1", startDate: d("2024-06-01"), endDate: d("2025-06-01") },
-    ]);
-  });
-
   test("horse transitions from B3 to B1 at 900 days", () => {
     const animal = {
       type: "horse" as AnimalType,
       sex: "female" as AnimalSex,
       usage: "other" as const,
       dateOfBirth: d("2022-06-01"),
-      categoryOverride: null,
     };
     // 900 days from 2022-06-01 = 2024-11-17
     const transitionDate = addDays(d("2022-06-01"), 900);
@@ -485,7 +461,6 @@ describe("getAnimalCategoryTransitions", () => {
       sex: "female" as AnimalSex,
       usage: "other" as const,
       dateOfBirth: d("2024-01-01"),
-      categoryOverride: null,
     };
     const transitions = getAnimalCategoryTransitions(
       animal,
@@ -511,7 +486,7 @@ describe("buildOutdoorJournal", () => {
       [makeSchedule({ startDate: d("2025-05-01"), endDate: d("2025-05-31") })],
     );
     const result = buildOutdoorJournal([herd], d("2025-01-01"), d("2025-12-31"));
-    expect(result.uncategorizedAnimalCount).toBe(0);
+    expect(result.uncategorizedAnimals).toHaveLength(0);
     expect(result.entries).toHaveLength(1);
     expect(result.entries[0].category).toBe("D1");
     expect(result.entries[0].animalCount).toBe(1);
@@ -531,7 +506,7 @@ describe("buildOutdoorJournal", () => {
       [makeSchedule({ startDate: d("2025-05-01"), endDate: d("2025-09-30") })],
     );
     const result = buildOutdoorJournal([herd], d("2025-01-01"), d("2025-12-31"));
-    expect(result.uncategorizedAnimalCount).toBe(0);
+    expect(result.uncategorizedAnimals).toHaveLength(0);
 
     const d3Entries = result.entries.filter((e) => e.category === "D3");
     const d1Entries = result.entries.filter((e) => e.category === "D1");
@@ -589,7 +564,10 @@ describe("buildOutdoorJournal", () => {
     );
     const result = buildOutdoorJournal([herd], d("2025-01-01"), d("2025-12-31"));
     expect(result.entries).toHaveLength(0);
-    expect(result.uncategorizedAnimalCount).toBe(1);
+    expect(result.uncategorizedAnimals).toHaveLength(1);
+    expect(result.uncategorizedAnimals[0].id).toBe(animal.id);
+    expect(result.uncategorizedAnimals[0].name).toBe("Test Animal");
+    expect(result.uncategorizedAnimals[0].earTag).toBeNull();
   });
 
   test("multiple animals produce correct animal count", () => {
@@ -692,6 +670,118 @@ describe("buildOutdoorJournal", () => {
     const result = buildOutdoorJournal([herd1, herd2], d("2025-01-01"), d("2025-12-31"));
     const categories = result.entries.map((e) => e.category).sort();
     expect(categories).toEqual(["C1", "D1"]);
+  });
+
+  test("custom outdoor journal category overrides null age-based category", () => {
+    // Pig has no age-based rules → normally uncategorized
+    const animal = makeAnimal({
+      type: "pig",
+      sex: "female",
+      dateOfBirth: d("2024-01-01"),
+    });
+    animal.customOutdoorJournalCategories = [
+      {
+        id: "cust-1",
+        farmId: "farm-1",
+        animalId: animal.id,
+        startDate: d("2025-01-01"),
+        endDate: d("2025-12-31"),
+        category: "A1",
+      },
+    ];
+    const herd = makeHerd(
+      [makeMembership(animal, d("2024-01-01"))],
+      [makeSchedule({ startDate: d("2025-05-01"), endDate: d("2025-05-31") })],
+    );
+    const result = buildOutdoorJournal([herd], d("2025-01-01"), d("2025-12-31"));
+    expect(result.uncategorizedAnimals).toHaveLength(0);
+    expect(result.entries).toHaveLength(1);
+    expect(result.entries[0].category).toBe("A1");
+  });
+
+  test("custom category only covers part of period, rest uses age-based", () => {
+    // Old female sheep: age-based = D1
+    const animal = makeAnimal({
+      type: "sheep",
+      sex: "female",
+      dateOfBirth: d("2020-01-01"),
+    });
+    // Custom category covers May 1-15, age-based D1 covers May 16-31
+    animal.customOutdoorJournalCategories = [
+      {
+        id: "cust-1",
+        farmId: "farm-1",
+        animalId: animal.id,
+        startDate: d("2025-05-01"),
+        endDate: d("2025-05-15"),
+        category: "A2",
+      },
+    ];
+    const herd = makeHerd(
+      [makeMembership(animal, d("2024-01-01"))],
+      [makeSchedule({ startDate: d("2025-05-01"), endDate: d("2025-05-31") })],
+    );
+    const result = buildOutdoorJournal([herd], d("2025-01-01"), d("2025-12-31"));
+    expect(result.uncategorizedAnimals).toHaveLength(0);
+    const categories = result.entries.map((e) => e.category).sort();
+    expect(categories).toContain("A2");
+    expect(categories).toContain("D1");
+  });
+
+  test("pig with partial custom category is still uncategorized for uncovered period", () => {
+    const animal = makeAnimal({
+      type: "pig",
+      sex: "female",
+      dateOfBirth: d("2024-01-01"),
+    });
+    // Custom only covers May 1-15; May 16-31 has no rules for pig → uncategorized
+    animal.customOutdoorJournalCategories = [
+      {
+        id: "cust-1",
+        farmId: "farm-1",
+        animalId: animal.id,
+        startDate: d("2025-05-01"),
+        endDate: d("2025-05-15"),
+        category: "A1",
+      },
+    ];
+    const herd = makeHerd(
+      [makeMembership(animal, d("2024-01-01"))],
+      [makeSchedule({ startDate: d("2025-05-01"), endDate: d("2025-05-31") })],
+    );
+    const result = buildOutdoorJournal([herd], d("2025-01-01"), d("2025-12-31"));
+    // Has a categorized fragment from the custom category
+    expect(result.entries.some((e) => e.category === "A1")).toBe(true);
+    // But also uncategorized because of the uncovered period
+    // Since the animal has both categorized AND null periods, it should NOT be in uncategorizedAnimals
+    // (uncategorized = never categorized across all periods)
+    expect(result.uncategorizedAnimals).toHaveLength(0);
+  });
+
+  test("custom category with no endDate covers from startDate to end of period", () => {
+    const animal = makeAnimal({
+      type: "pig",
+      sex: "female",
+      dateOfBirth: d("2024-01-01"),
+    });
+    animal.customOutdoorJournalCategories = [
+      {
+        id: "cust-1",
+        farmId: "farm-1",
+        animalId: animal.id,
+        startDate: d("2025-01-01"),
+        endDate: null,
+        category: "D1",
+      },
+    ];
+    const herd = makeHerd(
+      [makeMembership(animal, d("2024-01-01"))],
+      [makeSchedule({ startDate: d("2025-05-01"), endDate: d("2025-05-31") })],
+    );
+    const result = buildOutdoorJournal([herd], d("2025-01-01"), d("2025-12-31"));
+    expect(result.uncategorizedAnimals).toHaveLength(0);
+    expect(result.entries).toHaveLength(1);
+    expect(result.entries[0].category).toBe("D1");
   });
 
   test("entries are sorted by category then startDate", () => {

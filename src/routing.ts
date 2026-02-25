@@ -21,6 +21,7 @@ import {
   updateOutdoorScheduleEndpoint,
   batchUpdateAnimalsEndpoint,
   deleteAnimalsEndpoint,
+  setCustomOutdoorJournalCategoriesEndpoint,
 } from "./animals/animals.endpoint";
 import {
   createContactEndpoint,
@@ -235,6 +236,7 @@ import {
 import { downloadTreatmentReport } from "./reports/treatment-reports.endpoint";
 import { downloadOutdoorJournalReport } from "./reports/outdoor-journal-reports.endpoint";
 import { healthEndpoint } from "./chore/chore.endpoint";
+import { verifyCaptchaEndpoint } from "./captcha/turnstile.endpoint";
 
 export const routing: Routing = {
   healthz: healthEndpoint,
@@ -251,6 +253,9 @@ export const routing: Routing = {
         radius: getPlotsWithinRadiusOfPointEndpoint,
       },
       federalFarmIds: getFederalFarmIdsEndpoint,
+    },
+    captcha: {
+      verify: verifyCaptchaEndpoint,
     },
     farm: {
       "": {
@@ -541,6 +546,7 @@ export const routing: Routing = {
           },
           children: getAnimalChildrenEndpoint,
           sponsorships: getAnimalSponsorshipsEndpoint,
+          customOutdoorJournalCategories: setCustomOutdoorJournalCategoriesEndpoint,
         },
       },
       outdoorJournal: getOutdoorJournalEndpoint,
