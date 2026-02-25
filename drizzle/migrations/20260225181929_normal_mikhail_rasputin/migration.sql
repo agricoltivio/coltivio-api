@@ -8,6 +8,7 @@ CREATE TABLE "custom_outdoor_journal_categories" (
 );
 --> statement-breakpoint
 ALTER TABLE "custom_outdoor_journal_categories" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+DROP POLICY "any user can create a new farm" ON "farms";--> statement-breakpoint
 ALTER TABLE "animals" DROP COLUMN "requires_category_override";--> statement-breakpoint
 ALTER TABLE "animals" DROP COLUMN "category_override";--> statement-breakpoint
 CREATE INDEX "custom_outdoor_journal_categories_animal_id_idx" ON "custom_outdoor_journal_categories" ("animal_id");--> statement-breakpoint
