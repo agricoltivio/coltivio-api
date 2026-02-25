@@ -1,38 +1,30 @@
 import { z } from "zod";
 import { authenticatedEndpointFactory } from "../endpoint-factory";
 import { BBox } from "../geo/geojson";
-import { selectFederalFarmPlotSchema } from "../db/schema";
-
-interface ParcelLayerPolygon {
-  id: string;
-  gisId: number;
-  area: number;
-  communalId: string;
-  labelX?: number;
-  labelY?: number;
-  geometry: Geometry;
-}
+import { ez } from "express-zod-api";
+import { multiPolygonSchema } from "../db/schema";
 
 interface Geometry {
   type: string;
   coordinates: number[][][][];
 }
 
-interface MultiPolygon {
-  type: "MultiPolygon";
-  coordinates: number[][][][];
-}
-
-const MultiPolygonSchema = z.object({
-  type: z.literal("MultiPolygon"),
-  coordinates: z.array(z.array(z.array(z.array(z.number())))),
-});
-
 const BoundingBoxSchema = z.object({
   xmin: z.string().transform((value) => parseFloat(value)),
   ymin: z.string().transform((value) => parseFloat(value)),
   xmax: z.string().transform((value) => parseFloat(value)),
   ymax: z.string().transform((value) => parseFloat(value)),
+});
+
+const selectFederalFarmPlotSchema = z.object({
+  id: z.number(),
+  federalFarmId: z.string(),
+  localId: z.string().nullable(),
+  usage: z.number(),
+  size: z.number(),
+  cuttingDate: ez.dateOut().nullable(),
+  canton: z.string(),
+  geometry: multiPolygonSchema,
 });
 
 export const getPlotsLayerForBoundingBoxEndpoint =
@@ -52,13 +44,13 @@ export const getPlotsLayerForBoundingBoxEndpoint =
     }),
     handler: async ({
       input: { xmax, xmin, ymax, ymin },
-      options: { federalParcelLayer },
+      ctx: { federalParcelLayer },
     }) => {
       const parcels = await federalParcelLayer.getPlotsLayerForBoundingBox(
         xmin,
         ymin,
         xmax,
-        ymax
+        ymax,
       );
       const bbox: BBox = [xmin, ymin, xmax, ymax];
 
@@ -80,7 +72,7 @@ export const getPlotsForFederalFarmIdEndpoint =
     }),
     handler: async ({
       input: { federalFarmId },
-      options: { federalParcelLayer },
+      ctx: { federalParcelLayer },
     }) => {
       const parcels =
         await federalParcelLayer.getPlotsForFederalFarmId(federalFarmId);
@@ -104,18 +96,18 @@ export const getFarmAndNearbyPlotsEndpoint = authenticatedEndpointFactory.build(
     }),
     handler: async ({
       input: { federalFarmId, buffer },
-      options: { federalParcelLayer },
+      ctx: { federalParcelLayer },
     }) => {
       const parcels = await federalParcelLayer.getFarmAndNearbyPlots(
         federalFarmId,
-        buffer
+        buffer,
       );
       return {
         result: parcels,
         count: parcels.length,
       };
     },
-  }
+  },
 );
 export const getPlotsWithinRadiusOfPointEndpoint =
   authenticatedEndpointFactory.build({
@@ -131,12 +123,12 @@ export const getPlotsWithinRadiusOfPointEndpoint =
     }),
     handler: async ({
       input: { longitude, latitude, radiusInKm },
-      options: { federalParcelLayer },
+      ctx: { federalParcelLayer },
     }) => {
       const parcels = await federalParcelLayer.getPlotsWithinRadiusOfPoint(
         longitude,
         latitude,
-        radiusInKm
+        radiusInKm,
       );
       return {
         result: parcels,
@@ -158,13 +150,13 @@ export const getFederalFarmIdsEndpoint = authenticatedEndpointFactory.build({
     result: z.array(z.string()),
     count: z.number(),
   }),
-  handler: async ({ input, options: { federalParcelLayer } }) => {
+  handler: async ({ input, ctx: { federalParcelLayer } }) => {
     const federalFarmIds = await federalParcelLayer.getFederalFarmIds(
       input.query,
       input.longitude,
       input.latitude,
       input.radiusInKm,
-      input.limit
+      input.limit,
     );
     return {
       result: federalFarmIds,

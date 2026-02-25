@@ -1,16 +1,24 @@
-import { and, asc, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { RlsDb } from "../db/db";
 import {
   farmIdColumnValue,
   cropProtectionApplications,
   cropProtectionUnitSchema,
+  cropProtectionApplicationPresets,
 } from "../db/schema";
 import { MultiPolygon } from "../geo/geojson";
 import { Plot } from "../plots/plots";
-import { CropProtectionEquipment } from "../equipment/crop-protection-equipment";
-import { toDate } from "date-fns";
 import { CropProtectionProduct } from "./crop-protection-products";
 import { z } from "zod";
+
+export type CropProtectionApplicationPreset =
+  typeof cropProtectionApplicationPresets.$inferSelect;
+export type CropProtectionApplicationPresetCreateInput = Omit<
+  typeof cropProtectionApplicationPresets.$inferInsert,
+  "id" | "farmId"
+>;
+export type CropProtectionApplicationPresetUpdateInput =
+  Partial<CropProtectionApplicationPresetCreateInput>;
 
 export type CropProtectionUnit = z.infer<typeof cropProtectionUnitSchema>;
 
@@ -24,17 +32,16 @@ export type CropProtectionApplicationCreateInput = Omit<
 export type CropProtectionApplicationBatchCreateInput = {
   createdBy: string;
   dateTime: Date;
-  method: CropProtectionApplication["method"];
-  equipmentId?: string;
+  method?: CropProtectionApplication["method"];
   unit: CropProtectionApplication["unit"];
   additionalNotes?: string;
   productId: string;
-  amountPerApplication: number;
+  amountPerUnit: number;
   plots: {
     plotId: string;
     geometry: MultiPolygon;
     size: number;
-    numberOfApplications: number;
+    numberOfUnits: number;
   }[];
 };
 export type CropProtectionApplicationUpdateInput =
@@ -42,10 +49,9 @@ export type CropProtectionApplicationUpdateInput =
 
 export type CropProtectionApplication =
   typeof cropProtectionApplications.$inferSelect & {
-    equipment: CropProtectionEquipment | null;
     geometry: MultiPolygon;
     product: CropProtectionProduct;
-    plot: Omit<Plot, "cropRotations" | "geometry">;
+    plot: Omit<Plot, "currentCropRotation" | "geometry">;
   };
 
 interface AppliedCropProtection {
@@ -66,7 +72,7 @@ export interface CropProtectionApplicationSummary {
 export function cropProtectionApplicationsApi(rlsDb: RlsDb) {
   return {
     async createCropProtectionApplication(
-      input: CropProtectionApplicationCreateInput
+      input: CropProtectionApplicationCreateInput,
     ): Promise<CropProtectionApplication> {
       const result = await rlsDb.rls(async (tx) => {
         const [cropProtectionApplication] = await tx
@@ -98,107 +104,103 @@ export function cropProtectionApplicationsApi(rlsDb: RlsDb) {
               ...base,
               ...plot,
               geometry: sql<MultiPolygon>`ST_GeomFromGeoJSON(${JSON.stringify(plot.geometry)})`,
-            }))
+            })),
           )
           .returning({ id: cropProtectionApplications.id });
       });
       return this.getCropProtectionApplicationsByIds(
-        result.map((application) => application.id)
+        result.map((application) => application.id),
       )!;
     },
     async getCropProtectionApplicationsByIds(
-      ids: string[]
+      ids: string[],
     ): Promise<CropProtectionApplication[]> {
       return rlsDb.rls(async (tx) => {
         return tx.query.cropProtectionApplications.findMany({
-          where: inArray(cropProtectionApplications.id, ids),
+          where: { id: { in: ids } },
           with: {
-            equipment: true,
             plot: true,
             product: true,
           },
           extras: {
-            geometry:
-              sql<MultiPolygon>`ST_AsGeoJSON(${cropProtectionApplications.geometry})::json`.as(
-                "geometry"
+            geometry: (t) =>
+              sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as(
+                "geometry",
               ),
           },
         });
       });
     },
     async getCropProtectionApplicationById(
-      id: string
+      id: string,
     ): Promise<CropProtectionApplication | undefined> {
       return rlsDb.rls(async (tx) => {
         return tx.query.cropProtectionApplications.findFirst({
-          where: eq(cropProtectionApplications.id, id),
+          where: { id },
           with: {
-            equipment: true,
             plot: true,
             product: true,
           },
           extras: {
-            geometry:
-              sql<MultiPolygon>`ST_AsGeoJSON(${cropProtectionApplications.geometry})::json`.as(
-                "geometry"
+            geometry: (t) =>
+              sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as(
+                "geometry",
               ),
           },
         });
       });
     },
     async getCropProtectionApplicationsForPlot(
-      plotId: string
+      plotId: string,
     ): Promise<CropProtectionApplication[]> {
       return rlsDb.rls(async (tx) => {
         return tx.query.cropProtectionApplications.findMany({
-          where: eq(cropProtectionApplications.plotId, plotId),
+          where: { plotId },
           with: {
-            equipment: true,
             plot: true,
             product: true,
           },
           extras: {
-            geometry:
-              sql<MultiPolygon>`ST_AsGeoJSON(${cropProtectionApplications.geometry})::json`.as(
-                "geometry"
+            geometry: (t) =>
+              sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as(
+                "geometry",
               ),
           },
-          orderBy: [desc(cropProtectionApplications.dateTime)],
+          orderBy: { dateTime: "desc" },
         });
       });
     },
     async getCropProtectionApplicationsForFarm(
       farmId: string,
       fromDate: Date,
-      toDate: Date
+      toDate: Date,
     ): Promise<CropProtectionApplication[]> {
       return rlsDb.rls(async (tx) => {
         return tx.query.cropProtectionApplications.findMany({
-          where: and(
-            eq(cropProtectionApplications.farmId, farmId),
-            and(
-              gte(cropProtectionApplications.dateTime, fromDate),
-              lte(cropProtectionApplications.dateTime, toDate)
-            )
-          ),
+          where: {
+            farmId,
+            AND: [
+              { dateTime: { gte: fromDate } },
+              { dateTime: { lte: toDate } },
+            ],
+          },
           with: {
-            equipment: true,
             plot: true,
             product: true,
           },
           extras: {
-            geometry:
-              sql<MultiPolygon>`ST_AsGeoJSON(${cropProtectionApplications.geometry})::json`.as(
-                "geometry"
+            geometry: (t) =>
+              sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as(
+                "geometry",
               ),
           },
-          orderBy: [desc(cropProtectionApplications.dateTime)],
+          orderBy: { dateTime: "desc" },
         });
       });
     },
     async updateCropProtectionApplication(
       id: string,
-      data: CropProtectionApplicationUpdateInput
+      data: CropProtectionApplicationUpdateInput,
     ): Promise<CropProtectionApplication> {
       const result = await rlsDb.rls(async (tx) => {
         const geometry = data.geometry
@@ -229,15 +231,15 @@ export function cropProtectionApplicationsApi(rlsDb: RlsDb) {
           columns: {
             dateTime: true,
           },
-          orderBy: [asc(cropProtectionApplications.dateTime)],
+          orderBy: { dateTime: "asc" },
         });
 
         return Array.from(
           new Set(
             result.map((application) =>
-              application.dateTime.getFullYear().toString()
-            )
-          )
+              application.dateTime.getFullYear().toString(),
+            ),
+          ),
         );
       });
     },
@@ -250,14 +252,63 @@ export function cropProtectionApplicationsApi(rlsDb: RlsDb) {
       });
     },
     async getCropProtectionApplicationSummaryForPlot(
-      plotId: string
+      plotId: string,
     ): Promise<CropProtectionApplicationSummary> {
       return rlsDb.rls(async (tx) => {
         const result = await tx.query.cropProtectionApplications.findMany({
           with: { product: true },
-          where: eq(cropProtectionApplications.plotId, plotId),
+          where: { plotId },
         });
         return mapToMonthlySummary(result);
+      });
+    },
+    async createCropProtectionApplicationPreset(
+      input: CropProtectionApplicationPresetCreateInput,
+    ): Promise<CropProtectionApplicationPreset> {
+      return rlsDb.rls(async (tx) => {
+        const [preset] = await tx
+          .insert(cropProtectionApplicationPresets)
+          .values({ ...farmIdColumnValue, ...input })
+          .returning();
+        return preset;
+      });
+    },
+    async getCropProtectionApplicationPresets(): Promise<
+      CropProtectionApplicationPreset[]
+    > {
+      return rlsDb.rls(async (tx) => {
+        return tx.query.cropProtectionApplicationPresets.findMany({
+          orderBy: { name: "asc" },
+        });
+      });
+    },
+    async getCropProtectionApplicationPresetById(
+      id: string,
+    ): Promise<CropProtectionApplicationPreset | undefined> {
+      return rlsDb.rls(async (tx) => {
+        return tx.query.cropProtectionApplicationPresets.findFirst({
+          where: { id },
+        });
+      });
+    },
+    async updateCropProtectionApplicationPreset(
+      id: string,
+      input: CropProtectionApplicationPresetUpdateInput,
+    ): Promise<CropProtectionApplicationPreset> {
+      return rlsDb.rls(async (tx) => {
+        const [preset] = await tx
+          .update(cropProtectionApplicationPresets)
+          .set(input)
+          .where(eq(cropProtectionApplicationPresets.id, id))
+          .returning();
+        return preset;
+      });
+    },
+    async deleteCropProtectionApplicationPreset(id: string): Promise<void> {
+      return rlsDb.rls(async (tx) => {
+        await tx
+          .delete(cropProtectionApplicationPresets)
+          .where(eq(cropProtectionApplicationPresets.id, id));
       });
     },
   };
@@ -265,12 +316,11 @@ export function cropProtectionApplicationsApi(rlsDb: RlsDb) {
 
 function mapToMonthlySummary(
   result: {
-    unit: CropProtectionUnit;
-    numberOfApplications: number;
-    amountPerApplication: number;
+    numberOfUnits: number;
+    amountPerUnit: number;
     dateTime: Date;
-    product: { id: string; name: string };
-  }[]
+    product: { id: string; name: string; unit: CropProtectionUnit };
+  }[],
 ) {
   const applications = result.reduce<{
     [key: string]: {
@@ -294,22 +344,21 @@ function mapToMonthlySummary(
         year,
         appliedCropProtections: {
           [product.id]: {
-            totalAmount: 0,
-            unit: application.unit,
+            totalAmount: application.numberOfUnits * application.amountPerUnit,
+            unit: application.product.unit,
             productName: product.name,
           },
         },
       };
     } else if (!acc[key].appliedCropProtections[product.id]) {
       acc[key].appliedCropProtections[product.id] = {
-        totalAmount:
-          application.numberOfApplications * application.amountPerApplication,
-        unit: application.unit,
+        totalAmount: application.numberOfUnits * application.amountPerUnit,
+        unit: application.product.unit,
         productName: product.name,
       };
     } else {
       acc[key].appliedCropProtections[product.id].totalAmount +=
-        application.numberOfApplications * application.amountPerApplication;
+        application.numberOfUnits * application.amountPerUnit;
     }
     return acc;
   }, {});
@@ -319,7 +368,7 @@ function mapToMonthlySummary(
         year,
         month,
         appliedCropProtections: Object.values(appliedCropProtections),
-      })
+      }),
     ),
   };
 }

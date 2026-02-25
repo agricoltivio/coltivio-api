@@ -1,17 +1,45 @@
 import createHttpError from "http-errors";
 import { z } from "zod";
-import * as tables from "../db/schema";
 import {
   authenticatedEndpointFactory,
   farmEndpointFactory,
 } from "../endpoint-factory";
 
+const pointSchema = z.object({
+  type: z.literal("Point"),
+  coordinates: z.tuple([z.number(), z.number()]),
+});
+
+export const farmSchema = z.object({
+  id: z.string(),
+  federalId: z.string().nullable(),
+  tvdId: z.string().nullable(),
+  name: z.string(),
+  address: z.string(),
+  location: pointSchema,
+});
+
+const createFarmSchema = z.object({
+  name: z.string(),
+  federalId: z.string().optional().nullable(),
+  address: z.string(),
+  location: pointSchema,
+});
+
+const updateFarmSchema = z.object({
+  name: z.string().optional(),
+  location: pointSchema.optional(),
+  address: z.string().optional(),
+  federalId: z.string().optional(),
+  tvdId: z.string().optional(),
+});
+
 export const getFarmEndpoint = farmEndpointFactory.build({
   method: "get",
   input: z.object({}),
-  output: tables.selectFarmSchema,
-  handler: async ({ input, options }) => {
-    const farm = await options.farms.getFarmById(options.farmId);
+  output: farmSchema,
+  handler: async ({ input, ctx }) => {
+    const farm = await ctx.farms.getFarmById(ctx.farmId);
     if (!farm) {
       throw createHttpError(404, "Farm not found");
     }
@@ -22,33 +50,22 @@ export const getFarmEndpoint = farmEndpointFactory.build({
 
 export const createFarmEndpoint = authenticatedEndpointFactory.build({
   method: "post",
-  input: z.object({
-    name: z.string(),
-    federalId: z.string().optional().nullable(),
-    address: z.string(),
-    location: tables.pointSchema,
-  }),
-  output: tables.selectFarmSchema,
-  handler: async ({ input, options }) => {
-    if (options.user.farmId != null) {
+  input: createFarmSchema,
+  output: farmSchema,
+  handler: async ({ input, ctx }) => {
+    if (ctx.user.farmId != null) {
       throw createHttpError(400, "User already has a farm");
     }
-    return options.farms.createFarm(options.user.id, input);
+    return ctx.farms.createFarm(ctx.user.id, input);
   },
 });
 
 export const updateFarmEndpoint = farmEndpointFactory.build({
   method: "patch",
-  input: z.object({
-    name: z.string().optional(),
-    location: tables.pointSchema.optional(),
-    address: z.string().optional(),
-    federalId: z.string().optional(),
-    tvdId: z.string().optional(),
-  }),
-  output: tables.selectFarmSchema,
-  handler: async ({ input, options }) => {
-    return options.farms.updateFarm(options.farmId, input);
+  input: updateFarmSchema,
+  output: farmSchema,
+  handler: async ({ input, ctx }) => {
+    return ctx.farms.updateFarm(ctx.farmId, input);
   },
 });
 
@@ -58,10 +75,10 @@ export const deleteFarmEndpoint = farmEndpointFactory.build({
     deleteAccount: z.string().transform((value) => value === "true"),
   }),
   output: z.object({}),
-  handler: async ({ input, options }) => {
-    await options.farms.deleteFarm(options.farmId);
+  handler: async ({ input, ctx }) => {
+    await ctx.farms.deleteFarm(ctx.farmId);
     if (input.deleteAccount) {
-      await options.users.deleteUser(options.user.id);
+      await ctx.users.deleteUser(ctx.user.id);
     }
     return {};
   },

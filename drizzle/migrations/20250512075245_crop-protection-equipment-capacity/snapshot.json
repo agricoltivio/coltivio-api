@@ -1,0 +1,3305 @@
+{
+  "id": "d7aa0142-44fd-4a89-a983-d39745459df5",
+  "prevIds": [
+    "699d371e-241d-439c-b0c0-74ef4608dad6"
+  ],
+  "version": "8",
+  "dialect": "postgres",
+  "ddl": [
+    {
+      "isRlsEnabled": true,
+      "name": "crop_protection_applications",
+      "schema": "public",
+      "entityType": "tables"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "crop_protection_applications_pkey",
+      "schema": "public",
+      "table": "crop_protection_applications",
+      "entityType": "pks"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "schema": "public",
+      "table": "crop_protection_applications",
+      "entityType": "columns"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "farm_id",
+      "schema": "public",
+      "table": "crop_protection_applications",
+      "entityType": "columns"
+    },
+    {
+      "type": "timestamp",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "schema": "public",
+      "table": "crop_protection_applications",
+      "entityType": "columns"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "created_by",
+      "schema": "public",
+      "table": "crop_protection_applications",
+      "entityType": "columns"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "plot_id",
+      "schema": "public",
+      "table": "crop_protection_applications",
+      "entityType": "columns"
+    },
+    {
+      "type": "timestamp",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "date_time",
+      "schema": "public",
+      "table": "crop_protection_applications",
+      "entityType": "columns"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "equipment_id",
+      "schema": "public",
+      "table": "crop_protection_applications",
+      "entityType": "columns"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "product_id",
+      "schema": "public",
+      "table": "crop_protection_applications",
+      "entityType": "columns"
+    },
+    {
+      "type": "geometry(MultiPolygon,4326)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "geometry",
+      "schema": "public",
+      "table": "crop_protection_applications",
+      "entityType": "columns"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "size",
+      "schema": "public",
+      "table": "crop_protection_applications",
+      "entityType": "columns"
+    },
+    {
+      "type": "crop_protection_application_method",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "method",
+      "schema": "public",
+      "table": "crop_protection_applications",
+      "entityType": "columns"
+    },
+    {
+      "type": "real",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "amount_per_application",
+      "schema": "public",
+      "table": "crop_protection_applications",
+      "entityType": "columns"
+    },
+    {
+      "type": "real",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "number_of_applications",
+      "schema": "public",
+      "table": "crop_protection_applications",
+      "entityType": "columns"
+    },
+    {
+      "type": "crop_protection_unit",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "unit",
+      "schema": "public",
+      "table": "crop_protection_applications",
+      "entityType": "columns"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "additional_notes",
+      "schema": "public",
+      "table": "crop_protection_applications",
+      "entityType": "columns"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "farm_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "farms",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "crop_protection_applications_farm_id_farms_id_fk",
+      "schema": "public",
+      "table": "crop_protection_applications",
+      "entityType": "fks"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "created_by"
+      ],
+      "schemaTo": "public",
+      "tableTo": "profiles",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "SET NULL",
+      "name": "crop_protection_applications_created_by_profiles_id_fk",
+      "schema": "public",
+      "table": "crop_protection_applications",
+      "entityType": "fks"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "plot_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "plots",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "crop_protection_applications_plot_id_plots_id_fk",
+      "schema": "public",
+      "table": "crop_protection_applications",
+      "entityType": "fks"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "equipment_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "crop_protection_equipment",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "SET NULL",
+      "name": "crop_protection_applications_equipment_id_crop_protection_equip",
+      "schema": "public",
+      "table": "crop_protection_applications",
+      "entityType": "fks"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "product_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "crop_protection_products",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "crop_protection_applications_product_id_crop_protection_product",
+      "schema": "public",
+      "table": "crop_protection_applications",
+      "entityType": "fks"
+    },
+    {
+      "as": "PERMISSIVE",
+      "for": "ALL",
+      "roles": [
+        "authenticated"
+      ],
+      "using": "\"crop_protection_applications\".\"farm_id\" = farm_id()",
+      "withCheck": "\"crop_protection_applications\".\"farm_id\" = farm_id()",
+      "name": "only farm members",
+      "schema": "public",
+      "table": "crop_protection_applications",
+      "entityType": "policies"
+    },
+    {
+      "isRlsEnabled": true,
+      "name": "crop_protection_equipment",
+      "schema": "public",
+      "entityType": "tables"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "crop_protection_equipment_pkey",
+      "schema": "public",
+      "table": "crop_protection_equipment",
+      "entityType": "pks"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "schema": "public",
+      "table": "crop_protection_equipment",
+      "entityType": "columns"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "farm_id",
+      "schema": "public",
+      "table": "crop_protection_equipment",
+      "entityType": "columns"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "name",
+      "schema": "public",
+      "table": "crop_protection_equipment",
+      "entityType": "columns"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "description",
+      "schema": "public",
+      "table": "crop_protection_equipment",
+      "entityType": "columns"
+    },
+    {
+      "type": "crop_protection_application_method",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "method",
+      "schema": "public",
+      "table": "crop_protection_equipment",
+      "entityType": "columns"
+    },
+    {
+      "type": "crop_protection_unit",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "unit",
+      "schema": "public",
+      "table": "crop_protection_equipment",
+      "entityType": "columns"
+    },
+    {
+      "type": "real",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "capacity",
+      "schema": "public",
+      "table": "crop_protection_equipment",
+      "entityType": "columns"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "farm_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "farms",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "crop_protection_equipment_farm_id_farms_id_fk",
+      "schema": "public",
+      "table": "crop_protection_equipment",
+      "entityType": "fks"
+    },
+    {
+      "as": "PERMISSIVE",
+      "for": "ALL",
+      "roles": [
+        "authenticated"
+      ],
+      "using": "\"crop_protection_equipment\".\"farm_id\" = farm_id()",
+      "withCheck": "\"crop_protection_equipment\".\"farm_id\" = farm_id()",
+      "name": "only farm members",
+      "schema": "public",
+      "table": "crop_protection_equipment",
+      "entityType": "policies"
+    },
+    {
+      "isRlsEnabled": true,
+      "name": "crop_protection_products",
+      "schema": "public",
+      "entityType": "tables"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "crop_protection_products_pkey",
+      "schema": "public",
+      "table": "crop_protection_products",
+      "entityType": "pks"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "schema": "public",
+      "table": "crop_protection_products",
+      "entityType": "columns"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "farm_id",
+      "schema": "public",
+      "table": "crop_protection_products",
+      "entityType": "columns"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "name",
+      "schema": "public",
+      "table": "crop_protection_products",
+      "entityType": "columns"
+    },
+    {
+      "type": "crop_protection_unit",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "unit",
+      "schema": "public",
+      "table": "crop_protection_products",
+      "entityType": "columns"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "description",
+      "schema": "public",
+      "table": "crop_protection_products",
+      "entityType": "columns"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "default_equipment_id",
+      "schema": "public",
+      "table": "crop_protection_products",
+      "entityType": "columns"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "farm_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "farms",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "crop_protection_products_farm_id_farms_id_fk",
+      "schema": "public",
+      "table": "crop_protection_products",
+      "entityType": "fks"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "default_equipment_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "crop_protection_equipment",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "SET NULL",
+      "name": "crop_protection_products_default_equipment_id_crop_protection_e",
+      "schema": "public",
+      "table": "crop_protection_products",
+      "entityType": "fks"
+    },
+    {
+      "as": "PERMISSIVE",
+      "for": "ALL",
+      "roles": [
+        "authenticated"
+      ],
+      "using": "\"crop_protection_products\".\"farm_id\" = farm_id()",
+      "withCheck": "\"crop_protection_products\".\"farm_id\" = farm_id()",
+      "name": "only farm members",
+      "schema": "public",
+      "table": "crop_protection_products",
+      "entityType": "policies"
+    },
+    {
+      "isRlsEnabled": true,
+      "name": "crop_rotations",
+      "schema": "public",
+      "entityType": "tables"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "crop_rotations_pkey",
+      "schema": "public",
+      "table": "crop_rotations",
+      "entityType": "pks"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "schema": "public",
+      "table": "crop_rotations",
+      "entityType": "columns"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "farm_id",
+      "schema": "public",
+      "table": "crop_rotations",
+      "entityType": "columns"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "plot_id",
+      "schema": "public",
+      "table": "crop_rotations",
+      "entityType": "columns"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "crop_id",
+      "schema": "public",
+      "table": "crop_rotations",
+      "entityType": "columns"
+    },
+    {
+      "type": "date",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "sowing_date",
+      "schema": "public",
+      "table": "crop_rotations",
+      "entityType": "columns"
+    },
+    {
+      "type": "date",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "from_date",
+      "schema": "public",
+      "table": "crop_rotations",
+      "entityType": "columns"
+    },
+    {
+      "type": "date",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "to_date",
+      "schema": "public",
+      "table": "crop_rotations",
+      "entityType": "columns"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "farm_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "farms",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "crop_rotations_farm_id_farms_id_fk",
+      "schema": "public",
+      "table": "crop_rotations",
+      "entityType": "fks"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "plot_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "plots",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "crop_rotations_plot_id_plots_id_fk",
+      "schema": "public",
+      "table": "crop_rotations",
+      "entityType": "fks"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "crop_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "crops",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "crop_rotations_crop_id_crops_id_fk",
+      "schema": "public",
+      "table": "crop_rotations",
+      "entityType": "fks"
+    },
+    {
+      "as": "PERMISSIVE",
+      "for": "ALL",
+      "roles": [
+        "authenticated"
+      ],
+      "using": "\"crop_rotations\".\"farm_id\" = farm_id()",
+      "withCheck": "\"crop_rotations\".\"farm_id\" = farm_id()",
+      "name": "only farm members",
+      "schema": "public",
+      "table": "crop_rotations",
+      "entityType": "policies"
+    },
+    {
+      "isRlsEnabled": true,
+      "name": "crops",
+      "schema": "public",
+      "entityType": "tables"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "crops_pkey",
+      "schema": "public",
+      "table": "crops",
+      "entityType": "pks"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "schema": "public",
+      "table": "crops",
+      "entityType": "columns"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "farm_id",
+      "schema": "public",
+      "table": "crops",
+      "entityType": "columns"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "name",
+      "schema": "public",
+      "table": "crops",
+      "entityType": "columns"
+    },
+    {
+      "type": "crop_category",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "category",
+      "schema": "public",
+      "table": "crops",
+      "entityType": "columns"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "variety",
+      "schema": "public",
+      "table": "crops",
+      "entityType": "columns"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 1,
+      "default": "'{}'",
+      "generated": null,
+      "identity": null,
+      "name": "usage_codes",
+      "schema": "public",
+      "table": "crops",
+      "entityType": "columns"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "additional_notes",
+      "schema": "public",
+      "table": "crops",
+      "entityType": "columns"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "farm_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "farms",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "crops_farm_id_farms_id_fk",
+      "schema": "public",
+      "table": "crops",
+      "entityType": "fks"
+    },
+    {
+      "as": "PERMISSIVE",
+      "for": "ALL",
+      "roles": [
+        "authenticated"
+      ],
+      "using": "\"crops\".\"farm_id\" = farm_id()",
+      "withCheck": "\"crops\".\"farm_id\" = farm_id()",
+      "name": "only farm members",
+      "schema": "public",
+      "table": "crops",
+      "entityType": "policies"
+    },
+    {
+      "isRlsEnabled": true,
+      "name": "farms",
+      "schema": "public",
+      "entityType": "tables"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "farms_pkey",
+      "schema": "public",
+      "table": "farms",
+      "entityType": "pks"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "schema": "public",
+      "table": "farms",
+      "entityType": "columns"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "federal_id",
+      "schema": "public",
+      "table": "farms",
+      "entityType": "columns"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "tvd_id",
+      "schema": "public",
+      "table": "farms",
+      "entityType": "columns"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "name",
+      "schema": "public",
+      "table": "farms",
+      "entityType": "columns"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "address",
+      "schema": "public",
+      "table": "farms",
+      "entityType": "columns"
+    },
+    {
+      "type": "geometry(Point,4326)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "location",
+      "schema": "public",
+      "table": "farms",
+      "entityType": "columns"
+    },
+    {
+      "as": "PERMISSIVE",
+      "for": "INSERT",
+      "roles": [
+        "authenticated"
+      ],
+      "using": null,
+      "withCheck": "true",
+      "name": "any user can create a new farm",
+      "schema": "public",
+      "table": "farms",
+      "entityType": "policies"
+    },
+    {
+      "as": "PERMISSIVE",
+      "for": "SELECT",
+      "roles": [
+        "authenticated"
+      ],
+      "using": "farm_id() = \"farms\".\"id\"",
+      "withCheck": null,
+      "name": "only farm members can read",
+      "schema": "public",
+      "table": "farms",
+      "entityType": "policies"
+    },
+    {
+      "as": "PERMISSIVE",
+      "for": "UPDATE",
+      "roles": [
+        "authenticated"
+      ],
+      "using": "farm_id() = \"farms\".\"id\"",
+      "withCheck": "farm_id() = \"farms\".\"id\"",
+      "name": "only farm members can update",
+      "schema": "public",
+      "table": "farms",
+      "entityType": "policies"
+    },
+    {
+      "as": "PERMISSIVE",
+      "for": "DELETE",
+      "roles": [
+        "authenticated"
+      ],
+      "using": "farm_id() = \"farms\".\"id\"",
+      "withCheck": null,
+      "name": "only farm members can delete",
+      "schema": "public",
+      "table": "farms",
+      "entityType": "policies"
+    },
+    {
+      "isRlsEnabled": true,
+      "name": "federal_farm_plots",
+      "schema": "public",
+      "entityType": "tables"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "federal_farm_plots_pkey",
+      "schema": "public",
+      "table": "federal_farm_plots",
+      "entityType": "pks"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "schema": "public",
+      "table": "federal_farm_plots",
+      "entityType": "columns"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "farm_id",
+      "schema": "public",
+      "table": "federal_farm_plots",
+      "entityType": "columns"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "local_id",
+      "schema": "public",
+      "table": "federal_farm_plots",
+      "entityType": "columns"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "usage",
+      "schema": "public",
+      "table": "federal_farm_plots",
+      "entityType": "columns"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "a_usages",
+      "schema": "public",
+      "table": "federal_farm_plots",
+      "entityType": "columns"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "area",
+      "schema": "public",
+      "table": "federal_farm_plots",
+      "entityType": "columns"
+    },
+    {
+      "type": "date",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "cut_date",
+      "schema": "public",
+      "table": "federal_farm_plots",
+      "entityType": "columns"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "canton",
+      "schema": "public",
+      "table": "federal_farm_plots",
+      "entityType": "columns"
+    },
+    {
+      "type": "geometry(MultiPolygon,4326)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "geometry",
+      "schema": "public",
+      "table": "federal_farm_plots",
+      "entityType": "columns"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "geometry",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "gist",
+      "concurrently": false,
+      "name": "federal_farm_plots_geometries_idx",
+      "schema": "public",
+      "table": "federal_farm_plots",
+      "entityType": "indexes"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "farm_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": {
+            "name": "gin_trgm_ops",
+            "default": false
+          }
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "gin",
+      "concurrently": false,
+      "name": "federal_farm_id_idx",
+      "schema": "public",
+      "table": "federal_farm_plots",
+      "entityType": "indexes"
+    },
+    {
+      "as": "PERMISSIVE",
+      "for": "SELECT",
+      "roles": [
+        "authenticated"
+      ],
+      "using": "true",
+      "withCheck": null,
+      "name": "authenticated users can read",
+      "schema": "public",
+      "table": "federal_farm_plots",
+      "entityType": "policies"
+    },
+    {
+      "isRlsEnabled": true,
+      "name": "fertilizer_applications",
+      "schema": "public",
+      "entityType": "tables"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "fertilizer_applications_pkey",
+      "schema": "public",
+      "table": "fertilizer_applications",
+      "entityType": "pks"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "schema": "public",
+      "table": "fertilizer_applications",
+      "entityType": "columns"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "farm_id",
+      "schema": "public",
+      "table": "fertilizer_applications",
+      "entityType": "columns"
+    },
+    {
+      "type": "timestamp",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "schema": "public",
+      "table": "fertilizer_applications",
+      "entityType": "columns"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "created_by",
+      "schema": "public",
+      "table": "fertilizer_applications",
+      "entityType": "columns"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "plot_id",
+      "schema": "public",
+      "table": "fertilizer_applications",
+      "entityType": "columns"
+    },
+    {
+      "type": "date",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "date",
+      "schema": "public",
+      "table": "fertilizer_applications",
+      "entityType": "columns"
+    },
+    {
+      "type": "fertilizer_unit",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "unit",
+      "schema": "public",
+      "table": "fertilizer_applications",
+      "entityType": "columns"
+    },
+    {
+      "type": "fertilization_method",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "method",
+      "schema": "public",
+      "table": "fertilizer_applications",
+      "entityType": "columns"
+    },
+    {
+      "type": "real",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "amount_per_application",
+      "schema": "public",
+      "table": "fertilizer_applications",
+      "entityType": "columns"
+    },
+    {
+      "type": "real",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "number_of_applications",
+      "schema": "public",
+      "table": "fertilizer_applications",
+      "entityType": "columns"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "fertilizer_id",
+      "schema": "public",
+      "table": "fertilizer_applications",
+      "entityType": "columns"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "spreader_id",
+      "schema": "public",
+      "table": "fertilizer_applications",
+      "entityType": "columns"
+    },
+    {
+      "type": "geometry(MultiPolygon,4326)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "geometry",
+      "schema": "public",
+      "table": "fertilizer_applications",
+      "entityType": "columns"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "size",
+      "schema": "public",
+      "table": "fertilizer_applications",
+      "entityType": "columns"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "additional_notes",
+      "schema": "public",
+      "table": "fertilizer_applications",
+      "entityType": "columns"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "farm_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "farms",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "fertilizer_applications_farm_id_farms_id_fk",
+      "schema": "public",
+      "table": "fertilizer_applications",
+      "entityType": "fks"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "created_by"
+      ],
+      "schemaTo": "public",
+      "tableTo": "profiles",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "fertilizer_applications_created_by_profiles_id_fk",
+      "schema": "public",
+      "table": "fertilizer_applications",
+      "entityType": "fks"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "plot_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "plots",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "fertilizer_applications_plot_id_plots_id_fk",
+      "schema": "public",
+      "table": "fertilizer_applications",
+      "entityType": "fks"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "fertilizer_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "fertilizers",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "fertilizer_applications_fertilizer_id_fertilizers_id_fk",
+      "schema": "public",
+      "table": "fertilizer_applications",
+      "entityType": "fks"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "spreader_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "fertilizer_spreaders",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "SET NULL",
+      "name": "fertilizer_applications_spreader_id_fertilizer_spreaders_id_fk",
+      "schema": "public",
+      "table": "fertilizer_applications",
+      "entityType": "fks"
+    },
+    {
+      "as": "PERMISSIVE",
+      "for": "ALL",
+      "roles": [
+        "authenticated"
+      ],
+      "using": "\"fertilizer_applications\".\"farm_id\" = farm_id()",
+      "withCheck": "\"fertilizer_applications\".\"farm_id\" = farm_id()",
+      "name": "only farm members",
+      "schema": "public",
+      "table": "fertilizer_applications",
+      "entityType": "policies"
+    },
+    {
+      "isRlsEnabled": true,
+      "name": "fertilizer_spreaders",
+      "schema": "public",
+      "entityType": "tables"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "fertilizer_spreaders_pkey",
+      "schema": "public",
+      "table": "fertilizer_spreaders",
+      "entityType": "pks"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "schema": "public",
+      "table": "fertilizer_spreaders",
+      "entityType": "columns"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "farm_id",
+      "schema": "public",
+      "table": "fertilizer_spreaders",
+      "entityType": "columns"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "name",
+      "schema": "public",
+      "table": "fertilizer_spreaders",
+      "entityType": "columns"
+    },
+    {
+      "type": "fertilizer_unit",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "unit",
+      "schema": "public",
+      "table": "fertilizer_spreaders",
+      "entityType": "columns"
+    },
+    {
+      "type": "fertilization_method",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "default_method",
+      "schema": "public",
+      "table": "fertilizer_spreaders",
+      "entityType": "columns"
+    },
+    {
+      "type": "real",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "capacity",
+      "schema": "public",
+      "table": "fertilizer_spreaders",
+      "entityType": "columns"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "farm_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "farms",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "fertilizer_spreaders_farm_id_farms_id_fk",
+      "schema": "public",
+      "table": "fertilizer_spreaders",
+      "entityType": "fks"
+    },
+    {
+      "as": "PERMISSIVE",
+      "for": "ALL",
+      "roles": [
+        "authenticated"
+      ],
+      "using": "\"fertilizer_spreaders\".\"farm_id\" = farm_id()",
+      "withCheck": "\"fertilizer_spreaders\".\"farm_id\" = farm_id()",
+      "name": "only farm members",
+      "schema": "public",
+      "table": "fertilizer_spreaders",
+      "entityType": "policies"
+    },
+    {
+      "isRlsEnabled": true,
+      "name": "fertilizers",
+      "schema": "public",
+      "entityType": "tables"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "fertilizers_pkey",
+      "schema": "public",
+      "table": "fertilizers",
+      "entityType": "pks"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "schema": "public",
+      "table": "fertilizers",
+      "entityType": "columns"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "farm_id",
+      "schema": "public",
+      "table": "fertilizers",
+      "entityType": "columns"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "name",
+      "schema": "public",
+      "table": "fertilizers",
+      "entityType": "columns"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "description",
+      "schema": "public",
+      "table": "fertilizers",
+      "entityType": "columns"
+    },
+    {
+      "type": "fertilizer_type",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "type",
+      "schema": "public",
+      "table": "fertilizers",
+      "entityType": "columns"
+    },
+    {
+      "type": "fertilizer_unit",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "unit",
+      "schema": "public",
+      "table": "fertilizers",
+      "entityType": "columns"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "default_spreader_id",
+      "schema": "public",
+      "table": "fertilizers",
+      "entityType": "columns"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "farm_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "farms",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "fertilizers_farm_id_farms_id_fk",
+      "schema": "public",
+      "table": "fertilizers",
+      "entityType": "fks"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "default_spreader_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "fertilizer_spreaders",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "SET NULL",
+      "name": "fertilizers_default_spreader_id_fertilizer_spreaders_id_fk",
+      "schema": "public",
+      "table": "fertilizers",
+      "entityType": "fks"
+    },
+    {
+      "as": "PERMISSIVE",
+      "for": "ALL",
+      "roles": [
+        "authenticated"
+      ],
+      "using": "\"fertilizers\".\"farm_id\" = farm_id()",
+      "withCheck": "\"fertilizers\".\"farm_id\" = farm_id()",
+      "name": "only farm members",
+      "schema": "public",
+      "table": "fertilizers",
+      "entityType": "policies"
+    },
+    {
+      "isRlsEnabled": true,
+      "name": "harvesting_machinery",
+      "schema": "public",
+      "entityType": "tables"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "harvesting_machinery_pkey",
+      "schema": "public",
+      "table": "harvesting_machinery",
+      "entityType": "pks"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "schema": "public",
+      "table": "harvesting_machinery",
+      "entityType": "columns"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "farm_id",
+      "schema": "public",
+      "table": "harvesting_machinery",
+      "entityType": "columns"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "name",
+      "schema": "public",
+      "table": "harvesting_machinery",
+      "entityType": "columns"
+    },
+    {
+      "type": "boolean",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "false",
+      "generated": null,
+      "identity": null,
+      "name": "default",
+      "schema": "public",
+      "table": "harvesting_machinery",
+      "entityType": "columns"
+    },
+    {
+      "type": "forage_conservation_method",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "default_conservation_method",
+      "schema": "public",
+      "table": "harvesting_machinery",
+      "entityType": "columns"
+    },
+    {
+      "type": "forage_processing_type",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "default_processing_type",
+      "schema": "public",
+      "table": "harvesting_machinery",
+      "entityType": "columns"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "default_kilos_per_unit",
+      "schema": "public",
+      "table": "harvesting_machinery",
+      "entityType": "columns"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "farm_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "farms",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "harvesting_machinery_farm_id_farms_id_fk",
+      "schema": "public",
+      "table": "harvesting_machinery",
+      "entityType": "fks"
+    },
+    {
+      "as": "PERMISSIVE",
+      "for": "ALL",
+      "roles": [
+        "authenticated"
+      ],
+      "using": "\"harvesting_machinery\".\"farm_id\" = farm_id()",
+      "withCheck": "\"harvesting_machinery\".\"farm_id\" = farm_id()",
+      "name": "only farm members",
+      "schema": "public",
+      "table": "harvesting_machinery",
+      "entityType": "policies"
+    },
+    {
+      "isRlsEnabled": true,
+      "name": "forage_harvests",
+      "schema": "public",
+      "entityType": "tables"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "forage_harvests_pkey",
+      "schema": "public",
+      "table": "forage_harvests",
+      "entityType": "pks"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "schema": "public",
+      "table": "forage_harvests",
+      "entityType": "columns"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "farm_id",
+      "schema": "public",
+      "table": "forage_harvests",
+      "entityType": "columns"
+    },
+    {
+      "type": "timestamp",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "schema": "public",
+      "table": "forage_harvests",
+      "entityType": "columns"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "created_by",
+      "schema": "public",
+      "table": "forage_harvests",
+      "entityType": "columns"
+    },
+    {
+      "type": "date",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "date",
+      "schema": "public",
+      "table": "forage_harvests",
+      "entityType": "columns"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "plot_id",
+      "schema": "public",
+      "table": "forage_harvests",
+      "entityType": "columns"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "crop_id",
+      "schema": "public",
+      "table": "forage_harvests",
+      "entityType": "columns"
+    },
+    {
+      "type": "forage_conservation_method",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "conservation_method",
+      "schema": "public",
+      "table": "forage_harvests",
+      "entityType": "columns"
+    },
+    {
+      "type": "forage_processing_type",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "processing_type",
+      "schema": "public",
+      "table": "forage_harvests",
+      "entityType": "columns"
+    },
+    {
+      "type": "real",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "kilos_per_unit",
+      "schema": "public",
+      "table": "forage_harvests",
+      "entityType": "columns"
+    },
+    {
+      "type": "real",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "produced_units",
+      "schema": "public",
+      "table": "forage_harvests",
+      "entityType": "columns"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "harvest_count",
+      "schema": "public",
+      "table": "forage_harvests",
+      "entityType": "columns"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "machinery_id",
+      "schema": "public",
+      "table": "forage_harvests",
+      "entityType": "columns"
+    },
+    {
+      "type": "geometry(MultiPolygon,4326)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "geometry",
+      "schema": "public",
+      "table": "forage_harvests",
+      "entityType": "columns"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "size",
+      "schema": "public",
+      "table": "forage_harvests",
+      "entityType": "columns"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "additional_notes",
+      "schema": "public",
+      "table": "forage_harvests",
+      "entityType": "columns"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "farm_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "farms",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "forage_harvests_farm_id_farms_id_fk",
+      "schema": "public",
+      "table": "forage_harvests",
+      "entityType": "fks"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "created_by"
+      ],
+      "schemaTo": "public",
+      "tableTo": "profiles",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "SET NULL",
+      "name": "forage_harvests_created_by_profiles_id_fk",
+      "schema": "public",
+      "table": "forage_harvests",
+      "entityType": "fks"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "plot_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "plots",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "forage_harvests_plot_id_plots_id_fk",
+      "schema": "public",
+      "table": "forage_harvests",
+      "entityType": "fks"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "crop_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "crops",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "forage_harvests_crop_id_crops_id_fk",
+      "schema": "public",
+      "table": "forage_harvests",
+      "entityType": "fks"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "machinery_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "harvesting_machinery",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "SET NULL",
+      "name": "forage_harvests_machinery_id_harvesting_machinery_id_fk",
+      "schema": "public",
+      "table": "forage_harvests",
+      "entityType": "fks"
+    },
+    {
+      "as": "PERMISSIVE",
+      "for": "ALL",
+      "roles": [
+        "authenticated"
+      ],
+      "using": "\"forage_harvests\".\"farm_id\" = farm_id()",
+      "withCheck": "\"forage_harvests\".\"farm_id\" = farm_id()",
+      "name": "only farm members",
+      "schema": "public",
+      "table": "forage_harvests",
+      "entityType": "policies"
+    },
+    {
+      "isRlsEnabled": true,
+      "name": "parcels",
+      "schema": "public",
+      "entityType": "tables"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "parcels_pkey",
+      "schema": "public",
+      "table": "parcels",
+      "entityType": "pks"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "schema": "public",
+      "table": "parcels",
+      "entityType": "columns"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "farm_id",
+      "schema": "public",
+      "table": "parcels",
+      "entityType": "columns"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "communal_id",
+      "schema": "public",
+      "table": "parcels",
+      "entityType": "columns"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "gis_id",
+      "schema": "public",
+      "table": "parcels",
+      "entityType": "columns"
+    },
+    {
+      "type": "geometry(MultiPolygon,4326)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "geometry",
+      "schema": "public",
+      "table": "parcels",
+      "entityType": "columns"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "size",
+      "schema": "public",
+      "table": "parcels",
+      "entityType": "columns"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "geometry",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "gist",
+      "concurrently": false,
+      "name": "parcel_geometries_idx",
+      "schema": "public",
+      "table": "parcels",
+      "entityType": "indexes"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "gis_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "parcel_gisid_idx",
+      "schema": "public",
+      "table": "parcels",
+      "entityType": "indexes"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "farm_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "farms",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "parcels_farm_id_farms_id_fk",
+      "schema": "public",
+      "table": "parcels",
+      "entityType": "fks"
+    },
+    {
+      "as": "PERMISSIVE",
+      "for": "ALL",
+      "roles": [
+        "authenticated"
+      ],
+      "using": "\"parcels\".\"farm_id\" = farm_id()",
+      "withCheck": "\"parcels\".\"farm_id\" = farm_id()",
+      "name": "only farm members",
+      "schema": "public",
+      "table": "parcels",
+      "entityType": "policies"
+    },
+    {
+      "isRlsEnabled": true,
+      "name": "plots",
+      "schema": "public",
+      "entityType": "tables"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "plots_pkey",
+      "schema": "public",
+      "table": "plots",
+      "entityType": "pks"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "schema": "public",
+      "table": "plots",
+      "entityType": "columns"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "farm_id",
+      "schema": "public",
+      "table": "plots",
+      "entityType": "columns"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "name",
+      "schema": "public",
+      "table": "plots",
+      "entityType": "columns"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "local_id",
+      "schema": "public",
+      "table": "plots",
+      "entityType": "columns"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "usage",
+      "schema": "public",
+      "table": "plots",
+      "entityType": "columns"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "additional_usages",
+      "schema": "public",
+      "table": "plots",
+      "entityType": "columns"
+    },
+    {
+      "type": "date",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "cutting_date",
+      "schema": "public",
+      "table": "plots",
+      "entityType": "columns"
+    },
+    {
+      "type": "geometry(MultiPolygon,4326)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "geometry",
+      "schema": "public",
+      "table": "plots",
+      "entityType": "columns"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "size",
+      "schema": "public",
+      "table": "plots",
+      "entityType": "columns"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "additional_notes",
+      "schema": "public",
+      "table": "plots",
+      "entityType": "columns"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "geometry",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "gist",
+      "concurrently": false,
+      "name": "plot_geometries_idx",
+      "schema": "public",
+      "table": "plots",
+      "entityType": "indexes"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "farm_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "farms",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "plots_farm_id_farms_id_fk",
+      "schema": "public",
+      "table": "plots",
+      "entityType": "fks"
+    },
+    {
+      "as": "PERMISSIVE",
+      "for": "ALL",
+      "roles": [
+        "authenticated"
+      ],
+      "using": "\"plots\".\"farm_id\" = farm_id()",
+      "withCheck": "\"plots\".\"farm_id\" = farm_id()",
+      "name": "only farm members",
+      "schema": "public",
+      "table": "plots",
+      "entityType": "policies"
+    },
+    {
+      "isRlsEnabled": true,
+      "name": "profiles",
+      "schema": "public",
+      "entityType": "tables"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "profiles_pkey",
+      "schema": "public",
+      "table": "profiles",
+      "entityType": "pks"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "schema": "public",
+      "table": "profiles",
+      "entityType": "columns"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "email",
+      "schema": "public",
+      "table": "profiles",
+      "entityType": "columns"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "full_name",
+      "schema": "public",
+      "table": "profiles",
+      "entityType": "columns"
+    },
+    {
+      "type": "boolean",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "false",
+      "generated": null,
+      "identity": null,
+      "name": "email_verified",
+      "schema": "public",
+      "table": "profiles",
+      "entityType": "columns"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "farm_id",
+      "schema": "public",
+      "table": "profiles",
+      "entityType": "columns"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "email"
+      ],
+      "nullsNotDistinct": false,
+      "name": "profiles_email_unique",
+      "schema": "public",
+      "table": "profiles",
+      "entityType": "uniques"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "farm_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "farms",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "SET NULL",
+      "name": "profiles_farm_id_farms_id_fk",
+      "schema": "public",
+      "table": "profiles",
+      "entityType": "fks"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "id"
+      ],
+      "schemaTo": "auth",
+      "tableTo": "users",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "profiles_id_fk",
+      "schema": "public",
+      "table": "profiles",
+      "entityType": "fks"
+    },
+    {
+      "as": "PERMISSIVE",
+      "for": "INSERT",
+      "roles": [
+        "authenticated"
+      ],
+      "using": null,
+      "withCheck": "(select auth.uid()) = \"profiles\".\"id\"",
+      "name": "user can insert own profile",
+      "schema": "public",
+      "table": "profiles",
+      "entityType": "policies"
+    },
+    {
+      "as": "PERMISSIVE",
+      "for": "UPDATE",
+      "roles": [
+        "authenticated"
+      ],
+      "using": "(select auth.uid()) = \"profiles\".\"id\"",
+      "withCheck": null,
+      "name": "user can update own profile",
+      "schema": "public",
+      "table": "profiles",
+      "entityType": "policies"
+    },
+    {
+      "as": "PERMISSIVE",
+      "for": "SELECT",
+      "roles": [
+        "authenticated"
+      ],
+      "using": "((\"profiles\".\"farm_id\" is not null and \"profiles\".\"farm_id\" = farm_id()) or (select auth.uid()) = \"profiles\".\"id\")",
+      "withCheck": null,
+      "name": "members of same farm can read each others profile and owners can read their own profile",
+      "schema": "public",
+      "table": "profiles",
+      "entityType": "policies"
+    },
+    {
+      "isRlsEnabled": true,
+      "name": "tillage_equipment",
+      "schema": "public",
+      "entityType": "tables"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "tillage_equipment_pkey",
+      "schema": "public",
+      "table": "tillage_equipment",
+      "entityType": "pks"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "schema": "public",
+      "table": "tillage_equipment",
+      "entityType": "columns"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "farm_id",
+      "schema": "public",
+      "table": "tillage_equipment",
+      "entityType": "columns"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "name",
+      "schema": "public",
+      "table": "tillage_equipment",
+      "entityType": "columns"
+    },
+    {
+      "type": "tillage_action",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "action",
+      "schema": "public",
+      "table": "tillage_equipment",
+      "entityType": "columns"
+    },
+    {
+      "type": "tillage_reason",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "reason",
+      "schema": "public",
+      "table": "tillage_equipment",
+      "entityType": "columns"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "farm_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "farms",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "tillage_equipment_farm_id_farms_id_fk",
+      "schema": "public",
+      "table": "tillage_equipment",
+      "entityType": "fks"
+    },
+    {
+      "as": "PERMISSIVE",
+      "for": "ALL",
+      "roles": [
+        "authenticated"
+      ],
+      "using": "\"tillage_equipment\".\"farm_id\" = farm_id()",
+      "withCheck": "\"tillage_equipment\".\"farm_id\" = farm_id()",
+      "name": "only farm members",
+      "schema": "public",
+      "table": "tillage_equipment",
+      "entityType": "policies"
+    },
+    {
+      "isRlsEnabled": true,
+      "name": "tillages",
+      "schema": "public",
+      "entityType": "tables"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "tillages_pkey",
+      "schema": "public",
+      "table": "tillages",
+      "entityType": "pks"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "schema": "public",
+      "table": "tillages",
+      "entityType": "columns"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "farm_id",
+      "schema": "public",
+      "table": "tillages",
+      "entityType": "columns"
+    },
+    {
+      "type": "timestamp",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "schema": "public",
+      "table": "tillages",
+      "entityType": "columns"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "created_by",
+      "schema": "public",
+      "table": "tillages",
+      "entityType": "columns"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "plot_id",
+      "schema": "public",
+      "table": "tillages",
+      "entityType": "columns"
+    },
+    {
+      "type": "geometry(MultiPolygon,4326)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "geometry",
+      "schema": "public",
+      "table": "tillages",
+      "entityType": "columns"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "size",
+      "schema": "public",
+      "table": "tillages",
+      "entityType": "columns"
+    },
+    {
+      "type": "tillage_reason",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "reason",
+      "schema": "public",
+      "table": "tillages",
+      "entityType": "columns"
+    },
+    {
+      "type": "tillage_action",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "action",
+      "schema": "public",
+      "table": "tillages",
+      "entityType": "columns"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "equipment_id",
+      "schema": "public",
+      "table": "tillages",
+      "entityType": "columns"
+    },
+    {
+      "type": "date",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "date",
+      "schema": "public",
+      "table": "tillages",
+      "entityType": "columns"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "additional_notes",
+      "schema": "public",
+      "table": "tillages",
+      "entityType": "columns"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "farm_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "farms",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "tillages_farm_id_farms_id_fk",
+      "schema": "public",
+      "table": "tillages",
+      "entityType": "fks"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "created_by"
+      ],
+      "schemaTo": "public",
+      "tableTo": "profiles",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "SET NULL",
+      "name": "tillages_created_by_profiles_id_fk",
+      "schema": "public",
+      "table": "tillages",
+      "entityType": "fks"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "plot_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "plots",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "tillages_plot_id_plots_id_fk",
+      "schema": "public",
+      "table": "tillages",
+      "entityType": "fks"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "equipment_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "tillage_equipment",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "SET NULL",
+      "name": "tillages_equipment_id_tillage_equipment_id_fk",
+      "schema": "public",
+      "table": "tillages",
+      "entityType": "fks"
+    },
+    {
+      "as": "PERMISSIVE",
+      "for": "ALL",
+      "roles": [
+        "authenticated"
+      ],
+      "using": "\"tillages\".\"farm_id\" = farm_id()",
+      "withCheck": "\"tillages\".\"farm_id\" = farm_id()",
+      "name": "only farm members",
+      "schema": "public",
+      "table": "tillages",
+      "entityType": "policies"
+    },
+    {
+      "values": [
+        "dried",
+        "silage",
+        "haylage",
+        "other",
+        "none"
+      ],
+      "name": "forage_conservation_method",
+      "schema": "public",
+      "entityType": "enums"
+    },
+    {
+      "values": [
+        "grass",
+        "grain",
+        "vegetable",
+        "fruit",
+        "other"
+      ],
+      "name": "crop_category",
+      "schema": "public",
+      "entityType": "enums"
+    },
+    {
+      "values": [
+        "spraying",
+        "misting",
+        "broadcasting",
+        "injecting",
+        "other"
+      ],
+      "name": "crop_protection_application_method",
+      "schema": "public",
+      "entityType": "enums"
+    },
+    {
+      "values": [
+        "ml",
+        "l",
+        "g",
+        "kg"
+      ],
+      "name": "crop_protection_unit",
+      "schema": "public",
+      "entityType": "enums"
+    },
+    {
+      "values": [
+        "spray",
+        "spread",
+        "other"
+      ],
+      "name": "fertilization_method",
+      "schema": "public",
+      "entityType": "enums"
+    },
+    {
+      "values": [
+        "mineral",
+        "organic"
+      ],
+      "name": "fertilizer_type",
+      "schema": "public",
+      "entityType": "enums"
+    },
+    {
+      "values": [
+        "l",
+        "kg",
+        "dt",
+        "t"
+      ],
+      "name": "fertilizer_unit",
+      "schema": "public",
+      "entityType": "enums"
+    },
+    {
+      "values": [
+        "none",
+        "square_bale",
+        "round_bale",
+        "other"
+      ],
+      "name": "forage_processing_type",
+      "schema": "public",
+      "entityType": "enums"
+    },
+    {
+      "values": [
+        "plowing",
+        "tilling",
+        "harrowing",
+        "rolling",
+        "rotavating",
+        "weed_harrowing",
+        "hoeing",
+        "flame_weeding",
+        "other"
+      ],
+      "name": "tillage_action",
+      "schema": "public",
+      "entityType": "enums"
+    },
+    {
+      "values": [
+        "weed_control",
+        "soil_loosening",
+        "other"
+      ],
+      "name": "tillage_reason",
+      "schema": "public",
+      "entityType": "enums"
+    },
+    {
+      "values": [
+        "ADMIN",
+        "USER",
+        "CONTRACTOR"
+      ],
+      "name": "user_role",
+      "schema": "public",
+      "entityType": "enums"
+    }
+  ],
+  "renames": []
+}

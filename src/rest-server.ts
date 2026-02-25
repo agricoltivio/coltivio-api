@@ -28,14 +28,31 @@ const config = createConfig({
   http: {
     listen: process.env.PORT || 8000, // port, UNIX socket or options
   },
+  upload: true,
   beforeRouting: ({ app, getLogger }) => {
     getLogger().info(
-      "Serving the API documentation at http://localhost:8000/docs. "
+      "Serving the API documentation at http://localhost:8000/docs. ",
     );
     app.use("/docs", ui.serve, ui.setup(documentation));
     app.use(i18nextMiddleware.handle(i18next));
   },
-  cors: true,
+  cors: ({ defaultHeaders, request, endpoint, logger }) => {
+    const allowedOrigins = [
+      "https://coltivio.ch",
+      "https://app.coltivio.ch",
+      ...(process.env.NODE_ENV !== "production"
+        ? ["http://localhost:4000", "http://localhost:4321"]
+        : []),
+    ];
+    const origin = request.headers.origin;
+    return {
+      ...defaultHeaders,
+      ...(origin && allowedOrigins.includes(origin)
+        ? { "Access-Control-Allow-Origin": origin }
+        : {}),
+      "Access-Control-Allow-Headers": "Authorization, Content-Type",
+    };
+  },
   compression: { threshold: "1kb" },
   logger: { level: "debug", color: true },
 });

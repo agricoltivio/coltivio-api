@@ -1,16 +1,11 @@
-import { eq, getTableColumns, inArray, sql } from "drizzle-orm";
+import { eq, getTableColumns, sql } from "drizzle-orm";
+import { TFunction } from "i18next";
+import {} from "../crop-rotations/crop-rotations";
+import { mapCodesToCrops, UNKNOWN_CROP_CODE } from "../crops/codeToCropsMapper";
 import { RlsDb } from "../db/db";
 import * as tables from "../db/schema";
 import { MultiPolygon, Point } from "../geo/geojson";
 import { User } from "../user/users";
-import { FertilizerCreateInput } from "../fertilization/fertilizers";
-import { CropCreateInput } from "../crops/crops";
-import { PlotCreateInput } from "../plots/plots";
-import { TFunction } from "i18next";
-import {
-  mapCodesToCrops as mapCodesToCrops,
-  UNKNOWN_CROP_CODE,
-} from "../crops/codeToCropsMapper";
 
 const farmSelectColumns = {
   ...getTableColumns(tables.farms),
@@ -106,10 +101,9 @@ export function farmsApi(rlsDb: RlsDb, t: TFunction) {
             return {
               farmId: createdFarm.id,
               name: plot.localId ?? `${index + 1}`,
-              size: plot.area,
+              size: plot.size,
               localId: plot.localId,
               usage: plot.usage,
-              additionalUsages: plot.additionalUsages,
               cuttingDate: plot.cuttingDate,
               geometry: sql`ST_GeomFromGeoJSON(${JSON.stringify(plot.geometry)})`,
             };
@@ -122,7 +116,7 @@ export function farmsApi(rlsDb: RlsDb, t: TFunction) {
 
           const cropCreateInputs = mapCodesToCrops(
             plots.map((plot) => plot.usage ?? UNKNOWN_CROP_CODE),
-            t
+            t,
           );
 
           const crops = await tx
@@ -131,20 +125,37 @@ export function farmsApi(rlsDb: RlsDb, t: TFunction) {
               cropCreateInputs.map((crop) => ({
                 ...crop,
                 farmId: createdFarm.id,
-              }))
+              })),
             )
             .returning();
+
+          const currentYear = new Date().getFullYear();
+          const fromDate = new Date(Date.UTC(currentYear, 0, 1)); // Jan 1
+          const toDate = new Date(Date.UTC(currentYear, 11, 31)); // Dec 31
 
           const cropRotationInputs = plots.map((plot) => ({
             farmId: createdFarm.id,
             cropId: crops.find((crop) =>
-              crop.usageCodes.includes(plot.usage ?? UNKNOWN_CROP_CODE)
+              crop.usageCodes.includes(plot.usage ?? UNKNOWN_CROP_CODE),
             )!.id,
-            fromDate: new Date(),
+            fromDate,
+            toDate,
             plotId: plot.id,
           }));
 
-          await tx.insert(tables.cropRotations).values(cropRotationInputs);
+          const createdRotations = await tx
+            .insert(tables.cropRotations)
+            .values(cropRotationInputs)
+            .returning();
+
+          // Create yearly recurrences for permanent rotations
+          await tx.insert(tables.cropRotationYearlyRecurrences).values(
+            createdRotations.map((rotation) => ({
+              farmId: createdFarm.id,
+              cropRotationId: rotation.id,
+              interval: 1,
+            })),
+          );
         }
 
         return createdFarm;

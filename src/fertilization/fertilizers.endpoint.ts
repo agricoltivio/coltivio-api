@@ -1,13 +1,33 @@
 import createHttpError from "http-errors";
 import { z } from "zod";
-import * as tables from "../db/schema";
+import { fertilizerTypeSchema, fertilizerUnitSchema } from "../db/schema";
 import { farmEndpointFactory } from "../endpoint-factory";
+
+// API Schemas - decoupled from database schema for stable API contract
+export const fertilizerSchema = z.object({
+  id: z.string(),
+  farmId: z.string(),
+  name: z.string(),
+  description: z.string().nullable(),
+  type: fertilizerTypeSchema,
+  unit: fertilizerUnitSchema,
+});
+
+const createFertilizerSchema = z.object({
+  name: z.string(),
+  description: z.string().optional(),
+  type: fertilizerTypeSchema,
+  unit: fertilizerUnitSchema,
+  defaultSpreaderId: z.string().optional(),
+});
+
+const updateFertilizerSchema = createFertilizerSchema.partial();
 
 export const getFertilizerByIdEndpoint = farmEndpointFactory.build({
   method: "get",
   input: z.object({ fertilizerId: z.string() }),
-  output: tables.selectFertilizerSchema,
-  handler: async ({ input, options: { fertilizers } }) => {
+  output: fertilizerSchema,
+  handler: async ({ input, ctx: { fertilizers } }) => {
     const fertilizer = await fertilizers.getFertilizerById(input.fertilizerId);
     if (!fertilizer) {
       throw createHttpError(404, "Fertilizer not found");
@@ -20,10 +40,10 @@ export const getFarmFertilizersEndpoint = farmEndpointFactory.build({
   method: "get",
   input: z.object({}),
   output: z.object({
-    result: z.array(tables.selectFertilizerSchema),
+    result: z.array(fertilizerSchema),
     count: z.number(),
   }),
-  handler: async ({ options: { fertilizers, farmId } }) => {
+  handler: async ({ ctx: { fertilizers, farmId } }) => {
     const result = await fertilizers.getFertilizersForFarm(farmId);
     return {
       result,
@@ -34,20 +54,20 @@ export const getFarmFertilizersEndpoint = farmEndpointFactory.build({
 
 export const createFertilizerEndpoint = farmEndpointFactory.build({
   method: "post",
-  input: tables.insertFertilizerSchema.omit({ farmId: true, id: true }),
-  output: tables.selectFertilizerSchema,
-  handler: async ({ input, options: { fertilizers } }) => {
+  input: createFertilizerSchema,
+  output: fertilizerSchema,
+  handler: async ({ input, ctx: { fertilizers } }) => {
     return fertilizers.createFertilizer(input);
   },
 });
 
 export const updateFertilizerEndpoint = farmEndpointFactory.build({
   method: "patch",
-  input: tables.updateFertilizerSchema.omit({ id: true, farmId: true }).extend({
+  input: updateFertilizerSchema.extend({
     fertilizerId: z.string(),
   }),
-  output: tables.selectFertilizerSchema,
-  handler: async ({ input, options: { fertilizers } }) => {
+  output: fertilizerSchema,
+  handler: async ({ input, ctx: { fertilizers } }) => {
     return fertilizers.updateFertilizer(input.fertilizerId, input);
   },
 });
@@ -58,7 +78,7 @@ export const deleteFertilizerEndpoint = farmEndpointFactory.build({
   output: z.object({}),
   handler: async ({
     input: { fertilizerId },
-    options: { fertilizers: fertilizer },
+    ctx: { fertilizers: fertilizer },
   }) => {
     await fertilizer.deleteFertilizer(fertilizerId);
     return {};
@@ -69,7 +89,7 @@ export const fertilizerInUseEndpoint = farmEndpointFactory.build({
   method: "get",
   input: z.object({ fertilizerId: z.string() }),
   output: z.object({ inUse: z.boolean() }),
-  handler: async ({ input: { fertilizerId }, options: { fertilizers } }) => {
+  handler: async ({ input: { fertilizerId }, ctx: { fertilizers } }) => {
     const inUse = await fertilizers.fertilizerInUse(fertilizerId);
     return { inUse };
   },

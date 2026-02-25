@@ -239,6 +239,7 @@
       "hoeing": "Hacken",
       "weed_harrowing": "Striegeln",
       "flame_weeding": "Abflammen",
+      "custom": "Benutzerdefiniert",
       "other": "Andere"
     }
   },
@@ -250,6 +251,75 @@
     "fertilizer_application": "Düngeraustrag",
     "fertilizer": "Dünger"
   },
+  "animal_types": {
+    "goat": "Ziegen",
+    "sheep": "Schafe",
+    "cow": "Rinder",
+    "horse": "Pferde",
+    "donkey": "Esel",
+    "pig": "Schweine",
+    "deer": "Hirsche"
+  },
+  "treatment_report": {
+    "file_name": "Behandlungsjournal {{fromDate}} - {{toDate}}",
+    "title": "Behandlungsjournal {{fromDate}} - {{toDate}}",
+    "columns": {
+      "treatment_start": "Behandlungsstart",
+      "treatment_end": "Behandlungsende",
+      "animal": "Tier",
+      "treatment_reason": "Behandlungsgrund",
+      "drug": "Tierarzneimittel",
+      "dose": "Dosis",
+      "critical_antibiotic": "Kritisches Antibiotika",
+      "antibiogram": "Antibiogramm",
+      "withdrawal_milk": "Absetzfrist Milch",
+      "withdrawal_meat": "Absetzfrist Fleisch",
+      "withdrawal_organs": "Absetzfrist Organe",
+      "release_date_milk": "Freigabedatum Milch",
+      "release_date_meat": "Freigabedatum Fleisch",
+      "release_date_organs": "Freigabedatum Organe",
+      "drug_origin": "Herkunft Arzneimittel"
+    }
+  },
+  "drug_dose_units": {
+    "tablet": "Tablette",
+    "capsule": "Kapsel",
+    "patch": "Pflaster",
+    "dose": "Dosis",
+    "mg": "mg",
+    "mcg": "mcg",
+    "g": "g",
+    "ml": "ml",
+    "drop": "Tropfen"
+  },
+  "drug_dose_per_units": {
+    "kg": "kg",
+    "animal": "Tier",
+    "day": "Tag",
+    "total_amount": "Gesamtmenge"
+  },
+  "outdoor_journal_report": {
+    "file_name": "Weidejournal {{fromDate}} - {{toDate}}",
+    "title": "Weidejournal {{fromDate}} - {{toDate}}",
+    "day": "Tag",
+    "animal_category": "Tierkategorie",
+    "total_pasture": "Total Weide",
+    "total_exercise_yard": "Total Laufhof",
+    "months": {
+      "0": "Januar",
+      "1": "Februar",
+      "2": "März",
+      "3": "April",
+      "4": "Mai",
+      "5": "Juni",
+      "6": "Juli",
+      "7": "August",
+      "8": "September",
+      "9": "Oktober",
+      "10": "November",
+      "11": "Dezember"
+    }
+  },
   "harvests": {
     "harvest": "Ernte",
     "conservation": "Konservierungsmethode",
@@ -258,10 +328,12 @@
     "kilos_per_unit": "kg pro Einheit",
     "total_kilos": "kg Total",
     "labels": {
-      "unit": {
-        "none": "Fuder",
+      "harvest_units": {
+        "load": "Fuder",
         "round_bale": "Rundballen",
         "square_bale": "Quaderballen",
+        "crate": "Harass",
+        "total_amount": "Gesamtmenge",
         "other": "Einheit"
       },
       "conservation_method": {
@@ -270,12 +342,6 @@
         "haylage": "Heulage",
         "other": "Anderes",
         "none": "Keine"
-      },
-      "processing_type": {
-        "none": "Lose",
-        "round_bale": "Rundballen",
-        "square_bale": "Quaderballen",
-        "other": "Anderes"
       }
     }
   }

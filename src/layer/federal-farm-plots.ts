@@ -1,10 +1,10 @@
-import { eq, getTableColumns, sql, and } from "drizzle-orm";
+import { eq, sql, and, getColumns } from "drizzle-orm";
 import { RlsDb } from "../db/db";
 import { federalFarmPlots } from "../db/schema";
 import { MultiPolygon } from "../geo/geojson";
 
 const plotSelectColumns = {
-  ...getTableColumns(federalFarmPlots),
+  ...getColumns(federalFarmPlots),
   geometry: sql<MultiPolygon>`ST_AsGeoJSON(${federalFarmPlots.geometry})::json`,
 };
 
@@ -31,11 +31,11 @@ export function federalPlotsLayerApi(authDb: RlsDb) {
           tx
             .select({
               bbox: sql`ST_Buffer(ST_Envelope(ST_Union(${federalFarmPlots.geometry}))::geometry, ${radiusInDegrees})`.as(
-                "bbox"
+                "bbox",
               ),
             })
             .from(federalFarmPlots)
-            .where(eq(federalFarmPlots.federalFarmId, federalId))
+            .where(eq(federalFarmPlots.federalFarmId, federalId)),
         );
 
         return tx
@@ -43,14 +43,14 @@ export function federalPlotsLayerApi(authDb: RlsDb) {
           .select(plotSelectColumns)
           .from(federalFarmPlots)
           .where(
-            sql`ST_Intersects(${federalFarmPlots.geometry}, ${sql`(select ${bufferedBbox.bbox} from ${bufferedBbox})`})`
+            sql`ST_Intersects(${federalFarmPlots.geometry}, ${sql`(select ${bufferedBbox.bbox} from ${bufferedBbox})`})`,
           );
       });
     },
     async getPlotsWithinRadiusOfPoint(
       longitude: number,
       latitude: number,
-      radiusInKm: number
+      radiusInKm: number,
     ) {
       return authDb.rls(async (tx) => {
         // we nee to convert the meters in radius. this is a very rough approximation but good enough for us
@@ -68,7 +68,7 @@ export function federalPlotsLayerApi(authDb: RlsDb) {
       xmin: number,
       ymin: number,
       xmax: number,
-      ymax: number
+      ymax: number,
     ) {
       return authDb.rls(async (tx) => {
         return tx.select(plotSelectColumns).from(federalFarmPlots).where(sql`
@@ -84,11 +84,12 @@ export function federalPlotsLayerApi(authDb: RlsDb) {
       longitude: number,
       latitude: number,
       radiusInKm: number,
-      limit: number
+      limit: number,
     ): Promise<string[]> {
       return authDb.rls(async (tx) => {
         await tx.execute(sql.raw("select set_limit(0.2)"));
         const radiusInDegrees = (radiusInKm * 1000) / 111000.0;
+        console.log("radiusInDegrees", radiusInDegrees);
         const result = await tx
           .selectDistinct({
             federalFarmId: federalFarmPlots.federalFarmId,
@@ -102,8 +103,8 @@ export function federalPlotsLayerApi(authDb: RlsDb) {
         ST_SetSRID(ST_MakePoint(${longitude}, ${latitude}), 4326), 
         ${radiusInDegrees}
       )`,
-              sql`${federalFarmPlots.federalFarmId} % ${query}`
-            )
+              sql`${federalFarmPlots.federalFarmId} % ${query}`,
+            ),
           )
           .orderBy(sql`similarity desc`)
           .limit(limit);

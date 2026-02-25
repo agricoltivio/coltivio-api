@@ -54,8 +54,8 @@
 //   method: "get",
 //   input: z.object({ parcelId: z.string() }),
 //   output: ParcelWithAreasSchema,
-//   handler: async ({ input: { parcelId }, options }) => {
-//     return getPrismaClient(options.user).parcel.findUniqueOrThrow({
+//   handler: async ({ input: { parcelId }, ctx }) => {
+//     return getPrismaClient(ctx.user).parcel.findUniqueOrThrow({
 //       where: { id: parcelId },
 //       include: {
 //         areas: {
@@ -79,8 +79,8 @@
 //     result: ParcelWithAreasSchema.array(),
 //     count: z.number(),
 //   }),
-//   handler: async ({ input: { farmId }, options }) => {
-//     const parcels = await getPrismaClient(options.user).parcel.findMany({
+//   handler: async ({ input: { farmId }, ctx }) => {
+//     const parcels = await getPrismaClient(ctx.user).parcel.findMany({
 //       where: { farmId },
 //       include: {
 //         areas: {
@@ -108,8 +108,8 @@
 //     areas: AddAreaInput.array().min(1),
 //   }),
 //   output: ParcelWithAreasSchema,
-//   handler: async ({ input, options }) => {
-//     const prismaClient = getPrismaClient(options.user);
+//   handler: async ({ input, ctx }) => {
+//     const prismaClient = getPrismaClient(ctx.user);
 //     const parcel = await prismaClient.parcel.create({
 //       data: {
 //         farmId: input.farmId,
@@ -159,8 +159,8 @@
 //     parcelNumber: z.string().optional(),
 //   }),
 //   output: ParcelSchema,
-//   handler: async ({ input: { parcelId, ...parcel }, options }) => {
-//     return getPrismaClient(options.user).parcel.update({
+//   handler: async ({ input: { parcelId, ...parcel }, ctx }) => {
+//     return getPrismaClient(ctx.user).parcel.update({
 //       where: { id: parcelId },
 //       data: parcel,
 //     });
@@ -171,8 +171,8 @@
 //   method: "delete",
 //   input: z.object({ parcelId: z.string() }),
 //   output: z.object({}),
-//   handler: async ({ input: { parcelId }, options }) => {
-//     return getPrismaClient(options.user).parcel.delete({
+//   handler: async ({ input: { parcelId }, ctx }) => {
+//     return getPrismaClient(ctx.user).parcel.delete({
 //       where: { id: parcelId },
 //     });
 //   },
@@ -182,8 +182,8 @@
 //   method: "get",
 //   input: z.object({ parcelId: z.string() }),
 //   output: z.object({ result: FullAreaSchema.array(), count: z.number() }),
-//   handler: async ({ input: { parcelId }, options }) => {
-//     const result = await getPrismaClient(options.user).area.findMany({
+//   handler: async ({ input: { parcelId }, ctx }) => {
+//     const result = await getPrismaClient(ctx.user).area.findMany({
 //       where: { parcelId },
 //       include: {
 //         forageProduction: true,
@@ -202,8 +202,8 @@
 //   method: "get",
 //   input: z.object({ areaId: z.string() }),
 //   output: FullAreaSchema,
-//   handler: async ({ input: { areaId }, options }) => {
-//     return getPrismaClient(options.user).area.findUniqueOrThrow({
+//   handler: async ({ input: { areaId }, ctx }) => {
+//     return getPrismaClient(ctx.user).area.findUniqueOrThrow({
 //       where: { id: areaId },
 //       include: {
 //         forageProduction: true,
@@ -222,8 +222,8 @@
 //     })
 //     .and(UpdateAreaInput),
 //   output: FullAreaSchema,
-//   handler: async ({ input: { areaId, ...area }, options }) => {
-//     return getPrismaClient(options.user).area.update({
+//   handler: async ({ input: { areaId, ...area }, ctx }) => {
+//     return getPrismaClient(ctx.user).area.update({
 //       where: { id: areaId },
 //       data: {
 //         name: area.name,
@@ -263,21 +263,21 @@
 // //     result: FullAreaSchema.array(),
 // //     count: z.number(),
 // //   }),
-// //   handler: async ({ input, options }) => {},
+// //   handler: async ({ input, ctx }) => {},
 // // });
 
 // // export const deleteParcelAreaEndpoint = sessionEndpointFactory.build({
 // //   method: "delete",
 // //   input: z.object({ parcelId: z.string(), id: z.string() }),
 // //   output: z.object({}),
-// //   handler: async ({ input, options }) => {
-// //     const areaCount = await getPrismaClient(options.user).area.count({
+// //   handler: async ({ input, ctx }) => {
+// //     const areaCount = await getPrismaClient(ctx.user).area.count({
 // //       where: { parcelId: input.parcelId },
 // //     });
 // //     if (areaCount === 1) {
 // //       throw createHttpError(400, "Parcel must have at least one area");
 // //     }
-// //     return getPrismaClient(options.user).area.delete({
+// //     return getPrismaClient(ctx.user).area.delete({
 // //       where: { id: input.id },
 // //     });
 // //   },
@@ -287,10 +287,10 @@
 // //   method: "post",
 // //   input: z.object({ parcelId: z.string(), areas: AddAreaInput.array() }),
 // //   output: z.object({ result: FullAreaSchema.array(), count: z.number() }),
-// //   handler: async ({ input, options }) => {
+// //   handler: async ({ input, ctx }) => {
 // //     const areas = await Promise.all(
 // //       input.areas.map(async (area) => {
-// //         return await getPrismaClient(options.user).area.create({
+// //         return await getPrismaClient(ctx.user).area.create({
 // //           data: {
 // //             parcelId: input.parcelId,
 // //             name: area.name,
