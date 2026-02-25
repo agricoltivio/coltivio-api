@@ -1,15 +1,19 @@
 -- Setup script for test database (runs on supabase/postgres image before migrations)
 
--- Create app role for RLS-aware connections (APP_DATABASE_URL)
+-- Create app roles for RLS-aware connections (APP_DATABASE_URL)
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'app') THEN
     CREATE ROLE app WITH LOGIN PASSWORD 'postgres';
   END IF;
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'rls_client') THEN
+    CREATE ROLE rls_client WITH LOGIN PASSWORD 'rls';
+  END IF;
 END $$;
 
--- Grant authenticated role to app so it can SET ROLE authenticated
+-- Grant authenticated role so these can SET ROLE authenticated
 GRANT authenticated TO app;
+GRANT authenticated TO rls_client;
 
 -- Grant schema access to authenticated role
 GRANT USAGE ON SCHEMA public TO authenticated;
@@ -18,6 +22,7 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO authenticate
 
 -- Ensure search_path includes extensions (for PostGIS, pg_trgm)
 ALTER ROLE app SET search_path TO public, extensions;
+ALTER ROLE rls_client SET search_path TO public, extensions;
 ALTER ROLE authenticated SET search_path TO public, extensions;
 
 -- Enable PostGIS and pg_trgm, then set search_path so geometry type is visible
@@ -52,3 +57,15 @@ BEGIN
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Wire the trigger (function body resolves profiles at runtime, after migrations)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger WHERE tgname = 'on_auth_user_created'
+  ) THEN
+    CREATE TRIGGER on_auth_user_created
+      AFTER INSERT ON auth.users
+      FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
+  END IF;
+END $$;

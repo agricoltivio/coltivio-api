@@ -18,6 +18,7 @@
     "docker:down": "docker-compose down",
     "test": "jest -i",
     "generate:api-types": "ts-node ./scripts/generate-openapi-docs.ts",
+    "db:reset": "supabase db reset --no-seed && psql postgresql://postgres:postgres@127.0.0.1:54322/postgres -f scripts/setup-test-db.sql && yarn db:migrate && bash scripts/seed-auth.sh && psql postgresql://postgres:postgres@127.0.0.1:54322/postgres -f supabase/seed.sql",
     "db:seed": "ts-node ./src/db/seed.ts",
     "db:push": "npx drizzle-kit push",
     "db:generate": "yarn drizzle-kit generate",

@@ -38,21 +38,34 @@ Copy the `.env.example` to `.env` and fill in the values from `supabase status`:
 cp .env.example .env
 ```
 
-### 3. Database setup
+### 3. Database setup + seed data
 
-Run the setup script against your local Supabase database to create roles, helper functions, and triggers:
-
-```bash
-psql $DATABASE_URL -f scripts/setup-test-db.sql
-```
-
-Then apply Drizzle migrations:
+Reset the database, apply migrations, and seed with test data in one command:
 
 ```bash
-yarn db:migrate
+yarn db:reset
 ```
 
-### 4. Import federal farm plots layer (optional)
+This runs: `supabase db reset` → `setup-test-db.sql` (roles, functions, triggers) → Drizzle migrations → auth user creation → seed data.
+
+A test user is created:
+
+| Email | Password | Farm | Description |
+|-------|----------|------|-------------|
+| farmA@test.ch | 123456 | Miadi | Complete farm with animals, plots, crops, treatments, etc. |
+
+### 4. Switching branches
+
+When switching to a branch with a different schema, reset the DB:
+
+```bash
+git checkout <branch>
+yarn db:reset
+```
+
+### 5. Import federal farm plots layer (optional)
+
+If you need the full federal dataset (beyond what the seed provides):
 
 ```bash
 PGPASSWORD='postgres' ogr2ogr -f "PostgreSQL" \
@@ -63,7 +76,7 @@ PGPASSWORD='postgres' ogr2ogr -f "PostgreSQL" \
   -progress -overwrite
 ```
 
-### 5. Start the server
+### 6. Start the server
 
 ```bash
 yarn start
