@@ -684,9 +684,9 @@ export function animalsApi(rlsDb: RlsDb) {
             end: scheduleInput.endDate ?? null,
           };
 
-      if (hasScheduleOverlap(existingRanges, newRange)) {
-        throw createHttpError(409, "Schedule overlaps with existing schedule");
-      }
+      // if (hasScheduleOverlap(existingRanges, newRange)) {
+      //   throw createHttpError(409, "Schedule overlaps with existing schedule");
+      // }
 
       const result = await rlsDb.rls(async (tx) => {
         const [schedule] = await tx
@@ -823,7 +823,11 @@ export function animalsApi(rlsDb: RlsDb) {
     // Replace all custom outdoor journal categories for an animal, with overlap validation
     async setCustomOutdoorJournalCategories(
       animalId: string,
-      entries: { startDate: Date; endDate?: Date | null; category: AnimalCategory }[],
+      entries: {
+        startDate: Date;
+        endDate?: Date | null;
+        category: AnimalCategory;
+      }[],
     ): Promise<CustomOutdoorJournalCategory[]> {
       // Validate no overlaps among the entries
       const ranges = entries.map((e) => ({
@@ -832,7 +836,10 @@ export function animalsApi(rlsDb: RlsDb) {
       }));
       for (let i = 0; i < ranges.length; i++) {
         if (hasScheduleOverlap(ranges.slice(0, i), ranges[i])) {
-          throw createHttpError(409, "Custom outdoor journal category date ranges overlap");
+          throw createHttpError(
+            409,
+            "Custom outdoor journal category date ranges overlap",
+          );
         }
       }
 
