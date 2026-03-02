@@ -44,6 +44,7 @@ const orderWithContactSchema = orderSchema.extend({
   get contact() {
     return contactSchema;
   },
+  items: z.array(orderItemWithProductSchema),
 });
 
 const orderItemInputSchema = z.object({
@@ -119,6 +120,7 @@ export const createOrderEndpoint = farmEndpointFactory.build({
     orderDate: ez.dateIn(),
     shippingDate: ez.dateIn().optional(),
     notes: z.string().optional(),
+    status: z.enum(["pending", "confirmed"]).optional(),
     items: z.array(orderItemInputSchema).min(1),
   }),
   output: orderWithRelationsSchema,

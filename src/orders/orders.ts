@@ -15,7 +15,7 @@ import { Product } from "../products/products";
 export type OrderCreateInput = Omit<
   typeof orders.$inferInsert,
   "id" | "farmId" | "status"
->;
+> & { status?: "pending" | "confirmed" };
 export type OrderUpdateInput = {
   notes?: string | null;
   shippingDate?: Date | null;
@@ -56,7 +56,7 @@ export function ordersApi(rlsDb: RlsDb) {
         // Create the order
         const [order] = await tx
           .insert(orders)
-          .values({ ...farmIdColumnValue, ...orderInput, status: "pending" })
+          .values({ ...farmIdColumnValue, ...orderInput, status: orderInput.status ?? "pending" })
           .returning({ id: orders.id });
 
         // Create order items and decrement stock
@@ -104,12 +104,17 @@ export function ordersApi(rlsDb: RlsDb) {
 
     async getOrdersForFarm(
       farmId: string,
-    ): Promise<Array<Order & { contact: Contact }>> {
+    ): Promise<Array<Order & { contact: Contact; items: OrderItemWithProduct[] }>> {
       return rlsDb.rls(async (tx) => {
         return tx.query.orders.findMany({
           where: { farmId },
           with: {
             contact: true,
+            items: {
+              with: {
+                product: true,
+              },
+            },
           },
         });
       });
