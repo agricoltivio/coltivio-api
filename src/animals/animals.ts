@@ -450,12 +450,12 @@ export function animalsApi(rlsDb: RlsDb) {
                   : null,
               }
             : { start: schedule.startDate, end: schedule.endDate ?? null };
-          if (hasScheduleOverlap(ranges, newRange)) {
-            throw createHttpError(
-              409,
-              "Schedule overlaps with another schedule",
-            );
-          }
+          // if (hasScheduleOverlap(ranges, newRange)) {
+          //   throw createHttpError(
+          //     409,
+          //     "Schedule overlaps with another schedule",
+          //   );
+          // }
           ranges.push(newRange);
         }
       }
@@ -538,12 +538,12 @@ export function animalsApi(rlsDb: RlsDb) {
                   : null,
               }
             : { start: schedule.startDate, end: schedule.endDate ?? null };
-          if (hasScheduleOverlap(ranges, newRange)) {
-            throw createHttpError(
-              409,
-              "Schedule overlaps with another schedule",
-            );
-          }
+          // if (hasScheduleOverlap(ranges, newRange)) {
+          //   throw createHttpError(
+          //     409,
+          //     "Schedule overlaps with another schedule",
+          //   );
+          // }
           ranges.push(newRange);
         }
       }
