@@ -166,7 +166,7 @@ import {
   getCropRotationsForFarmEndpoint,
   getCropRotationsForPlotEndpoint,
   getCropRotationYearsEndpoint,
-  getCurrentCropRotationsForPlotsEndpoint as getCropRotationsForPlotsEndpoint,
+  getCropRotationsForPlotsEndpoint,
   updateCropRotationEndpoint,
   planCropRotationsEndpoint,
 } from "./crop-rotations/crop-rotations.endpoint";
@@ -546,7 +546,8 @@ export const routing: Routing = {
           },
           children: getAnimalChildrenEndpoint,
           sponsorships: getAnimalSponsorshipsEndpoint,
-          customOutdoorJournalCategories: setCustomOutdoorJournalCategoriesEndpoint,
+          customOutdoorJournalCategories:
+            setCustomOutdoorJournalCategoriesEndpoint,
         },
       },
       outdoorJournal: getOutdoorJournalEndpoint,

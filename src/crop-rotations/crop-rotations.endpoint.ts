@@ -57,7 +57,7 @@ export const getCropRotationsForPlotEndpoint = farmEndpointFactory.build({
     toDate: ez.dateIn(),
   }),
   output: z.object({
-    result: z.array(cropRotationSchema),
+    result: z.array(cropRotationWithRecurrenceSchema),
     count: z.number(),
   }),
   handler: async ({ input, ctx: { cropRotations } }) => {
@@ -79,43 +79,42 @@ const booleanQueryParam = (defaultValue: boolean) =>
     .optional()
     .transform((val) => (val === undefined ? defaultValue : val === "true"));
 
-export const getCurrentCropRotationsForPlotsEndpoint =
-  farmEndpointFactory.build({
-    method: "get",
-    input: z.object({
-      plotIds: z.preprocess(
-        (val) => (typeof val === "string" ? [val] : val),
-        z.array(z.string()).min(1),
-      ),
-      onlyCurrent: booleanQueryParam(true),
-      expand: booleanQueryParam(true),
-      withRecurrences: booleanQueryParam(false),
-      fromDate: ez.dateIn(),
-      toDate: ez.dateIn(),
-    }),
-    output: z.object({
-      result: z.array(cropRotationWithRecurrenceSchema),
-      count: z.number(),
-    }),
-    handler: async ({ input, ctx: { cropRotations } }) => {
-      const result = await cropRotations.getCropRotationsForPlots(
-        input.plotIds,
-        input.onlyCurrent,
-        input.fromDate,
-        input.toDate,
-        { expand: input.expand, withRecurrences: input.withRecurrences },
-      );
-      return {
-        result,
-        count: result.length,
-      };
-    },
-  });
+export const getCropRotationsForPlotsEndpoint = farmEndpointFactory.build({
+  method: "get",
+  input: z.object({
+    plotIds: z.preprocess(
+      (val) => (typeof val === "string" ? [val] : val),
+      z.array(z.string()).min(1),
+    ),
+    onlyCurrent: booleanQueryParam(true),
+    expand: booleanQueryParam(true),
+    withRecurrences: booleanQueryParam(false),
+    fromDate: ez.dateIn(),
+    toDate: ez.dateIn(),
+  }),
+  output: z.object({
+    result: z.array(cropRotationWithRecurrenceSchema),
+    count: z.number(),
+  }),
+  handler: async ({ input, ctx: { cropRotations } }) => {
+    const result = await cropRotations.getCropRotationsForPlots(
+      input.plotIds,
+      input.onlyCurrent,
+      input.fromDate,
+      input.toDate,
+      { expand: input.expand, withRecurrences: input.withRecurrences },
+    );
+    return {
+      result,
+      count: result.length,
+    };
+  },
+});
 
 export const getCropRotationByIdEndpoint = farmEndpointFactory.build({
   method: "get",
   input: z.object({ rotationId: z.string() }),
-  output: cropRotationSchema,
+  output: cropRotationWithRecurrenceSchema,
   handler: async ({ input: { rotationId }, ctx: { cropRotations } }) => {
     const result = await cropRotations.getCropRotationById(rotationId);
     if (!result) {

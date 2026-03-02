@@ -17,7 +17,7 @@ export type CropRotationWithPlotName = CropRotation & {
 };
 
 export type CropRotationWithRecurrence = CropRotation & {
-  recurrence?: typeof cropRotationYearlyRecurrences.$inferSelect | null;
+  recurrence: typeof cropRotationYearlyRecurrences.$inferSelect | null;
 };
 
 // Stricter type for API responses where recurrence is always defined (null or object)
@@ -81,7 +81,7 @@ export function expandRecurrence(
   rotation: CropRotationWithRecurrence,
   queryFromDate: Date,
   queryToDate: Date,
-): CropRotationWithRecurrence[] {
+): CropRotationWithRecurrenceResult[] {
   if (!rotation.recurrence) {
     // No recurrence, return as-is if within range
     const rotationStart = rotation.fromDate;
@@ -191,7 +191,8 @@ function getOccurrenceYears(
   rangeEnd: number,
 ): Set<number> {
   const years = new Set<number>();
-  const effectiveEnd = untilYear !== null ? Math.min(untilYear, rangeEnd) : rangeEnd;
+  const effectiveEnd =
+    untilYear !== null ? Math.min(untilYear, rangeEnd) : rangeEnd;
   for (let year = startYear; year <= effectiveEnd; year += interval) {
     if (year >= rangeStart) {
       years.add(year);
@@ -202,7 +203,10 @@ function getOccurrenceYears(
 
 // Check if two date ranges overlap considering yearly recurrences.
 // For recurrences: check day-of-year overlap AND that they share a common occurrence year.
-function rangesOverlap(a: DateRangeWithRecurrence, b: DateRangeWithRecurrence): boolean {
+function rangesOverlap(
+  a: DateRangeWithRecurrence,
+  b: DateRangeWithRecurrence,
+): boolean {
   const aHasRecurrence = !!a.recurrence;
   const bHasRecurrence = !!b.recurrence;
 
@@ -237,10 +241,22 @@ function rangesOverlap(a: DateRangeWithRecurrence, b: DateRangeWithRecurrence): 
   const rangeEnd = Math.min(maxUntil, rangeStart + 200);
 
   const aYears = aHasRecurrence
-    ? getOccurrenceYears(aStartYear, aInterval, aUntilYear, rangeStart, rangeEnd)
+    ? getOccurrenceYears(
+        aStartYear,
+        aInterval,
+        aUntilYear,
+        rangeStart,
+        rangeEnd,
+      )
     : new Set([aStartYear]);
   const bYears = bHasRecurrence
-    ? getOccurrenceYears(bStartYear, bInterval, bUntilYear, rangeStart, rangeEnd)
+    ? getOccurrenceYears(
+        bStartYear,
+        bInterval,
+        bUntilYear,
+        rangeStart,
+        rangeEnd,
+      )
     : new Set([bStartYear]);
 
   for (const year of aYears) {
@@ -271,7 +287,7 @@ export function cropRotationsApi(rlsDb: RlsDb) {
       plotId: string,
       fromDate: Date,
       toDate: Date,
-    ): Promise<CropRotation[]> {
+    ): Promise<CropRotationWithRecurrenceResult[]> {
       return rlsDb.rls(async (tx) => {
         const rotations = await tx.query.cropRotations.findMany({
           where: {
@@ -325,12 +341,19 @@ export function cropRotationsApi(rlsDb: RlsDb) {
           : rotations;
 
         // Map to result type, stripping recurrence unless requested
-        const result: CropRotationWithRecurrenceResult[] = processed.map((r) => ({
-          ...r,
-          recurrence: withRecurrences && r.recurrence
-            ? { id: r.recurrence.id, interval: r.recurrence.interval, until: r.recurrence.until }
-            : null,
-        }));
+        const result: CropRotationWithRecurrenceResult[] = processed.map(
+          (r) => ({
+            ...r,
+            recurrence:
+              withRecurrences && r.recurrence
+                ? {
+                    id: r.recurrence.id,
+                    interval: r.recurrence.interval,
+                    until: r.recurrence.until,
+                  }
+                : null,
+          }),
+        );
 
         if (onlyCurrent) {
           // Group by plotId and get the current rotation for each plot
@@ -349,7 +372,9 @@ export function cropRotationsApi(rlsDb: RlsDb) {
         );
       });
     },
-    async getCropRotationById(id: string): Promise<CropRotation | undefined> {
+    async getCropRotationById(
+      id: string,
+    ): Promise<CropRotationWithRecurrenceResult | undefined> {
       return rlsDb.rls(async (tx) => {
         return tx.query.cropRotations.findFirst({
           where: { id },
@@ -357,6 +382,7 @@ export function cropRotationsApi(rlsDb: RlsDb) {
             crop: {
               with: { family: true },
             },
+            recurrence: true,
           },
         });
       });
@@ -445,7 +471,10 @@ export function cropRotationsApi(rlsDb: RlsDb) {
           fromDate: c.fromDate,
           toDate: c.toDate,
           recurrence: c.recurrence
-            ? { interval: c.recurrence.interval ?? 1, until: c.recurrence.until ?? null }
+            ? {
+                interval: c.recurrence.interval ?? 1,
+                until: c.recurrence.until ?? null,
+              }
             : null,
         }));
         checkRotationOverlaps(existingRanges, newRanges);
@@ -506,18 +535,20 @@ export function cropRotationsApi(rlsDb: RlsDb) {
             where: { plotId: plot.plotId },
             with: { recurrence: true },
           });
-          const existingRanges: DateRangeWithRecurrence[] = existingRotations.map(
-            (r) => ({
+          const existingRanges: DateRangeWithRecurrence[] =
+            existingRotations.map((r) => ({
               fromDate: r.fromDate,
               toDate: r.toDate,
               recurrence: r.recurrence,
-            }),
-          );
+            }));
           const newRange: DateRangeWithRecurrence = {
             fromDate: plot.fromDate,
             toDate: plot.toDate,
             recurrence: plot.recurrence
-              ? { interval: plot.recurrence.interval ?? 1, until: plot.recurrence.until ?? null }
+              ? {
+                  interval: plot.recurrence.interval ?? 1,
+                  until: plot.recurrence.until ?? null,
+                }
               : null,
           };
           checkRotationOverlaps(existingRanges, [newRange]);
@@ -600,14 +631,20 @@ export function cropRotationsApi(rlsDb: RlsDb) {
               fromDate: r.fromDate,
               toDate: r.toDate,
               recurrence: r.recurrence
-                ? { interval: r.recurrence.interval ?? 1, until: r.recurrence.until ?? null }
+                ? {
+                    interval: r.recurrence.interval ?? 1,
+                    until: r.recurrence.until ?? null,
+                  }
                 : null,
             })),
             ...toCreate.map((r) => ({
               fromDate: r.fromDate,
               toDate: r.toDate,
               recurrence: r.recurrence
-                ? { interval: r.recurrence.interval ?? 1, until: r.recurrence.until ?? null }
+                ? {
+                    interval: r.recurrence.interval ?? 1,
+                    until: r.recurrence.until ?? null,
+                  }
                 : null,
             })),
           ];
@@ -629,7 +666,9 @@ export function cropRotationsApi(rlsDb: RlsDb) {
             // Handle recurrence: delete existing and recreate if provided
             await tx
               .delete(cropRotationYearlyRecurrences)
-              .where(eq(cropRotationYearlyRecurrences.cropRotationId, rotation.id!));
+              .where(
+                eq(cropRotationYearlyRecurrences.cropRotationId, rotation.id!),
+              );
 
             if (rotation.recurrence) {
               await tx.insert(cropRotationYearlyRecurrences).values({
@@ -726,7 +765,10 @@ export function cropRotationsApi(rlsDb: RlsDb) {
             recurrence:
               recurrence !== undefined
                 ? recurrence
-                  ? { interval: recurrence.interval ?? 1, until: recurrence.until ?? null }
+                  ? {
+                      interval: recurrence.interval ?? 1,
+                      until: recurrence.until ?? null,
+                    }
                   : null
                 : currentRotation.recurrence,
           };
