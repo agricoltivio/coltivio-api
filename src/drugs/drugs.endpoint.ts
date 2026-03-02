@@ -24,6 +24,7 @@ export const drugSchema = z.object({
   farmId: z.string(),
   name: z.string(),
   notes: z.string().nullable(),
+  isAntibiotic: z.boolean(),
   criticalAntibiotic: z.boolean(),
   receivedFrom: z.string(),
   drugTreatment: z.array(drugTreatmentSchema),
@@ -41,6 +42,7 @@ const createDrugTreatmentSchema = z.object({
 
 const createDrugSchema = z.object({
   name: z.string().min(1),
+  isAntibiotic: z.boolean().optional().default(false),
   criticalAntibiotic: z.boolean(),
   receivedFrom: z.string(),
   notes: z.string().optional(),
@@ -49,6 +51,8 @@ const createDrugSchema = z.object({
 
 const updateDrugSchema = z.object({
   name: z.string().min(1).optional(),
+  isAntibiotic: z.boolean().optional(),
+  criticalAntibiotic: z.boolean().optional(),
   notes: z.string().optional(),
   drugTreatment: z.array(createDrugTreatmentSchema).optional(),
 });

@@ -14,6 +14,7 @@ export const treatmentSchema = z.object({
   drugDosePerUnit: drugDosePerUnitSchema.nullable(),
   drugDoseValue: z.number().nullable(),
   drugReceivedFrom: z.string().nullable(),
+  isAntibiotic: z.boolean(),
   criticalAntibiotic: z.boolean(),
   antibiogramAvailable: z.boolean(),
   startDate: ez.dateOut(),
@@ -50,6 +51,7 @@ const createTreatmentSchema = z.object({
   drugDosePerUnit: drugDosePerUnitSchema.optional().nullable(),
   drugDoseValue: z.number().optional().nullable(),
   drugReceivedFrom: z.string().optional().nullable(),
+  isAntibiotic: z.boolean().optional().default(false),
   criticalAntibiotic: z.boolean(),
   antibiogramAvailable: z.boolean(),
 });

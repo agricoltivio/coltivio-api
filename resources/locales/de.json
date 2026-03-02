@@ -270,6 +270,7 @@
       "treatment_reason": "Behandlungsgrund",
       "drug": "Tierarzneimittel",
       "dose": "Dosis",
+      "is_antibiotic": "Antibiotika",
       "critical_antibiotic": "Kritisches Antibiotika",
       "antibiogram": "Antibiogramm",
       "withdrawal_milk": "Absetzfrist Milch",
