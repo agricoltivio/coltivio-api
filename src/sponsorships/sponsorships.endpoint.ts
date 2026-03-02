@@ -62,18 +62,31 @@ export const getSponsorshipByIdEndpoint = farmEndpointFactory.build({
   },
 });
 
+const sponsorshipWithPaidFlagSchema = sponsorshipWithRelationsSchema.extend({
+  paidThisYear: z.boolean(),
+});
+
 export const getFarmSponsorshipsEndpoint = farmEndpointFactory.build({
   method: "get",
   input: z.object({ onlyActive: z.boolean().optional().default(true) }),
   output: z.object({
-    result: z.array(sponsorshipWithRelationsSchema),
+    result: z.array(sponsorshipWithPaidFlagSchema),
     count: z.number(),
   }),
   handler: async ({ input, ctx: { sponsorships, farmId } }) => {
-    const result = await sponsorships.getSponsorshipsForFarm(
+    const rawResult = await sponsorships.getSponsorshipsForFarm(
       farmId,
       input.onlyActive,
     );
+    const currentYear = new Date().getFullYear();
+    const result = rawResult.map((sponsorship) => {
+      const paidThisYear =
+        sponsorship.payments
+          .filter((p) => new Date(p.date).getFullYear() === currentYear)
+          .reduce((sum, p) => sum + p.amount, 0) >=
+        sponsorship.sponsorshipProgram.yearlyCost;
+      return { ...sponsorship, paidThisYear };
+    });
     return {
       result,
       count: result.length,

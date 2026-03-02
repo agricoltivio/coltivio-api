@@ -45,6 +45,9 @@ const orderWithContactSchema = orderSchema.extend({
     return contactSchema;
   },
   items: z.array(orderItemWithProductSchema),
+  get payments() {
+    return z.array(paymentSchema);
+  },
 });
 
 const orderItemInputSchema = z.object({
@@ -65,15 +68,27 @@ export const getOrderByIdEndpoint = farmEndpointFactory.build({
   },
 });
 
+const orderWithPaidFlagSchema = orderWithContactSchema.extend({
+  paidInFull: z.boolean(),
+});
+
 export const getFarmOrdersEndpoint = farmEndpointFactory.build({
   method: "get",
   input: z.object({}),
   output: z.object({
-    result: z.array(orderWithContactSchema),
+    result: z.array(orderWithPaidFlagSchema),
     count: z.number(),
   }),
   handler: async ({ ctx: { orders, farmId } }) => {
-    const result = await orders.getOrdersForFarm(farmId);
+    const rawResult = await orders.getOrdersForFarm(farmId);
+    const result = rawResult.map((order) => {
+      const orderTotal = order.items.reduce(
+        (sum, item) => sum + item.quantity * item.unitPrice,
+        0,
+      );
+      const totalPaid = order.payments.reduce((sum, p) => sum + p.amount, 0);
+      return { ...order, paidInFull: totalPaid >= orderTotal };
+    });
     return {
       result,
       count: result.length,

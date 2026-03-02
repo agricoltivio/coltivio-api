@@ -104,7 +104,7 @@ export function ordersApi(rlsDb: RlsDb) {
 
     async getOrdersForFarm(
       farmId: string,
-    ): Promise<Array<Order & { contact: Contact; items: OrderItemWithProduct[] }>> {
+    ): Promise<Array<Order & { contact: Contact; items: OrderItemWithProduct[]; payments: Payment[] }>> {
       return rlsDb.rls(async (tx) => {
         return tx.query.orders.findMany({
           where: { farmId },
@@ -115,6 +115,7 @@ export function ordersApi(rlsDb: RlsDb) {
                 product: true,
               },
             },
+            payments: true,
           },
         });
       });

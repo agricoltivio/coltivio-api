@@ -342,6 +342,92 @@ export async function createCropProtectionApplication(
   return body.data;
 }
 
+export async function createContact(
+  jwt: string,
+  data?: Record<string, unknown>,
+) {
+  const payload = merge(
+    {},
+    { firstName: "Hans", lastName: "Muster", labels: [] },
+    data,
+  );
+  const res = await request("POST", "/v1/contacts", payload, jwt);
+  expect(res.status).toBe(200);
+  return ((await res.json()) as { data: ApiEntity }).data;
+}
+
+export async function createProduct(
+  jwt: string,
+  data?: Record<string, unknown>,
+) {
+  const payload = merge(
+    {},
+    { name: "Test Product", category: "meat", unit: "kg", pricePerUnit: 50 },
+    data,
+  );
+  const res = await request("POST", "/v1/products", payload, jwt);
+  expect(res.status).toBe(200);
+  return ((await res.json()) as { data: ApiEntity }).data;
+}
+
+export async function createOrder(
+  jwt: string,
+  contactId: string,
+  items: Array<{ productId: string; quantity: number }>,
+  data?: Record<string, unknown>,
+) {
+  const payload = merge(
+    {},
+    { contactId, orderDate: "2026-03-01", items },
+    data,
+  );
+  const res = await request("POST", "/v1/orders", payload, jwt);
+  expect(res.status).toBe(200);
+  return ((await res.json()) as { data: ApiEntity }).data;
+}
+
+export async function createPayment(
+  jwt: string,
+  contactId: string,
+  data?: Record<string, unknown>,
+) {
+  const payload = merge(
+    {},
+    { contactId, date: "2026-03-01", amount: 100, currency: "CHF", method: "bank_transfer" },
+    data,
+  );
+  const res = await request("POST", "/v1/payments", payload, jwt);
+  expect(res.status).toBe(200);
+  return ((await res.json()) as { data: ApiEntity }).data;
+}
+
+export async function createSponsorshipProgram(
+  jwt: string,
+  data?: Record<string, unknown>,
+) {
+  const payload = merge({}, { name: "Basic Sponsorship", yearlyCost: 200 }, data);
+  const res = await request("POST", "/v1/sponsorshipPrograms", payload, jwt);
+  expect(res.status).toBe(200);
+  return ((await res.json()) as { data: ApiEntity }).data;
+}
+
+export async function createSponsorship(
+  jwt: string,
+  contactId: string,
+  animalId: string,
+  sponsorshipProgramId: string,
+  data?: Record<string, unknown>,
+) {
+  const payload = merge(
+    {},
+    { contactId, animalId, sponsorshipProgramId, startDate: "2026-01-01" },
+    data,
+  );
+  const res = await request("POST", "/v1/sponsorships", payload, jwt);
+  expect(res.status).toBe(200);
+  return ((await res.json()) as { data: ApiEntity }).data;
+}
+
 export async function createOutdoorSchedule(
   jwt: string,
   herdId: string,
