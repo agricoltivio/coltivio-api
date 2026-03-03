@@ -254,21 +254,13 @@ export function plotsApi(rlsDb: RlsDb) {
         }
 
         if (options.strategy === "keep_reference") {
-          // Shrink original plot geometry by subtracting sub-plots
-          const unionGeom = sql.join(
-            subPlots.map(
-              (sp) => sql`ST_GeomFromGeoJSON(${JSON.stringify(sp.geometry)})`,
-            ),
-            sql`,`,
-          );
-          const unionCollect = sql`ST_Union(ARRAY[${unionGeom}])`;
-          const remaining = sql`ST_Difference(${plots.geometry}, ${unionCollect})`;
-
+          // Original plot is kept as a reference only (for field calendar etc.) with no area.
+          // All area goes to the sub-plots.
           await tx
             .update(plots)
             .set({
-              geometry: sql<MultiPolygon>`ST_ForcePolygonCCW(ST_Multi(${remaining}))`,
-              size: sql<number>`ST_Area(ST_Transform(${remaining}, 2056))`,
+              geometry: sql<MultiPolygon>`ST_GeomFromGeoJSON(${JSON.stringify({ type: "MultiPolygon", coordinates: [] })})`,
+              size: 0,
               ...(options.originalPlotName
                 ? { name: options.originalPlotName }
                 : {}),
