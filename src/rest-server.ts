@@ -7,12 +7,15 @@ import i18next from "i18next";
 import i18nextMiddleware from "i18next-http-middleware";
 
 import de from "../resources/locales/de.json";
+import en from "../resources/locales/en.json";
+import it from "../resources/locales/it.json";
+import fr from "../resources/locales/fr.json";
 
 export const resources = {
-  // en: { translation: en },
-  // it: { translation: it },
   de: { translation: de },
-  // fr: { translation: fr },
+  en: { translation: en },
+  it: { translation: it },
+  fr: { translation: fr },
 } as const;
 
 i18next
@@ -21,7 +24,7 @@ i18next
   .init({
     resources,
     fallbackLng: "de",
-    preload: ["de"],
+    preload: ["de", "en", "it", "fr"],
   });
 
 const config = createConfig({

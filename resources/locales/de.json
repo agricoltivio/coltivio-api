@@ -21,8 +21,9 @@
     "reason": "Grund",
     "action": "Aktion",
     "unit": "Einheit",
-    "amount_of_loads": "Anzahl Fuder",
-    "amount_per_load": "Menge pro Fuder",
+    "application_unit": "Ausbringungseinheit",
+    "number_of_application_units": "Anzahl Ausbringungseinheiten",
+    "amount_per_application_unit": "Menge pro Ausbringungseinheit",
     "total": "Total",
     "unknown": "Unbekannt"
   },
@@ -321,10 +322,17 @@
       "11": "Dezember"
     }
   },
+  "application_units": {
+    "load": "Fuder",
+    "bag": "Sack",
+    "total_amount": "Gesamtmenge",
+    "amount_per_hectare": "Menge/ha",
+    "other": "Andere"
+  },
   "harvests": {
     "harvest": "Ernte",
     "conservation": "Konservierungsmethode",
-    "processing_type": "Verarbeitungsart",
+    "application_unit": "Ausbringungseinheit",
     "produced_units": "Produzierte Einheiten",
     "kilos_per_unit": "kg pro Einheit",
     "total_kilos": "kg Total",
