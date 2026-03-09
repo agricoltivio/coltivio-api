@@ -1,4 +1,5 @@
 import { animalsApi } from "../animals/animals";
+import { dashboardApi } from "../dashboard/dashboard";
 import { contactsApi } from "../contacts/contacts";
 import { cropRotationsApi } from "../crop-rotations/crop-rotations";
 import { drugsApi } from "../drugs/drugs";
@@ -29,6 +30,7 @@ import { outdoorJournalReportsApi } from "../reports/outdoor-journal-reports";
 export function sessionApi(db: RlsDb, t: TFunction, locale: string) {
   return {
     plots: plotsApi(db),
+    dashboard: dashboardApi(db, t),
     users: usersApi(db),
     farms: farmsApi(db, t),
     federalParcelLayer: federalPlotsLayerApi(db),

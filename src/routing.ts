@@ -83,6 +83,10 @@ import {
   updateFarmEndpoint,
 } from "./farm/farm.endpoint";
 import {
+  getDashboardStatsEndpoint,
+  getFieldEventsEndpoint,
+} from "./dashboard/dashboard.endpoint";
+import {
   createHarvestsEndpoint,
   deleteHarvestEndpoint,
   getHarvestByIdEndpoint,
@@ -264,6 +268,8 @@ export const routing: Routing = {
         delete: deleteFarmEndpoint,
         patch: updateFarmEndpoint,
       },
+      dashboard: getDashboardStatsEndpoint,
+      fieldEvents: getFieldEventsEndpoint,
     },
 
     users: {

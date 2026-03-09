@@ -328,6 +328,12 @@
     "amount_per_hectare": "Amount/ha",
     "other": "Other"
   },
+  "field_events": {
+    "harvest": "Harvested {{cropName}}",
+    "harvest_with_method": "Harvested {{cropName}} ({{conservationMethod}})",
+    "fertilizer_application": "Applied {{fertilizerName}}",
+    "crop_protection_application": "Applied {{productName}}"
+  },
   "harvests": {
     "harvest": "Harvest",
     "conservation": "Conservation method",
