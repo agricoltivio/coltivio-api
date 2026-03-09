@@ -1,0 +1,1 @@
+ALTER TABLE "wiki_entry_images" DROP CONSTRAINT "wiki_entry_images_entry_id_wiki_entries_id_fkey";

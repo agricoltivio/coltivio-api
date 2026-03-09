@@ -12,6 +12,10 @@ export const supabase = createClient(
   }
 );
 
+export const WIKI_IMAGES_BUCKET = "wiki-images";
+
+export const wikiStorage = supabase.storage.from(WIKI_IMAGES_BUCKET);
+
 export type SupabaseToken = {
   iss?: string;
   sub?: string;

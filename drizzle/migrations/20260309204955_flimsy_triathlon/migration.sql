@@ -1,0 +1,1 @@
+CREATE POLICY "submitter can update own draft change requests" ON "wiki_change_requests" AS PERMISSIVE FOR UPDATE TO "authenticated" USING (("wiki_change_requests"."submitted_by" = (select auth.uid()) and "wiki_change_requests"."status" = 'draft'::wiki_change_request_status)) WITH CHECK ("wiki_change_requests"."submitted_by" = (select auth.uid()));

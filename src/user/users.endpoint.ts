@@ -11,6 +11,7 @@ export const userSchema = z.object({
   fullName: z.string().nullable(),
   emailVerified: z.boolean(),
   farmId: z.string().nullable(),
+  isWikiModerator: z.boolean(),
 });
 
 const updateUserSchema = z
@@ -25,8 +26,12 @@ export const getMyUserProfileEndpoint = authenticatedEndpointFactory.build({
   method: "get",
   input: z.object({}),
   output: userSchema,
-  handler: async ({ input, ctx }) => {
-    return ctx.users.getUserById(ctx.user.id);
+  handler: async ({ ctx }) => {
+    const [user, isWikiModerator] = await Promise.all([
+      ctx.users.getUserById(ctx.user.id),
+      ctx.wikiModeration.isModerator(ctx.user.id),
+    ]);
+    return { ...user, isWikiModerator };
   },
 });
 
@@ -35,11 +40,14 @@ export const getUserProfileByIdEndpoint = authenticatedEndpointFactory.build({
   input: z.object({ userId: z.string() }),
   output: userSchema,
   handler: async ({ input, ctx }) => {
-    const user = await ctx.users.getUserById(input.userId);
+    const [user, isWikiModerator] = await Promise.all([
+      ctx.users.getUserById(input.userId),
+      ctx.wikiModeration.isModerator(input.userId),
+    ]);
     if (!user) {
       throw createHttpError(404, "User not found");
     }
-    return user;
+    return { ...user, isWikiModerator };
   },
 });
 
@@ -51,8 +59,15 @@ export const getFarmUsersEndpoint = farmEndpointFactory.build({
     count: z.number(),
   }),
   handler: async ({ ctx }) => {
-    const users = await ctx.farms.getFarmUsers(ctx.farmId);
-    return { result: users, count: users.length };
+    const [users, moderatorIds] = await Promise.all([
+      ctx.farms.getFarmUsers(ctx.farmId),
+      ctx.wikiModeration.getModeratorUserIds(),
+    ]);
+    const result = users.map((u) => ({
+      ...u,
+      isWikiModerator: moderatorIds.has(u.id),
+    }));
+    return { result, count: result.length };
   },
 });
 
@@ -61,7 +76,11 @@ export const updateUserProfileEndpoint = authenticatedEndpointFactory.build({
   input: updateUserSchema,
   output: userSchema,
   handler: async ({ input, ctx }) => {
-    return ctx.users.updateUser(ctx.user.id, input);
+    const [user, isWikiModerator] = await Promise.all([
+      ctx.users.updateUser(ctx.user.id, input),
+      ctx.wikiModeration.isModerator(ctx.user.id),
+    ]);
+    return { ...user, isWikiModerator };
   },
 });
 
