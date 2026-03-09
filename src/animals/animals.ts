@@ -913,25 +913,31 @@ export function animalsApi(rlsDb: RlsDb) {
       const headerMap = HEADER_MAP[locale] ?? HEADER_MAP["de"];
       const columnIndex: Record<string, number> = {};
 
-      if (skipHeaderRow) {
-        const headerRow = worksheet.getRow(1);
-        headerRow.eachCell((cell, colNumber) => {
-          const headerText = cell.text?.trim().toLowerCase();
-          if (headerText) {
-            const field = headerMap[headerText];
-            if (field) {
-              columnIndex[field] = colNumber;
-            }
-          }
-        });
+      if (!skipHeaderRow) {
+        throw createHttpError(400, "A header row is required for import.");
       }
 
-      // Fallback to positional columns if headers weren't detected
-      if (!columnIndex["earTag"]) columnIndex["earTag"] = 1;
-      if (!columnIndex["name"]) columnIndex["name"] = 2;
-      if (!columnIndex["sex"]) columnIndex["sex"] = 3;
-      if (!columnIndex["dateOfBirth"]) columnIndex["dateOfBirth"] = 4;
-      // usage has no positional fallback — it's optional if header not found
+      const headerRow = worksheet.getRow(1);
+      headerRow.eachCell((cell, colNumber) => {
+        const headerText = cell.text?.trim().toLowerCase();
+        if (headerText) {
+          const field = headerMap[headerText];
+          if (field) {
+            columnIndex[field] = colNumber;
+          }
+        }
+      });
+
+      // Validate all required columns were detected — collect all missing before failing
+      const requiredColumns = ["earTag", "name", "sex", "dateOfBirth"] as const;
+      const missingColumns = requiredColumns.filter((col) => !columnIndex[col]);
+      if (missingColumns.length > 0) {
+        const knownHeaders = Object.keys(headerMap).join(", ");
+        throw createHttpError(
+          400,
+          `Missing required columns: ${missingColumns.join(", ")}. Known header names: ${knownHeaders}`,
+        );
+      }
 
       // Fetch all existing ear tags for this farm to check for duplicates (with animal assignment info)
       const existingEarTags = await rlsDb.rls(async (tx) => {
