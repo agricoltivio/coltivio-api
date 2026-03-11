@@ -98,34 +98,6 @@ export const requestWikiChangesEndpoint = authenticatedEndpointFactory.build({
   },
 });
 
-// ─── Promote / demote moderators ─────────────────────────────────────────────
-
-export const promoteWikiModeratorEndpoint = authenticatedEndpointFactory.build({
-  method: "post",
-  input: z.object({ userId: z.string().uuid() }),
-  output: z.object({}),
-  handler: async ({ input, ctx: { wikiModeration, user } }) => {
-    const isMod = await wikiModeration.isModerator(user.id);
-    if (!isMod) throw createHttpError(403, "Not a wiki moderator");
-
-    await wikiModeration.promoteModerator(input.userId);
-    return {};
-  },
-});
-
-export const demoteWikiModeratorEndpoint = authenticatedEndpointFactory.build({
-  method: "delete",
-  input: z.object({ userId: z.string().uuid() }),
-  output: z.object({}),
-  handler: async ({ input, ctx: { wikiModeration, user } }) => {
-    const isMod = await wikiModeration.isModerator(user.id);
-    if (!isMod) throw createHttpError(403, "Not a wiki moderator");
-
-    await wikiModeration.demoteModerator(input.userId);
-    return {};
-  },
-});
-
 // ─── Category management ──────────────────────────────────────────────────────
 
 const categoryTranslationInputSchema = z.object({

@@ -377,11 +377,22 @@ export function wikiApi(db: RlsDb) {
       });
     },
 
-    // Request a signed upload URL from Supabase Storage for a wiki image
+    // Request a signed upload URL from Supabase Storage for a wiki image.
+    // If the entry already exists, the caller must own it.
+    // If it doesn't exist yet (pre-upload flow), the URL is issued — registerImage will
+    // enforce ownership when the entry is created and the image is registered.
     async requestSignedImageUrl(
       entryId: string,
+      requestedBy: string,
       filename: string,
     ): Promise<{ signedUrl: string; path: string }> {
+      const existingEntry = await db.admin.query.wikiEntries.findFirst({
+        where: { id: entryId },
+      });
+      if (existingEntry && existingEntry.createdBy !== requestedBy) {
+        throw new Error("You do not own this entry");
+      }
+
       const ext = filename.split(".").pop() ?? "bin";
       const path = `${entryId}/${uuidv4()}.${ext}`;
 
@@ -558,6 +569,18 @@ export function wikiApi(db: RlsDb) {
           with: { translations: true },
         });
         return updated!;
+      });
+    },
+
+    // Fetch a change request by ID (RLS-scoped — caller must have access)
+    async getChangeRequestById(
+      changeRequestId: string,
+    ): Promise<WikiChangeRequestWithRelations | undefined> {
+      return db.rls(async (tx) => {
+        return tx.query.wikiChangeRequests.findFirst({
+          where: { id: changeRequestId },
+          with: { translations: true },
+        });
       });
     },
 

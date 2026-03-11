@@ -33,10 +33,12 @@ async function cleanupOrphanedWikiImages(): Promise<void> {
       // No other row references this path — safe to delete from storage
       const { error } = await wikiStorage.remove([orphan.storagePath]);
       if (error) {
+        // Keep the DB row so the next cron run can retry the storage deletion
         console.error(
           `[wiki-cron] Failed to delete storage file ${orphan.storagePath}:`,
           error.message,
         );
+        continue;
       }
     }
 

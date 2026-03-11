@@ -309,8 +309,8 @@ export const requestWikiImageSignedUrlEndpoint =
       signedUrl: z.string(),
       path: z.string(),
     }),
-    handler: async ({ input, ctx: { wiki } }) => {
-      return wiki.requestSignedImageUrl(input.entryId, input.filename);
+    handler: async ({ input, ctx: { wiki, user } }) => {
+      return wiki.requestSignedImageUrl(input.entryId, user.id, input.filename);
     },
   });
 
@@ -361,7 +361,15 @@ export const addWikiChangeRequestNoteEndpoint =
       body: z.string().min(1),
     }),
     output: wikiChangeRequestNoteSchema,
-    handler: async ({ input, ctx: { wiki, user } }) => {
+    handler: async ({ input, ctx: { wiki, wikiModeration, user } }) => {
+      const cr = await wiki.getChangeRequestById(input.changeRequestId);
+      if (!cr) throw createHttpError(404, "Change request not found");
+
+      // Only the submitter or a moderator may add notes
+      const isMod = await wikiModeration.isModerator(user.id);
+      if (cr.submittedBy !== user.id && !isMod)
+        throw createHttpError(403, "Not authorized to add notes to this change request");
+
       return wiki.addChangeRequestNote(input.changeRequestId, user.id, input.body);
     },
   });

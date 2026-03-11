@@ -268,8 +268,6 @@ import {
   approveWikiChangeRequestEndpoint,
   rejectWikiChangeRequestEndpoint,
   requestWikiChangesEndpoint,
-  promoteWikiModeratorEndpoint,
-  demoteWikiModeratorEndpoint,
   createWikiCategoryEndpoint,
   deleteWikiCategoryEndpoint,
 } from "./wiki/wiki-moderation.endpoint";
@@ -815,12 +813,6 @@ export const routing: Routing = {
         },
       },
       admin: {
-        moderators: {
-          "": {
-            post: promoteWikiModeratorEndpoint,
-            delete: demoteWikiModeratorEndpoint,
-          },
-        },
         categories: {
           "": createWikiCategoryEndpoint,
           byId: {
