@@ -9,6 +9,8 @@ import {
   wikiCategorySchema,
 } from "../db/schema";
 import { authenticatedEndpointFactory } from "../endpoint-factory";
+import { captureException } from "@sentry/node";
+import { notifyModeratorsNewReview } from "../email/mailer";
 
 // ─── Shared output schemas ───────────────────────────────────────────────────
 
@@ -233,7 +235,9 @@ export const submitWikiEntryEndpoint = authenticatedEndpointFactory.build({
       throw createHttpError(403, "You can only submit your own entries");
     if (entry.visibility !== "private")
       throw createHttpError(400, "Only private entries can be submitted");
-    return wiki.submitForReview(input.entryId, user.id);
+    const cr = await wiki.submitForReview(input.entryId, user.id);
+    notifyModeratorsNewReview(cr.id, cr.type).catch(captureException);
+    return cr;
   },
 });
 
@@ -256,7 +260,9 @@ export const createWikiChangeRequestEndpoint =
           400,
           "Can only request changes on published public entries",
         );
-      return wiki.createChangeRequest(entryId, user.id, { translations });
+      const cr = await wiki.createChangeRequest(entryId, user.id, { translations });
+      notifyModeratorsNewReview(cr.id, cr.type).catch(captureException);
+      return cr;
     },
   });
 
