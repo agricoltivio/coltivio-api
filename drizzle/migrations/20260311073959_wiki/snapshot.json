@@ -1,9 +1,9 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "c0a3009f-3962-4658-8cd3-ca851674c48b",
+  "id": "dff08c25-6646-4380-85ed-d06b98d5672f",
   "prevIds": [
-    "54101187-45de-40ba-ac21-246cab68424a"
+    "75936b0d-9760-44ef-bf92-3d9df2259742"
   ],
   "ddl": [
     {
@@ -4806,19 +4806,6 @@
       "table": "wiki_change_requests"
     },
     {
-      "type": "text",
-      "typeSchema": null,
-      "notNull": false,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "proposed_slug",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "wiki_change_requests"
-    },
-    {
       "type": "uuid",
       "typeSchema": null,
       "notNull": false,
@@ -4879,19 +4866,6 @@
       "generated": null,
       "identity": null,
       "name": "id",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "wiki_entries"
-    },
-    {
-      "type": "text",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "slug",
       "entityType": "columns",
       "schema": "public",
       "table": "wiki_entries"
@@ -5679,27 +5653,6 @@
       "entityType": "indexes",
       "schema": "public",
       "table": "wiki_change_requests"
-    },
-    {
-      "nameExplicit": true,
-      "columns": [
-        {
-          "value": "slug",
-          "isExpression": false,
-          "asc": true,
-          "nullsFirst": false,
-          "opclass": null
-        }
-      ],
-      "isUnique": false,
-      "where": null,
-      "with": "",
-      "method": "btree",
-      "concurrently": false,
-      "name": "wiki_entries_slug_idx",
-      "entityType": "indexes",
-      "schema": "public",
-      "table": "wiki_entries"
     },
     {
       "nameExplicit": true,
@@ -7924,17 +7877,6 @@
       "name": "wiki_categories_slug_key",
       "schema": "public",
       "table": "wiki_categories",
-      "entityType": "uniques"
-    },
-    {
-      "nameExplicit": false,
-      "columns": [
-        "slug"
-      ],
-      "nullsNotDistinct": false,
-      "name": "wiki_entries_slug_key",
-      "schema": "public",
-      "table": "wiki_entries",
       "entityType": "uniques"
     },
     {
