@@ -1331,6 +1331,406 @@ export const animalTreatments = pgTable.withRLS(
   ],
 );
 
+// Wiki knowledgebase tables
+
+export const wikiEntryStatus = pgEnum("wiki_entry_status", [
+  "draft",
+  "submitted",
+  "under_review",
+  "published",
+  "rejected",
+]);
+
+export const wikiVisibility = pgEnum("wiki_visibility", [
+  "private",
+  "public",
+]);
+
+export const wikiChangeRequestType = pgEnum("wiki_change_request_type", [
+  "new_entry",
+  "change_request",
+]);
+
+export const wikiChangeRequestStatus = pgEnum("wiki_change_request_status", [
+  "draft",         // editable by submitter; moderator cannot act on it yet
+  "under_review",  // frozen; moderator is reviewing
+  "approved",
+  "rejected",
+]);
+
+export const wikiLocale = pgEnum("wiki_locale", ["de", "en", "it", "fr"]);
+
+// Categories are admin-managed and dynamically created (not an enum).
+// Defined before wiki_entries because wiki_entries holds a FK to this table.
+export const wikiCategories = pgTable.withRLS(
+  "wiki_categories",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    slug: text().notNull().unique(),
+    createdAt: timestamp().notNull().defaultNow(),
+  },
+  () => [
+    pgPolicy("authenticated users can read wiki categories", {
+      as: "permissive",
+      to: authenticatedRole,
+      for: "select",
+      using: sql`true`,
+    }),
+    // INSERT / UPDATE / DELETE handled exclusively via adminDrizzle (API key protected)
+  ],
+);
+
+export const wikiCategoryTranslations = pgTable.withRLS(
+  "wiki_category_translations",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    categoryId: uuid()
+      .notNull()
+      .references(() => wikiCategories.id, { onDelete: "cascade" }),
+    locale: wikiLocale().notNull(),
+    name: text().notNull(),
+  },
+  (table) => [
+    unique("wiki_category_translations_unique").on(
+      table.categoryId,
+      table.locale,
+    ),
+    index("wiki_category_translations_category_id_idx").on(table.categoryId),
+    pgPolicy("authenticated users can read wiki category translations", {
+      as: "permissive",
+      to: authenticatedRole,
+      for: "select",
+      using: sql`true`,
+    }),
+  ],
+);
+
+export const wikiEntries = pgTable.withRLS(
+  "wiki_entries",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    status: wikiEntryStatus().notNull().default("draft"),
+    visibility: wikiVisibility().notNull().default("private"),
+    createdBy: uuid()
+      .notNull()
+      .references(() => profiles.id, { onDelete: "restrict" }),
+    farmId: uuid().references(() => farms.id, { onDelete: "cascade" }),
+    categoryId: uuid()
+      .notNull()
+      .references(() => wikiCategories.id, { onDelete: "restrict" }),
+    createdAt: timestamp().notNull().defaultNow(),
+    updatedAt: timestamp().notNull().defaultNow(),
+  },
+  (table) => [
+    index("wiki_entries_status_visibility_idx").on(
+      table.status,
+      table.visibility,
+    ),
+    // Can read: published public entries, own entries, or entries from same farm
+    pgPolicy("authenticated users can read wiki entries", {
+      as: "permissive",
+      to: authenticatedRole,
+      for: "select",
+      using: sql`(${table.status} = 'published'::wiki_entry_status AND ${table.visibility} = 'public'::wiki_visibility) OR ${table.createdBy} = auth.uid() OR (${table.farmId} IS NOT NULL AND ${table.farmId} = current_setting('request.farm_id', TRUE)::uuid)`,
+    }),
+    pgPolicy("authenticated users can create wiki entries", {
+      as: "permissive",
+      to: authenticatedRole,
+      for: "insert",
+      withCheck: eq(table.createdBy, authUid),
+    }),
+    pgPolicy("creator can update own wiki entries", {
+      as: "permissive",
+      to: authenticatedRole,
+      for: "update",
+      using: eq(table.createdBy, authUid),
+      withCheck: eq(table.createdBy, authUid),
+    }),
+    pgPolicy("creator can delete own private wiki entries", {
+      as: "permissive",
+      to: authenticatedRole,
+      for: "delete",
+      using: and(
+        eq(table.createdBy, authUid),
+        eq(table.visibility, sql`'private'::wiki_visibility`),
+      ),
+    }),
+  ],
+);
+
+export const wikiTags = pgTable.withRLS(
+  "wiki_tags",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    name: text().notNull().unique(),
+    slug: text().notNull().unique(),
+    createdBy: uuid().references(() => profiles.id, { onDelete: "set null" }),
+    createdAt: timestamp().notNull().defaultNow(),
+  },
+  () => [
+    pgPolicy("authenticated users can read wiki tags", {
+      as: "permissive",
+      to: authenticatedRole,
+      for: "select",
+      using: sql`true`,
+    }),
+    pgPolicy("authenticated users can create wiki tags", {
+      as: "permissive",
+      to: authenticatedRole,
+      for: "insert",
+      withCheck: sql`true`,
+    }),
+  ],
+);
+
+export const wikiEntryTags = pgTable.withRLS(
+  "wiki_entry_tags",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    entryId: uuid()
+      .notNull()
+      .references(() => wikiEntries.id, { onDelete: "cascade" }),
+    tagId: uuid()
+      .notNull()
+      .references(() => wikiTags.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    unique("wiki_entry_tags_unique").on(table.entryId, table.tagId),
+    pgPolicy("follow entry access for entry tags", {
+      as: "permissive",
+      to: authenticatedRole,
+      using: sql`EXISTS (
+        SELECT 1 FROM ${wikiEntries} we
+        WHERE we.id = ${table.entryId}
+        AND (
+          (we.status = 'published'::wiki_entry_status AND we.visibility = 'public'::wiki_visibility)
+          OR we.created_by = auth.uid()
+          OR (we.farm_id IS NOT NULL AND we.farm_id = current_setting('request.farm_id', TRUE)::uuid)
+        )
+      )`,
+      withCheck: sql`EXISTS (
+        SELECT 1 FROM ${wikiEntries} we
+        WHERE we.id = ${table.entryId}
+        AND we.created_by = auth.uid()
+      )`,
+    }),
+  ],
+);
+
+export const wikiEntryTranslations = pgTable.withRLS(
+  "wiki_entry_translations",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    entryId: uuid()
+      .notNull()
+      .references(() => wikiEntries.id, { onDelete: "cascade" }),
+    locale: wikiLocale().notNull(),
+    title: text().notNull(),
+    body: text().notNull().default(""),
+    updatedBy: uuid().references(() => profiles.id, { onDelete: "set null" }),
+    updatedAt: timestamp().notNull().defaultNow(),
+  },
+  (table) => [
+    unique("wiki_entry_translations_entry_locale_unique").on(
+      table.entryId,
+      table.locale,
+    ),
+    index("wiki_entry_translations_entry_id_idx").on(table.entryId),
+    pgPolicy("follow entry access for translations", {
+      as: "permissive",
+      to: authenticatedRole,
+      using: sql`EXISTS (
+        SELECT 1 FROM ${wikiEntries} we
+        WHERE we.id = ${table.entryId}
+        AND (
+          (we.status = 'published'::wiki_entry_status AND we.visibility = 'public'::wiki_visibility)
+          OR we.created_by = auth.uid()
+          OR (we.farm_id IS NOT NULL AND we.farm_id = current_setting('request.farm_id', TRUE)::uuid)
+        )
+      )`,
+      withCheck: sql`EXISTS (
+        SELECT 1 FROM ${wikiEntries} we
+        WHERE we.id = ${table.entryId}
+        AND we.created_by = auth.uid()
+      )`,
+    }),
+  ],
+);
+
+export const wikiEntryImages = pgTable.withRLS(
+  "wiki_entry_images",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    // No FK to wikiEntries — images may be uploaded before the entry is created
+    // (pre-generated UUID flow). Orphaned images are cleaned up by a cron job.
+    entryId: uuid().notNull(),
+    storagePath: text().notNull(),
+    altText: text(),
+    uploadedBy: uuid().references(() => profiles.id, { onDelete: "set null" }),
+    createdAt: timestamp().notNull().defaultNow(),
+  },
+  (table) => [
+    index("wiki_entry_images_entry_id_idx").on(table.entryId),
+    pgPolicy("follow entry access for images", {
+      as: "permissive",
+      to: authenticatedRole,
+      using: sql`EXISTS (
+        SELECT 1 FROM ${wikiEntries} we
+        WHERE we.id = ${table.entryId}
+        AND (
+          (we.status = 'published'::wiki_entry_status AND we.visibility = 'public'::wiki_visibility)
+          OR we.created_by = auth.uid()
+          OR (we.farm_id IS NOT NULL AND we.farm_id = current_setting('request.farm_id', TRUE)::uuid)
+        )
+      )`,
+      withCheck: sql`EXISTS (
+        SELECT 1 FROM ${wikiEntries} we
+        WHERE we.id = ${table.entryId}
+        AND we.created_by = auth.uid()
+      )`,
+    }),
+  ],
+);
+
+export const wikiChangeRequests = pgTable.withRLS(
+  "wiki_change_requests",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    // For new_entry: optional back-reference to the source private entry (null if deleted).
+    // For change_request: references the public entry being modified.
+    entryId: uuid().references(() => wikiEntries.id, { onDelete: "set null" }),
+    type: wikiChangeRequestType().notNull(),
+    status: wikiChangeRequestStatus().notNull().default("draft"),
+    submittedBy: uuid()
+      .notNull()
+      .references(() => profiles.id, { onDelete: "restrict" }),
+    // Snapshot fields for new_entry type — the proposed public entry content
+    proposedCategoryId: uuid().references(() => wikiCategories.id, {
+      onDelete: "set null",
+    }),
+    proposedFarmId: uuid().references(() => farms.id, { onDelete: "set null" }),
+    createdAt: timestamp().notNull().defaultNow(),
+    resolvedAt: timestamp(),
+  },
+  (table) => [
+    index("wiki_change_requests_entry_id_idx").on(table.entryId),
+    index("wiki_change_requests_status_idx").on(table.status),
+    pgPolicy("submitter can read own change requests", {
+      as: "permissive",
+      to: authenticatedRole,
+      for: "select",
+      using: eq(table.submittedBy, authUid),
+    }),
+    pgPolicy("authenticated can create change requests", {
+      as: "permissive",
+      to: authenticatedRole,
+      for: "insert",
+      withCheck: eq(table.submittedBy, authUid),
+    }),
+    // Submitter can update their own draft CRs (edit content + resubmit).
+    // Moderator actions (approve/reject/requestChanges) are performed via admin role.
+    pgPolicy("submitter can update own draft change requests", {
+      as: "permissive",
+      to: authenticatedRole,
+      for: "update",
+      using: and(
+        eq(table.submittedBy, authUid),
+        eq(table.status, sql`'draft'::wiki_change_request_status`),
+      ),
+      withCheck: eq(table.submittedBy, authUid),
+    }),
+  ],
+);
+
+export const wikiChangeRequestTranslations = pgTable.withRLS(
+  "wiki_change_request_translations",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    changeRequestId: uuid()
+      .notNull()
+      .references(() => wikiChangeRequests.id, { onDelete: "cascade" }),
+    locale: wikiLocale().notNull(),
+    title: text().notNull(),
+    body: text().notNull().default(""),
+  },
+  (table) => [
+    unique("wiki_cr_translations_unique").on(
+      table.changeRequestId,
+      table.locale,
+    ),
+    index("wiki_cr_translations_cr_id_idx").on(table.changeRequestId),
+    pgPolicy("follow change request access for cr translations", {
+      as: "permissive",
+      to: authenticatedRole,
+      using: sql`EXISTS (
+        SELECT 1 FROM ${wikiChangeRequests} wcr
+        WHERE wcr.id = ${table.changeRequestId}
+        AND wcr.submitted_by = auth.uid()
+      )`,
+      withCheck: sql`EXISTS (
+        SELECT 1 FROM ${wikiChangeRequests} wcr
+        WHERE wcr.id = ${table.changeRequestId}
+        AND wcr.submitted_by = auth.uid()
+      )`,
+    }),
+  ],
+);
+
+// Notes thread on a change request — used for communication between submitter and moderators
+export const wikiChangeRequestNotes = pgTable.withRLS(
+  "wiki_change_request_notes",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    changeRequestId: uuid()
+      .notNull()
+      .references(() => wikiChangeRequests.id, { onDelete: "cascade" }),
+    authorId: uuid()
+      .notNull()
+      .references(() => profiles.id, { onDelete: "restrict" }),
+    body: text().notNull(),
+    createdAt: timestamp().notNull().defaultNow(),
+  },
+  (table) => [
+    index("wiki_cr_notes_cr_id_idx").on(table.changeRequestId),
+    // Submitter can read and write notes on their own CRs.
+    // Moderators read/write via db.admin (bypasses RLS).
+    pgPolicy("submitter can read and write notes on own change requests", {
+      as: "permissive",
+      to: authenticatedRole,
+      using: sql`EXISTS (
+        SELECT 1 FROM ${wikiChangeRequests} wcr
+        WHERE wcr.id = ${table.changeRequestId}
+        AND wcr.submitted_by = auth.uid()
+      )`,
+      withCheck: sql`EXISTS (
+        SELECT 1 FROM ${wikiChangeRequests} wcr
+        WHERE wcr.id = ${table.changeRequestId}
+        AND wcr.submitted_by = auth.uid()
+      ) AND ${table.authorId} = auth.uid()`,
+    }),
+  ],
+);
+
+export const wikiModerators = pgTable.withRLS(
+  "wiki_moderators",
+  {
+    userId: uuid()
+      .primaryKey()
+      .references(() => profiles.id, { onDelete: "cascade" }),
+    grantedBy: uuid().references(() => profiles.id, { onDelete: "set null" }),
+    grantedAt: timestamp().notNull().defaultNow(),
+  },
+  () => [
+    pgPolicy("authenticated users can read wiki moderators", {
+      as: "permissive",
+      to: authenticatedRole,
+      for: "select",
+      using: sql`true`,
+    }),
+    // INSERT/UPDATE/DELETE managed by service role only
+  ],
+);
+
 // Schema object for defineRelations (contains all tables)
 const tables = {
   federalFarmPlots,
@@ -1370,6 +1770,17 @@ const tables = {
   customOutdoorJournalCategories,
   outdoorSchedules,
   outdoorScheduleRecurrences,
+  wikiCategories,
+  wikiCategoryTranslations,
+  wikiEntries,
+  wikiTags,
+  wikiEntryTags,
+  wikiEntryTranslations,
+  wikiEntryImages,
+  wikiChangeRequests,
+  wikiChangeRequestTranslations,
+  wikiChangeRequestNotes,
+  wikiModerators,
 };
 
 // Define all relations using the new Drizzle v1 API
@@ -1787,6 +2198,110 @@ export const relations = defineRelations(tables, (r) => ({
       optional: false,
     }),
   },
+  wikiCategories: {
+    translations: r.many.wikiCategoryTranslations(),
+    entries: r.many.wikiEntries(),
+  },
+  wikiCategoryTranslations: {
+    category: r.one.wikiCategories({
+      from: r.wikiCategoryTranslations.categoryId,
+      to: r.wikiCategories.id,
+      optional: false,
+    }),
+  },
+  wikiEntries: {
+    creator: r.one.profiles({
+      from: r.wikiEntries.createdBy,
+      to: r.profiles.id,
+      optional: false,
+    }),
+    farm: r.one.farms({
+      from: r.wikiEntries.farmId,
+      to: r.farms.id,
+    }),
+    category: r.one.wikiCategories({
+      from: r.wikiEntries.categoryId,
+      to: r.wikiCategories.id,
+      optional: false,
+    }),
+    translations: r.many.wikiEntryTranslations(),
+    images: r.many.wikiEntryImages(),
+    tags: r.many.wikiEntryTags(),
+    changeRequests: r.many.wikiChangeRequests(),
+  },
+  wikiTags: {
+    creator: r.one.profiles({
+      from: r.wikiTags.createdBy,
+      to: r.profiles.id,
+    }),
+    entries: r.many.wikiEntryTags(),
+  },
+  wikiEntryTags: {
+    entry: r.one.wikiEntries({
+      from: r.wikiEntryTags.entryId,
+      to: r.wikiEntries.id,
+      optional: false,
+    }),
+    tag: r.one.wikiTags({
+      from: r.wikiEntryTags.tagId,
+      to: r.wikiTags.id,
+      optional: false,
+    }),
+  },
+  wikiEntryTranslations: {
+    entry: r.one.wikiEntries({
+      from: r.wikiEntryTranslations.entryId,
+      to: r.wikiEntries.id,
+      optional: false,
+    }),
+  },
+  wikiEntryImages: {
+    entry: r.one.wikiEntries({
+      from: r.wikiEntryImages.entryId,
+      to: r.wikiEntries.id,
+      optional: false,
+    }),
+  },
+  wikiChangeRequests: {
+    entry: r.one.wikiEntries({
+      from: r.wikiChangeRequests.entryId,
+      to: r.wikiEntries.id,
+      optional: true,
+    }),
+    submitter: r.one.profiles({
+      from: r.wikiChangeRequests.submittedBy,
+      to: r.profiles.id,
+      optional: false,
+    }),
+    translations: r.many.wikiChangeRequestTranslations(),
+    notes: r.many.wikiChangeRequestNotes(),
+  },
+  wikiChangeRequestTranslations: {
+    changeRequest: r.one.wikiChangeRequests({
+      from: r.wikiChangeRequestTranslations.changeRequestId,
+      to: r.wikiChangeRequests.id,
+      optional: false,
+    }),
+  },
+  wikiChangeRequestNotes: {
+    changeRequest: r.one.wikiChangeRequests({
+      from: r.wikiChangeRequestNotes.changeRequestId,
+      to: r.wikiChangeRequests.id,
+      optional: false,
+    }),
+    author: r.one.profiles({
+      from: r.wikiChangeRequestNotes.authorId,
+      to: r.profiles.id,
+      optional: false,
+    }),
+  },
+  wikiModerators: {
+    user: r.one.profiles({
+      from: r.wikiModerators.userId,
+      to: r.profiles.id,
+      optional: false,
+    }),
+  },
 }));
 
 export const idSchema = z.object({ id: z.string() });
@@ -1845,3 +2360,27 @@ export const paymentMethodSchema = z.enum(paymentMethod.enumValues);
 export const productCategorySchema = z.enum(productCategory.enumValues);
 export const productUnitSchema = z.enum(productUnit.enumValues);
 export const orderStatusSchema = z.enum(orderStatus.enumValues);
+
+export const wikiCategorySchema = z.object({
+  id: z.string(),
+  slug: z.string(),
+  createdAt: z.string().or(z.date()),
+  translations: z.array(
+    z.object({
+      id: z.string(),
+      categoryId: z.string(),
+      locale: z.enum(["de", "en", "it", "fr"]),
+      name: z.string(),
+    }),
+  ),
+});
+
+export const wikiEntryStatusSchema = z.enum(wikiEntryStatus.enumValues);
+export const wikiVisibilitySchema = z.enum(wikiVisibility.enumValues);
+export const wikiChangeRequestTypeSchema = z.enum(
+  wikiChangeRequestType.enumValues,
+);
+export const wikiChangeRequestStatusSchema = z.enum(
+  wikiChangeRequestStatus.enumValues,
+);
+export const wikiLocaleSchema = z.enum(wikiLocale.enumValues);

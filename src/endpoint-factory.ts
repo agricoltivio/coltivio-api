@@ -77,3 +77,26 @@ export const farmEndpointFactory = authenticatedEndpointFactory.addMiddleware(
     },
   })
 );
+
+// Factory for internal admin endpoints protected by a static API key (from env ADMIN_API_KEY).
+// Used for operations that don't go through Supabase auth (e.g. promoting wiki moderators).
+export const adminApiKeyEndpointFactory = sentryEndpointFactory.addMiddleware(
+  new Middleware({
+    security: {
+      type: "header",
+      name: "x-admin-api-key",
+    },
+    input: z.object({}),
+    handler: async ({ request }) => {
+      const expectedKey = process.env.ADMIN_API_KEY;
+      if (!expectedKey) {
+        throw createHttpError(500, "ADMIN_API_KEY env var not configured");
+      }
+      const providedKey = request.headers["x-admin-api-key"];
+      if (providedKey !== expectedKey) {
+        throw createHttpError(401, "Invalid admin API key");
+      }
+      return { adminDrizzle };
+    },
+  })
+);

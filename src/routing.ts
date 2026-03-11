@@ -241,6 +241,38 @@ import { downloadTreatmentReport } from "./reports/treatment-reports.endpoint";
 import { downloadOutdoorJournalReport } from "./reports/outdoor-journal-reports.endpoint";
 import { healthEndpoint } from "./chore/chore.endpoint";
 import { verifyCaptchaEndpoint } from "./captcha/turnstile.endpoint";
+import {
+  listPublishedWikiEntriesEndpoint,
+  getMyWikiEntriesEndpoint,
+  createWikiEntryEndpoint,
+  updateWikiEntryEndpoint,
+  deleteWikiEntryEndpoint,
+  submitWikiEntryEndpoint,
+  createWikiChangeRequestEndpoint,
+  requestWikiImageSignedUrlEndpoint,
+  registerWikiImageEndpoint,
+  deleteWikiImageEndpoint,
+  listWikiTagsEndpoint,
+  upsertWikiTagEndpoint,
+  getMyWikiChangeRequestsEndpoint,
+  listWikiCategoriesEndpoint,
+  updateWikiChangeRequestDraftEndpoint,
+  submitWikiChangeRequestDraftEndpoint,
+  addWikiChangeRequestNoteEndpoint,
+  getWikiChangeRequestNotesEndpoint,
+  getWikiEntryByIdEndpoint,
+} from "./wiki/wiki.endpoint";
+import {
+  getWikiReviewQueueEndpoint,
+  getWikiChangeRequestForReviewEndpoint,
+  approveWikiChangeRequestEndpoint,
+  rejectWikiChangeRequestEndpoint,
+  requestWikiChangesEndpoint,
+  promoteWikiModeratorEndpoint,
+  demoteWikiModeratorEndpoint,
+  createWikiCategoryEndpoint,
+  deleteWikiCategoryEndpoint,
+} from "./wiki/wiki-moderation.endpoint";
 
 export const routing: Routing = {
   healthz: healthEndpoint,
@@ -715,6 +747,84 @@ export const routing: Routing = {
             get: getSponsorshipByIdEndpoint,
             patch: updateSponsorshipEndpoint,
             delete: deleteSponsorshipEndpoint,
+          },
+        },
+      },
+    },
+    wiki: {
+      "": {
+        get: listPublishedWikiEntriesEndpoint,
+        post: createWikiEntryEndpoint,
+      },
+      myEntries: getMyWikiEntriesEndpoint,
+      myChangeRequests: getMyWikiChangeRequestsEndpoint,
+      myChangeRequestDrafts: {
+        byId: {
+          ":changeRequestId": {
+            "": updateWikiChangeRequestDraftEndpoint,
+            submit: submitWikiChangeRequestDraftEndpoint,
+            notes: {
+              "": {
+                get: getWikiChangeRequestNotesEndpoint,
+                post: addWikiChangeRequestNoteEndpoint,
+              },
+            },
+          },
+        },
+      },
+      byId: {
+        ":entryId": {
+          "": {
+            get: getWikiEntryByIdEndpoint,
+            patch: updateWikiEntryEndpoint,
+            delete: deleteWikiEntryEndpoint,
+          },
+          submit: submitWikiEntryEndpoint,
+          changeRequest: createWikiChangeRequestEndpoint,
+        },
+      },
+      images: {
+        signedUrl: requestWikiImageSignedUrlEndpoint,
+        "": registerWikiImageEndpoint,
+        byId: {
+          ":imageId": deleteWikiImageEndpoint,
+        },
+      },
+      categories: listWikiCategoriesEndpoint,
+      tags: {
+        "": {
+          get: listWikiTagsEndpoint,
+          post: upsertWikiTagEndpoint,
+        },
+      },
+      reviewQueue: getWikiReviewQueueEndpoint,
+      changeRequests: {
+        byId: {
+          ":changeRequestId": {
+            "": getWikiChangeRequestForReviewEndpoint,
+            approve: approveWikiChangeRequestEndpoint,
+            reject: rejectWikiChangeRequestEndpoint,
+            requestChanges: requestWikiChangesEndpoint,
+            notes: {
+              "": {
+                get: getWikiChangeRequestNotesEndpoint,
+                post: addWikiChangeRequestNoteEndpoint,
+              },
+            },
+          },
+        },
+      },
+      admin: {
+        moderators: {
+          "": {
+            post: promoteWikiModeratorEndpoint,
+            delete: demoteWikiModeratorEndpoint,
+          },
+        },
+        categories: {
+          "": createWikiCategoryEndpoint,
+          byId: {
+            ":categoryId": deleteWikiCategoryEndpoint,
           },
         },
       },
