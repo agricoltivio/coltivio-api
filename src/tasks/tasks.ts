@@ -109,8 +109,13 @@ async function resolveLinks(
         case "animal": {
           const row = await tx.query.animals.findFirst({
             where: { id: link.linkedId },
+            with: { earTag: true },
           });
-          displayName = row?.name ?? null;
+          if (row) {
+            displayName = row.earTag
+              ? `${row.earTag.number} ${row.name}`
+              : row.name;
+          }
           break;
         }
         case "plot": {

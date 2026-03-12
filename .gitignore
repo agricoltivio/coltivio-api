@@ -124,6 +124,7 @@ dist
 .vscode-test
 
 .idea
+.DS_Store
 
 # yarn v2
 .yarn/cache
