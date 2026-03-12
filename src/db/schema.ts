@@ -66,6 +66,8 @@ export const federalFarmPlots = pgTable.withRLS(
   ],
 );
 
+export const farmRoleEnum = pgEnum("farm_role", ["owner", "member"]);
+
 export const profiles = pgTable.withRLS(
   "profiles",
   {
@@ -74,6 +76,7 @@ export const profiles = pgTable.withRLS(
     fullName: text(),
     emailVerified: boolean().notNull().default(false),
     farmId: uuid().references(() => farms.id, { onDelete: "set null" }),
+    farmRole: farmRoleEnum(),
   },
   (table) => [
     foreignKey({
@@ -1847,6 +1850,30 @@ export const taskChecklistItems = pgTable.withRLS(
   ],
 );
 
+export const farmInvites = pgTable.withRLS(
+  "farm_invites",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    farmId: uuid()
+      .notNull()
+      .references(() => farms.id, { onDelete: "cascade" }),
+    email: text().notNull(),
+    code: text().notNull().unique(),
+    createdBy: uuid().references(() => profiles.id, { onDelete: "set null" }),
+    expiresAt: timestamp().notNull(),
+    usedAt: timestamp(),
+  },
+  (table) => [
+    index("farm_invites_code_idx").on(table.code),
+    pgPolicy("only farm members", {
+      as: "permissive",
+      to: authenticatedRole,
+      using: eq(table.farmId, currentFarmId),
+      withCheck: eq(table.farmId, currentFarmId),
+    }),
+  ],
+);
+
 // Schema object for defineRelations (contains all tables)
 const tables = {
   federalFarmPlots,
@@ -1901,6 +1928,7 @@ const tables = {
   taskRecurrences,
   taskLinks,
   taskChecklistItems,
+  farmInvites,
 };
 
 // Define all relations using the new Drizzle v1 API
@@ -1917,6 +1945,19 @@ export const relations = defineRelations(tables, (r) => ({
     plots: r.many.plots(),
     harvests: r.many.harvests(),
     fertilizerApplications: r.many.fertilizerApplications(),
+    invites: r.many.farmInvites(),
+  },
+  farmInvites: {
+    farm: r.one.farms({
+      from: r.farmInvites.farmId,
+      to: r.farms.id,
+      optional: false,
+    }),
+    creator: r.one.profiles({
+      from: r.farmInvites.createdBy,
+      to: r.profiles.id,
+      alias: "creator",
+    }),
   },
   parcels: {
     farm: r.one.farms({

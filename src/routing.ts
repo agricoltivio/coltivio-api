@@ -83,6 +83,12 @@ import {
   updateFarmEndpoint,
 } from "./farm/farm.endpoint";
 import {
+  listFarmInvitesEndpoint,
+  createFarmInviteEndpoint,
+  revokeFarmInviteEndpoint,
+  acceptFarmInviteEndpoint,
+} from "./farm/farm-invites.endpoint";
+import {
   getDashboardStatsEndpoint,
   getFieldEventsEndpoint,
 } from "./dashboard/dashboard.endpoint";
@@ -109,9 +115,11 @@ import {
   getPlotsWithinRadiusOfPointEndpoint,
 } from "./layer/layer.endpoint";
 import {
+  changeFarmMemberRoleEndpoint,
   getFarmUsersEndpoint,
   getMyUserProfileEndpoint,
   getUserProfileByIdEndpoint,
+  kickFarmMemberEndpoint,
   updateUserProfileEndpoint,
 } from "./user/users.endpoint";
 import {
@@ -309,6 +317,21 @@ export const routing: Routing = {
       },
       dashboard: getDashboardStatsEndpoint,
       fieldEvents: getFieldEventsEndpoint,
+      invites: {
+        "": { get: listFarmInvitesEndpoint, post: createFarmInviteEndpoint },
+        accept: { post: acceptFarmInviteEndpoint },
+        byId: {
+          ":inviteId": { delete: revokeFarmInviteEndpoint },
+        },
+      },
+      members: {
+        byId: {
+          ":userId": {
+            "": { delete: kickFarmMemberEndpoint },
+            role: { patch: changeFarmMemberRoleEndpoint },
+          },
+        },
+      },
     },
 
     users: {

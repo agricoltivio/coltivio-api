@@ -11,6 +11,7 @@ export const userSchema = z.object({
   fullName: z.string().nullable(),
   emailVerified: z.boolean(),
   farmId: z.string().nullable(),
+  farmRole: z.enum(["owner", "member"]).nullable(),
   isWikiModerator: z.boolean(),
 });
 
@@ -91,5 +92,28 @@ export const deleteUserProfileEndpoint = authenticatedEndpointFactory.build({
   handler: async ({ input: { userId }, ctx }) => {
     throw new Error("Not implemented");
     return {};
+  },
+});
+
+export const kickFarmMemberEndpoint = farmEndpointFactory.build({
+  method: "delete",
+  input: z.object({ userId: z.string() }),
+  output: z.object({}),
+  handler: async ({ input, ctx }) => {
+    await ctx.farms.kickMember(input.userId, ctx.user.id, ctx.farmId);
+    return {};
+  },
+});
+
+export const changeFarmMemberRoleEndpoint = farmEndpointFactory.build({
+  method: "patch",
+  input: z.object({ userId: z.string(), role: z.enum(["owner", "member"]) }),
+  output: userSchema,
+  handler: async ({ input, ctx }) => {
+    const [updatedProfile, isWikiModerator] = await Promise.all([
+      ctx.farms.changeMemberRole(input.userId, ctx.user.id, ctx.farmId, input.role),
+      ctx.wikiModeration.isModerator(input.userId),
+    ]);
+    return { ...updatedProfile, isWikiModerator };
   },
 });

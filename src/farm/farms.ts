@@ -1,3 +1,4 @@
+import createHttpError from "http-errors";
 import { eq, getTableColumns, sql } from "drizzle-orm";
 import { TFunction } from "i18next";
 import {} from "../crop-rotations/crop-rotations";
@@ -43,11 +44,12 @@ export function farmsApi(rlsDb: RlsDb, t: TFunction) {
           })
           .returning(farmSelectColumns);
 
-        // assing user to farm
+        // assign user to farm as owner
         await tx
           .update(tables.profiles)
           .set({
             farmId: createdFarm.id,
+            farmRole: "owner",
           })
           .where(eq(tables.profiles.id, userId));
 
@@ -188,6 +190,68 @@ export function farmsApi(rlsDb: RlsDb, t: TFunction) {
     async deleteFarm(farmId: string) {
       return rlsDb.rls(async (tx) => {
         return tx.delete(tables.farms).where(eq(tables.farms.id, farmId));
+      });
+    },
+    async kickMember(targetUserId: string, callerUserId: string, farmId: string) {
+      return rlsDb.admin.transaction(async (tx) => {
+        const farmMembers = await tx.query.profiles.findMany({ where: { farmId } });
+
+        const caller = farmMembers.find((p) => p.id === callerUserId);
+        if (!caller || caller.farmRole !== "owner") {
+          throw createHttpError(403, "Only farm owners can kick members");
+        }
+
+        const target = farmMembers.find((p) => p.id === targetUserId);
+        if (!target) {
+          throw createHttpError(404, "Member not found in this farm");
+        }
+
+        if (target.farmRole === "owner") {
+          const ownerCount = farmMembers.filter((p) => p.farmRole === "owner").length;
+          if (ownerCount <= 1) {
+            throw createHttpError(400, "Cannot remove the only owner");
+          }
+        }
+
+        await tx
+          .update(tables.profiles)
+          .set({ farmId: null, farmRole: null })
+          .where(eq(tables.profiles.id, targetUserId));
+      });
+    },
+    async changeMemberRole(
+      targetUserId: string,
+      callerId: string,
+      farmId: string,
+      newRole: "owner" | "member",
+    ) {
+      return rlsDb.admin.transaction(async (tx) => {
+        const farmMembers = await tx.query.profiles.findMany({ where: { farmId } });
+
+        const caller = farmMembers.find((p) => p.id === callerId);
+        if (!caller || caller.farmRole !== "owner") {
+          throw createHttpError(403, "Only farm owners can change member roles");
+        }
+
+        const target = farmMembers.find((p) => p.id === targetUserId);
+        if (!target) {
+          throw createHttpError(404, "Member not found in this farm");
+        }
+
+        if (newRole === "member" && target.farmRole === "owner") {
+          const ownerCount = farmMembers.filter((p) => p.farmRole === "owner").length;
+          if (ownerCount <= 1) {
+            throw createHttpError(400, "Cannot demote the only owner");
+          }
+        }
+
+        const [updatedProfile] = await tx
+          .update(tables.profiles)
+          .set({ farmRole: newRole })
+          .where(eq(tables.profiles.id, targetUserId))
+          .returning();
+
+        return updatedProfile;
       });
     },
   };
