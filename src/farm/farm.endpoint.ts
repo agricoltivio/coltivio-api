@@ -76,6 +76,9 @@ export const deleteFarmEndpoint = farmEndpointFactory.build({
   }),
   output: z.object({}),
   handler: async ({ input, ctx }) => {
+    if (ctx.user.farmRole !== "owner") {
+      throw createHttpError(403, "Only farm owners can delete the farm");
+    }
     await ctx.farms.deleteFarm(ctx.farmId);
     if (input.deleteAccount) {
       await ctx.users.deleteUser(ctx.user.id);

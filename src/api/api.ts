@@ -13,6 +13,7 @@ import { sponsorshipsApi } from "../sponsorships/sponsorships";
 import { cropApi } from "../crops/crops";
 import { RlsDb } from "../db/db";
 import { farmsApi } from "../farm/farms";
+import { farmInvitesApi } from "../farm/farm-invites";
 import { fertilizerApplicationsApi } from "../fertilization/fertilizer-applications";
 import { fertilizersApi } from "../fertilization/fertilizers";
 import { harvestsApi } from "../harvests/harvests";
@@ -36,6 +37,7 @@ export function sessionApi(db: RlsDb, t: TFunction, locale: string) {
     dashboard: dashboardApi(db, t),
     users: usersApi(db),
     farms: farmsApi(db, t),
+    farmInvites: farmInvitesApi(db),
     federalParcelLayer: federalPlotsLayerApi(db),
     crops: cropApi(db),
     cropRotations: cropRotationsApi(db),
