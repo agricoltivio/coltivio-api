@@ -28,6 +28,7 @@ import { treatmentReportsApi } from "../reports/treatment-reports";
 import { outdoorJournalReportsApi } from "../reports/outdoor-journal-reports";
 import { wikiApi } from "../wiki/wiki";
 import { wikiModerationApi } from "../wiki/wiki-moderation";
+import { tasksApi } from "../tasks/tasks";
 
 export function sessionApi(db: RlsDb, t: TFunction, locale: string) {
   return {
@@ -59,5 +60,6 @@ export function sessionApi(db: RlsDb, t: TFunction, locale: string) {
     sponsorships: sponsorshipsApi(db),
     wiki: wikiApi(db),
     wikiModeration: wikiModerationApi(db),
+    tasks: tasksApi(db, locale),
   };
 }
