@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import createHttpError from "http-errors";
 import { and, eq, gt, isNull, sql } from "drizzle-orm";
+import { TFunction } from "i18next";
 import { RlsDb } from "../db/db";
 import * as tables from "../db/schema";
 import { User } from "../user/users";
@@ -10,7 +11,7 @@ const INVITE_TTL_DAYS = 7;
 
 export type FarmInvite = typeof tables.farmInvites.$inferSelect;
 
-export function farmInvitesApi(rlsDb: RlsDb) {
+export function farmInvitesApi(rlsDb: RlsDb, t: TFunction) {
   return {
     async createInvite(farmId: string, email: string, createdBy: string): Promise<FarmInvite> {
       return rlsDb.rls(async (tx) => {
@@ -32,7 +33,7 @@ export function farmInvitesApi(rlsDb: RlsDb) {
 
         // Fetch farm name for the email
         const farm = await tx.query.farms.findFirst({ where: { id: farmId } });
-        await sendFarmInviteEmail(email, code, farm?.name ?? "a farm");
+        await sendFarmInviteEmail(email, code, farm?.name ?? "a farm", t);
 
         return invite;
       });

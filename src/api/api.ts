@@ -37,7 +37,7 @@ export function sessionApi(db: RlsDb, t: TFunction, locale: string) {
     dashboard: dashboardApi(db, t),
     users: usersApi(db),
     farms: farmsApi(db, t),
-    farmInvites: farmInvitesApi(db),
+    farmInvites: farmInvitesApi(db, t),
     federalParcelLayer: federalPlotsLayerApi(db),
     crops: cropApi(db),
     cropRotations: cropRotationsApi(db),

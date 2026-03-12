@@ -358,5 +358,11 @@
         "none": "None"
       }
     }
+  },
+  "farm_invite": {
+    "subject": "You've been invited to join {{farmName}} on Coltivio",
+    "body": "You've been invited to join <strong>{{farmName}}</strong> on Coltivio.",
+    "code_label": "Your invite code",
+    "expiry": "This code expires in 7 days."
   }
 }

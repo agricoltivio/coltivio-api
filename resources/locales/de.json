@@ -216,7 +216,6 @@
       "951": "Getreide",
       "998": "Sonstige Kulturen"
     },
-
     "crop": "Kultur",
     "natural_meadow": "Naturwiese",
     "artificial_meadow": "Kunstwiese"
@@ -359,5 +358,11 @@
         "none": "Keine"
       }
     }
+  },
+  "farm_invite": {
+    "subject": "Du wurdest eingeladen, {{farmName}} auf Coltivio beizutreten",
+    "body": "Du wurdest eingeladen, <strong>{{farmName}}</strong> auf Coltivio beizutreten.",
+    "code_label": "Dein Einladungscode",
+    "expiry": "Dieser Code läuft in 7 Tagen ab."
   }
 }
