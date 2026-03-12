@@ -204,6 +204,18 @@ export const cropRotations = pgTable.withRLS(
 
 export const frequency = pgEnum("frequency", ["weekly", "monthly", "yearly"]);
 
+export const taskStatus = pgEnum("task_status", ["todo", "done"]);
+
+export const taskLinkType = pgEnum("task_link_type", [
+  "animal",
+  "plot",
+  "contact",
+  "order",
+  "wiki_entry",
+  "treatment",
+  "herd",
+]);
+
 export const weekday = pgEnum("weekday", [
   "MO",
   "TU",
@@ -1731,6 +1743,110 @@ export const wikiModerators = pgTable.withRLS(
   ],
 );
 
+export const tasks = pgTable.withRLS(
+  "tasks",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    farmId: uuid()
+      .notNull()
+      .references(() => farms.id, { onDelete: "cascade" }),
+    name: text().notNull(),
+    description: text(),
+    labels: text().array().notNull().default([]),
+    status: taskStatus().notNull().default("todo"),
+    assigneeId: uuid().references(() => profiles.id, { onDelete: "set null" }),
+    dueDate: date({ mode: "date" }),
+    createdAt: timestamp().notNull().defaultNow(),
+    createdBy: uuid().references(() => profiles.id, { onDelete: "set null" }),
+  },
+  (table) => [
+    pgPolicy("only farm members", {
+      as: "permissive",
+      to: authenticatedRole,
+      using: eq(table.farmId, currentFarmId),
+      withCheck: eq(table.farmId, currentFarmId),
+    }),
+  ],
+);
+
+export const taskRecurrences = pgTable.withRLS(
+  "task_recurrences",
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    farmId: uuid()
+      .notNull()
+      .references(() => farms.id, { onDelete: "cascade" }),
+    taskId: uuid()
+      .notNull()
+      .references(() => tasks.id, { onDelete: "cascade" }),
+    frequency: frequency("frequency").notNull(),
+    interval: integer("interval").default(1).notNull(),
+    byWeekday: weekday("by_weekday").array(),
+    byMonthDay: integer("by_month_day"),
+    until: date("until", { mode: "date" }),
+    count: integer("count"),
+  },
+  (table) => [
+    pgPolicy("only farm members", {
+      as: "permissive",
+      to: authenticatedRole,
+      using: eq(table.farmId, currentFarmId),
+      withCheck: eq(table.farmId, currentFarmId),
+    }),
+  ],
+);
+
+export const taskLinks = pgTable.withRLS(
+  "task_links",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    farmId: uuid()
+      .notNull()
+      .references(() => farms.id, { onDelete: "cascade" }),
+    taskId: uuid()
+      .notNull()
+      .references(() => tasks.id, { onDelete: "cascade" }),
+    linkType: taskLinkType().notNull(),
+    linkedId: uuid().notNull(),
+  },
+  (table) => [
+    unique("task_links_unique").on(table.taskId, table.linkType, table.linkedId),
+    index("task_links_task_id_idx").on(table.taskId),
+    pgPolicy("only farm members", {
+      as: "permissive",
+      to: authenticatedRole,
+      using: eq(table.farmId, currentFarmId),
+      withCheck: eq(table.farmId, currentFarmId),
+    }),
+  ],
+);
+
+export const taskChecklistItems = pgTable.withRLS(
+  "task_checklist_items",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    farmId: uuid()
+      .notNull()
+      .references(() => farms.id, { onDelete: "cascade" }),
+    taskId: uuid()
+      .notNull()
+      .references(() => tasks.id, { onDelete: "cascade" }),
+    name: text().notNull(),
+    dueDate: date({ mode: "date" }),
+    done: boolean().notNull().default(false),
+    createdAt: timestamp().notNull().defaultNow(),
+  },
+  (table) => [
+    index("task_checklist_items_task_id_idx").on(table.taskId),
+    pgPolicy("only farm members", {
+      as: "permissive",
+      to: authenticatedRole,
+      using: eq(table.farmId, currentFarmId),
+      withCheck: eq(table.farmId, currentFarmId),
+    }),
+  ],
+);
+
 // Schema object for defineRelations (contains all tables)
 const tables = {
   federalFarmPlots,
@@ -1781,6 +1897,10 @@ const tables = {
   wikiChangeRequestTranslations,
   wikiChangeRequestNotes,
   wikiModerators,
+  tasks,
+  taskRecurrences,
+  taskLinks,
+  taskChecklistItems,
 };
 
 // Define all relations using the new Drizzle v1 API
@@ -2302,6 +2422,45 @@ export const relations = defineRelations(tables, (r) => ({
       optional: false,
     }),
   },
+  tasks: {
+    farm: r.one.farms({
+      from: r.tasks.farmId,
+      to: r.farms.id,
+      optional: false,
+    }),
+    assignee: r.one.profiles({
+      from: r.tasks.assigneeId,
+      to: r.profiles.id,
+    }),
+    createdByProfile: r.one.profiles({
+      from: r.tasks.createdBy,
+      to: r.profiles.id,
+    }),
+    recurrence: r.one.taskRecurrences(),
+    links: r.many.taskLinks(),
+    checklistItems: r.many.taskChecklistItems(),
+  },
+  taskRecurrences: {
+    task: r.one.tasks({
+      from: r.taskRecurrences.taskId,
+      to: r.tasks.id,
+      optional: false,
+    }),
+  },
+  taskLinks: {
+    task: r.one.tasks({
+      from: r.taskLinks.taskId,
+      to: r.tasks.id,
+      optional: false,
+    }),
+  },
+  taskChecklistItems: {
+    task: r.one.tasks({
+      from: r.taskChecklistItems.taskId,
+      to: r.tasks.id,
+      optional: false,
+    }),
+  },
 }));
 
 export const idSchema = z.object({ id: z.string() });
@@ -2384,3 +2543,6 @@ export const wikiChangeRequestStatusSchema = z.enum(
   wikiChangeRequestStatus.enumValues,
 );
 export const wikiLocaleSchema = z.enum(wikiLocale.enumValues);
+
+export const taskStatusSchema = z.enum(taskStatus.enumValues);
+export const taskLinkTypeSchema = z.enum(taskLinkType.enumValues);

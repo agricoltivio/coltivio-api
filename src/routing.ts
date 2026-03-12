@@ -263,6 +263,15 @@ import {
   getWikiEntryByIdEndpoint,
 } from "./wiki/wiki.endpoint";
 import {
+  createTaskEndpoint,
+  deleteTaskEndpoint,
+  getTaskByIdEndpoint,
+  listTasksEndpoint,
+  setChecklistItemDoneEndpoint,
+  setTaskStatusEndpoint,
+  updateTaskEndpoint,
+} from "./tasks/tasks.endpoint";
+import {
   getWikiReviewQueueEndpoint,
   getWikiChangeRequestForReviewEndpoint,
   approveWikiChangeRequestEndpoint,
@@ -817,6 +826,24 @@ export const routing: Routing = {
           "": createWikiCategoryEndpoint,
           byId: {
             ":categoryId": deleteWikiCategoryEndpoint,
+          },
+        },
+      },
+    },
+    tasks: {
+      "": { get: listTasksEndpoint, post: createTaskEndpoint },
+      byId: {
+        ":taskId": {
+          "": {
+            get: getTaskByIdEndpoint,
+            patch: updateTaskEndpoint,
+            delete: deleteTaskEndpoint,
+          },
+          status: { patch: setTaskStatusEndpoint },
+          checklistItems: {
+            byId: {
+              ":itemId": { patch: setChecklistItemDoneEndpoint },
+            },
           },
         },
       },
