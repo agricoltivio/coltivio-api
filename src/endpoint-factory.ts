@@ -78,6 +78,18 @@ export const farmEndpointFactory = authenticatedEndpointFactory.addMiddleware(
   })
 );
 
+// Factory for endpoints that require an active farm membership
+export const membershipEndpointFactory = farmEndpointFactory.addMiddleware(
+  new Middleware({
+    input: z.object({}),
+    handler: async ({ ctx }) => {
+      const active = await ctx.membership.isActive(ctx.farmId);
+      if (!active) throw createHttpError(403, "Active membership required");
+      return {};
+    },
+  })
+);
+
 // Factory for internal admin endpoints protected by a static API key (from env ADMIN_API_KEY).
 // Used for operations that don't go through Supabase auth (e.g. promoting wiki moderators).
 export const adminApiKeyEndpointFactory = sentryEndpointFactory.addMiddleware(

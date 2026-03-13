@@ -10,13 +10,17 @@ const pointSchema = z.object({
   coordinates: z.tuple([z.number(), z.number()]),
 });
 
-export const farmSchema = z.object({
+const farmBaseSchema = z.object({
   id: z.string(),
   federalId: z.string().nullable(),
   tvdId: z.string().nullable(),
   name: z.string(),
   address: z.string(),
   location: pointSchema,
+});
+
+export const farmSchema = farmBaseSchema.extend({
+  hasActiveMembership: z.boolean(),
 });
 
 const createFarmSchema = z.object({
@@ -39,19 +43,22 @@ export const getFarmEndpoint = farmEndpointFactory.build({
   input: z.object({}),
   output: farmSchema,
   handler: async ({ input, ctx }) => {
-    const farm = await ctx.farms.getFarmById(ctx.farmId);
+    const [farm, hasActiveMembership] = await Promise.all([
+      ctx.farms.getFarmById(ctx.farmId),
+      ctx.membership.isActive(ctx.farmId),
+    ]);
     if (!farm) {
       throw createHttpError(404, "Farm not found");
     }
 
-    return farm;
+    return { ...farm, hasActiveMembership };
   },
 });
 
 export const createFarmEndpoint = authenticatedEndpointFactory.build({
   method: "post",
   input: createFarmSchema,
-  output: farmSchema,
+  output: farmBaseSchema,
   handler: async ({ input, ctx }) => {
     if (ctx.user.farmId != null) {
       throw createHttpError(400, "User already has a farm");
@@ -63,7 +70,7 @@ export const createFarmEndpoint = authenticatedEndpointFactory.build({
 export const updateFarmEndpoint = farmEndpointFactory.build({
   method: "patch",
   input: updateFarmSchema,
-  output: farmSchema,
+  output: farmBaseSchema,
   handler: async ({ input, ctx }) => {
     return ctx.farms.updateFarm(ctx.farmId, input);
   },

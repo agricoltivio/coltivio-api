@@ -1,7 +1,9 @@
+import express from "express";
 import { createConfig, createServer } from "express-zod-api";
 import ui from "swagger-ui-express";
 import documentation from "../openapi.json";
 import { routing } from "./routing";
+import { stripeWebhookHandler } from "./stripe/webhook";
 
 import i18next from "i18next";
 import i18nextMiddleware from "i18next-http-middleware";
@@ -36,6 +38,8 @@ const config = createConfig({
     getLogger().info(
       "Serving the API documentation at http://localhost:8000/docs. ",
     );
+    // Raw body required for Stripe webhook signature verification — must come before any body parsers
+    app.post("/v1/webhooks/stripe", express.raw({ type: "application/json" }), stripeWebhookHandler);
     app.use("/docs", ui.serve, ui.setup(documentation));
     app.use(i18nextMiddleware.handle(i18next));
   },

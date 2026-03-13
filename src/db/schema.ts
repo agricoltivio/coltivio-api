@@ -68,6 +68,19 @@ export const federalFarmPlots = pgTable.withRLS(
 
 export const farmRoleEnum = pgEnum("farm_role", ["owner", "member"]);
 
+export const membershipPaymentStatusEnum = pgEnum("membership_payment_status", [
+  "pending",
+  "succeeded",
+  "failed",
+  "refunded",
+]);
+export const donationStatusEnum = pgEnum("donation_status", [
+  "pending",
+  "succeeded",
+  "failed",
+  "refunded",
+]);
+
 export const profiles = pgTable.withRLS(
   "profiles",
   {
@@ -120,6 +133,7 @@ export const farms = pgTable.withRLS(
     name: text().notNull(),
     address: text().notNull(),
     location: point(),
+    stripeCustomerId: text(),
   },
   (table) => [
 pgPolicy("only farm members can read", {
@@ -143,6 +157,61 @@ pgPolicy("only farm members can read", {
     }),
   ],
 );
+
+// Tracks auto-renewing Stripe Subscriptions per farm (one row max per farm)
+export const farmSubscriptions = pgTable.withRLS("farm_subscriptions", {
+  id: uuid().primaryKey().defaultRandom(),
+  farmId: uuid()
+    .notNull()
+    .unique()
+    .references(() => farms.id, { onDelete: "cascade" }),
+  stripeSubscriptionId: text().notNull().unique(),
+  cancelAtPeriodEnd: boolean().notNull().default(false),
+  createdAt: timestamp({ mode: "date" }).defaultNow().notNull(),
+}, (table) => [
+  pgPolicy("farm members can read own subscription", {
+    as: "permissive",
+    to: authenticatedRole,
+    for: "select",
+    using: eq(table.farmId, currentFarmId),
+  }),
+]);
+
+// One row per payment period (subscription renewals + manual one-time payments)
+// Active membership = exists a row with status='succeeded' AND periodEnd > now()
+export const membershipPayments = pgTable.withRLS("membership_payments", {
+  id: uuid().primaryKey().defaultRandom(),
+  farmId: uuid()
+    .notNull()
+    .references(() => farms.id, { onDelete: "cascade" }),
+  userId: uuid().references(() => profiles.id, { onDelete: "set null" }),
+  stripePaymentId: text().notNull().unique(), // PaymentIntent ID or Invoice ID
+  stripeSubscriptionId: text(), // only for auto-renewing payments
+  amount: integer().notNull(), // CHF cents
+  currency: text().notNull().default("chf"),
+  status: membershipPaymentStatusEnum().notNull().default("pending"),
+  periodEnd: timestamp({ mode: "date" }).notNull(), // when this payment's coverage expires
+  createdAt: timestamp({ mode: "date" }).defaultNow().notNull(),
+}, (table) => [
+  pgPolicy("farm members can read own payments", {
+    as: "permissive",
+    to: authenticatedRole,
+    for: "select",
+    using: eq(table.farmId, currentFarmId),
+  }),
+]);
+
+// Donations — no RLS, managed via db.admin only
+export const donations = pgTable("donations", {
+  id: uuid().primaryKey().defaultRandom(),
+  userId: uuid().references(() => profiles.id, { onDelete: "set null" }), // null = anonymous
+  email: text().notNull(),
+  stripePaymentId: text().notNull().unique(),
+  amount: integer().notNull(), // CHF cents
+  currency: text().notNull().default("chf"),
+  status: donationStatusEnum().notNull().default("pending"),
+  createdAt: timestamp({ mode: "date" }).defaultNow().notNull(),
+});
 
 export const userRoleEnum = pgEnum("user_role", [
   "ADMIN",
@@ -1929,6 +1998,9 @@ const tables = {
   taskLinks,
   taskChecklistItems,
   farmInvites,
+  farmSubscriptions,
+  membershipPayments,
+  donations,
 };
 
 // Define all relations using the new Drizzle v1 API
@@ -1946,6 +2018,35 @@ export const relations = defineRelations(tables, (r) => ({
     harvests: r.many.harvests(),
     fertilizerApplications: r.many.fertilizerApplications(),
     invites: r.many.farmInvites(),
+    subscription: r.one.farmSubscriptions({
+      from: r.farms.id,
+      to: r.farmSubscriptions.farmId,
+    }),
+    membershipPayments: r.many.membershipPayments(),
+  },
+  farmSubscriptions: {
+    farm: r.one.farms({
+      from: r.farmSubscriptions.farmId,
+      to: r.farms.id,
+      optional: false,
+    }),
+  },
+  membershipPayments: {
+    farm: r.one.farms({
+      from: r.membershipPayments.farmId,
+      to: r.farms.id,
+      optional: false,
+    }),
+    user: r.one.profiles({
+      from: r.membershipPayments.userId,
+      to: r.profiles.id,
+    }),
+  },
+  donations: {
+    user: r.one.profiles({
+      from: r.donations.userId,
+      to: r.profiles.id,
+    }),
   },
   farmInvites: {
     farm: r.one.farms({
@@ -2587,3 +2688,8 @@ export const wikiLocaleSchema = z.enum(wikiLocale.enumValues);
 
 export const taskStatusSchema = z.enum(taskStatus.enumValues);
 export const taskLinkTypeSchema = z.enum(taskLinkType.enumValues);
+
+export const membershipPaymentStatusSchema = z.enum(
+  membershipPaymentStatusEnum.enumValues,
+);
+export const donationStatusSchema = z.enum(donationStatusEnum.enumValues);

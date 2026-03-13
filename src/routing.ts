@@ -288,6 +288,15 @@ import {
   createWikiCategoryEndpoint,
   deleteWikiCategoryEndpoint,
 } from "./wiki/wiki-moderation.endpoint";
+import {
+  createSubscriptionCheckoutEndpoint,
+  createManualCheckoutEndpoint,
+  getMembershipPortalEndpoint,
+  getMembershipStatusEndpoint,
+  cancelMembershipEndpoint,
+  getMembershipPaymentsEndpoint,
+} from "./membership/membership.endpoint";
+import { createDonationCheckoutEndpoint } from "./donations/donations.endpoint";
 
 export const routing: Routing = {
   healthz: healthEndpoint,
@@ -870,6 +879,19 @@ export const routing: Routing = {
           },
         },
       },
+    },
+    membership: {
+      checkout: {
+        subscription: { post: createSubscriptionCheckoutEndpoint },
+        manual: { post: createManualCheckoutEndpoint },
+      },
+      portal: { get: getMembershipPortalEndpoint },
+      status: { get: getMembershipStatusEndpoint },
+      subscription: { delete: cancelMembershipEndpoint },
+      payments: { get: getMembershipPaymentsEndpoint },
+    },
+    donations: {
+      checkout: { post: createDonationCheckoutEndpoint },
     },
   },
 };

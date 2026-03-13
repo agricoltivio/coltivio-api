@@ -42,6 +42,14 @@ function validateRole(role: string | undefined): AllowedRole {
 }
 
 export type RlsDb = ReturnType<typeof rlsDb>;
+
+// Admin-only RlsDb — no JWT context, bypasses RLS entirely. Use in webhook handlers and background jobs.
+export const adminOnlyDb: RlsDb = {
+  admin: adminDrizzle,
+  rls: () => {
+    throw new Error("rls() not available in admin-only context — use db.admin");
+  },
+};
 export function rlsDb(token: SupabaseToken, farmId?: string | null) {
   const validatedRole = validateRole(token.role);
 
