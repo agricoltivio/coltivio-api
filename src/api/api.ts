@@ -29,6 +29,8 @@ import { treatmentReportsApi } from "../reports/treatment-reports";
 import { outdoorJournalReportsApi } from "../reports/outdoor-journal-reports";
 import { wikiApi } from "../wiki/wiki";
 import { wikiModerationApi } from "../wiki/wiki-moderation";
+import { forumApi } from "../forum/forum";
+import { forumModerationApi } from "../forum/forum-moderation";
 import { tasksApi } from "../tasks/tasks";
 import { membershipApi } from "../membership/membership";
 import { donationsApi } from "../donations/donations";
@@ -64,6 +66,8 @@ export function sessionApi(db: RlsDb, t: TFunction, locale: string) {
     sponsorships: sponsorshipsApi(db),
     wiki: wikiApi(db),
     wikiModeration: wikiModerationApi(db),
+    forum: forumApi(db),
+    forumModeration: forumModerationApi(db),
     tasks: tasksApi(db, locale),
     membership: membershipApi(db),
     donations: donationsApi(db),

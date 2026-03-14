@@ -299,6 +299,21 @@ import {
   startTrialEndpoint,
 } from "./membership/membership.endpoint";
 import { createDonationCheckoutEndpoint } from "./donations/donations.endpoint";
+import {
+  listForumThreadsEndpoint,
+  createForumThreadEndpoint,
+  getForumThreadByIdEndpoint,
+  updateForumThreadEndpoint,
+  deleteForumThreadEndpoint,
+  listForumRepliesEndpoint,
+  addForumReplyEndpoint,
+  updateForumReplyEndpoint,
+  deleteForumReplyEndpoint,
+} from "./forum/forum.endpoint";
+import {
+  setForumThreadStatusEndpoint,
+  pinForumThreadEndpoint,
+} from "./forum/forum-moderation.endpoint";
 
 export const routing: Routing = {
   healthz: healthEndpoint,
@@ -898,6 +913,39 @@ export const routing: Routing = {
     },
     donations: {
       checkout: { post: createDonationCheckoutEndpoint },
+    },
+    forum: {
+      threads: {
+        "": {
+          get: listForumThreadsEndpoint,
+          post: createForumThreadEndpoint,
+        },
+        byId: {
+          ":threadId": {
+            "": {
+              get: getForumThreadByIdEndpoint,
+              patch: updateForumThreadEndpoint,
+              delete: deleteForumThreadEndpoint,
+            },
+            replies: {
+              "": {
+                get: listForumRepliesEndpoint,
+                post: addForumReplyEndpoint,
+              },
+            },
+            status: { post: setForumThreadStatusEndpoint },
+            pin: { post: pinForumThreadEndpoint },
+          },
+        },
+      },
+      replies: {
+        byId: {
+          ":replyId": {
+            patch: updateForumReplyEndpoint,
+            delete: deleteForumReplyEndpoint,
+          },
+        },
+      },
     },
   },
 };

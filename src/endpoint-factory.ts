@@ -78,13 +78,25 @@ export const farmEndpointFactory = authenticatedEndpointFactory.addMiddleware(
   })
 );
 
-// Factory for endpoints that require an active farm membership
+// Factory for endpoints that require an active farm membership (includes trial)
 export const membershipEndpointFactory = farmEndpointFactory.addMiddleware(
   new Middleware({
     input: z.object({}),
     handler: async ({ ctx }) => {
       const active = await ctx.membership.isActive(ctx.farmId);
       if (!active) throw createHttpError(403, "Active membership required");
+      return {};
+    },
+  })
+);
+
+// Factory for endpoints that require a paid membership (excludes trial — read-only for trial users)
+export const paidMembershipEndpointFactory = farmEndpointFactory.addMiddleware(
+  new Middleware({
+    input: z.object({}),
+    handler: async ({ ctx }) => {
+      const paid = await ctx.membership.isPaidMember(ctx.farmId);
+      if (!paid) throw createHttpError(403, "Paid membership required");
       return {};
     },
   })

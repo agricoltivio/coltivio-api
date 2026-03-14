@@ -68,6 +68,15 @@ export function membershipApi(db: RlsDb) {
       return active !== undefined;
     },
 
+    // Paid membership only — excludes trial. Use for write-gated operations.
+    async isPaidMember(farmId: string): Promise<boolean> {
+      const now = new Date();
+      const active = await db.admin.query.membershipPayments.findFirst({
+        where: { farmId, status: "succeeded", periodEnd: { gt: now } },
+      });
+      return active !== undefined;
+    },
+
     async startTrial(farmId: string): Promise<{ trialEnd: Date }> {
       const existing = await db.admin.query.farmTrials.findFirst({ where: { farmId } });
       if (existing) throw createHttpError(409, "Trial already used for this farm");

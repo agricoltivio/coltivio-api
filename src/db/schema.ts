@@ -11,6 +11,7 @@ import {
   pgRole,
   pgSchema,
   pgTable,
+  pgView,
   real,
   text,
   timestamp,
@@ -123,6 +124,14 @@ export const profiles = pgTable.withRLS(
     ),
   ],
 );
+
+// View exposing only id + full_name — security_invoker=false + owned by postgres
+// means it bypasses profiles RLS, allowing forum threads to show author names across farms.
+// After migration, run: ALTER VIEW profile_names OWNER TO postgres; GRANT SELECT ON profile_names TO authenticated;
+export const profileNamesView = pgView("profile_names", {
+  id: uuid("id").notNull(),
+  fullName: text("full_name"),
+}).as(sql`SELECT id, full_name FROM profiles`);
 
 export const farms = pgTable.withRLS(
   "farms",
@@ -1466,6 +1475,18 @@ export const wikiChangeRequestStatus = pgEnum("wiki_change_request_status", [
 
 export const wikiLocale = pgEnum("wiki_locale", ["de", "en", "it", "fr"]);
 
+export const forumThreadTypeEnum = pgEnum("forum_thread_type", [
+  "question",
+  "feature_request",
+  "bug_report",
+  "general",
+]);
+
+export const forumThreadStatusEnum = pgEnum("forum_thread_status", [
+  "open",
+  "closed",
+]);
+
 // Categories are admin-managed and dynamically created (not an enum).
 // Defined before wiki_entries because wiki_entries holds a FK to this table.
 export const wikiCategories = pgTable.withRLS(
@@ -1837,6 +1858,110 @@ export const wikiModerators = pgTable.withRLS(
   ],
 );
 
+// Platform-wide forum threads (not farm-scoped); any authenticated user can read,
+// membership-gated writes are enforced at app layer via membershipEndpointFactory
+export const forumThreads = pgTable.withRLS(
+  "forum_threads",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    title: text().notNull(),
+    body: text().notNull().default(""),
+    type: forumThreadTypeEnum().notNull().default("general"),
+    status: forumThreadStatusEnum().notNull().default("open"),
+    isPinned: boolean("is_pinned").notNull().default(false),
+    createdBy: uuid()
+      .notNull()
+      .references(() => profiles.id, { onDelete: "restrict" }),
+    createdAt: timestamp().notNull().defaultNow(),
+    updatedAt: timestamp().notNull().defaultNow(),
+  },
+  (table) => [
+    index("forum_threads_status_idx").on(table.status),
+    index("forum_threads_type_idx").on(table.type),
+    pgPolicy("authenticated users can read forum threads", {
+      as: "permissive",
+      to: authenticatedRole,
+      for: "select",
+      using: sql`true`,
+    }),
+    pgPolicy("authenticated users can create forum threads", {
+      as: "permissive",
+      to: authenticatedRole,
+      for: "insert",
+      withCheck: eq(table.createdBy, authUid),
+    }),
+    pgPolicy("creator can update own forum threads", {
+      as: "permissive",
+      to: authenticatedRole,
+      for: "update",
+      using: eq(table.createdBy, authUid),
+      withCheck: eq(table.createdBy, authUid),
+    }),
+    pgPolicy("creator can delete own forum threads", {
+      as: "permissive",
+      to: authenticatedRole,
+      for: "delete",
+      using: eq(table.createdBy, authUid),
+    }),
+  ],
+);
+
+export const forumReplies = pgTable.withRLS(
+  "forum_replies",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    threadId: uuid()
+      .notNull()
+      .references(() => forumThreads.id, { onDelete: "cascade" }),
+    body: text().notNull(),
+    createdBy: uuid()
+      .notNull()
+      .references(() => profiles.id, { onDelete: "restrict" }),
+    createdAt: timestamp().notNull().defaultNow(),
+    updatedAt: timestamp().notNull().defaultNow(),
+  },
+  (table) => [
+    index("forum_replies_thread_id_idx").on(table.threadId),
+    pgPolicy("authenticated users can read forum replies", {
+      as: "permissive",
+      to: authenticatedRole,
+      for: "select",
+      using: sql`true`,
+    }),
+    pgPolicy("authenticated users can create forum replies", {
+      as: "permissive",
+      to: authenticatedRole,
+      for: "insert",
+      withCheck: eq(table.createdBy, authUid),
+    }),
+    pgPolicy("creator can update own forum replies", {
+      as: "permissive",
+      to: authenticatedRole,
+      for: "update",
+      using: eq(table.createdBy, authUid),
+      withCheck: eq(table.createdBy, authUid),
+    }),
+    pgPolicy("creator can delete own forum replies", {
+      as: "permissive",
+      to: authenticatedRole,
+      for: "delete",
+      using: eq(table.createdBy, authUid),
+    }),
+  ],
+);
+
+// Moderator permission table — admin-managed, no RLS needed for end-user writes
+export const forumModerators = pgTable(
+  "forum_moderators",
+  {
+    userId: uuid()
+      .primaryKey()
+      .references(() => profiles.id, { onDelete: "cascade" }),
+    grantedBy: uuid().references(() => profiles.id, { onDelete: "set null" }),
+    grantedAt: timestamp().notNull().defaultNow(),
+  },
+);
+
 export const tasks = pgTable.withRLS(
   "tasks",
   {
@@ -2015,6 +2140,9 @@ const tables = {
   wikiChangeRequestTranslations,
   wikiChangeRequestNotes,
   wikiModerators,
+  forumThreads,
+  forumReplies,
+  forumModerators,
   tasks,
   taskRecurrences,
   taskLinks,
@@ -2598,6 +2726,33 @@ export const relations = defineRelations(tables, (r) => ({
       optional: false,
     }),
   },
+  forumThreads: {
+    creator: r.one.profiles({
+      from: r.forumThreads.createdBy,
+      to: r.profiles.id,
+      optional: false,
+    }),
+    replies: r.many.forumReplies(),
+  },
+  forumReplies: {
+    thread: r.one.forumThreads({
+      from: r.forumReplies.threadId,
+      to: r.forumThreads.id,
+      optional: false,
+    }),
+    creator: r.one.profiles({
+      from: r.forumReplies.createdBy,
+      to: r.profiles.id,
+      optional: false,
+    }),
+  },
+  forumModerators: {
+    user: r.one.profiles({
+      from: r.forumModerators.userId,
+      to: r.profiles.id,
+      optional: false,
+    }),
+  },
   tasks: {
     farm: r.one.farms({
       from: r.tasks.farmId,
@@ -2727,3 +2882,6 @@ export const membershipPaymentStatusSchema = z.enum(
   membershipPaymentStatusEnum.enumValues,
 );
 export const donationStatusSchema = z.enum(donationStatusEnum.enumValues);
+
+export const forumThreadTypeSchema = z.enum(forumThreadTypeEnum.enumValues);
+export const forumThreadStatusSchema = z.enum(forumThreadStatusEnum.enumValues);
