@@ -1,6 +1,6 @@
 import Stripe from "stripe";
 import { RequestHandler } from "express";
-import { stripe } from "./stripe";
+import { getStripe } from "./stripe";
 import { membershipApi } from "../membership/membership";
 import { donationsApi } from "../donations/donations";
 import { adminOnlyDb } from "../db/db";
@@ -17,7 +17,7 @@ export const stripeWebhookHandler: RequestHandler = async (req, res) => {
 
   let event: Stripe.Event;
   try {
-    event = stripe.webhooks.constructEvent(
+    event = getStripe().webhooks.constructEvent(
       req.body,
       sig,
       process.env.STRIPE_WEBHOOK_SECRET!,

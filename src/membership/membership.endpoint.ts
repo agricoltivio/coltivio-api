@@ -13,14 +13,18 @@ const membershipPaymentSchema = z.object({
   currency: z.string(),
   status: membershipPaymentStatusSchema,
   periodEnd: z.date(),
+  cardLast4: z.string().nullable(),
+  cardBrand: z.string().nullable(),
+  cardExpMonth: z.number().nullable(),
+  cardExpYear: z.number().nullable(),
   createdAt: z.date(),
 });
 
-const membershipStatusSchema = z.object({
-  active: z.boolean(),
-  currentPeriodEnd: z.date().nullable(),
+export const membershipStatusSchema = z.object({
+  lastPeriodEnd: z.date().nullable(),
   cancelAtPeriodEnd: z.boolean(),
   autoRenewing: z.boolean(),
+  trialEnd: z.date().nullable(),
 });
 
 const checkoutUrlInput = z.object({
@@ -60,15 +64,30 @@ export const createManualCheckoutEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const getMembershipPortalEndpoint = farmEndpointFactory.build({
-  method: "get",
-  input: z.object({ returnUrl: z.string().url() }),
+export const createPaymentMethodSetupEndpoint = farmEndpointFactory.build({
+  method: "post",
+  input: z.object({
+    successUrl: z.string().url(),
+    cancelUrl: z.string().url(),
+  }),
   output: z.object({ url: z.string() }),
   handler: async ({ input, ctx }) => {
     if (ctx.user.farmRole !== "owner") {
-      throw createHttpError(403, "Only farm owners can access the billing portal");
+      throw createHttpError(403, "Only farm owners can manage membership");
     }
-    return ctx.membership.createPortalSession(ctx.farmId, input.returnUrl);
+    return ctx.membership.createPaymentMethodSetup(ctx.farmId, input.successUrl, input.cancelUrl);
+  },
+});
+
+export const reactivateMembershipEndpoint = farmEndpointFactory.build({
+  method: "post",
+  input: z.object({}),
+  output: z.object({ cancelAtPeriodEnd: z.boolean() }),
+  handler: async ({ ctx }) => {
+    if (ctx.user.farmRole !== "owner") {
+      throw createHttpError(403, "Only farm owners can manage membership");
+    }
+    return ctx.membership.reactivateSubscription(ctx.farmId);
   },
 });
 
@@ -90,6 +109,18 @@ export const cancelMembershipEndpoint = farmEndpointFactory.build({
       throw createHttpError(403, "Only farm owners can cancel membership");
     }
     return ctx.membership.cancelSubscription(ctx.farmId);
+  },
+});
+
+export const startTrialEndpoint = farmEndpointFactory.build({
+  method: "post",
+  input: z.object({}),
+  output: z.object({ trialEnd: z.date() }),
+  handler: async ({ ctx }) => {
+    if (ctx.user.farmRole !== "owner") {
+      throw createHttpError(403, "Only farm owners can start a trial");
+    }
+    return ctx.membership.startTrial(ctx.farmId);
   },
 });
 

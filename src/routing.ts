@@ -291,10 +291,12 @@ import {
 import {
   createSubscriptionCheckoutEndpoint,
   createManualCheckoutEndpoint,
-  getMembershipPortalEndpoint,
   getMembershipStatusEndpoint,
   cancelMembershipEndpoint,
   getMembershipPaymentsEndpoint,
+  createPaymentMethodSetupEndpoint,
+  reactivateMembershipEndpoint,
+  startTrialEndpoint,
 } from "./membership/membership.endpoint";
 import { createDonationCheckoutEndpoint } from "./donations/donations.endpoint";
 
@@ -885,10 +887,14 @@ export const routing: Routing = {
         subscription: { post: createSubscriptionCheckoutEndpoint },
         manual: { post: createManualCheckoutEndpoint },
       },
-      portal: { get: getMembershipPortalEndpoint },
       status: { get: getMembershipStatusEndpoint },
-      subscription: { delete: cancelMembershipEndpoint },
+      paymentMethod: { post: createPaymentMethodSetupEndpoint },
+      subscription: {
+        delete: cancelMembershipEndpoint,
+        post: reactivateMembershipEndpoint,
+      },
       payments: { get: getMembershipPaymentsEndpoint },
+      trial: { post: startTrialEndpoint },
     },
     donations: {
       checkout: { post: createDonationCheckoutEndpoint },

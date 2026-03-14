@@ -1,6 +1,6 @@
 import Stripe from "stripe";
 import { RlsDb } from "../db/db";
-import { stripe } from "../stripe/stripe";
+import { getStripe } from "../stripe/stripe";
 import { donations } from "../db/schema";
 
 export function donationsApi(db: RlsDb) {
@@ -14,7 +14,7 @@ export function donationsApi(db: RlsDb) {
     ): Promise<{ url: string }> {
       if (amount < 100) throw new Error("Minimum donation amount is CHF 1.00 (100 cents)");
 
-      const session = await stripe.checkout.sessions.create({
+      const session = await getStripe().checkout.sessions.create({
         mode: "payment",
         payment_method_types: ["card"],
         customer_email: email,

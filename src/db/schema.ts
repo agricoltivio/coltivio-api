@@ -177,6 +177,24 @@ export const farmSubscriptions = pgTable.withRLS("farm_subscriptions", {
   }),
 ]);
 
+// One trial per farm ever — free, no credit card required
+export const farmTrials = pgTable.withRLS("farm_trials", {
+  id: uuid().primaryKey().defaultRandom(),
+  farmId: uuid()
+    .notNull()
+    .unique()
+    .references(() => farms.id, { onDelete: "cascade" }),
+  endsAt: timestamp({ mode: "date" }).notNull(),
+  createdAt: timestamp({ mode: "date" }).defaultNow().notNull(),
+}, (table) => [
+  pgPolicy("farm members can read own trial", {
+    as: "permissive",
+    to: authenticatedRole,
+    for: "select",
+    using: eq(table.farmId, currentFarmId),
+  }),
+]);
+
 // One row per payment period (subscription renewals + manual one-time payments)
 // Active membership = exists a row with status='succeeded' AND periodEnd > now()
 export const membershipPayments = pgTable.withRLS("membership_payments", {
@@ -191,6 +209,10 @@ export const membershipPayments = pgTable.withRLS("membership_payments", {
   currency: text().notNull().default("chf"),
   status: membershipPaymentStatusEnum().notNull().default("pending"),
   periodEnd: timestamp({ mode: "date" }).notNull(), // when this payment's coverage expires
+  cardLast4: text(),
+  cardBrand: text(),
+  cardExpMonth: integer(),
+  cardExpYear: integer(),
   createdAt: timestamp({ mode: "date" }).defaultNow().notNull(),
 }, (table) => [
   pgPolicy("farm members can read own payments", {
@@ -1999,6 +2021,7 @@ const tables = {
   taskChecklistItems,
   farmInvites,
   farmSubscriptions,
+  farmTrials,
   membershipPayments,
   donations,
 };
@@ -2022,11 +2045,22 @@ export const relations = defineRelations(tables, (r) => ({
       from: r.farms.id,
       to: r.farmSubscriptions.farmId,
     }),
+    trial: r.one.farmTrials({
+      from: r.farms.id,
+      to: r.farmTrials.farmId,
+    }),
     membershipPayments: r.many.membershipPayments(),
   },
   farmSubscriptions: {
     farm: r.one.farms({
       from: r.farmSubscriptions.farmId,
+      to: r.farms.id,
+      optional: false,
+    }),
+  },
+  farmTrials: {
+    farm: r.one.farms({
+      from: r.farmTrials.farmId,
       to: r.farms.id,
       optional: false,
     }),
