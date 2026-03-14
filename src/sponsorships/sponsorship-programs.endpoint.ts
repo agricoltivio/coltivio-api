@@ -1,6 +1,6 @@
 import createHttpError from "http-errors";
 import { z } from "zod";
-import { farmEndpointFactory } from "../endpoint-factory";
+import { membershipEndpointFactory } from "../endpoint-factory";
 
 export const sponsorshipProgramSchema = z.object({
   id: z.string(),
@@ -18,7 +18,7 @@ const createSponsorshipProgramSchema = z.object({
 
 const updateSponsorshipProgramSchema = createSponsorshipProgramSchema.partial();
 
-export const getSponsorshipProgramByIdEndpoint = farmEndpointFactory.build({
+export const getSponsorshipProgramByIdEndpoint = membershipEndpointFactory.build({
   method: "get",
   input: z.object({ sponsorshipProgramId: z.string() }),
   output: sponsorshipProgramSchema,
@@ -34,7 +34,7 @@ export const getSponsorshipProgramByIdEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const getFarmSponsorshipProgramsEndpoint = farmEndpointFactory.build({
+export const getFarmSponsorshipProgramsEndpoint = membershipEndpointFactory.build({
   method: "get",
   input: z.object({}),
   output: z.object({
@@ -51,7 +51,7 @@ export const getFarmSponsorshipProgramsEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const createSponsorshipProgramEndpoint = farmEndpointFactory.build({
+export const createSponsorshipProgramEndpoint = membershipEndpointFactory.build({
   method: "post",
   input: createSponsorshipProgramSchema,
   output: sponsorshipProgramSchema,
@@ -60,7 +60,7 @@ export const createSponsorshipProgramEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const updateSponsorshipProgramEndpoint = farmEndpointFactory.build({
+export const updateSponsorshipProgramEndpoint = membershipEndpointFactory.build({
   method: "patch",
   input: updateSponsorshipProgramSchema.extend({
     sponsorshipProgramId: z.string(),
@@ -75,7 +75,7 @@ export const updateSponsorshipProgramEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const deleteSponsorshipProgramEndpoint = farmEndpointFactory.build({
+export const deleteSponsorshipProgramEndpoint = membershipEndpointFactory.build({
   method: "delete",
   input: z.object({ sponsorshipProgramId: z.string() }),
   output: z.object({}),

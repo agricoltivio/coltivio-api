@@ -1,7 +1,7 @@
 import createHttpError from "http-errors";
 import { z } from "zod";
 import { preferredCommunicationSchema, sponsorships } from "../db/schema";
-import { farmEndpointFactory } from "../endpoint-factory";
+import { membershipEndpointFactory } from "../endpoint-factory";
 import { paymentSchema } from "../payments/payments.endpoint";
 import {
   sponsorshipSchema,
@@ -54,7 +54,7 @@ const createContactSchema = z.object({
 
 const updateContactSchema = createContactSchema.partial();
 
-export const getContactByIdEndpoint = farmEndpointFactory.build({
+export const getContactByIdEndpoint = membershipEndpointFactory.build({
   method: "get",
   input: z.object({ contactId: z.string() }),
   output: contactWithRelationsSchema,
@@ -67,7 +67,7 @@ export const getContactByIdEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const getFarmContactsEndpoint = farmEndpointFactory.build({
+export const getFarmContactsEndpoint = membershipEndpointFactory.build({
   method: "get",
   input: z.object({}),
   output: z.object({
@@ -83,7 +83,7 @@ export const getFarmContactsEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const createContactEndpoint = farmEndpointFactory.build({
+export const createContactEndpoint = membershipEndpointFactory.build({
   method: "post",
   input: createContactSchema,
   output: contactSchema,
@@ -93,7 +93,7 @@ export const createContactEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const updateContactEndpoint = farmEndpointFactory.build({
+export const updateContactEndpoint = membershipEndpointFactory.build({
   method: "patch",
   input: updateContactSchema.extend({
     contactId: z.string(),
@@ -105,7 +105,7 @@ export const updateContactEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const deleteContactEndpoint = farmEndpointFactory.build({
+export const deleteContactEndpoint = membershipEndpointFactory.build({
   method: "delete",
   input: z.object({ contactId: z.string() }),
   output: z.object({}),

@@ -309,7 +309,10 @@ export const requestWikiImageSignedUrlEndpoint =
       signedUrl: z.string(),
       path: z.string(),
     }),
-    handler: async ({ input, ctx: { wiki, user } }) => {
+    handler: async ({ input, ctx: { wiki, user, membership } }) => {
+      if (!user.farmId) throw createHttpError(403, "Active membership required");
+      const active = await membership.isActive(user.farmId);
+      if (!active) throw createHttpError(403, "Active membership required");
       return wiki.requestSignedImageUrl(input.entryId, user.id, input.filename);
     },
   });
@@ -326,7 +329,10 @@ export const registerWikiImageEndpoint = authenticatedEndpointFactory.build({
     id: z.string(),
     publicUrl: z.string(),
   }),
-  handler: async ({ input, ctx: { wiki, user } }) => {
+  handler: async ({ input, ctx: { wiki, user, membership } }) => {
+    if (!user.farmId) throw createHttpError(403, "Active membership required");
+    const active = await membership.isActive(user.farmId);
+    if (!active) throw createHttpError(403, "Active membership required");
     return wiki.registerImage(input.entryId, input.storagePath, user.id);
   },
 });

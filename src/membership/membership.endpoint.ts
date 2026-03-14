@@ -132,6 +132,9 @@ export const getMembershipPaymentsEndpoint = farmEndpointFactory.build({
     count: z.number(),
   }),
   handler: async ({ ctx }) => {
+    if (ctx.user.farmRole !== "owner") {
+      throw createHttpError(403, "Only farm owners can manage membership");
+    }
     const result = await ctx.membership.getPayments(ctx.farmId);
     return { result, count: result.length };
   },

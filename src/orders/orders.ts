@@ -203,7 +203,8 @@ export function ordersApi(rlsDb: RlsDb) {
         const [updated] = await tx
           .update(orders)
           .set(data)
-          .where(eq(orders.id, id));
+          .where(eq(orders.id, id))
+          .returning();
         return updated;
       });
     },

@@ -5,7 +5,7 @@ import { orderStatusSchema } from "../db/schema";
 import { contactSchema } from "../contacts/contacts.endpoint";
 import { paymentSchema } from "../payments/payments.endpoint";
 import { productSchema } from "../products/products.endpoint";
-import { farmEndpointFactory } from "../endpoint-factory";
+import { membershipEndpointFactory } from "../endpoint-factory";
 
 export const orderSchema = z.object({
   id: z.string(),
@@ -55,7 +55,7 @@ const orderItemInputSchema = z.object({
   quantity: z.number().positive(),
 });
 
-export const getOrderByIdEndpoint = farmEndpointFactory.build({
+export const getOrderByIdEndpoint = membershipEndpointFactory.build({
   method: "get",
   input: z.object({ orderId: z.string() }),
   output: orderWithRelationsSchema,
@@ -72,7 +72,7 @@ const orderWithPaidFlagSchema = orderWithContactSchema.extend({
   paidInFull: z.boolean(),
 });
 
-export const getFarmOrdersEndpoint = farmEndpointFactory.build({
+export const getFarmOrdersEndpoint = membershipEndpointFactory.build({
   method: "get",
   input: z.object({}),
   output: z.object({
@@ -96,7 +96,7 @@ export const getFarmOrdersEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const getContactOrdersEndpoint = farmEndpointFactory.build({
+export const getContactOrdersEndpoint = membershipEndpointFactory.build({
   method: "get",
   input: z.object({ contactId: z.string() }),
   output: z.object({
@@ -112,7 +112,7 @@ export const getContactOrdersEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const getOrderItemsEndpoint = farmEndpointFactory.build({
+export const getOrderItemsEndpoint = membershipEndpointFactory.build({
   method: "get",
   input: z.object({ orderId: z.string() }),
   output: z.object({
@@ -128,7 +128,7 @@ export const getOrderItemsEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const createOrderEndpoint = farmEndpointFactory.build({
+export const createOrderEndpoint = membershipEndpointFactory.build({
   method: "post",
   input: z.object({
     contactId: z.string(),
@@ -145,7 +145,7 @@ export const createOrderEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const confirmOrderEndpoint = farmEndpointFactory.build({
+export const confirmOrderEndpoint = membershipEndpointFactory.build({
   method: "post",
   input: z.object({ orderId: z.string() }),
   output: orderSchema,
@@ -154,7 +154,7 @@ export const confirmOrderEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const fulfillOrderEndpoint = farmEndpointFactory.build({
+export const fulfillOrderEndpoint = membershipEndpointFactory.build({
   method: "post",
   input: z.object({ orderId: z.string() }),
   output: orderSchema,
@@ -163,7 +163,7 @@ export const fulfillOrderEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const cancelOrderEndpoint = farmEndpointFactory.build({
+export const cancelOrderEndpoint = membershipEndpointFactory.build({
   method: "post",
   input: z.object({ orderId: z.string() }),
   output: orderSchema,
@@ -172,7 +172,7 @@ export const cancelOrderEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const updateOrderEndpoint = farmEndpointFactory.build({
+export const updateOrderEndpoint = membershipEndpointFactory.build({
   method: "patch",
   input: z.object({
     orderId: z.string(),
