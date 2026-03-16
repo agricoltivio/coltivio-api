@@ -203,9 +203,10 @@ export const addOrderItemEndpoint = farmEndpointFactory.build({
 export const updateOrderItemEndpoint = farmEndpointFactory.build({
   method: "patch",
   input: z.object({
+    orderId: z.string(),
     orderItemId: z.string(),
     quantity: z.number().positive().optional(),
-    unitPrice: z.number().positive().optional(),
+    unitPrice: z.number().nonnegative().optional(),
   }),
   output: orderItemSchema,
   handler: async ({ input, ctx: { orders } }) => {
@@ -216,7 +217,7 @@ export const updateOrderItemEndpoint = farmEndpointFactory.build({
 
 export const removeOrderItemEndpoint = farmEndpointFactory.build({
   method: "delete",
-  input: z.object({ orderItemId: z.string() }),
+  input: z.object({ orderId: z.string(), orderItemId: z.string() }),
   output: z.object({ success: z.boolean() }),
   handler: async ({ input, ctx: { orders } }) => {
     await orders.removeOrderItem(input.orderItemId);
