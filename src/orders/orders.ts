@@ -207,5 +207,55 @@ export function ordersApi(rlsDb: RlsDb) {
         return updated;
       });
     },
+
+    async addOrderItem(
+      orderId: string,
+      item: OrderItemInput,
+    ): Promise<OrderItemWithProduct> {
+      return rlsDb.rls(async (tx) => {
+        const product = await tx.query.products.findFirst({
+          where: { id: item.productId },
+        });
+        if (!product) {
+          throw new Error(`Product not found: ${item.productId}`);
+        }
+
+        const [inserted] = await tx
+          .insert(orderItems)
+          .values({
+            ...farmIdColumnValue,
+            orderId,
+            productId: item.productId,
+            quantity: item.quantity,
+            unitPrice: product.pricePerUnit,
+          })
+          .returning();
+
+        return { ...inserted, product };
+      });
+    },
+
+    async updateOrderItem(
+      orderItemId: string,
+      data: { quantity?: number; unitPrice?: number },
+    ): Promise<OrderItem> {
+      return rlsDb.rls(async (tx) => {
+        const [updated] = await tx
+          .update(orderItems)
+          .set(data)
+          .where(eq(orderItems.id, orderItemId))
+          .returning();
+        if (!updated) {
+          throw new Error(`Order item not found: ${orderItemId}`);
+        }
+        return updated;
+      });
+    },
+
+    async removeOrderItem(orderItemId: string): Promise<void> {
+      await rlsDb.rls(async (tx) => {
+        await tx.delete(orderItems).where(eq(orderItems.id, orderItemId));
+      });
+    },
   };
 }

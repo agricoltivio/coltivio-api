@@ -223,6 +223,7 @@ import {
   updateCropProtectionProductEndpoint,
 } from "./crop-protection/crop-protection-products.endpoint";
 import {
+  addOrderItemEndpoint,
   cancelOrderEndpoint,
   confirmOrderEndpoint,
   createOrderEndpoint,
@@ -231,7 +232,9 @@ import {
   getFarmOrdersEndpoint,
   getOrderByIdEndpoint,
   getOrderItemsEndpoint,
+  removeOrderItemEndpoint,
   updateOrderEndpoint,
+  updateOrderItemEndpoint,
 } from "./orders/orders.endpoint";
 import {
   createProductEndpoint,
@@ -731,7 +734,18 @@ export const routing: Routing = {
             get: getOrderByIdEndpoint,
             patch: updateOrderEndpoint,
           },
-          items: getOrderItemsEndpoint,
+          items: {
+            "": {
+              get: getOrderItemsEndpoint,
+              post: addOrderItemEndpoint,
+            },
+            byId: {
+              ":orderItemId": {
+                patch: updateOrderItemEndpoint,
+                delete: removeOrderItemEndpoint,
+              },
+            },
+          },
           confirm: confirmOrderEndpoint,
           fulfill: fulfillOrderEndpoint,
           cancel: cancelOrderEndpoint,
