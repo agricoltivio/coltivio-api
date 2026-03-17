@@ -4,7 +4,6 @@ import {
   authenticatedEndpointFactory,
   farmEndpointFactory,
 } from "../endpoint-factory";
-import { membershipStatusSchema } from "../membership/membership.endpoint";
 
 const pointSchema = z.object({
   type: z.literal("Point"),
@@ -21,7 +20,7 @@ const farmBaseSchema = z.object({
 });
 
 export const farmSchema = farmBaseSchema.extend({
-  membership: membershipStatusSchema,
+  membership: z.object({ status: z.enum(["none", "trial", "active"]) }),
 });
 
 const createFarmSchema = z.object({
@@ -44,15 +43,15 @@ export const getFarmEndpoint = farmEndpointFactory.build({
   input: z.object({}),
   output: farmSchema,
   handler: async ({ input, ctx }) => {
-    const [farm, membership] = await Promise.all([
+    const [farm, status] = await Promise.all([
       ctx.farms.getFarmById(ctx.farmId),
-      ctx.membership.getStatus(ctx.farmId),
+      ctx.membership.getFarmMembershipStatus(ctx.farmId),
     ]);
     if (!farm) {
       throw createHttpError(404, "Farm not found");
     }
 
-    return { ...farm, membership };
+    return { ...farm, membership: { status } };
   },
 });
 
@@ -71,9 +70,13 @@ export const createFarmEndpoint = authenticatedEndpointFactory.build({
 export const updateFarmEndpoint = farmEndpointFactory.build({
   method: "patch",
   input: updateFarmSchema,
-  output: farmBaseSchema,
+  output: farmSchema,
   handler: async ({ input, ctx }) => {
-    return ctx.farms.updateFarm(ctx.farmId, input);
+    const [farm, status] = await Promise.all([
+      ctx.farms.updateFarm(ctx.farmId, input),
+      ctx.membership.getFarmMembershipStatus(ctx.farmId),
+    ]);
+    return { ...farm, membership: { status } };
   },
 });
 

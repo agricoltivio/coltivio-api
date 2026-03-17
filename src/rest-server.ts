@@ -38,12 +38,34 @@ const config = createConfig({
     getLogger().info(
       "Serving the API documentation at http://localhost:8000/docs. ",
     );
+    // Global CORS middleware — ensures CORS headers are present on ALL responses including 404s,
+    // so browsers can read error responses from cross-origin requests.
+    app.use((req, res, next) => {
+      const allowedOrigins = [
+        "https://coltivio.ch",
+        "https://app.coltivio.ch",
+        ...(process.env.NODE_ENV !== "production"
+          ? ["http://localhost:4000", "http://localhost:4321"]
+          : []),
+      ];
+      const origin = req.headers.origin;
+      if (origin && allowedOrigins.includes(origin)) {
+        res.setHeader("Access-Control-Allow-Origin", origin);
+      }
+      res.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
+      res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
+      if (req.method === "OPTIONS") {
+        res.sendStatus(204);
+        return;
+      }
+      next();
+    });
     // Raw body required for Stripe webhook signature verification — must come before any body parsers
     app.post("/v1/webhooks/stripe", express.raw({ type: "application/json" }), stripeWebhookHandler);
     app.use("/docs", ui.serve, ui.setup(documentation));
     app.use(i18nextMiddleware.handle(i18next));
   },
-  cors: ({ defaultHeaders, request, endpoint, logger }) => {
+  cors: ({ defaultHeaders, request }) => {
     const allowedOrigins = [
       "https://coltivio.ch",
       "https://app.coltivio.ch",

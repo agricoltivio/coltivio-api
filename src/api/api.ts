@@ -34,6 +34,7 @@ import { forumModerationApi } from "../forum/forum-moderation";
 import { tasksApi } from "../tasks/tasks";
 import { membershipApi } from "../membership/membership";
 import { donationsApi } from "../donations/donations";
+import { handoffApi } from "../auth/handoff";
 
 export function sessionApi(db: RlsDb, t: TFunction, locale: string) {
   return {
@@ -71,5 +72,6 @@ export function sessionApi(db: RlsDb, t: TFunction, locale: string) {
     tasks: tasksApi(db, locale),
     membership: membershipApi(db),
     donations: donationsApi(db),
+    handoff: handoffApi(db),
   };
 }

@@ -1,9 +1,10 @@
 import Stripe from "stripe";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import createHttpError from "http-errors";
 import { RlsDb } from "../db/db";
 import { getStripe } from "../stripe/stripe";
-import { farms, farmSubscriptions, farmTrials, membershipPayments } from "../db/schema";
+import { profiles, userSubscriptions, userTrials, membershipPayments } from "../db/schema";
+import { sendNewMembershipEmail, sendReactivationEmail, sendRenewalEmail, sendFirstPaymentEmail } from "./membership.email";
 
 export type MembershipStatus = {
   lastPeriodEnd: Date | null;
@@ -11,6 +12,8 @@ export type MembershipStatus = {
   autoRenewing: boolean;
   trialEnd: Date | null;
 };
+
+export type FarmMembershipStatus = "none" | "trial" | "active";
 
 // Annual membership amount in CHF cents (used for manual/one-time checkout)
 const ANNUAL_AMOUNT_CHF_CENTS = 29000; // 290 CHF
@@ -35,72 +38,140 @@ async function getCardDetailsFromPaymentMethod(paymentMethodId: string | null): 
 }
 
 export function membershipApi(db: RlsDb) {
-  // Get or create a Stripe Customer for the farm, storing the ID on the farms row
-  async function getOrCreateStripeCustomer(farmId: string): Promise<string> {
-    const farm = await db.admin.query.farms.findFirst({ where: { id: farmId } });
-    if (!farm) throw new Error(`Farm ${farmId} not found`);
+  // Get or create a Stripe Customer for the user, storing the ID on their profile
+  async function getOrCreateStripeCustomer(userId: string): Promise<string> {
+    const profile = await db.admin.query.profiles.findFirst({ where: { id: userId } });
+    if (!profile) throw new Error(`Profile ${userId} not found`);
 
-    if (farm.stripeCustomerId) return farm.stripeCustomerId;
+    if (profile.stripeCustomerId) return profile.stripeCustomerId;
 
     const customer = await getStripe().customers.create({
-      metadata: { farmId },
-      name: farm.name,
+      metadata: { userId },
+      name: profile.fullName ?? profile.email,
+      email: profile.email,
     });
 
     await db.admin
-      .update(farms)
+      .update(profiles)
       .set({ stripeCustomerId: customer.id })
-      .where(eq(farms.id, farmId));
+      .where(eq(profiles.id, userId));
 
     return customer.id;
   }
 
+  // Fetch all userIds who are members of the given farm (via profiles.farmId)
+  async function getUserIdsForFarm(farmId: string): Promise<string[]> {
+    const farmProfiles = await db.admin.query.profiles.findMany({
+      where: { farmId },
+    });
+    return farmProfiles.map((p) => p.id);
+  }
+
   return {
+    // A farm is active if any of its members has an active trial or succeeded payment
     async isActive(farmId: string): Promise<boolean> {
+      const userIds = await getUserIdsForFarm(farmId);
+      if (userIds.length === 0) return false;
+
       const now = new Date();
-      const activeTrial = await db.admin.query.farmTrials.findFirst({
-        where: { farmId, endsAt: { gt: now } },
+      const activeTrial = await db.admin.query.userTrials.findFirst({
+        where: { userId: { in: userIds }, endsAt: { gt: now } },
       });
       if (activeTrial) return true;
+
       const active = await db.admin.query.membershipPayments.findFirst({
-        where: { farmId, status: "succeeded", periodEnd: { gt: now } },
+        where: { userId: { in: userIds }, status: "succeeded", periodEnd: { gt: now } },
       });
       return active !== undefined;
+    },
+
+    async getFarmMembershipStatus(farmId: string): Promise<FarmMembershipStatus> {
+      const userIds = await getUserIdsForFarm(farmId);
+      if (userIds.length === 0) return "none";
+
+      const now = new Date();
+      const active = await db.admin.query.membershipPayments.findFirst({
+        where: { userId: { in: userIds }, status: "succeeded", periodEnd: { gt: now } },
+      });
+      if (active) return "active";
+
+      const trial = await db.admin.query.userTrials.findFirst({
+        where: { userId: { in: userIds }, endsAt: { gt: now } },
+      });
+      return trial ? "trial" : "none";
     },
 
     // Paid membership only — excludes trial. Use for write-gated operations.
     async isPaidMember(farmId: string): Promise<boolean> {
+      const userIds = await getUserIdsForFarm(farmId);
+      if (userIds.length === 0) return false;
+
       const now = new Date();
       const active = await db.admin.query.membershipPayments.findFirst({
-        where: { farmId, status: "succeeded", periodEnd: { gt: now } },
+        where: { userId: { in: userIds }, status: "succeeded", periodEnd: { gt: now } },
       });
       return active !== undefined;
     },
 
-    async startTrial(farmId: string): Promise<{ trialEnd: Date }> {
-      const existing = await db.admin.query.farmTrials.findFirst({ where: { farmId } });
-      if (existing) throw createHttpError(409, "Trial already used for this farm");
+    // User-scoped active check (trial OR paid). Used for forum which is not farm-scoped.
+    async isActiveUser(userId: string): Promise<boolean> {
+      const now = new Date();
+      const activeTrial = await db.admin.query.userTrials.findFirst({
+        where: { userId, endsAt: { gt: now } },
+      });
+      if (activeTrial) return true;
+
+      const active = await db.admin.query.membershipPayments.findFirst({
+        where: { userId, status: "succeeded", periodEnd: { gt: now } },
+      });
+      return active !== undefined;
+    },
+
+    // User-scoped paid-only check (excludes trial). Used for forum write operations.
+    async isPaidUser(userId: string): Promise<boolean> {
+      const now = new Date();
+      const active = await db.admin.query.membershipPayments.findFirst({
+        where: { userId, status: "succeeded", periodEnd: { gt: now } },
+      });
+      return active !== undefined;
+    },
+
+    async startTrial(userId: string): Promise<{ trialEnd: Date }> {
+      const profile = await db.admin.query.profiles.findFirst({ where: { id: userId } });
+
+      // If the user belongs to a farm, check that no user in that farm has ever had a trial
+      if (profile?.farmId) {
+        const farmUserIds = await getUserIdsForFarm(profile.farmId);
+        const farmTrial = await db.admin.query.userTrials.findFirst({
+          where: { userId: { in: farmUserIds } },
+        });
+        if (farmTrial) throw createHttpError(409, "Trial already used for this farm");
+      } else {
+        const existing = await db.admin.query.userTrials.findFirst({ where: { userId } });
+        if (existing) throw createHttpError(409, "Trial already used for this user");
+      }
+
       const endsAt = new Date();
       endsAt.setDate(endsAt.getDate() + 30);
-      await db.admin.insert(farmTrials).values({ farmId, endsAt });
+      await db.admin.insert(userTrials).values({ userId, endsAt });
       return { trialEnd: endsAt };
     },
 
     // Stripe Subscription checkout (yearly, auto-renewing).
     async createSubscriptionCheckout(
-      farmId: string,
+      userId: string,
       successUrl: string,
       cancelUrl: string,
     ): Promise<{ url: string }> {
       const priceId = process.env.STRIPE_MEMBERSHIP_PRICE_ID_YEARLY;
       if (!priceId) throw new Error("STRIPE_MEMBERSHIP_PRICE_ID_YEARLY env var not set");
 
-      const customerId = await getOrCreateStripeCustomer(farmId);
+      const customerId = await getOrCreateStripeCustomer(userId);
 
       // If an active trial exists, delay billing until it ends
       const now = new Date();
-      const activeTrial = await db.admin.query.farmTrials.findFirst({
-        where: { farmId, endsAt: { gt: now } },
+      const activeTrial = await db.admin.query.userTrials.findFirst({
+        where: { userId, endsAt: { gt: now } },
       });
 
       const session = await getStripe().checkout.sessions.create({
@@ -110,7 +181,7 @@ export function membershipApi(db: RlsDb) {
         line_items: [{ price: priceId, quantity: 1 }],
         success_url: successUrl,
         cancel_url: cancelUrl,
-        metadata: { type: "membership", farmId },
+        metadata: { type: "membership", userId },
         subscription_data: activeTrial
           ? { trial_end: Math.floor(activeTrial.endsAt.getTime() / 1000) }
           : undefined,
@@ -122,11 +193,11 @@ export function membershipApi(db: RlsDb) {
 
     // One-time annual payment checkout (no auto-renew)
     async createManualCheckout(
-      farmId: string,
+      userId: string,
       successUrl: string,
       cancelUrl: string,
     ): Promise<{ url: string }> {
-      const customerId = await getOrCreateStripeCustomer(farmId);
+      const customerId = await getOrCreateStripeCustomer(userId);
 
       const session = await getStripe().checkout.sessions.create({
         customer: customerId,
@@ -144,7 +215,7 @@ export function membershipApi(db: RlsDb) {
         ],
         success_url: successUrl,
         cancel_url: cancelUrl,
-        metadata: { type: "membership", farmId },
+        metadata: { type: "membership", userId },
       });
 
       return { url: session.url! };
@@ -152,11 +223,11 @@ export function membershipApi(db: RlsDb) {
 
     // Stripe Setup mode checkout to update payment method on an existing subscription
     async createPaymentMethodSetup(
-      farmId: string,
+      userId: string,
       successUrl: string,
       cancelUrl: string,
     ): Promise<{ url: string }> {
-      const customerId = await getOrCreateStripeCustomer(farmId);
+      const customerId = await getOrCreateStripeCustomer(userId);
 
       const session = await getStripe().checkout.sessions.create({
         customer: customerId,
@@ -164,47 +235,43 @@ export function membershipApi(db: RlsDb) {
         currency: "chf",
         success_url: successUrl,
         cancel_url: cancelUrl,
-        metadata: { type: "payment_method_setup", farmId },
+        metadata: { type: "payment_method_setup", userId },
       });
 
       return { url: session.url! };
     },
 
-    async reactivateSubscription(farmId: string): Promise<{ cancelAtPeriodEnd: boolean }> {
-      const subscription = await db.admin.query.farmSubscriptions.findFirst({
-        where: { farmId },
+    async reactivateSubscription(userId: string): Promise<{ cancelAtPeriodEnd: boolean }> {
+      const subscription = await db.admin.query.userSubscriptions.findFirst({
+        where: { userId },
       });
 
-      if (!subscription) throw new Error("No active subscription found for this farm");
+      if (!subscription) throw new Error("No active subscription found for this user");
 
       await getStripe().subscriptions.update(subscription.stripeSubscriptionId, {
         cancel_at_period_end: false,
       });
 
       await db.admin
-        .update(farmSubscriptions)
+        .update(userSubscriptions)
         .set({ cancelAtPeriodEnd: false })
-        .where(eq(farmSubscriptions.farmId, farmId));
+        .where(eq(userSubscriptions.userId, userId));
 
       return { cancelAtPeriodEnd: false };
     },
 
-    async getStatus(farmId: string): Promise<MembershipStatus> {
-      const now = new Date();
-
+    async getStatus(userId: string): Promise<MembershipStatus> {
       // Find the latest succeeded payment (may be expired)
       const latestPayment = await db.admin.query.membershipPayments.findFirst({
-        where: { farmId, status: "succeeded" },
+        where: { userId, status: "succeeded" },
         orderBy: { periodEnd: "desc" },
       });
 
-      // Check if there's a subscription row
-      const subscription = await db.admin.query.farmSubscriptions.findFirst({
-        where: { farmId },
+      const subscription = await db.admin.query.userSubscriptions.findFirst({
+        where: { userId },
       });
 
-      // Source trial end from farmTrials (self-hosted, no credit card)
-      const trial = await db.admin.query.farmTrials.findFirst({ where: { farmId } });
+      const trial = await db.admin.query.userTrials.findFirst({ where: { userId } });
 
       return {
         lastPeriodEnd: latestPayment?.periodEnd ?? null,
@@ -214,28 +281,28 @@ export function membershipApi(db: RlsDb) {
       };
     },
 
-    async cancelSubscription(farmId: string): Promise<{ cancelAtPeriodEnd: boolean }> {
-      const subscription = await db.admin.query.farmSubscriptions.findFirst({
-        where: { farmId },
+    async cancelSubscription(userId: string): Promise<{ cancelAtPeriodEnd: boolean }> {
+      const subscription = await db.admin.query.userSubscriptions.findFirst({
+        where: { userId },
       });
 
-      if (!subscription) throw new Error("No active subscription found for this farm");
+      if (!subscription) throw new Error("No active subscription found for this user");
 
       await getStripe().subscriptions.update(subscription.stripeSubscriptionId, {
         cancel_at_period_end: true,
       });
 
       await db.admin
-        .update(farmSubscriptions)
+        .update(userSubscriptions)
         .set({ cancelAtPeriodEnd: true })
-        .where(eq(farmSubscriptions.farmId, farmId));
+        .where(eq(userSubscriptions.userId, userId));
 
       return { cancelAtPeriodEnd: true };
     },
 
-    async getPayments(farmId: string) {
+    async getPayments(userId: string) {
       return db.admin.query.membershipPayments.findMany({
-        where: { farmId },
+        where: { userId },
         orderBy: { createdAt: "desc" },
       });
     },
@@ -243,14 +310,14 @@ export function membershipApi(db: RlsDb) {
     async handleWebhookEvent(event: Stripe.Event): Promise<void> {
       if (event.type === "checkout.session.completed") {
         const session = event.data.object as Stripe.Checkout.Session;
-        const farmId = session.metadata?.farmId;
-        if (!farmId) return;
+        const userId = session.metadata?.userId;
+        if (!userId) return;
 
         // Payment method setup: attach the new card to the existing subscription
         if (session.mode === "setup" && session.metadata?.type === "payment_method_setup" && session.setup_intent) {
           const setupIntentId = typeof session.setup_intent === "string" ? session.setup_intent : session.setup_intent.id;
           const setupIntent = await getStripe().setupIntents.retrieve(setupIntentId);
-          const sub = await db.admin.query.farmSubscriptions.findFirst({ where: { farmId } });
+          const sub = await db.admin.query.userSubscriptions.findFirst({ where: { userId } });
           if (sub && setupIntent.payment_method) {
             await getStripe().subscriptions.update(sub.stripeSubscriptionId, {
               default_payment_method: setupIntent.payment_method as string,
@@ -260,7 +327,6 @@ export function membershipApi(db: RlsDb) {
         }
 
         if (session.mode === "subscription" && session.subscription) {
-          // Fetch the full subscription to get period info
           const stripeSubscriptionId =
             typeof session.subscription === "string"
               ? session.subscription
@@ -268,21 +334,19 @@ export function membershipApi(db: RlsDb) {
 
           const stripeSubscription = await getStripe().subscriptions.retrieve(stripeSubscriptionId);
 
-          // Upsert farmSubscriptions row
+          // Upsert userSubscriptions row
           await db.admin
-            .insert(farmSubscriptions)
+            .insert(userSubscriptions)
             .values({
-              farmId,
+              userId,
               stripeSubscriptionId,
               cancelAtPeriodEnd: stripeSubscription.cancel_at_period_end,
             })
             .onConflictDoUpdate({
-              target: farmSubscriptions.farmId,
+              target: userSubscriptions.userId,
               set: { stripeSubscriptionId, cancelAtPeriodEnd: stripeSubscription.cancel_at_period_end },
             });
 
-          // Insert membership payment row for first invoice
-          // Period end is taken from the first subscription item (new Stripe API places it there)
           const firstItem = stripeSubscription.items.data[0];
           const periodEnd = new Date((firstItem?.current_period_end ?? 0) * 1000);
 
@@ -297,10 +361,14 @@ export function membershipApi(db: RlsDb) {
               : stripeSubscription.default_payment_method?.id ?? null;
             const cardDetails = await getCardDetailsFromPaymentMethod(pmId);
 
+            const isFirstMembership = !(await db.admin.query.membershipPayments.findFirst({
+              where: { userId, status: "succeeded" },
+            }));
+
             await db.admin
               .insert(membershipPayments)
               .values({
-                farmId,
+                userId,
                 stripePaymentId: stripeInvoice.id,
                 stripeSubscriptionId,
                 amount: stripeInvoice.amount_paid,
@@ -310,9 +378,27 @@ export function membershipApi(db: RlsDb) {
                 ...cardDetails,
               })
               .onConflictDoNothing();
+
+            const profile = await db.admin.query.profiles.findFirst({ where: { id: userId } });
+            if (profile) {
+              if (isFirstMembership) {
+                await sendNewMembershipEmail({
+                  email: profile.email,
+                  fullName: profile.fullName,
+                  locale: profile.locale,
+                  amount: stripeInvoice.amount_paid,
+                  periodEnd,
+                  cardBrand: cardDetails.cardBrand,
+                  cardLast4: cardDetails.cardLast4,
+                  // Trial checkout ($0): show trial info instead of receipt
+                  trialEnd: stripeInvoice.amount_paid === 0 ? periodEnd : undefined,
+                });
+              } else {
+                await sendReactivationEmail({ email: profile.email, fullName: profile.fullName, locale: profile.locale, periodEnd });
+              }
+            }
           }
         } else if (session.mode === "payment" && session.metadata?.type === "membership") {
-          // Manual one-time payment — period starts now, ends +1 year
           const periodEnd = new Date();
           periodEnd.setFullYear(periodEnd.getFullYear() + 1);
 
@@ -321,7 +407,6 @@ export function membershipApi(db: RlsDb) {
               ? session.payment_intent
               : (session.payment_intent?.id ?? session.id);
 
-          // Retrieve payment intent to get the payment method used
           const paymentIntent = await getStripe().paymentIntents.retrieve(paymentIntentId, {
             expand: ["payment_method"],
           });
@@ -330,35 +415,55 @@ export function membershipApi(db: RlsDb) {
             : paymentIntent.payment_method?.id ?? null;
           const cardDetails = await getCardDetailsFromPaymentMethod(pmId);
 
+          const isFirstMembership = !(await db.admin.query.membershipPayments.findFirst({
+            where: { userId, status: "succeeded" },
+          }));
+
+          const amount = session.amount_total ?? ANNUAL_AMOUNT_CHF_CENTS;
           await db.admin
             .insert(membershipPayments)
             .values({
-              farmId,
+              userId,
               stripePaymentId: paymentIntentId,
-              amount: session.amount_total ?? ANNUAL_AMOUNT_CHF_CENTS,
+              amount,
               currency: session.currency ?? "chf",
               status: "succeeded",
               periodEnd,
               ...cardDetails,
             })
             .onConflictDoNothing();
+
+          const profile = await db.admin.query.profiles.findFirst({ where: { id: userId } });
+          if (profile) {
+            if (isFirstMembership) {
+              await sendNewMembershipEmail({
+                email: profile.email,
+                fullName: profile.fullName,
+                locale: profile.locale,
+                amount,
+                periodEnd,
+                cardBrand: cardDetails.cardBrand,
+                cardLast4: cardDetails.cardLast4,
+              });
+            } else {
+              await sendReactivationEmail({ email: profile.email, fullName: profile.fullName, locale: profile.locale, periodEnd });
+            }
+          }
         }
       } else if (event.type === "invoice.payment_succeeded") {
         const invoice = event.data.object as Stripe.Invoice;
-        // In Stripe API 2026+, subscription ID lives in parent.subscription_details.subscription
         const subRef = invoice.parent?.subscription_details?.subscription;
         const stripeSubscriptionId =
           typeof subRef === "string" ? subRef : subRef?.id;
 
         if (!stripeSubscriptionId) return;
 
-        // Look up farmId from farmSubscriptions
-        const sub = await db.admin.query.farmSubscriptions.findFirst({
+        // Look up userId from userSubscriptions
+        const sub = await db.admin.query.userSubscriptions.findFirst({
           where: { stripeSubscriptionId },
         });
         if (!sub) return;
 
-        // Fetch the subscription to get current period end from items
         const stripeSubscription = await getStripe().subscriptions.retrieve(stripeSubscriptionId);
         const firstItem = stripeSubscription.items.data[0];
         const periodEnd = new Date((firstItem?.current_period_end ?? 0) * 1000);
@@ -371,7 +476,7 @@ export function membershipApi(db: RlsDb) {
         await db.admin
           .insert(membershipPayments)
           .values({
-            farmId: sub.farmId,
+            userId: sub.userId,
             stripePaymentId: invoice.id,
             stripeSubscriptionId,
             amount: invoice.amount_paid,
@@ -381,6 +486,41 @@ export function membershipApi(db: RlsDb) {
             ...cardDetails,
           })
           .onConflictDoNothing();
+
+        // Only send email for recurring cycle payments — subscription_create is handled by checkout.session.completed
+        if (invoice.billing_reason === "subscription_cycle") {
+          const profile = await db.admin.query.profiles.findFirst({ where: { id: sub.userId } });
+          if (profile) {
+            // If the only previous payment was $0 (trial checkout), this is the first real charge
+            const previousNonZeroPayment = await db.admin.query.membershipPayments.findFirst({
+              where: { userId: sub.userId, status: "succeeded" },
+              orderBy: { createdAt: "asc" },
+            });
+            const isFirstRealPayment = !previousNonZeroPayment || previousNonZeroPayment.amount === 0;
+
+            if (isFirstRealPayment) {
+              await sendFirstPaymentEmail({
+                email: profile.email,
+                fullName: profile.fullName,
+                locale: profile.locale,
+                amount: invoice.amount_paid,
+                periodEnd,
+                cardBrand: cardDetails.cardBrand,
+                cardLast4: cardDetails.cardLast4,
+              });
+            } else {
+              await sendRenewalEmail({
+                email: profile.email,
+                fullName: profile.fullName,
+                locale: profile.locale,
+                amount: invoice.amount_paid,
+                periodEnd,
+                cardBrand: cardDetails.cardBrand,
+                cardLast4: cardDetails.cardLast4,
+              });
+            }
+          }
+        }
       } else if (event.type === "invoice.payment_failed") {
         const invoice = event.data.object as Stripe.Invoice;
         const subRef = invoice.parent?.subscription_details?.subscription;
@@ -389,7 +529,7 @@ export function membershipApi(db: RlsDb) {
 
         if (!stripeSubscriptionId) return;
 
-        const sub = await db.admin.query.farmSubscriptions.findFirst({
+        const sub = await db.admin.query.userSubscriptions.findFirst({
           where: { stripeSubscriptionId },
         });
         if (!sub) return;
@@ -397,30 +537,29 @@ export function membershipApi(db: RlsDb) {
         await db.admin
           .insert(membershipPayments)
           .values({
-            farmId: sub.farmId,
+            userId: sub.userId,
             stripePaymentId: invoice.id,
             stripeSubscriptionId,
             amount: invoice.amount_due,
             currency: invoice.currency,
             status: "failed",
-            // Period end is still the subscription's current_period_end
             periodEnd: new Date(0),
           })
           .onConflictDoNothing();
       } else if (event.type === "customer.subscription.updated") {
         const stripeSubscription = event.data.object as Stripe.Subscription;
         await db.admin
-          .update(farmSubscriptions)
+          .update(userSubscriptions)
           .set({ cancelAtPeriodEnd: stripeSubscription.cancel_at_period_end })
           .where(
-            eq(farmSubscriptions.stripeSubscriptionId, stripeSubscription.id),
+            eq(userSubscriptions.stripeSubscriptionId, stripeSubscription.id),
           );
       } else if (event.type === "customer.subscription.deleted") {
         const stripeSubscription = event.data.object as Stripe.Subscription;
         await db.admin
-          .delete(farmSubscriptions)
+          .delete(userSubscriptions)
           .where(
-            eq(farmSubscriptions.stripeSubscriptionId, stripeSubscription.id),
+            eq(userSubscriptions.stripeSubscriptionId, stripeSubscription.id),
           );
       }
     },

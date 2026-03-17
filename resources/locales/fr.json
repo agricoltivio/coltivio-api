@@ -359,6 +359,55 @@
       }
     }
   },
+  "membership_email": {
+    "subtitle": "par AgriColtivio",
+    "product_name": "Adhésion",
+    "valid_until": "Valable jusqu'au",
+    "payment_method": "Moyen de paiement",
+    "amount": "Montant",
+    "contact_question": "Pour toute question, contactez-nous à",
+    "contact_newsletter": "Abonnez-vous à notre newsletter sur",
+    "forum_cta": "Visitez le Forum pour rencontrer d'autres membres et des personnes partageant les mêmes idées.",
+    "new": {
+      "subject": "Bienvenue chez AgriColtivio – votre Adhésion est active",
+      "subject_trial": "Bienvenue chez AgriColtivio – votre Adhésion est configurée",
+      "greeting": "Bonjour {{name}}",
+      "welcome": "Bienvenue chez AgriColtivio – l'association derrière Coltivio. Votre exploitation a maintenant accès à toutes les fonctionnalités de l'App et de la WebApp.",
+      "features_title": "Vos avantages",
+      "app_label": "App",
+      "webapp_label": "WebApp",
+      "app_features": ["Tâches avec attribution à des animaux ou des surfaces et liste de contrôle automatique", "Inviter plusieurs utilisateurs et planifier ensemble", "Utiliser des images dans les entrées du wiki"],
+      "webapp_features": ["Toutes les fonctions de l'app dans le navigateur", "Gérer les contacts", "Enregistrer les commandes et suivre les paiements", "Gérer les parrainages d'animaux"],
+      "receipt_title": "Confirmation de votre paiement",
+      "trial_billing_info": "Votre période d'essai se termine le {{date}}. Vous ne serez débité qu'à la fin de la période d'essai."
+    },
+    "first_payment": {
+      "subject": "Votre Adhésion a été débitée",
+      "greeting": "Bonjour {{name}}",
+      "intro": "Votre Adhésion a été débitée avec succès. Merci de faire partie d'AgriColtivio !",
+      "receipt_title": "Confirmation de votre paiement"
+    },
+    "renewal": {
+      "subject": "Votre Adhésion Coltivio a été renouvelée",
+      "greeting": "Bonjour {{name}}",
+      "intro": "Nous sommes ravis que vous soyez toujours avec nous ! Votre Adhésion a été renouvelée avec succès — vous continuez à avoir un accès complet à toutes les fonctions de Coltivio.",
+      "receipt_title": "Votre reçu de renouvellement"
+    },
+    "reactivation": {
+      "subject": "Bienvenue à nouveau sur Coltivio",
+      "greeting": "Bonjour {{name}}, bienvenue à nouveau !",
+      "intro": "Nous sommes ravis de vous retrouver. Votre Adhésion est à nouveau active — vous avez un accès complet à toutes les fonctions jusqu'au {{date}}."
+    }
+  },
+  "donation_email": {
+    "subject": "Merci pour votre don à AgriColtivio",
+    "greeting": "Bonjour {{name}}",
+    "greeting_anonymous": "Bonjour",
+    "intro": "Merci pour votre don ! Vous soutenez ainsi une agriculture ouverte et équitable en Suisse.",
+    "receipt_title": "Confirmation de votre don",
+    "product_name": "Don à Coltivio",
+    "amount": "Montant"
+  },
   "farm_invite": {
     "subject": "Vous avez été invité à rejoindre {{farmName}} sur Coltivio",
     "body": "Vous avez été invité à rejoindre <strong>{{farmName}}</strong> sur Coltivio.",

@@ -314,6 +314,10 @@ import {
   setForumThreadStatusEndpoint,
   pinForumThreadEndpoint,
 } from "./forum/forum-moderation.endpoint";
+import {
+  createHandoffTokenEndpoint,
+  exchangeHandoffTokenEndpoint,
+} from "./auth/handoff.endpoint";
 
 export const routing: Routing = {
   healthz: healthEndpoint,
@@ -913,6 +917,10 @@ export const routing: Routing = {
     },
     donations: {
       checkout: { post: createDonationCheckoutEndpoint },
+    },
+    auth: {
+      handoff: { post: createHandoffTokenEndpoint },
+      exchange: { post: exchangeHandoffTokenEndpoint },
     },
     forum: {
       threads: {

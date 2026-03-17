@@ -13,7 +13,11 @@ export type FarmInvite = typeof tables.farmInvites.$inferSelect;
 
 export function farmInvitesApi(rlsDb: RlsDb, t: TFunction) {
   return {
-    async createInvite(farmId: string, email: string, createdBy: string): Promise<FarmInvite> {
+    async createInvite(
+      farmId: string,
+      email: string,
+      createdBy: string,
+    ): Promise<FarmInvite> {
       return rlsDb.rls(async (tx) => {
         // Reject if a profile with that email already belongs to this farm
         const existingMember = await tx.query.profiles.findFirst({
@@ -24,7 +28,9 @@ export function farmInvitesApi(rlsDb: RlsDb, t: TFunction) {
         }
 
         const code = crypto.randomBytes(4).toString("hex").toUpperCase();
-        const expiresAt = new Date(Date.now() + INVITE_TTL_DAYS * 24 * 60 * 60 * 1000);
+        const expiresAt = new Date(
+          Date.now() + INVITE_TTL_DAYS * 24 * 60 * 60 * 1000,
+        );
 
         const [invite] = await tx
           .insert(tables.farmInvites)
@@ -41,7 +47,9 @@ export function farmInvitesApi(rlsDb: RlsDb, t: TFunction) {
 
     async acceptInvite(code: string, user: User): Promise<User> {
       return rlsDb.admin.transaction(async (tx) => {
-        const invite = await tx.query.farmInvites.findFirst({ where: { code } });
+        const invite = await tx.query.farmInvites.findFirst({
+          where: { code },
+        });
 
         if (!invite) {
           throw createHttpError(404, "Invite not found");
@@ -53,7 +61,10 @@ export function farmInvitesApi(rlsDb: RlsDb, t: TFunction) {
           throw createHttpError(410, "Invite has expired");
         }
         if (user.email !== invite.email) {
-          throw createHttpError(403, "This invite was sent to a different email address");
+          throw createHttpError(
+            403,
+            "This invite was sent to a different email address",
+          );
         }
         if (user.farmId !== null) {
           throw createHttpError(409, "You already belong to a farm");
@@ -92,7 +103,9 @@ export function farmInvitesApi(rlsDb: RlsDb, t: TFunction) {
 
     async revokeInvite(id: string): Promise<void> {
       await rlsDb.rls(async (tx) => {
-        await tx.delete(tables.farmInvites).where(eq(tables.farmInvites.id, id));
+        await tx
+          .delete(tables.farmInvites)
+          .where(eq(tables.farmInvites.id, id));
       });
     },
   };

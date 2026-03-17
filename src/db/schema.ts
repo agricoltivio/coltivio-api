@@ -18,7 +18,7 @@ import {
   unique,
   uuid,
 } from "drizzle-orm/pg-core";
-import { authenticatedRole, authUid, authUsers } from "drizzle-orm/supabase";
+import { authenticatedRole, authUsers } from "drizzle-orm/supabase";
 
 import { z } from "zod";
 
@@ -33,8 +33,10 @@ const point = customType<{ data: string }>({
   },
 });
 
-export const currentFarmId = sql.raw(`farm_id()`);
+// Wrapped in (select ...) so Postgres caches the result per statement instead of evaluating per row
+export const currentFarmId = sql`(select farm_id())`;
 export const farmIdColumnValue = { farmId: currentFarmId };
+const selectAuthUid = sql`(select auth.uid())`;
 
 const appRole = pgRole("rls_client").existing();
 const extensions = pgSchema("extensions");
@@ -89,8 +91,10 @@ export const profiles = pgTable.withRLS(
     email: text().notNull().unique(),
     fullName: text(),
     emailVerified: boolean().notNull().default(false),
+    locale: text().notNull().default("de"),
     farmId: uuid().references(() => farms.id, { onDelete: "set null" }),
     farmRole: farmRoleEnum(),
+    stripeCustomerId: text(),
   },
   (table) => [
     foreignKey({
@@ -102,13 +106,13 @@ export const profiles = pgTable.withRLS(
       as: "permissive",
       to: authenticatedRole,
       for: "insert",
-      withCheck: eq(authUid, table.id),
+      withCheck: eq(selectAuthUid, table.id),
     }),
     pgPolicy("user can update own profile", {
       as: "permissive",
       to: authenticatedRole,
       for: "update",
-      using: eq(authUid, table.id),
+      using: eq(selectAuthUid, table.id),
     }),
     pgPolicy(
       "members of same farm can read each others profile and owners can read their own profile",
@@ -118,7 +122,7 @@ export const profiles = pgTable.withRLS(
         for: "select",
         using: or(
           and(isNotNull(table.farmId), eq(table.farmId, currentFarmId)),
-          eq(authUid, table.id),
+          eq(selectAuthUid, table.id),
         ),
       },
     ),
@@ -142,7 +146,6 @@ export const farms = pgTable.withRLS(
     name: text().notNull(),
     address: text().notNull(),
     location: point(),
-    stripeCustomerId: text(),
   },
   (table) => [
 pgPolicy("only farm members can read", {
@@ -167,40 +170,40 @@ pgPolicy("only farm members can read", {
   ],
 );
 
-// Tracks auto-renewing Stripe Subscriptions per farm (one row max per farm)
-export const farmSubscriptions = pgTable.withRLS("farm_subscriptions", {
+// Tracks auto-renewing Stripe Subscriptions per user (one row max per user)
+export const userSubscriptions = pgTable.withRLS("user_subscriptions", {
   id: uuid().primaryKey().defaultRandom(),
-  farmId: uuid()
+  userId: uuid()
     .notNull()
     .unique()
-    .references(() => farms.id, { onDelete: "cascade" }),
+    .references(() => profiles.id, { onDelete: "cascade" }),
   stripeSubscriptionId: text().notNull().unique(),
   cancelAtPeriodEnd: boolean().notNull().default(false),
   createdAt: timestamp({ mode: "date" }).defaultNow().notNull(),
 }, (table) => [
-  pgPolicy("farm members can read own subscription", {
+  pgPolicy("user can read own subscription", {
     as: "permissive",
     to: authenticatedRole,
     for: "select",
-    using: eq(table.farmId, currentFarmId),
+    using: eq(table.userId, selectAuthUid),
   }),
 ]);
 
-// One trial per farm ever — free, no credit card required
-export const farmTrials = pgTable.withRLS("farm_trials", {
+// One trial per user ever — free, no credit card required
+export const userTrials = pgTable.withRLS("user_trials", {
   id: uuid().primaryKey().defaultRandom(),
-  farmId: uuid()
+  userId: uuid()
     .notNull()
     .unique()
-    .references(() => farms.id, { onDelete: "cascade" }),
+    .references(() => profiles.id, { onDelete: "cascade" }),
   endsAt: timestamp({ mode: "date" }).notNull(),
   createdAt: timestamp({ mode: "date" }).defaultNow().notNull(),
 }, (table) => [
-  pgPolicy("farm members can read own trial", {
+  pgPolicy("user can read own trial", {
     as: "permissive",
     to: authenticatedRole,
     for: "select",
-    using: eq(table.farmId, currentFarmId),
+    using: eq(table.userId, selectAuthUid),
   }),
 ]);
 
@@ -208,10 +211,7 @@ export const farmTrials = pgTable.withRLS("farm_trials", {
 // Active membership = exists a row with status='succeeded' AND periodEnd > now()
 export const membershipPayments = pgTable.withRLS("membership_payments", {
   id: uuid().primaryKey().defaultRandom(),
-  farmId: uuid()
-    .notNull()
-    .references(() => farms.id, { onDelete: "cascade" }),
-  userId: uuid().references(() => profiles.id, { onDelete: "set null" }),
+  userId: uuid().notNull().references(() => profiles.id, { onDelete: "cascade" }),
   stripePaymentId: text().notNull().unique(), // PaymentIntent ID or Invoice ID
   stripeSubscriptionId: text(), // only for auto-renewing payments
   amount: integer().notNull(), // CHF cents
@@ -224,15 +224,26 @@ export const membershipPayments = pgTable.withRLS("membership_payments", {
   cardExpYear: integer(),
   createdAt: timestamp({ mode: "date" }).defaultNow().notNull(),
 }, (table) => [
-  pgPolicy("farm members can read own payments", {
+  pgPolicy("user can read own payments", {
     as: "permissive",
     to: authenticatedRole,
     for: "select",
-    using: eq(table.farmId, currentFarmId),
+    using: eq(table.userId, selectAuthUid),
   }),
 ]);
 
 // Donations — no RLS, managed via db.admin only
+export const handoffTokens = pgTable.withRLS("handoff_tokens", {
+  id: uuid().primaryKey().defaultRandom(),
+  userId: uuid()
+    .notNull()
+    .references(() => profiles.id, { onDelete: "cascade" }),
+  token: text().notNull().unique(),
+  expiresAt: timestamp({ mode: "date" }).notNull(),
+  usedAt: timestamp({ mode: "date" }),
+  createdAt: timestamp({ mode: "date" }).defaultNow().notNull(),
+});
+
 export const donations = pgTable("donations", {
   id: uuid().primaryKey().defaultRandom(),
   userId: uuid().references(() => profiles.id, { onDelete: "set null" }), // null = anonymous
@@ -1371,11 +1382,7 @@ export const drugTreatment = pgTable.withRLS(
     pgPolicy("only farm members", {
       as: "permissive",
       to: authenticatedRole,
-      using: sql`EXISTS (
-        SELECT 1 FROM ${drugs}
-        WHERE ${drugs.id} = ${table.drugId}
-        AND ${drugs.farmId} = current_setting('request.farm_id')::uuid
-      )`,
+      using: sql`(SELECT current_setting('request.farm_id')::uuid) IN (SELECT farm_id FROM ${drugs} WHERE id = ${table.drugId})`,
     }),
   ],
 );
@@ -1558,27 +1565,27 @@ export const wikiEntries = pgTable.withRLS(
       as: "permissive",
       to: authenticatedRole,
       for: "select",
-      using: sql`(${table.status} = 'published'::wiki_entry_status AND ${table.visibility} = 'public'::wiki_visibility) OR ${table.createdBy} = auth.uid() OR (${table.farmId} IS NOT NULL AND ${table.farmId} = current_setting('request.farm_id', TRUE)::uuid)`,
+      using: sql`(${table.status} = 'published'::wiki_entry_status AND ${table.visibility} = 'public'::wiki_visibility) OR ${table.createdBy} = (SELECT auth.uid()) OR (${table.farmId} IS NOT NULL AND ${table.farmId} = (SELECT current_setting('request.farm_id', TRUE)::uuid))`,
     }),
     pgPolicy("authenticated users can create wiki entries", {
       as: "permissive",
       to: authenticatedRole,
       for: "insert",
-      withCheck: eq(table.createdBy, authUid),
+      withCheck: eq(table.createdBy, selectAuthUid),
     }),
     pgPolicy("creator can update own wiki entries", {
       as: "permissive",
       to: authenticatedRole,
       for: "update",
-      using: eq(table.createdBy, authUid),
-      withCheck: eq(table.createdBy, authUid),
+      using: eq(table.createdBy, selectAuthUid),
+      withCheck: eq(table.createdBy, selectAuthUid),
     }),
     pgPolicy("creator can delete own private wiki entries", {
       as: "permissive",
       to: authenticatedRole,
       for: "delete",
       using: and(
-        eq(table.createdBy, authUid),
+        eq(table.createdBy, selectAuthUid),
         eq(table.visibility, sql`'private'::wiki_visibility`),
       ),
     }),
@@ -1626,20 +1633,12 @@ export const wikiEntryTags = pgTable.withRLS(
     pgPolicy("follow entry access for entry tags", {
       as: "permissive",
       to: authenticatedRole,
-      using: sql`EXISTS (
-        SELECT 1 FROM ${wikiEntries} we
-        WHERE we.id = ${table.entryId}
-        AND (
-          (we.status = 'published'::wiki_entry_status AND we.visibility = 'public'::wiki_visibility)
-          OR we.created_by = auth.uid()
-          OR (we.farm_id IS NOT NULL AND we.farm_id = current_setting('request.farm_id', TRUE)::uuid)
-        )
-      )`,
-      withCheck: sql`EXISTS (
-        SELECT 1 FROM ${wikiEntries} we
-        WHERE we.id = ${table.entryId}
-        AND we.created_by = auth.uid()
-      )`,
+      using: sql`
+        EXISTS (SELECT 1 FROM ${wikiEntries} we WHERE we.id = ${table.entryId} AND we.status = 'published'::wiki_entry_status AND we.visibility = 'public'::wiki_visibility)
+        OR (SELECT auth.uid()) IN (SELECT created_by FROM ${wikiEntries} WHERE id = ${table.entryId})
+        OR (SELECT current_setting('request.farm_id', TRUE)::uuid) IN (SELECT farm_id FROM ${wikiEntries} WHERE id = ${table.entryId} AND farm_id IS NOT NULL)
+      `,
+      withCheck: sql`(SELECT auth.uid()) IN (SELECT created_by FROM ${wikiEntries} WHERE id = ${table.entryId})`,
     }),
   ],
 );
@@ -1666,20 +1665,12 @@ export const wikiEntryTranslations = pgTable.withRLS(
     pgPolicy("follow entry access for translations", {
       as: "permissive",
       to: authenticatedRole,
-      using: sql`EXISTS (
-        SELECT 1 FROM ${wikiEntries} we
-        WHERE we.id = ${table.entryId}
-        AND (
-          (we.status = 'published'::wiki_entry_status AND we.visibility = 'public'::wiki_visibility)
-          OR we.created_by = auth.uid()
-          OR (we.farm_id IS NOT NULL AND we.farm_id = current_setting('request.farm_id', TRUE)::uuid)
-        )
-      )`,
-      withCheck: sql`EXISTS (
-        SELECT 1 FROM ${wikiEntries} we
-        WHERE we.id = ${table.entryId}
-        AND we.created_by = auth.uid()
-      )`,
+      using: sql`
+        EXISTS (SELECT 1 FROM ${wikiEntries} we WHERE we.id = ${table.entryId} AND we.status = 'published'::wiki_entry_status AND we.visibility = 'public'::wiki_visibility)
+        OR (SELECT auth.uid()) IN (SELECT created_by FROM ${wikiEntries} WHERE id = ${table.entryId})
+        OR (SELECT current_setting('request.farm_id', TRUE)::uuid) IN (SELECT farm_id FROM ${wikiEntries} WHERE id = ${table.entryId} AND farm_id IS NOT NULL)
+      `,
+      withCheck: sql`(SELECT auth.uid()) IN (SELECT created_by FROM ${wikiEntries} WHERE id = ${table.entryId})`,
     }),
   ],
 );
@@ -1701,20 +1692,12 @@ export const wikiEntryImages = pgTable.withRLS(
     pgPolicy("follow entry access for images", {
       as: "permissive",
       to: authenticatedRole,
-      using: sql`EXISTS (
-        SELECT 1 FROM ${wikiEntries} we
-        WHERE we.id = ${table.entryId}
-        AND (
-          (we.status = 'published'::wiki_entry_status AND we.visibility = 'public'::wiki_visibility)
-          OR we.created_by = auth.uid()
-          OR (we.farm_id IS NOT NULL AND we.farm_id = current_setting('request.farm_id', TRUE)::uuid)
-        )
-      )`,
-      withCheck: sql`EXISTS (
-        SELECT 1 FROM ${wikiEntries} we
-        WHERE we.id = ${table.entryId}
-        AND we.created_by = auth.uid()
-      )`,
+      using: sql`
+        EXISTS (SELECT 1 FROM ${wikiEntries} we WHERE we.id = ${table.entryId} AND we.status = 'published'::wiki_entry_status AND we.visibility = 'public'::wiki_visibility)
+        OR (SELECT auth.uid()) IN (SELECT created_by FROM ${wikiEntries} WHERE id = ${table.entryId})
+        OR (SELECT current_setting('request.farm_id', TRUE)::uuid) IN (SELECT farm_id FROM ${wikiEntries} WHERE id = ${table.entryId} AND farm_id IS NOT NULL)
+      `,
+      withCheck: sql`(SELECT auth.uid()) IN (SELECT created_by FROM ${wikiEntries} WHERE id = ${table.entryId})`,
     }),
   ],
 );
@@ -1746,13 +1729,13 @@ export const wikiChangeRequests = pgTable.withRLS(
       as: "permissive",
       to: authenticatedRole,
       for: "select",
-      using: eq(table.submittedBy, authUid),
+      using: eq(table.submittedBy, selectAuthUid),
     }),
     pgPolicy("authenticated can create change requests", {
       as: "permissive",
       to: authenticatedRole,
       for: "insert",
-      withCheck: eq(table.submittedBy, authUid),
+      withCheck: eq(table.submittedBy, selectAuthUid),
     }),
     // Submitter can update their own draft CRs (edit content + resubmit).
     // Moderator actions (approve/reject/requestChanges) are performed via admin role.
@@ -1761,10 +1744,10 @@ export const wikiChangeRequests = pgTable.withRLS(
       to: authenticatedRole,
       for: "update",
       using: and(
-        eq(table.submittedBy, authUid),
+        eq(table.submittedBy, selectAuthUid),
         eq(table.status, sql`'draft'::wiki_change_request_status`),
       ),
-      withCheck: eq(table.submittedBy, authUid),
+      withCheck: eq(table.submittedBy, selectAuthUid),
     }),
   ],
 );
@@ -1789,16 +1772,8 @@ export const wikiChangeRequestTranslations = pgTable.withRLS(
     pgPolicy("follow change request access for cr translations", {
       as: "permissive",
       to: authenticatedRole,
-      using: sql`EXISTS (
-        SELECT 1 FROM ${wikiChangeRequests} wcr
-        WHERE wcr.id = ${table.changeRequestId}
-        AND wcr.submitted_by = auth.uid()
-      )`,
-      withCheck: sql`EXISTS (
-        SELECT 1 FROM ${wikiChangeRequests} wcr
-        WHERE wcr.id = ${table.changeRequestId}
-        AND wcr.submitted_by = auth.uid()
-      )`,
+      using: sql`(SELECT auth.uid()) IN (SELECT submitted_by FROM ${wikiChangeRequests} WHERE id = ${table.changeRequestId})`,
+      withCheck: sql`(SELECT auth.uid()) IN (SELECT submitted_by FROM ${wikiChangeRequests} WHERE id = ${table.changeRequestId})`,
     }),
   ],
 );
@@ -1824,16 +1799,8 @@ export const wikiChangeRequestNotes = pgTable.withRLS(
     pgPolicy("submitter can read and write notes on own change requests", {
       as: "permissive",
       to: authenticatedRole,
-      using: sql`EXISTS (
-        SELECT 1 FROM ${wikiChangeRequests} wcr
-        WHERE wcr.id = ${table.changeRequestId}
-        AND wcr.submitted_by = auth.uid()
-      )`,
-      withCheck: sql`EXISTS (
-        SELECT 1 FROM ${wikiChangeRequests} wcr
-        WHERE wcr.id = ${table.changeRequestId}
-        AND wcr.submitted_by = auth.uid()
-      ) AND ${table.authorId} = auth.uid()`,
+      using: sql`(SELECT auth.uid()) IN (SELECT submitted_by FROM ${wikiChangeRequests} WHERE id = ${table.changeRequestId})`,
+      withCheck: sql`(SELECT auth.uid()) IN (SELECT submitted_by FROM ${wikiChangeRequests} WHERE id = ${table.changeRequestId}) AND ${table.authorId} = (SELECT auth.uid())`,
     }),
   ],
 );
@@ -1888,20 +1855,20 @@ export const forumThreads = pgTable.withRLS(
       as: "permissive",
       to: authenticatedRole,
       for: "insert",
-      withCheck: eq(table.createdBy, authUid),
+      withCheck: eq(table.createdBy, selectAuthUid),
     }),
     pgPolicy("creator can update own forum threads", {
       as: "permissive",
       to: authenticatedRole,
       for: "update",
-      using: eq(table.createdBy, authUid),
-      withCheck: eq(table.createdBy, authUid),
+      using: eq(table.createdBy, selectAuthUid),
+      withCheck: eq(table.createdBy, selectAuthUid),
     }),
     pgPolicy("creator can delete own forum threads", {
       as: "permissive",
       to: authenticatedRole,
       for: "delete",
-      using: eq(table.createdBy, authUid),
+      using: eq(table.createdBy, selectAuthUid),
     }),
   ],
 );
@@ -1932,26 +1899,26 @@ export const forumReplies = pgTable.withRLS(
       as: "permissive",
       to: authenticatedRole,
       for: "insert",
-      withCheck: eq(table.createdBy, authUid),
+      withCheck: eq(table.createdBy, selectAuthUid),
     }),
     pgPolicy("creator can update own forum replies", {
       as: "permissive",
       to: authenticatedRole,
       for: "update",
-      using: eq(table.createdBy, authUid),
-      withCheck: eq(table.createdBy, authUid),
+      using: eq(table.createdBy, selectAuthUid),
+      withCheck: eq(table.createdBy, selectAuthUid),
     }),
     pgPolicy("creator can delete own forum replies", {
       as: "permissive",
       to: authenticatedRole,
       for: "delete",
-      using: eq(table.createdBy, authUid),
+      using: eq(table.createdBy, selectAuthUid),
     }),
   ],
 );
 
-// Moderator permission table — admin-managed, no RLS needed for end-user writes
-export const forumModerators = pgTable(
+// Moderator permission table — admin-managed, authenticated users can read (to check own status)
+export const forumModerators = pgTable.withRLS(
   "forum_moderators",
   {
     userId: uuid()
@@ -1960,6 +1927,14 @@ export const forumModerators = pgTable(
     grantedBy: uuid().references(() => profiles.id, { onDelete: "set null" }),
     grantedAt: timestamp().notNull().defaultNow(),
   },
+  () => [
+    pgPolicy("authenticated users can read forum moderators", {
+      as: "permissive",
+      to: authenticatedRole,
+      for: "select",
+      using: sql`true`,
+    }),
+  ],
 );
 
 export const tasks = pgTable.withRLS(
@@ -2148,10 +2123,11 @@ const tables = {
   taskLinks,
   taskChecklistItems,
   farmInvites,
-  farmSubscriptions,
-  farmTrials,
+  userSubscriptions,
+  userTrials,
   membershipPayments,
   donations,
+  handoffTokens,
 };
 
 // Define all relations using the new Drizzle v1 API
@@ -2161,6 +2137,13 @@ export const relations = defineRelations(tables, (r) => ({
       from: r.profiles.farmId,
       to: r.farms.id,
     }), // optional - farmId can be null
+    handoffTokens: r.many.handoffTokens(),
+  },
+  handoffTokens: {
+    user: r.one.profiles({
+      from: r.handoffTokens.userId,
+      to: r.profiles.id,
+    }),
   },
   farms: {
     users: r.many.profiles(),
@@ -2169,39 +2152,26 @@ export const relations = defineRelations(tables, (r) => ({
     harvests: r.many.harvests(),
     fertilizerApplications: r.many.fertilizerApplications(),
     invites: r.many.farmInvites(),
-    subscription: r.one.farmSubscriptions({
-      from: r.farms.id,
-      to: r.farmSubscriptions.farmId,
-    }),
-    trial: r.one.farmTrials({
-      from: r.farms.id,
-      to: r.farmTrials.farmId,
-    }),
-    membershipPayments: r.many.membershipPayments(),
   },
-  farmSubscriptions: {
-    farm: r.one.farms({
-      from: r.farmSubscriptions.farmId,
-      to: r.farms.id,
+  userSubscriptions: {
+    user: r.one.profiles({
+      from: r.userSubscriptions.userId,
+      to: r.profiles.id,
       optional: false,
     }),
   },
-  farmTrials: {
-    farm: r.one.farms({
-      from: r.farmTrials.farmId,
-      to: r.farms.id,
+  userTrials: {
+    user: r.one.profiles({
+      from: r.userTrials.userId,
+      to: r.profiles.id,
       optional: false,
     }),
   },
   membershipPayments: {
-    farm: r.one.farms({
-      from: r.membershipPayments.farmId,
-      to: r.farms.id,
-      optional: false,
-    }),
     user: r.one.profiles({
       from: r.membershipPayments.userId,
       to: r.profiles.id,
+      optional: false,
     }),
   },
   donations: {

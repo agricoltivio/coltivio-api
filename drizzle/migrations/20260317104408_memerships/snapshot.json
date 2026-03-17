@@ -1,9 +1,9 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "1a5c7275-5a51-4265-ad91-9278a58c3657",
+  "id": "1564d4d3-0fa6-4004-93de-d7bf63af1a86",
   "prevIds": [
-    "49137296-2260-44af-8032-d70de2891f2d"
+    "0f31126b-2e61-4877-88c9-268262f86db4"
   ],
   "ddl": [
     {
@@ -568,18 +568,6 @@
     },
     {
       "isRlsEnabled": true,
-      "name": "farm_subscriptions",
-      "entityType": "tables",
-      "schema": "public"
-    },
-    {
-      "isRlsEnabled": true,
-      "name": "farm_trials",
-      "entityType": "tables",
-      "schema": "public"
-    },
-    {
-      "isRlsEnabled": true,
       "name": "farms",
       "entityType": "tables",
       "schema": "public"
@@ -609,7 +597,7 @@
       "schema": "public"
     },
     {
-      "isRlsEnabled": false,
+      "isRlsEnabled": true,
       "name": "forum_moderators",
       "entityType": "tables",
       "schema": "public"
@@ -623,6 +611,12 @@
     {
       "isRlsEnabled": true,
       "name": "forum_threads",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": true,
+      "name": "handoff_tokens",
       "entityType": "tables",
       "schema": "public"
     },
@@ -761,6 +755,18 @@
     {
       "isRlsEnabled": true,
       "name": "treatments",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": true,
+      "name": "user_subscriptions",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": true,
+      "name": "user_trials",
       "entityType": "tables",
       "schema": "public"
     },
@@ -2414,123 +2420,6 @@
       "name": "id",
       "entityType": "columns",
       "schema": "public",
-      "table": "farm_subscriptions"
-    },
-    {
-      "type": "uuid",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "farm_id",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "farm_subscriptions"
-    },
-    {
-      "type": "text",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "stripe_subscription_id",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "farm_subscriptions"
-    },
-    {
-      "type": "boolean",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": "false",
-      "generated": null,
-      "identity": null,
-      "name": "cancel_at_period_end",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "farm_subscriptions"
-    },
-    {
-      "type": "timestamp",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": "now()",
-      "generated": null,
-      "identity": null,
-      "name": "created_at",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "farm_subscriptions"
-    },
-    {
-      "type": "uuid",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": "gen_random_uuid()",
-      "generated": null,
-      "identity": null,
-      "name": "id",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "farm_trials"
-    },
-    {
-      "type": "uuid",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "farm_id",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "farm_trials"
-    },
-    {
-      "type": "timestamp",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "ends_at",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "farm_trials"
-    },
-    {
-      "type": "timestamp",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": "now()",
-      "generated": null,
-      "identity": null,
-      "name": "created_at",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "farm_trials"
-    },
-    {
-      "type": "uuid",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": "gen_random_uuid()",
-      "generated": null,
-      "identity": null,
-      "name": "id",
-      "entityType": "columns",
-      "schema": "public",
       "table": "farms"
     },
     {
@@ -2594,19 +2483,6 @@
       "generated": null,
       "identity": null,
       "name": "location",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "farms"
-    },
-    {
-      "type": "text",
-      "typeSchema": null,
-      "notNull": false,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "stripe_customer_id",
       "entityType": "columns",
       "schema": "public",
       "table": "farms"
@@ -3311,6 +3187,84 @@
       "name": "id",
       "entityType": "columns",
       "schema": "public",
+      "table": "handoff_tokens"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "user_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "handoff_tokens"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "token",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "handoff_tokens"
+    },
+    {
+      "type": "timestamp",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "expires_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "handoff_tokens"
+    },
+    {
+      "type": "timestamp",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "used_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "handoff_tokens"
+    },
+    {
+      "type": "timestamp",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "handoff_tokens"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
       "table": "harvest_presets"
     },
     {
@@ -3707,19 +3661,6 @@
       "type": "uuid",
       "typeSchema": null,
       "notNull": true,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "farm_id",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "membership_payments"
-    },
-    {
-      "type": "uuid",
-      "typeSchema": null,
-      "notNull": false,
       "dimensions": 0,
       "default": null,
       "generated": null,
@@ -4752,6 +4693,19 @@
       "generated": null,
       "identity": null,
       "name": "farm_role",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "profiles"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "stripe_customer_id",
       "entityType": "columns",
       "schema": "public",
       "table": "profiles"
@@ -5821,6 +5775,123 @@
       "entityType": "columns",
       "schema": "public",
       "table": "treatments"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "user_subscriptions"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "user_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "user_subscriptions"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "stripe_subscription_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "user_subscriptions"
+    },
+    {
+      "type": "boolean",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "false",
+      "generated": null,
+      "identity": null,
+      "name": "cancel_at_period_end",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "user_subscriptions"
+    },
+    {
+      "type": "timestamp",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "user_subscriptions"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "user_trials"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "user_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "user_trials"
+    },
+    {
+      "type": "timestamp",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "ends_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "user_trials"
+    },
+    {
+      "type": "timestamp",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "user_trials"
     },
     {
       "type": "uuid",
@@ -7692,40 +7763,6 @@
       ],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
-      "name": "farm_subscriptions_farm_id_farms_id_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "farm_subscriptions"
-    },
-    {
-      "nameExplicit": false,
-      "columns": [
-        "farm_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "farms",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "CASCADE",
-      "name": "farm_trials_farm_id_farms_id_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "farm_trials"
-    },
-    {
-      "nameExplicit": false,
-      "columns": [
-        "farm_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "farms",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "CASCADE",
       "name": "fertilizer_application_presets_farm_id_farms_id_fkey",
       "entityType": "fks",
       "schema": "public",
@@ -7921,6 +7958,23 @@
     {
       "nameExplicit": false,
       "columns": [
+        "user_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "profiles",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "handoff_tokens_user_id_profiles_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "handoff_tokens"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
         "farm_id"
       ],
       "schemaTo": "public",
@@ -8074,23 +8128,6 @@
     {
       "nameExplicit": false,
       "columns": [
-        "farm_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "farms",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "CASCADE",
-      "name": "membership_payments_farm_id_farms_id_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "membership_payments"
-    },
-    {
-      "nameExplicit": false,
-      "columns": [
         "user_id"
       ],
       "schemaTo": "public",
@@ -8099,7 +8136,7 @@
         "id"
       ],
       "onUpdate": "NO ACTION",
-      "onDelete": "SET NULL",
+      "onDelete": "CASCADE",
       "name": "membership_payments_user_id_profiles_id_fkey",
       "entityType": "fks",
       "schema": "public",
@@ -8771,6 +8808,40 @@
     {
       "nameExplicit": false,
       "columns": [
+        "user_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "profiles",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "user_subscriptions_user_id_profiles_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "user_subscriptions"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "user_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "profiles",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "user_trials_user_id_profiles_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "user_trials"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
         "category_id"
       ],
       "schemaTo": "public",
@@ -9256,26 +9327,6 @@
         "id"
       ],
       "nameExplicit": false,
-      "name": "farm_subscriptions_pkey",
-      "schema": "public",
-      "table": "farm_subscriptions",
-      "entityType": "pks"
-    },
-    {
-      "columns": [
-        "id"
-      ],
-      "nameExplicit": false,
-      "name": "farm_trials_pkey",
-      "schema": "public",
-      "table": "farm_trials",
-      "entityType": "pks"
-    },
-    {
-      "columns": [
-        "id"
-      ],
-      "nameExplicit": false,
       "name": "farms_pkey",
       "schema": "public",
       "table": "farms",
@@ -9349,6 +9400,16 @@
       "name": "forum_threads_pkey",
       "schema": "public",
       "table": "forum_threads",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "handoff_tokens_pkey",
+      "schema": "public",
+      "table": "handoff_tokens",
       "entityType": "pks"
     },
     {
@@ -9586,6 +9647,26 @@
         "id"
       ],
       "nameExplicit": false,
+      "name": "user_subscriptions_pkey",
+      "schema": "public",
+      "table": "user_subscriptions",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "user_trials_pkey",
+      "schema": "public",
+      "table": "user_trials",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
       "name": "wiki_categories_pkey",
       "schema": "public",
       "table": "wiki_categories",
@@ -9801,34 +9882,12 @@
     {
       "nameExplicit": false,
       "columns": [
-        "farm_id"
+        "token"
       ],
       "nullsNotDistinct": false,
-      "name": "farm_subscriptions_farm_id_key",
+      "name": "handoff_tokens_token_key",
       "schema": "public",
-      "table": "farm_subscriptions",
-      "entityType": "uniques"
-    },
-    {
-      "nameExplicit": false,
-      "columns": [
-        "stripe_subscription_id"
-      ],
-      "nullsNotDistinct": false,
-      "name": "farm_subscriptions_stripe_subscription_id_key",
-      "schema": "public",
-      "table": "farm_subscriptions",
-      "entityType": "uniques"
-    },
-    {
-      "nameExplicit": false,
-      "columns": [
-        "farm_id"
-      ],
-      "nullsNotDistinct": false,
-      "name": "farm_trials_farm_id_key",
-      "schema": "public",
-      "table": "farm_trials",
+      "table": "handoff_tokens",
       "entityType": "uniques"
     },
     {
@@ -9851,6 +9910,39 @@
       "name": "profiles_email_unique",
       "schema": "public",
       "table": "profiles",
+      "entityType": "uniques"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "user_id"
+      ],
+      "nullsNotDistinct": false,
+      "name": "user_subscriptions_user_id_key",
+      "schema": "public",
+      "table": "user_subscriptions",
+      "entityType": "uniques"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "stripe_subscription_id"
+      ],
+      "nullsNotDistinct": false,
+      "name": "user_subscriptions_stripe_subscription_id_key",
+      "schema": "public",
+      "table": "user_subscriptions",
+      "entityType": "uniques"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "user_id"
+      ],
+      "nullsNotDistinct": false,
+      "name": "user_trials_user_id_key",
+      "schema": "public",
+      "table": "user_trials",
       "entityType": "uniques"
     },
     {
@@ -9892,8 +9984,8 @@
       "roles": [
         "authenticated"
       ],
-      "using": "\"animal_treatments\".\"farm_id\" = farm_id()",
-      "withCheck": "\"animal_treatments\".\"farm_id\" = farm_id()",
+      "using": "\"animal_treatments\".\"farm_id\" = (select farm_id())",
+      "withCheck": "\"animal_treatments\".\"farm_id\" = (select farm_id())",
       "name": "only farm members",
       "entityType": "policies",
       "schema": "public",
@@ -9905,8 +9997,8 @@
       "roles": [
         "authenticated"
       ],
-      "using": "\"animals\".\"farm_id\" = farm_id()",
-      "withCheck": "\"animals\".\"farm_id\" = farm_id()",
+      "using": "\"animals\".\"farm_id\" = (select farm_id())",
+      "withCheck": "\"animals\".\"farm_id\" = (select farm_id())",
       "name": "only farm members",
       "entityType": "policies",
       "schema": "public",
@@ -9918,8 +10010,8 @@
       "roles": [
         "authenticated"
       ],
-      "using": "\"contacts\".\"farm_id\" = farm_id()",
-      "withCheck": "\"contacts\".\"farm_id\" = farm_id()",
+      "using": "\"contacts\".\"farm_id\" = (select farm_id())",
+      "withCheck": "\"contacts\".\"farm_id\" = (select farm_id())",
       "name": "only farm members",
       "entityType": "policies",
       "schema": "public",
@@ -9931,8 +10023,8 @@
       "roles": [
         "authenticated"
       ],
-      "using": "\"crop_families\".\"farm_id\" = farm_id()",
-      "withCheck": "\"crop_families\".\"farm_id\" = farm_id()",
+      "using": "\"crop_families\".\"farm_id\" = (select farm_id())",
+      "withCheck": "\"crop_families\".\"farm_id\" = (select farm_id())",
       "name": "only farm members",
       "entityType": "policies",
       "schema": "public",
@@ -9944,8 +10036,8 @@
       "roles": [
         "authenticated"
       ],
-      "using": "\"crop_protection_application_presets\".\"farm_id\" = farm_id()",
-      "withCheck": "\"crop_protection_application_presets\".\"farm_id\" = farm_id()",
+      "using": "\"crop_protection_application_presets\".\"farm_id\" = (select farm_id())",
+      "withCheck": "\"crop_protection_application_presets\".\"farm_id\" = (select farm_id())",
       "name": "only farm members",
       "entityType": "policies",
       "schema": "public",
@@ -9957,8 +10049,8 @@
       "roles": [
         "authenticated"
       ],
-      "using": "\"crop_protection_applications\".\"farm_id\" = farm_id()",
-      "withCheck": "\"crop_protection_applications\".\"farm_id\" = farm_id()",
+      "using": "\"crop_protection_applications\".\"farm_id\" = (select farm_id())",
+      "withCheck": "\"crop_protection_applications\".\"farm_id\" = (select farm_id())",
       "name": "only farm members",
       "entityType": "policies",
       "schema": "public",
@@ -9970,8 +10062,8 @@
       "roles": [
         "authenticated"
       ],
-      "using": "\"crop_protection_products\".\"farm_id\" = farm_id()",
-      "withCheck": "\"crop_protection_products\".\"farm_id\" = farm_id()",
+      "using": "\"crop_protection_products\".\"farm_id\" = (select farm_id())",
+      "withCheck": "\"crop_protection_products\".\"farm_id\" = (select farm_id())",
       "name": "only farm members",
       "entityType": "policies",
       "schema": "public",
@@ -9983,8 +10075,8 @@
       "roles": [
         "authenticated"
       ],
-      "using": "\"crop_rotation_yearly_recurrences\".\"farm_id\" = farm_id()",
-      "withCheck": "\"crop_rotation_yearly_recurrences\".\"farm_id\" = farm_id()",
+      "using": "\"crop_rotation_yearly_recurrences\".\"farm_id\" = (select farm_id())",
+      "withCheck": "\"crop_rotation_yearly_recurrences\".\"farm_id\" = (select farm_id())",
       "name": "only farm members",
       "entityType": "policies",
       "schema": "public",
@@ -9996,8 +10088,8 @@
       "roles": [
         "authenticated"
       ],
-      "using": "\"crop_rotations\".\"farm_id\" = farm_id()",
-      "withCheck": "\"crop_rotations\".\"farm_id\" = farm_id()",
+      "using": "\"crop_rotations\".\"farm_id\" = (select farm_id())",
+      "withCheck": "\"crop_rotations\".\"farm_id\" = (select farm_id())",
       "name": "only farm members",
       "entityType": "policies",
       "schema": "public",
@@ -10009,8 +10101,8 @@
       "roles": [
         "authenticated"
       ],
-      "using": "\"crops\".\"farm_id\" = farm_id()",
-      "withCheck": "\"crops\".\"farm_id\" = farm_id()",
+      "using": "\"crops\".\"farm_id\" = (select farm_id())",
+      "withCheck": "\"crops\".\"farm_id\" = (select farm_id())",
       "name": "only farm members",
       "entityType": "policies",
       "schema": "public",
@@ -10022,8 +10114,8 @@
       "roles": [
         "authenticated"
       ],
-      "using": "\"custom_outdoor_journal_categories\".\"farm_id\" = farm_id()",
-      "withCheck": "\"custom_outdoor_journal_categories\".\"farm_id\" = farm_id()",
+      "using": "\"custom_outdoor_journal_categories\".\"farm_id\" = (select farm_id())",
+      "withCheck": "\"custom_outdoor_journal_categories\".\"farm_id\" = (select farm_id())",
       "name": "only farm members",
       "entityType": "policies",
       "schema": "public",
@@ -10035,7 +10127,7 @@
       "roles": [
         "authenticated"
       ],
-      "using": "EXISTS (\n        SELECT 1 FROM \"drugs\"\n        WHERE \"drugs\".\"id\" = \"drug_treatment\".\"drug_id\"\n        AND \"drugs\".\"farm_id\" = current_setting('request.farm_id')::uuid\n      )",
+      "using": "(SELECT current_setting('request.farm_id')::uuid) IN (SELECT farm_id FROM \"drugs\" WHERE id = \"drug_treatment\".\"drug_id\")",
       "withCheck": null,
       "name": "only farm members",
       "entityType": "policies",
@@ -10048,8 +10140,8 @@
       "roles": [
         "authenticated"
       ],
-      "using": "\"drugs\".\"farm_id\" = farm_id()",
-      "withCheck": "\"drugs\".\"farm_id\" = farm_id()",
+      "using": "\"drugs\".\"farm_id\" = (select farm_id())",
+      "withCheck": "\"drugs\".\"farm_id\" = (select farm_id())",
       "name": "only farm members",
       "entityType": "policies",
       "schema": "public",
@@ -10061,8 +10153,8 @@
       "roles": [
         "authenticated"
       ],
-      "using": "\"ear_tags\".\"farm_id\" = farm_id()",
-      "withCheck": "\"ear_tags\".\"farm_id\" = farm_id()",
+      "using": "\"ear_tags\".\"farm_id\" = (select farm_id())",
+      "withCheck": "\"ear_tags\".\"farm_id\" = (select farm_id())",
       "name": "only farm members",
       "entityType": "policies",
       "schema": "public",
@@ -10074,8 +10166,8 @@
       "roles": [
         "authenticated"
       ],
-      "using": "\"farm_invites\".\"farm_id\" = farm_id()",
-      "withCheck": "\"farm_invites\".\"farm_id\" = farm_id()",
+      "using": "\"farm_invites\".\"farm_id\" = (select farm_id())",
+      "withCheck": "\"farm_invites\".\"farm_id\" = (select farm_id())",
       "name": "only farm members",
       "entityType": "policies",
       "schema": "public",
@@ -10087,33 +10179,7 @@
       "roles": [
         "authenticated"
       ],
-      "using": "\"farm_subscriptions\".\"farm_id\" = farm_id()",
-      "withCheck": null,
-      "name": "farm members can read own subscription",
-      "entityType": "policies",
-      "schema": "public",
-      "table": "farm_subscriptions"
-    },
-    {
-      "as": "PERMISSIVE",
-      "for": "SELECT",
-      "roles": [
-        "authenticated"
-      ],
-      "using": "\"farm_trials\".\"farm_id\" = farm_id()",
-      "withCheck": null,
-      "name": "farm members can read own trial",
-      "entityType": "policies",
-      "schema": "public",
-      "table": "farm_trials"
-    },
-    {
-      "as": "PERMISSIVE",
-      "for": "SELECT",
-      "roles": [
-        "authenticated"
-      ],
-      "using": "farm_id() = \"farms\".\"id\"",
+      "using": "(select farm_id()) = \"farms\".\"id\"",
       "withCheck": null,
       "name": "only farm members can read",
       "entityType": "policies",
@@ -10126,8 +10192,8 @@
       "roles": [
         "authenticated"
       ],
-      "using": "farm_id() = \"farms\".\"id\"",
-      "withCheck": "farm_id() = \"farms\".\"id\"",
+      "using": "(select farm_id()) = \"farms\".\"id\"",
+      "withCheck": "(select farm_id()) = \"farms\".\"id\"",
       "name": "only farm members can update",
       "entityType": "policies",
       "schema": "public",
@@ -10139,7 +10205,7 @@
       "roles": [
         "authenticated"
       ],
-      "using": "farm_id() = \"farms\".\"id\"",
+      "using": "(select farm_id()) = \"farms\".\"id\"",
       "withCheck": null,
       "name": "only farm members can delete",
       "entityType": "policies",
@@ -10165,8 +10231,8 @@
       "roles": [
         "authenticated"
       ],
-      "using": "\"fertilizer_application_presets\".\"farm_id\" = farm_id()",
-      "withCheck": "\"fertilizer_application_presets\".\"farm_id\" = farm_id()",
+      "using": "\"fertilizer_application_presets\".\"farm_id\" = (select farm_id())",
+      "withCheck": "\"fertilizer_application_presets\".\"farm_id\" = (select farm_id())",
       "name": "only farm members",
       "entityType": "policies",
       "schema": "public",
@@ -10178,8 +10244,8 @@
       "roles": [
         "authenticated"
       ],
-      "using": "\"fertilizer_applications\".\"farm_id\" = farm_id()",
-      "withCheck": "\"fertilizer_applications\".\"farm_id\" = farm_id()",
+      "using": "\"fertilizer_applications\".\"farm_id\" = (select farm_id())",
+      "withCheck": "\"fertilizer_applications\".\"farm_id\" = (select farm_id())",
       "name": "only farm members",
       "entityType": "policies",
       "schema": "public",
@@ -10191,12 +10257,25 @@
       "roles": [
         "authenticated"
       ],
-      "using": "\"fertilizers\".\"farm_id\" = farm_id()",
-      "withCheck": "\"fertilizers\".\"farm_id\" = farm_id()",
+      "using": "\"fertilizers\".\"farm_id\" = (select farm_id())",
+      "withCheck": "\"fertilizers\".\"farm_id\" = (select farm_id())",
       "name": "only farm members",
       "entityType": "policies",
       "schema": "public",
       "table": "fertilizers"
+    },
+    {
+      "as": "PERMISSIVE",
+      "for": "SELECT",
+      "roles": [
+        "authenticated"
+      ],
+      "using": "true",
+      "withCheck": null,
+      "name": "authenticated users can read forum moderators",
+      "entityType": "policies",
+      "schema": "public",
+      "table": "forum_moderators"
     },
     {
       "as": "PERMISSIVE",
@@ -10308,8 +10387,8 @@
       "roles": [
         "authenticated"
       ],
-      "using": "\"harvest_presets\".\"farm_id\" = farm_id()",
-      "withCheck": "\"harvest_presets\".\"farm_id\" = farm_id()",
+      "using": "\"harvest_presets\".\"farm_id\" = (select farm_id())",
+      "withCheck": "\"harvest_presets\".\"farm_id\" = (select farm_id())",
       "name": "only farm members",
       "entityType": "policies",
       "schema": "public",
@@ -10321,8 +10400,8 @@
       "roles": [
         "authenticated"
       ],
-      "using": "\"harvests\".\"farm_id\" = farm_id()",
-      "withCheck": "\"harvests\".\"farm_id\" = farm_id()",
+      "using": "\"harvests\".\"farm_id\" = (select farm_id())",
+      "withCheck": "\"harvests\".\"farm_id\" = (select farm_id())",
       "name": "only farm members",
       "entityType": "policies",
       "schema": "public",
@@ -10334,8 +10413,8 @@
       "roles": [
         "authenticated"
       ],
-      "using": "\"herd_memberships\".\"farm_id\" = farm_id()",
-      "withCheck": "\"herd_memberships\".\"farm_id\" = farm_id()",
+      "using": "\"herd_memberships\".\"farm_id\" = (select farm_id())",
+      "withCheck": "\"herd_memberships\".\"farm_id\" = (select farm_id())",
       "name": "only farm members",
       "entityType": "policies",
       "schema": "public",
@@ -10347,8 +10426,8 @@
       "roles": [
         "authenticated"
       ],
-      "using": "\"herds\".\"farm_id\" = farm_id()",
-      "withCheck": "\"herds\".\"farm_id\" = farm_id()",
+      "using": "\"herds\".\"farm_id\" = (select farm_id())",
+      "withCheck": "\"herds\".\"farm_id\" = (select farm_id())",
       "name": "only farm members",
       "entityType": "policies",
       "schema": "public",
@@ -10360,9 +10439,9 @@
       "roles": [
         "authenticated"
       ],
-      "using": "\"membership_payments\".\"farm_id\" = farm_id()",
+      "using": "\"membership_payments\".\"user_id\" = (select auth.uid())",
       "withCheck": null,
-      "name": "farm members can read own payments",
+      "name": "user can read own payments",
       "entityType": "policies",
       "schema": "public",
       "table": "membership_payments"
@@ -10373,8 +10452,8 @@
       "roles": [
         "authenticated"
       ],
-      "using": "\"order_items\".\"farm_id\" = farm_id()",
-      "withCheck": "\"order_items\".\"farm_id\" = farm_id()",
+      "using": "\"order_items\".\"farm_id\" = (select farm_id())",
+      "withCheck": "\"order_items\".\"farm_id\" = (select farm_id())",
       "name": "only farm members",
       "entityType": "policies",
       "schema": "public",
@@ -10386,8 +10465,8 @@
       "roles": [
         "authenticated"
       ],
-      "using": "\"orders\".\"farm_id\" = farm_id()",
-      "withCheck": "\"orders\".\"farm_id\" = farm_id()",
+      "using": "\"orders\".\"farm_id\" = (select farm_id())",
+      "withCheck": "\"orders\".\"farm_id\" = (select farm_id())",
       "name": "only farm members",
       "entityType": "policies",
       "schema": "public",
@@ -10399,8 +10478,8 @@
       "roles": [
         "authenticated"
       ],
-      "using": "\"outdoor_schedule_recurrences\".\"farm_id\" = farm_id()",
-      "withCheck": "\"outdoor_schedule_recurrences\".\"farm_id\" = farm_id()",
+      "using": "\"outdoor_schedule_recurrences\".\"farm_id\" = (select farm_id())",
+      "withCheck": "\"outdoor_schedule_recurrences\".\"farm_id\" = (select farm_id())",
       "name": "only farm members",
       "entityType": "policies",
       "schema": "public",
@@ -10412,8 +10491,8 @@
       "roles": [
         "authenticated"
       ],
-      "using": "\"outdoor_shedules\".\"farm_id\" = farm_id()",
-      "withCheck": "\"outdoor_shedules\".\"farm_id\" = farm_id()",
+      "using": "\"outdoor_shedules\".\"farm_id\" = (select farm_id())",
+      "withCheck": "\"outdoor_shedules\".\"farm_id\" = (select farm_id())",
       "name": "only farm members",
       "entityType": "policies",
       "schema": "public",
@@ -10425,8 +10504,8 @@
       "roles": [
         "authenticated"
       ],
-      "using": "\"parcels\".\"farm_id\" = farm_id()",
-      "withCheck": "\"parcels\".\"farm_id\" = farm_id()",
+      "using": "\"parcels\".\"farm_id\" = (select farm_id())",
+      "withCheck": "\"parcels\".\"farm_id\" = (select farm_id())",
       "name": "only farm members",
       "entityType": "policies",
       "schema": "public",
@@ -10438,8 +10517,8 @@
       "roles": [
         "authenticated"
       ],
-      "using": "\"payments\".\"farm_id\" = farm_id()",
-      "withCheck": "\"payments\".\"farm_id\" = farm_id()",
+      "using": "\"payments\".\"farm_id\" = (select farm_id())",
+      "withCheck": "\"payments\".\"farm_id\" = (select farm_id())",
       "name": "only farm members",
       "entityType": "policies",
       "schema": "public",
@@ -10451,8 +10530,8 @@
       "roles": [
         "authenticated"
       ],
-      "using": "\"plots\".\"farm_id\" = farm_id()",
-      "withCheck": "\"plots\".\"farm_id\" = farm_id()",
+      "using": "\"plots\".\"farm_id\" = (select farm_id())",
+      "withCheck": "\"plots\".\"farm_id\" = (select farm_id())",
       "name": "only farm members",
       "entityType": "policies",
       "schema": "public",
@@ -10464,8 +10543,8 @@
       "roles": [
         "authenticated"
       ],
-      "using": "\"products\".\"farm_id\" = farm_id()",
-      "withCheck": "\"products\".\"farm_id\" = farm_id()",
+      "using": "\"products\".\"farm_id\" = (select farm_id())",
+      "withCheck": "\"products\".\"farm_id\" = (select farm_id())",
       "name": "only farm members",
       "entityType": "policies",
       "schema": "public",
@@ -10503,7 +10582,7 @@
       "roles": [
         "authenticated"
       ],
-      "using": "(((\"profiles\".\"farm_id\" is not null) and \"profiles\".\"farm_id\" = farm_id()) or (select auth.uid()) = \"profiles\".\"id\")",
+      "using": "(((\"profiles\".\"farm_id\" is not null) and \"profiles\".\"farm_id\" = (select farm_id())) or (select auth.uid()) = \"profiles\".\"id\")",
       "withCheck": null,
       "name": "members of same farm can read each others profile and owners can read their own profile",
       "entityType": "policies",
@@ -10516,8 +10595,8 @@
       "roles": [
         "authenticated"
       ],
-      "using": "\"sponsorship_programs\".\"farm_id\" = farm_id()",
-      "withCheck": "\"sponsorship_programs\".\"farm_id\" = farm_id()",
+      "using": "\"sponsorship_programs\".\"farm_id\" = (select farm_id())",
+      "withCheck": "\"sponsorship_programs\".\"farm_id\" = (select farm_id())",
       "name": "only farm members",
       "entityType": "policies",
       "schema": "public",
@@ -10529,8 +10608,8 @@
       "roles": [
         "authenticated"
       ],
-      "using": "\"sponsorships\".\"farm_id\" = farm_id()",
-      "withCheck": "\"sponsorships\".\"farm_id\" = farm_id()",
+      "using": "\"sponsorships\".\"farm_id\" = (select farm_id())",
+      "withCheck": "\"sponsorships\".\"farm_id\" = (select farm_id())",
       "name": "only farm members",
       "entityType": "policies",
       "schema": "public",
@@ -10542,8 +10621,8 @@
       "roles": [
         "authenticated"
       ],
-      "using": "\"task_checklist_items\".\"farm_id\" = farm_id()",
-      "withCheck": "\"task_checklist_items\".\"farm_id\" = farm_id()",
+      "using": "\"task_checklist_items\".\"farm_id\" = (select farm_id())",
+      "withCheck": "\"task_checklist_items\".\"farm_id\" = (select farm_id())",
       "name": "only farm members",
       "entityType": "policies",
       "schema": "public",
@@ -10555,8 +10634,8 @@
       "roles": [
         "authenticated"
       ],
-      "using": "\"task_links\".\"farm_id\" = farm_id()",
-      "withCheck": "\"task_links\".\"farm_id\" = farm_id()",
+      "using": "\"task_links\".\"farm_id\" = (select farm_id())",
+      "withCheck": "\"task_links\".\"farm_id\" = (select farm_id())",
       "name": "only farm members",
       "entityType": "policies",
       "schema": "public",
@@ -10568,8 +10647,8 @@
       "roles": [
         "authenticated"
       ],
-      "using": "\"task_recurrences\".\"farm_id\" = farm_id()",
-      "withCheck": "\"task_recurrences\".\"farm_id\" = farm_id()",
+      "using": "\"task_recurrences\".\"farm_id\" = (select farm_id())",
+      "withCheck": "\"task_recurrences\".\"farm_id\" = (select farm_id())",
       "name": "only farm members",
       "entityType": "policies",
       "schema": "public",
@@ -10581,8 +10660,8 @@
       "roles": [
         "authenticated"
       ],
-      "using": "\"tasks\".\"farm_id\" = farm_id()",
-      "withCheck": "\"tasks\".\"farm_id\" = farm_id()",
+      "using": "\"tasks\".\"farm_id\" = (select farm_id())",
+      "withCheck": "\"tasks\".\"farm_id\" = (select farm_id())",
       "name": "only farm members",
       "entityType": "policies",
       "schema": "public",
@@ -10594,8 +10673,8 @@
       "roles": [
         "authenticated"
       ],
-      "using": "\"tillage_presets\".\"farm_id\" = farm_id()",
-      "withCheck": "\"tillage_presets\".\"farm_id\" = farm_id()",
+      "using": "\"tillage_presets\".\"farm_id\" = (select farm_id())",
+      "withCheck": "\"tillage_presets\".\"farm_id\" = (select farm_id())",
       "name": "only farm members",
       "entityType": "policies",
       "schema": "public",
@@ -10607,8 +10686,8 @@
       "roles": [
         "authenticated"
       ],
-      "using": "\"tillages\".\"farm_id\" = farm_id()",
-      "withCheck": "\"tillages\".\"farm_id\" = farm_id()",
+      "using": "\"tillages\".\"farm_id\" = (select farm_id())",
+      "withCheck": "\"tillages\".\"farm_id\" = (select farm_id())",
       "name": "only farm members",
       "entityType": "policies",
       "schema": "public",
@@ -10620,12 +10699,38 @@
       "roles": [
         "authenticated"
       ],
-      "using": "\"treatments\".\"farm_id\" = farm_id()",
-      "withCheck": "\"treatments\".\"farm_id\" = farm_id()",
+      "using": "\"treatments\".\"farm_id\" = (select farm_id())",
+      "withCheck": "\"treatments\".\"farm_id\" = (select farm_id())",
       "name": "only farm members",
       "entityType": "policies",
       "schema": "public",
       "table": "treatments"
+    },
+    {
+      "as": "PERMISSIVE",
+      "for": "SELECT",
+      "roles": [
+        "authenticated"
+      ],
+      "using": "\"user_subscriptions\".\"user_id\" = (select auth.uid())",
+      "withCheck": null,
+      "name": "user can read own subscription",
+      "entityType": "policies",
+      "schema": "public",
+      "table": "user_subscriptions"
+    },
+    {
+      "as": "PERMISSIVE",
+      "for": "SELECT",
+      "roles": [
+        "authenticated"
+      ],
+      "using": "\"user_trials\".\"user_id\" = (select auth.uid())",
+      "withCheck": null,
+      "name": "user can read own trial",
+      "entityType": "policies",
+      "schema": "public",
+      "table": "user_trials"
     },
     {
       "as": "PERMISSIVE",
@@ -10659,8 +10764,8 @@
       "roles": [
         "authenticated"
       ],
-      "using": "EXISTS (\n        SELECT 1 FROM \"wiki_change_requests\" wcr\n        WHERE wcr.id = \"wiki_change_request_notes\".\"change_request_id\"\n        AND wcr.submitted_by = auth.uid()\n      )",
-      "withCheck": "EXISTS (\n        SELECT 1 FROM \"wiki_change_requests\" wcr\n        WHERE wcr.id = \"wiki_change_request_notes\".\"change_request_id\"\n        AND wcr.submitted_by = auth.uid()\n      ) AND \"wiki_change_request_notes\".\"author_id\" = auth.uid()",
+      "using": "(SELECT auth.uid()) IN (SELECT submitted_by FROM \"wiki_change_requests\" WHERE id = \"wiki_change_request_notes\".\"change_request_id\")",
+      "withCheck": "(SELECT auth.uid()) IN (SELECT submitted_by FROM \"wiki_change_requests\" WHERE id = \"wiki_change_request_notes\".\"change_request_id\") AND \"wiki_change_request_notes\".\"author_id\" = (SELECT auth.uid())",
       "name": "submitter can read and write notes on own change requests",
       "entityType": "policies",
       "schema": "public",
@@ -10672,8 +10777,8 @@
       "roles": [
         "authenticated"
       ],
-      "using": "EXISTS (\n        SELECT 1 FROM \"wiki_change_requests\" wcr\n        WHERE wcr.id = \"wiki_change_request_translations\".\"change_request_id\"\n        AND wcr.submitted_by = auth.uid()\n      )",
-      "withCheck": "EXISTS (\n        SELECT 1 FROM \"wiki_change_requests\" wcr\n        WHERE wcr.id = \"wiki_change_request_translations\".\"change_request_id\"\n        AND wcr.submitted_by = auth.uid()\n      )",
+      "using": "(SELECT auth.uid()) IN (SELECT submitted_by FROM \"wiki_change_requests\" WHERE id = \"wiki_change_request_translations\".\"change_request_id\")",
+      "withCheck": "(SELECT auth.uid()) IN (SELECT submitted_by FROM \"wiki_change_requests\" WHERE id = \"wiki_change_request_translations\".\"change_request_id\")",
       "name": "follow change request access for cr translations",
       "entityType": "policies",
       "schema": "public",
@@ -10724,7 +10829,7 @@
       "roles": [
         "authenticated"
       ],
-      "using": "(\"wiki_entries\".\"status\" = 'published'::wiki_entry_status AND \"wiki_entries\".\"visibility\" = 'public'::wiki_visibility) OR \"wiki_entries\".\"created_by\" = auth.uid() OR (\"wiki_entries\".\"farm_id\" IS NOT NULL AND \"wiki_entries\".\"farm_id\" = current_setting('request.farm_id', TRUE)::uuid)",
+      "using": "(\"wiki_entries\".\"status\" = 'published'::wiki_entry_status AND \"wiki_entries\".\"visibility\" = 'public'::wiki_visibility) OR \"wiki_entries\".\"created_by\" = (SELECT auth.uid()) OR (\"wiki_entries\".\"farm_id\" IS NOT NULL AND \"wiki_entries\".\"farm_id\" = (SELECT current_setting('request.farm_id', TRUE)::uuid))",
       "withCheck": null,
       "name": "authenticated users can read wiki entries",
       "entityType": "policies",
@@ -10776,8 +10881,8 @@
       "roles": [
         "authenticated"
       ],
-      "using": "EXISTS (\n        SELECT 1 FROM \"wiki_entries\" we\n        WHERE we.id = \"wiki_entry_images\".\"entry_id\"\n        AND (\n          (we.status = 'published'::wiki_entry_status AND we.visibility = 'public'::wiki_visibility)\n          OR we.created_by = auth.uid()\n          OR (we.farm_id IS NOT NULL AND we.farm_id = current_setting('request.farm_id', TRUE)::uuid)\n        )\n      )",
-      "withCheck": "EXISTS (\n        SELECT 1 FROM \"wiki_entries\" we\n        WHERE we.id = \"wiki_entry_images\".\"entry_id\"\n        AND we.created_by = auth.uid()\n      )",
+      "using": "\n        EXISTS (SELECT 1 FROM \"wiki_entries\" we WHERE we.id = \"wiki_entry_images\".\"entry_id\" AND we.status = 'published'::wiki_entry_status AND we.visibility = 'public'::wiki_visibility)\n        OR (SELECT auth.uid()) IN (SELECT created_by FROM \"wiki_entries\" WHERE id = \"wiki_entry_images\".\"entry_id\")\n        OR (SELECT current_setting('request.farm_id', TRUE)::uuid) IN (SELECT farm_id FROM \"wiki_entries\" WHERE id = \"wiki_entry_images\".\"entry_id\" AND farm_id IS NOT NULL)\n      ",
+      "withCheck": "(SELECT auth.uid()) IN (SELECT created_by FROM \"wiki_entries\" WHERE id = \"wiki_entry_images\".\"entry_id\")",
       "name": "follow entry access for images",
       "entityType": "policies",
       "schema": "public",
@@ -10789,8 +10894,8 @@
       "roles": [
         "authenticated"
       ],
-      "using": "EXISTS (\n        SELECT 1 FROM \"wiki_entries\" we\n        WHERE we.id = \"wiki_entry_tags\".\"entry_id\"\n        AND (\n          (we.status = 'published'::wiki_entry_status AND we.visibility = 'public'::wiki_visibility)\n          OR we.created_by = auth.uid()\n          OR (we.farm_id IS NOT NULL AND we.farm_id = current_setting('request.farm_id', TRUE)::uuid)\n        )\n      )",
-      "withCheck": "EXISTS (\n        SELECT 1 FROM \"wiki_entries\" we\n        WHERE we.id = \"wiki_entry_tags\".\"entry_id\"\n        AND we.created_by = auth.uid()\n      )",
+      "using": "\n        EXISTS (SELECT 1 FROM \"wiki_entries\" we WHERE we.id = \"wiki_entry_tags\".\"entry_id\" AND we.status = 'published'::wiki_entry_status AND we.visibility = 'public'::wiki_visibility)\n        OR (SELECT auth.uid()) IN (SELECT created_by FROM \"wiki_entries\" WHERE id = \"wiki_entry_tags\".\"entry_id\")\n        OR (SELECT current_setting('request.farm_id', TRUE)::uuid) IN (SELECT farm_id FROM \"wiki_entries\" WHERE id = \"wiki_entry_tags\".\"entry_id\" AND farm_id IS NOT NULL)\n      ",
+      "withCheck": "(SELECT auth.uid()) IN (SELECT created_by FROM \"wiki_entries\" WHERE id = \"wiki_entry_tags\".\"entry_id\")",
       "name": "follow entry access for entry tags",
       "entityType": "policies",
       "schema": "public",
@@ -10802,8 +10907,8 @@
       "roles": [
         "authenticated"
       ],
-      "using": "EXISTS (\n        SELECT 1 FROM \"wiki_entries\" we\n        WHERE we.id = \"wiki_entry_translations\".\"entry_id\"\n        AND (\n          (we.status = 'published'::wiki_entry_status AND we.visibility = 'public'::wiki_visibility)\n          OR we.created_by = auth.uid()\n          OR (we.farm_id IS NOT NULL AND we.farm_id = current_setting('request.farm_id', TRUE)::uuid)\n        )\n      )",
-      "withCheck": "EXISTS (\n        SELECT 1 FROM \"wiki_entries\" we\n        WHERE we.id = \"wiki_entry_translations\".\"entry_id\"\n        AND we.created_by = auth.uid()\n      )",
+      "using": "\n        EXISTS (SELECT 1 FROM \"wiki_entries\" we WHERE we.id = \"wiki_entry_translations\".\"entry_id\" AND we.status = 'published'::wiki_entry_status AND we.visibility = 'public'::wiki_visibility)\n        OR (SELECT auth.uid()) IN (SELECT created_by FROM \"wiki_entries\" WHERE id = \"wiki_entry_translations\".\"entry_id\")\n        OR (SELECT current_setting('request.farm_id', TRUE)::uuid) IN (SELECT farm_id FROM \"wiki_entries\" WHERE id = \"wiki_entry_translations\".\"entry_id\" AND farm_id IS NOT NULL)\n      ",
+      "withCheck": "(SELECT auth.uid()) IN (SELECT created_by FROM \"wiki_entries\" WHERE id = \"wiki_entry_translations\".\"entry_id\")",
       "name": "follow entry access for translations",
       "entityType": "policies",
       "schema": "public",

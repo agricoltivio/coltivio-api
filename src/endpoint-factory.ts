@@ -7,6 +7,7 @@ import createHttpError from "http-errors";
 import { jwtDecode } from "jwt-decode";
 import { z } from "zod";
 import { sessionApi } from "./api/api";
+import { eq } from "drizzle-orm";
 import { adminDrizzle, rlsDb } from "./db/db";
 import { supabase, SupabaseToken } from "./supabase/supabase";
 import * as tables from "./db/schema";
@@ -38,6 +39,18 @@ export const supabaseAuthMiddleware = new Middleware({
       throw createHttpError(401, "User not found");
     }
     const token = jwtDecode<SupabaseToken>(jwt);
+    const SUPPORTED_LOCALES = ["de", "en", "it", "fr"] as const;
+    const rawLocale = request.headers["accept-language"]?.slice(0, 2);
+    const requestLocale = SUPPORTED_LOCALES.includes(rawLocale as typeof SUPPORTED_LOCALES[number])
+      ? (rawLocale as typeof SUPPORTED_LOCALES[number])
+      : null;
+    if (requestLocale && user.locale !== requestLocale) {
+      await adminDrizzle
+        .update(tables.profiles)
+        .set({ locale: requestLocale })
+        .where(eq(tables.profiles.id, user.id));
+      user.locale = requestLocale;
+    }
     return {
       token,
       user,
@@ -96,6 +109,30 @@ export const paidMembershipEndpointFactory = farmEndpointFactory.addMiddleware(
     input: z.object({}),
     handler: async ({ ctx }) => {
       const paid = await ctx.membership.isPaidMember(ctx.farmId);
+      if (!paid) throw createHttpError(403, "Paid membership required");
+      return {};
+    },
+  })
+);
+
+// Factories for endpoints that require membership but NOT a farm (e.g. the platform-wide forum).
+// Membership is checked per-user rather than per-farm.
+export const userMembershipEndpointFactory = authenticatedEndpointFactory.addMiddleware(
+  new Middleware({
+    input: z.object({}),
+    handler: async ({ ctx }) => {
+      const active = await ctx.membership.isActiveUser(ctx.user.id);
+      if (!active) throw createHttpError(403, "Active membership required");
+      return {};
+    },
+  })
+);
+
+export const userPaidMembershipEndpointFactory = authenticatedEndpointFactory.addMiddleware(
+  new Middleware({
+    input: z.object({}),
+    handler: async ({ ctx }) => {
+      const paid = await ctx.membership.isPaidUser(ctx.user.id);
       if (!paid) throw createHttpError(403, "Paid membership required");
       return {};
     },

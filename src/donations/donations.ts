@@ -2,6 +2,7 @@ import Stripe from "stripe";
 import { RlsDb } from "../db/db";
 import { getStripe } from "../stripe/stripe";
 import { donations } from "../db/schema";
+import { sendDonationConfirmationEmail } from "./donations.email";
 
 export function donationsApi(db: RlsDb) {
   return {
@@ -11,6 +12,7 @@ export function donationsApi(db: RlsDb) {
       successUrl: string,
       cancelUrl: string,
       userId?: string,
+      locale?: string,
     ): Promise<{ url: string }> {
       if (amount < 100) throw new Error("Minimum donation amount is CHF 1.00 (100 cents)");
 
@@ -33,6 +35,7 @@ export function donationsApi(db: RlsDb) {
         metadata: {
           type: "donation",
           userId: userId ?? "",
+          locale: locale ?? "de",
         },
       });
 
@@ -58,6 +61,18 @@ export function donationsApi(db: RlsDb) {
           status: "succeeded",
         })
         .onConflictDoNothing();
+
+      // Profile lookup for fullName; locale comes from checkout session metadata
+      const profile = userId
+        ? await db.admin.query.profiles.findFirst({ where: { id: userId } })
+        : undefined;
+
+      await sendDonationConfirmationEmail({
+        email,
+        fullName: profile?.fullName ?? null,
+        locale: session.metadata?.locale ?? "de",
+        amount: session.amount_total ?? 0,
+      });
     },
   };
 }
