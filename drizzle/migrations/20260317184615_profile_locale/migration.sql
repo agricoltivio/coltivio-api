@@ -1,1 +1,0 @@
-ALTER TABLE "profiles" ADD COLUMN "locale" text DEFAULT 'de' NOT NULL;

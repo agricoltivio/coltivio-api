@@ -102,6 +102,8 @@ ALTER TABLE "membership_payments" ADD CONSTRAINT "membership_payments_user_id_pr
 ALTER TABLE "user_subscriptions" ADD CONSTRAINT "user_subscriptions_user_id_profiles_id_fkey" FOREIGN KEY ("user_id") REFERENCES "profiles"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "user_trials" ADD CONSTRAINT "user_trials_user_id_profiles_id_fkey" FOREIGN KEY ("user_id") REFERENCES "profiles"("id") ON DELETE CASCADE;--> statement-breakpoint
 CREATE VIEW "profile_names" AS (SELECT id, full_name FROM profiles);--> statement-breakpoint
+GRANT SELECT ON "profile_names" TO authenticated;--> statement-breakpoint
+ALTER TABLE "profiles" ADD COLUMN "locale" text DEFAULT 'de' NOT NULL;--> statement-breakpoint
 CREATE POLICY "authenticated users can read forum moderators" ON "forum_moderators" AS PERMISSIVE FOR SELECT TO "authenticated" USING (true);--> statement-breakpoint
 CREATE POLICY "authenticated users can read forum replies" ON "forum_replies" AS PERMISSIVE FOR SELECT TO "authenticated" USING (true);--> statement-breakpoint
 CREATE POLICY "authenticated users can create forum replies" ON "forum_replies" AS PERMISSIVE FOR INSERT TO "authenticated" WITH CHECK ("forum_replies"."created_by" = (select auth.uid()));--> statement-breakpoint
