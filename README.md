@@ -93,6 +93,20 @@ yarn test                                     # all tests
 npx jest -i src/test/security.integration.test.ts  # security suite only
 ```
 
+## CI
+
+Every push and pull request runs the full test suite on GitHub Actions (Ubuntu + Docker). The workflow also enforces typechecking (`tsc --noEmit`), formatting (`prettier --check`), and linting (`eslint`).
+
+To run the same checks locally:
+
+```bash
+npx tsc --noEmit          # typecheck
+npx prettier --check "src/**/*.ts"  # formatting
+yarn lint                 # lint (--fix applies fixes)
+yarn format               # auto-format all source files
+yarn test                 # all tests
+```
+
 ## Project structure
 
 ```
