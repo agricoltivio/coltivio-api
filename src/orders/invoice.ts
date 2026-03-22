@@ -354,7 +354,9 @@ async function generateInvoiceDocx(
   invoiceNumber: string,
   t: TFunction
 ): Promise<Buffer> {
-  return Packer.toBuffer(wrapInDocument(buildInvoiceChildren(order, settings, invoiceNumber, t), buildFooter(settings)));
+  return Packer.toBuffer(
+    wrapInDocument(buildInvoiceChildren(order, settings, invoiceNumber, t), buildFooter(settings))
+  );
 }
 
 // Combines multiple invoices into one document, each starting on a new page
@@ -409,14 +411,26 @@ export function invoicesApi(db: RlsDb, t: TFunction) {
   const settings = invoiceSettingsApi(db);
 
   return {
-    async downloadInvoice(orderId: string, farmId: string, token: SupabaseToken): Promise<{ base64: string; fileName: string }> {
-      const order = await db.rls((tx) => tx.query.orders.findFirst({ where: { id: orderId }, with: { contact: true, items: { with: { product: true } } } }));
+    async downloadInvoice(
+      orderId: string,
+      farmId: string,
+      token: SupabaseToken
+    ): Promise<{ base64: string; fileName: string }> {
+      const order = await db.rls((tx) =>
+        tx.query.orders.findFirst({
+          where: { id: orderId },
+          with: { contact: true, items: { with: { product: true } } },
+        })
+      );
       if (!order) throw new Error("Order not found");
       const invoiceSettings = await settings.getForFarm(farmId);
       if (!invoiceSettings) throw new Error("Invoice settings not configured");
       const invoiceNumber = await deriveInvoiceNumber(order as OrderWithRelations, farmId, token);
       const buffer = await generateInvoiceDocx(order as OrderWithRelations, invoiceSettings, invoiceNumber, t);
-      return { base64: buffer.toString("base64"), fileName: invoiceFileName(invoiceNumber, order as OrderWithRelations) };
+      return {
+        base64: buffer.toString("base64"),
+        fileName: invoiceFileName(invoiceNumber, order as OrderWithRelations),
+      };
     },
 
     async downloadInvoicesBatch(
@@ -431,7 +445,12 @@ export function invoicesApi(db: RlsDb, t: TFunction) {
 
       const resolved = await Promise.all(
         orderIds.map(async (orderId) => {
-          const order = await db.rls((tx) => tx.query.orders.findFirst({ where: { id: orderId }, with: { contact: true, items: { with: { product: true } } } }));
+          const order = await db.rls((tx) =>
+            tx.query.orders.findFirst({
+              where: { id: orderId },
+              with: { contact: true, items: { with: { product: true } } },
+            })
+          );
           if (!order) throw new Error(`Order not found: ${orderId}`);
           const invoiceNumber = await deriveInvoiceNumber(order as OrderWithRelations, farmId, token);
           return { order: order as OrderWithRelations, invoiceNumber, settings: invoiceSettings, t };
