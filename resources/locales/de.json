@@ -406,6 +406,30 @@
       "subject": "Willkommen zurück bei Coltivio",
       "greeting": "Hallo {{name}}, willkommen zurück!",
       "intro": "Schön, dass du wieder dabei bist. Deine Mitgliedschaft ist wieder aktiv — du hast vollen Zugriff auf alle Funktionen bis zum {{date}}."
+    },
+    "expiry_reminder": {
+      "subject": "Deine Coltivio-Mitgliedschaft ist abgelaufen",
+      "greeting": "Hallo {{name}}",
+      "intro": "Deine Mitgliedschaft ist am {{date}} abgelaufen. Du hast noch 10 Tage Zugriff auf alle Coltivio-Funktionen — bitte erneuere deine Mitgliedschaft, um den vollen Zugang zu behalten.",
+      "cta": "Mitgliedschaft erneuern"
+    },
+    "payment_failed": {
+      "subject": "Zahlung fehlgeschlagen – bitte Zahlungsmethode aktualisieren",
+      "greeting": "Hallo {{name}}",
+      "intro": "Die automatische Erneuerung deiner Coltivio-Mitgliedschaft ist leider fehlgeschlagen. Du hast noch 10 Tage Zugriff — bitte aktualisiere deine Zahlungsmethode, um eine Unterbrechung zu vermeiden.",
+      "cta": "Zahlungsmethode aktualisieren"
+    },
+    "access_lost": {
+      "subject": "Dein Zugang zu Coltivio wurde unterbrochen",
+      "greeting": "Hallo {{name}}",
+      "intro": "Deine Mitgliedschaft bei Coltivio ist abgelaufen und dein Zugang zu den App-Funktionen wurde vorübergehend deaktiviert. Du kannst deine Mitgliedschaft noch innerhalb von 20 Tagen erneuern, um wieder vollen Zugriff zu erhalten.",
+      "cta": "Mitgliedschaft wiederherstellen"
+    },
+    "membership_ended": {
+      "subject": "Deine Coltivio-Mitgliedschaft ist beendet",
+      "greeting": "Hallo {{name}}",
+      "intro": "Deine Mitgliedschaft bei AgriColtivio ist nun beendet. Wir bedanken uns herzlich für die Zeit, die du Teil unserer Gemeinschaft warst — es war uns eine Freude, dich und deinen Betrieb begleiten zu dürfen. Deine Daten bleiben erhalten und du kannst jederzeit zurückkehren.",
+      "cta": "Jetzt wieder beitreten"
     }
   },
   "donation_email": {

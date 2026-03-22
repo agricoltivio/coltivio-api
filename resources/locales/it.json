@@ -397,6 +397,30 @@
       "subject": "Bentornato su Coltivio",
       "greeting": "Ciao {{name}}, bentornato!",
       "intro": "Siamo felici di riaverти con noi. La tua Iscrizione è di nuovo attiva — hai pieno accesso a tutte le funzioni fino al {{date}}."
+    },
+    "expiry_reminder": {
+      "subject": "La tua iscrizione a Coltivio è scaduta",
+      "greeting": "Ciao {{name}}",
+      "intro": "La tua iscrizione è scaduta il {{date}}. Hai ancora 10 giorni di accesso a tutte le funzioni di Coltivio — ti preghiamo di rinnovare la tua iscrizione per mantenere l'accesso completo.",
+      "cta": "Rinnova l'iscrizione"
+    },
+    "payment_failed": {
+      "subject": "Pagamento fallito – aggiorna il metodo di pagamento",
+      "greeting": "Ciao {{name}}",
+      "intro": "Il rinnovo automatico della tua iscrizione a Coltivio è fallito. Hai ancora 10 giorni di accesso — aggiorna il tuo metodo di pagamento per evitare un'interruzione.",
+      "cta": "Aggiorna il metodo di pagamento"
+    },
+    "access_lost": {
+      "subject": "Il tuo accesso a Coltivio è stato sospeso",
+      "greeting": "Ciao {{name}}",
+      "intro": "La tua iscrizione a Coltivio è scaduta e il tuo accesso alle funzioni dell'app è stato temporaneamente sospeso. Puoi ancora rinnovare la tua iscrizione entro 20 giorni per ripristinare l'accesso completo.",
+      "cta": "Ripristina l'iscrizione"
+    },
+    "membership_ended": {
+      "subject": "La tua iscrizione a Coltivio è terminata",
+      "greeting": "Ciao {{name}}",
+      "intro": "La tua iscrizione ad AgriColtivio è ora terminata. Ti ringraziamo sinceramente per il tempo che hai fatto parte della nostra comunità — è stato un piacere accompagnare te e la tua azienda. I tuoi dati sono conservati e puoi tornare in qualsiasi momento.",
+      "cta": "Iscriviti di nuovo"
     }
   },
   "donation_email": {

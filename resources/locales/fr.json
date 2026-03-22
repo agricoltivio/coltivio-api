@@ -397,6 +397,30 @@
       "subject": "Bienvenue à nouveau sur Coltivio",
       "greeting": "Bonjour {{name}}, bienvenue à nouveau !",
       "intro": "Nous sommes ravis de vous retrouver. Votre Adhésion est à nouveau active — vous avez un accès complet à toutes les fonctions jusqu'au {{date}}."
+    },
+    "expiry_reminder": {
+      "subject": "Votre adhésion Coltivio a expiré",
+      "greeting": "Bonjour {{name}}",
+      "intro": "Votre adhésion a expiré le {{date}}. Vous avez encore 10 jours d'accès à toutes les fonctions de Coltivio — veuillez renouveler votre adhésion pour conserver l'accès complet.",
+      "cta": "Renouveler l'adhésion"
+    },
+    "payment_failed": {
+      "subject": "Paiement échoué – veuillez mettre à jour votre moyen de paiement",
+      "greeting": "Bonjour {{name}}",
+      "intro": "Le renouvellement automatique de votre adhésion Coltivio a échoué. Vous avez encore 10 jours d'accès — veuillez mettre à jour votre moyen de paiement pour éviter une interruption.",
+      "cta": "Mettre à jour le moyen de paiement"
+    },
+    "access_lost": {
+      "subject": "Votre accès à Coltivio a été suspendu",
+      "greeting": "Bonjour {{name}}",
+      "intro": "Votre adhésion Coltivio a expiré et votre accès aux fonctionnalités de l'application a été temporairement suspendu. Vous pouvez encore renouveler votre adhésion dans les 20 jours pour retrouver un accès complet.",
+      "cta": "Restaurer l'adhésion"
+    },
+    "membership_ended": {
+      "subject": "Votre adhésion Coltivio est terminée",
+      "greeting": "Bonjour {{name}}",
+      "intro": "Votre adhésion chez AgriColtivio est maintenant terminée. Nous vous remercions sincèrement pour le temps que vous avez fait partie de notre communauté — ce fut un plaisir de vous accompagner, vous et votre exploitation. Vos données sont conservées et vous pouvez revenir à tout moment.",
+      "cta": "Rejoindre à nouveau"
     }
   },
   "donation_email": {

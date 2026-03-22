@@ -208,6 +208,122 @@ export type ReactivationEmailParams = {
   periodEnd: Date;
 };
 
+export type ExpiryEmailParams = {
+  email: string;
+  fullName: string | null;
+  locale: string;
+  periodEnd: Date;
+  renewUrl: string;
+};
+
+function ctaButton(href: string, label: string): string {
+  return `<a href="${href}" style="display:inline-block;background:#16a34a;color:#ffffff;font-size:15px;font-weight:600;padding:12px 28px;border-radius:8px;text-decoration:none;">${label}</a>`;
+}
+
+export async function sendPaymentFailedEmail(params: ExpiryEmailParams): Promise<void> {
+  const { email, fullName, locale, periodEnd, renewUrl } = params;
+  const t = i18next.getFixedT(locale);
+  const name = fullName ?? email;
+
+  const html = baseLayout(t("membership_email.subtitle"), `
+    <h1 style="margin:0 0 16px;font-size:24px;font-weight:700;color:#111827;">${t("membership_email.payment_failed.greeting", { name })}</h1>
+    <p style="margin:0 0 24px;font-size:15px;color:#4b5563;line-height:1.6;">${t("membership_email.payment_failed.intro", { date: formatDate(periodEnd, locale) })}</p>
+    ${ctaButton(renewUrl, t("membership_email.payment_failed.cta"))}
+  `);
+
+  await txEmailApi.sendTransacEmail({
+    to: [{ email, name: fullName ?? undefined }],
+    sender: SENDER,
+    subject: t("membership_email.payment_failed.subject"),
+    htmlContent: html,
+    textContent: [
+      t("membership_email.payment_failed.greeting", { name }),
+      "",
+      t("membership_email.payment_failed.intro", { date: formatDate(periodEnd, locale) }),
+      "",
+      renewUrl,
+    ].join("\n"),
+  });
+}
+
+export async function sendExpiryReminderEmail(params: ExpiryEmailParams): Promise<void> {
+  const { email, fullName, locale, periodEnd, renewUrl } = params;
+  const t = i18next.getFixedT(locale);
+  const name = fullName ?? email;
+
+  const html = baseLayout(t("membership_email.subtitle"), `
+    <h1 style="margin:0 0 16px;font-size:24px;font-weight:700;color:#111827;">${t("membership_email.expiry_reminder.greeting", { name })}</h1>
+    <p style="margin:0 0 24px;font-size:15px;color:#4b5563;line-height:1.6;">${t("membership_email.expiry_reminder.intro", { date: formatDate(periodEnd, locale) })}</p>
+    ${ctaButton(renewUrl, t("membership_email.expiry_reminder.cta"))}
+  `);
+
+  await txEmailApi.sendTransacEmail({
+    to: [{ email, name: fullName ?? undefined }],
+    sender: SENDER,
+    subject: t("membership_email.expiry_reminder.subject"),
+    htmlContent: html,
+    textContent: [
+      t("membership_email.expiry_reminder.greeting", { name }),
+      "",
+      t("membership_email.expiry_reminder.intro", { date: formatDate(periodEnd, locale) }),
+      "",
+      renewUrl,
+    ].join("\n"),
+  });
+}
+
+export async function sendAccessLostEmail(params: ExpiryEmailParams): Promise<void> {
+  const { email, fullName, locale, periodEnd, renewUrl } = params;
+  const t = i18next.getFixedT(locale);
+  const name = fullName ?? email;
+
+  const html = baseLayout(t("membership_email.subtitle"), `
+    <h1 style="margin:0 0 16px;font-size:24px;font-weight:700;color:#111827;">${t("membership_email.access_lost.greeting", { name })}</h1>
+    <p style="margin:0 0 24px;font-size:15px;color:#4b5563;line-height:1.6;">${t("membership_email.access_lost.intro", { date: formatDate(periodEnd, locale) })}</p>
+    ${ctaButton(renewUrl, t("membership_email.access_lost.cta"))}
+  `);
+
+  await txEmailApi.sendTransacEmail({
+    to: [{ email, name: fullName ?? undefined }],
+    sender: SENDER,
+    subject: t("membership_email.access_lost.subject"),
+    htmlContent: html,
+    textContent: [
+      t("membership_email.access_lost.greeting", { name }),
+      "",
+      t("membership_email.access_lost.intro", { date: formatDate(periodEnd, locale) }),
+      "",
+      renewUrl,
+    ].join("\n"),
+  });
+}
+
+export async function sendMembershipEndedEmail(params: ExpiryEmailParams): Promise<void> {
+  const { email, fullName, locale, periodEnd, renewUrl } = params;
+  const t = i18next.getFixedT(locale);
+  const name = fullName ?? email;
+
+  const html = baseLayout(t("membership_email.subtitle"), `
+    <h1 style="margin:0 0 16px;font-size:24px;font-weight:700;color:#111827;">${t("membership_email.membership_ended.greeting", { name })}</h1>
+    <p style="margin:0 0 24px;font-size:15px;color:#4b5563;line-height:1.6;">${t("membership_email.membership_ended.intro")}</p>
+    <a href="${renewUrl}" style="font-size:14px;color:#16a34a;text-decoration:underline;">${t("membership_email.membership_ended.cta")}</a>
+  `);
+
+  await txEmailApi.sendTransacEmail({
+    to: [{ email, name: fullName ?? undefined }],
+    sender: SENDER,
+    subject: t("membership_email.membership_ended.subject"),
+    htmlContent: html,
+    textContent: [
+      t("membership_email.membership_ended.greeting", { name }),
+      "",
+      t("membership_email.membership_ended.intro"),
+      "",
+      renewUrl,
+    ].join("\n"),
+  });
+}
+
 export async function sendReactivationEmail(params: ReactivationEmailParams): Promise<void> {
   const { email, fullName, locale, periodEnd } = params;
   const t = i18next.getFixedT(locale);

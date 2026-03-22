@@ -3,8 +3,8 @@ import { eq, inArray } from "drizzle-orm";
 import createHttpError from "http-errors";
 import { RlsDb } from "../db/db";
 import { getStripe } from "../stripe/stripe";
-import { profiles, userSubscriptions, userTrials, membershipPayments } from "../db/schema";
-import { sendNewMembershipEmail, sendReactivationEmail, sendRenewalEmail, sendFirstPaymentEmail } from "./membership.email";
+import { profiles, userSubscriptions, userTrials, membershipPayments, membershipExpiryNotifications } from "../db/schema";
+import { sendNewMembershipEmail, sendReactivationEmail, sendRenewalEmail, sendFirstPaymentEmail, sendPaymentFailedEmail } from "./membership.email";
 
 export type MembershipStatus = {
   lastPeriodEnd: Date | null;
@@ -17,6 +17,9 @@ export type FarmMembershipStatus = "none" | "trial" | "active";
 
 // Annual membership amount in CHF cents (used for manual/one-time checkout)
 const ANNUAL_AMOUNT_CHF_CENTS = 29000; // 290 CHF
+
+// Grace period: 10 days after periodEnd, users retain access
+const GRACE_PERIOD_MS = 10 * 24 * 60 * 60 * 1000;
 
 type CardDetails = {
   cardLast4: string | null;
@@ -80,7 +83,7 @@ export function membershipApi(db: RlsDb) {
       if (activeTrial) return true;
 
       const active = await db.admin.query.membershipPayments.findFirst({
-        where: { userId: { in: userIds }, status: "succeeded", periodEnd: { gt: now } },
+        where: { userId: { in: userIds }, status: "succeeded", periodEnd: { gt: new Date(now.getTime() - GRACE_PERIOD_MS) } },
       });
       return active !== undefined;
     },
@@ -108,7 +111,7 @@ export function membershipApi(db: RlsDb) {
 
       const now = new Date();
       const active = await db.admin.query.membershipPayments.findFirst({
-        where: { userId: { in: userIds }, status: "succeeded", periodEnd: { gt: now } },
+        where: { userId: { in: userIds }, status: "succeeded", periodEnd: { gt: new Date(now.getTime() - GRACE_PERIOD_MS) } },
       });
       return active !== undefined;
     },
@@ -122,7 +125,7 @@ export function membershipApi(db: RlsDb) {
       if (activeTrial) return true;
 
       const active = await db.admin.query.membershipPayments.findFirst({
-        where: { userId, status: "succeeded", periodEnd: { gt: now } },
+        where: { userId, status: "succeeded", periodEnd: { gt: new Date(now.getTime() - GRACE_PERIOD_MS) } },
       });
       return active !== undefined;
     },
@@ -131,7 +134,7 @@ export function membershipApi(db: RlsDb) {
     async isPaidUser(userId: string): Promise<boolean> {
       const now = new Date();
       const active = await db.admin.query.membershipPayments.findFirst({
-        where: { userId, status: "succeeded", periodEnd: { gt: now } },
+        where: { userId, status: "succeeded", periodEnd: { gt: new Date(now.getTime() - GRACE_PERIOD_MS) } },
       });
       return active !== undefined;
     },
@@ -202,7 +205,7 @@ export function membershipApi(db: RlsDb) {
       const session = await getStripe().checkout.sessions.create({
         customer: customerId,
         mode: "payment",
-        payment_method_types: ["card"],
+        payment_method_types: ["card", "twint"],
         line_items: [
           {
             price_data: {
@@ -546,6 +549,33 @@ export function membershipApi(db: RlsDb) {
             periodEnd: new Date(0),
           })
           .onConflictDoNothing();
+
+        // Find the latest succeeded payment to use as the expiry reference date
+        const latestSucceeded = await db.admin.query.membershipPayments.findFirst({
+          where: { userId: sub.userId, status: "succeeded" },
+          orderBy: { periodEnd: "desc" },
+        });
+
+        if (latestSucceeded) {
+          const inserted = await db.admin
+            .insert(membershipExpiryNotifications)
+            .values({ userId: sub.userId, periodEndDate: latestSucceeded.periodEnd, type: "payment_failed" })
+            .onConflictDoNothing()
+            .returning({ id: membershipExpiryNotifications.id });
+
+          if (inserted.length > 0) {
+            const profile = await db.admin.query.profiles.findFirst({ where: { id: sub.userId } });
+            if (profile) {
+              await sendPaymentFailedEmail({
+                email: profile.email,
+                fullName: profile.fullName,
+                locale: profile.locale,
+                periodEnd: latestSucceeded.periodEnd,
+                renewUrl: `${process.env.APP_URL ?? "https://app.coltivio.ch"}/membership`,
+              });
+            }
+          }
+        }
       } else if (event.type === "customer.subscription.updated") {
         const stripeSubscription = event.data.object as Stripe.Subscription;
         await db.admin

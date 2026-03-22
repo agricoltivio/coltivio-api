@@ -274,6 +274,24 @@ export const membershipPayments = pgTable.withRLS("membership_payments", {
   }),
 ]);
 
+export const membershipExpiryNotificationTypeEnum = pgEnum("membership_expiry_notification_type", [
+  "payment_failed",   // auto-renewal failed, sent via webhook immediately
+  "expiry_reminder",  // manual expiry day 0, sent via cron
+  "access_lost",      // day +10, sent via cron
+  "membership_ended", // day +30, sent via cron
+]);
+
+// No RLS needed — managed via db.admin only
+export const membershipExpiryNotifications = pgTable("membership_expiry_notifications", {
+  id: uuid().primaryKey().defaultRandom(),
+  userId: uuid().notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  periodEndDate: date({ mode: "date" }).notNull(), // the periodEnd of the expired payment (DATE precision)
+  type: membershipExpiryNotificationTypeEnum().notNull(),
+  sentAt: timestamp({ mode: "date" }).defaultNow().notNull(),
+}, (table) => [
+  unique().on(table.userId, table.type, table.periodEndDate),
+]);
+
 // Donations — no RLS, managed via db.admin only
 export const handoffTokens = pgTable.withRLS("handoff_tokens", {
   id: uuid().primaryKey().defaultRandom(),
@@ -2168,6 +2186,7 @@ const tables = {
   userSubscriptions,
   userTrials,
   membershipPayments,
+  membershipExpiryNotifications,
   donations,
   handoffTokens,
   invoiceSettings,
