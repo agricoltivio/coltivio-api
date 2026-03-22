@@ -234,6 +234,13 @@ import {
   updateOrderEndpoint,
 } from "./orders/orders.endpoint";
 import {
+  getInvoiceSettingsEndpoint,
+  upsertInvoiceSettingsEndpoint,
+  uploadLogoEndpoint,
+  deleteLogoEndpoint,
+} from "./orders/invoice-settings.endpoint";
+import { downloadInvoiceEndpoint, downloadInvoicesBatchEndpoint } from "./orders/invoice.endpoint";
+import {
   createProductEndpoint,
   deleteProductEndpoint,
   getActiveProductsEndpoint,
@@ -755,6 +762,11 @@ export const routing: Routing = {
         get: getFarmOrdersEndpoint,
         post: createOrderEndpoint,
       },
+      invoiceSettings: {
+        "": { get: getInvoiceSettingsEndpoint, put: upsertInvoiceSettingsEndpoint },
+        logo: { put: uploadLogoEndpoint, delete: deleteLogoEndpoint },
+      },
+      invoices: { post: downloadInvoicesBatchEndpoint },
       byId: {
         ":orderId": {
           "": {
@@ -765,6 +777,7 @@ export const routing: Routing = {
           confirm: confirmOrderEndpoint,
           fulfill: fulfillOrderEndpoint,
           cancel: cancelOrderEndpoint,
+          invoice: { post: downloadInvoiceEndpoint },
         },
       },
     },

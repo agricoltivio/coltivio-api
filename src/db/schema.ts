@@ -22,6 +22,17 @@ import { authenticatedRole, authUsers } from "drizzle-orm/supabase";
 
 import { z } from "zod";
 
+const bytea = customType<{ data: Buffer; driverData: Buffer | string }>({
+  dataType() {
+    return "bytea";
+  },
+  fromDriver(value: Buffer | string) {
+    if (Buffer.isBuffer(value)) return value;
+    // pg returns bytea as \x-prefixed hex string in text protocol
+    return Buffer.from((value as string).replace(/^\\x/, ""), "hex");
+  },
+});
+
 const polygon = customType<{ data: string }>({
   dataType() {
     return "geometry(MultiPolygon,4326)";
@@ -166,6 +177,37 @@ pgPolicy("only farm members can read", {
       to: authenticatedRole,
       for: "delete",
       using: eq(currentFarmId, table.id),
+    }),
+  ],
+);
+
+export const invoiceSettings = pgTable.withRLS(
+  "invoice_settings",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    farmId: uuid().notNull().unique().references(() => farms.id, { onDelete: "cascade" }),
+    senderName: text().notNull().default(""),
+    street: text().notNull().default(""),
+    zip: text().notNull().default(""),
+    city: text().notNull().default(""),
+    phone: text(),
+    email: text(),
+    website: text(),
+    iban: text(),
+    bankName: text(),
+    paymentTermsDays: integer().notNull().default(30),
+    introText: text(),
+    closingText: text(),
+    logoData: bytea(),
+    logoMimeType: text(), // "jpg" | "png"
+    updatedAt: timestamp({ mode: "date" }).defaultNow().notNull(),
+  },
+  (table) => [
+    pgPolicy("only farm members", {
+      as: "permissive",
+      to: authenticatedRole,
+      using: eq(table.farmId, currentFarmId),
+      withCheck: eq(table.farmId, currentFarmId),
     }),
   ],
 );
@@ -2128,6 +2170,7 @@ const tables = {
   membershipPayments,
   donations,
   handoffTokens,
+  invoiceSettings,
 };
 
 // Define all relations using the new Drizzle v1 API

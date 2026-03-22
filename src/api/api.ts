@@ -6,6 +6,7 @@ import { drugsApi } from "../drugs/drugs";
 import { earTagsApi } from "../ear-tags/ear-tags";
 import { treatmentsApi } from "../treatments/treatments";
 import { ordersApi } from "../orders/orders";
+import { invoiceSettingsApi } from "../orders/invoice-settings";
 import { paymentsApi } from "../payments/payments";
 import { productsApi } from "../products/products";
 import { sponsorshipProgramsApi } from "../sponsorships/sponsorship-programs";
@@ -62,6 +63,7 @@ export function sessionApi(db: RlsDb, t: TFunction, locale: string) {
     contacts: contactsApi(db),
     products: productsApi(db),
     orders: ordersApi(db),
+    invoiceSettings: invoiceSettingsApi(db),
     payments: paymentsApi(db),
     sponsorshipPrograms: sponsorshipProgramsApi(db),
     sponsorships: sponsorshipsApi(db),
