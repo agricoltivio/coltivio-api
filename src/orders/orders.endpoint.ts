@@ -26,7 +26,7 @@ export const orderItemSchema = z.object({
   unitPrice: z.number(),
 });
 
-const orderItemWithProductSchema = orderItemSchema.extend({
+export const orderItemWithProductSchema = orderItemSchema.extend({
   product: productSchema,
 });
 
@@ -180,5 +180,44 @@ export const updateOrderEndpoint = membershipEndpointFactory.build({
   handler: async ({ input, ctx: { orders } }) => {
     const { orderId, ...data } = input;
     return orders.updateOrderNotes(orderId, data);
+  },
+});
+
+export const addOrderItemEndpoint = membershipEndpointFactory.build({
+  method: "post",
+  input: z.object({
+    orderId: z.string(),
+    productId: z.string(),
+    quantity: z.number().positive(),
+  }),
+  output: orderItemWithProductSchema,
+  handler: async ({ input, ctx: { orders } }) => {
+    const { orderId, ...item } = input;
+    return orders.addOrderItem(orderId, item);
+  },
+});
+
+export const updateOrderItemEndpoint = membershipEndpointFactory.build({
+  method: "patch",
+  input: z.object({
+    orderId: z.string(),
+    orderItemId: z.string(),
+    quantity: z.number().positive().optional(),
+    unitPrice: z.number().nonnegative().optional(),
+  }),
+  output: orderItemSchema,
+  handler: async ({ input, ctx: { orders } }) => {
+    const { orderItemId, ...data } = input;
+    return orders.updateOrderItem(orderItemId, data);
+  },
+});
+
+export const removeOrderItemEndpoint = membershipEndpointFactory.build({
+  method: "delete",
+  input: z.object({ orderId: z.string(), orderItemId: z.string() }),
+  output: z.object({ success: z.boolean() }),
+  handler: async ({ input, ctx: { orders } }) => {
+    await orders.removeOrderItem(input.orderItemId);
+    return { success: true };
   },
 });
