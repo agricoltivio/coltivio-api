@@ -446,5 +446,12 @@
     "body": "Du wurdest eingeladen, <strong>{{farmName}}</strong> auf Coltivio beizutreten.",
     "code_label": "Dein Einladungscode",
     "expiry": "Dieser Code läuft in 7 Tagen ab."
+  },
+  "product_units": {
+    "kg": "kg",
+    "g": "g",
+    "piece": "Stück",
+    "bunch": "Bund",
+    "liter": "Liter"
   }
 }

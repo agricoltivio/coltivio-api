@@ -15,8 +15,14 @@ import {
   HeadingLevel,
   convertInchesToTwip,
 } from "docx";
+import { TFunction } from "i18next";
+import { eq, and, sql } from "drizzle-orm";
+import { orders } from "../db/schema";
+import { RlsDb, rlsDb as makeRlsDb } from "../db/db";
+import { SupabaseToken } from "../supabase/supabase";
 import { OrderWithRelations } from "./orders";
 import { InvoiceSettings } from "./invoice-settings";
+import { invoiceSettingsApi } from "./invoice-settings";
 
 const LOGO_MAX_WIDTH = 150; // pixels (twips converted internally by docx)
 
@@ -134,7 +140,8 @@ function buildFooter(settings: InvoiceSettings): Footer {
 export function buildInvoiceChildren(
   order: OrderWithRelations,
   settings: InvoiceSettings,
-  invoiceNumber: string
+  invoiceNumber: string,
+  t: TFunction
 ): (Paragraph | Table)[] {
   const contact = order.contact;
   const orderDate = formatDate(order.orderDate);
@@ -263,7 +270,7 @@ export function buildInvoiceChildren(
         cell(String(idx + 1), { width: 6 }),
         cell(item.product.name, { width: 38 }),
         cell(String(item.quantity), { width: 12, align: AlignmentType.RIGHT }),
-        cell(item.product.unit, { width: 14, align: AlignmentType.RIGHT }),
+        cell(t(`product_units.${item.product.unit}`), { width: 14, align: AlignmentType.RIGHT }),
         cell(formatCHF(item.unitPrice), {
           width: 15,
           align: AlignmentType.RIGHT,
@@ -341,24 +348,26 @@ function wrapInDocument(children: (Paragraph | Table)[], footer: Footer): Docume
   });
 }
 
-export async function generateInvoiceDocx(
+async function generateInvoiceDocx(
   order: OrderWithRelations,
   settings: InvoiceSettings,
-  invoiceNumber: string
+  invoiceNumber: string,
+  t: TFunction
 ): Promise<Buffer> {
-  return Packer.toBuffer(wrapInDocument(buildInvoiceChildren(order, settings, invoiceNumber), buildFooter(settings)));
+  return Packer.toBuffer(wrapInDocument(buildInvoiceChildren(order, settings, invoiceNumber, t), buildFooter(settings)));
 }
 
 // Combines multiple invoices into one document, each starting on a new page
-export async function generateInvoicesDocxSingle(
+async function generateInvoicesDocxSingle(
   invoices: Array<{
     order: OrderWithRelations;
     settings: InvoiceSettings;
     invoiceNumber: string;
+    t: TFunction;
   }>
 ): Promise<Buffer> {
-  const allChildren = invoices.flatMap(({ order, settings, invoiceNumber }, i) => {
-    const children = buildInvoiceChildren(order, settings, invoiceNumber);
+  const allChildren = invoices.flatMap(({ order, settings, invoiceNumber, t }, i) => {
+    const children = buildInvoiceChildren(order, settings, invoiceNumber, t);
     if (i === 0) return children;
     // Insert a page break before each subsequent invoice
     const [first, ...rest] = children;
@@ -366,4 +375,84 @@ export async function generateInvoicesDocxSingle(
   });
   // Use footer from the first invoice's settings (all invoices share the same farm settings)
   return Packer.toBuffer(wrapInDocument(allChildren, buildFooter(invoices[0].settings)));
+}
+
+function invoiceFileName(invoiceNumber: string, order: OrderWithRelations): string {
+  const contactName = `${order.contact.firstName}_${order.contact.lastName}`.replace(/\s+/g, "_");
+  return `Rechnung_${invoiceNumber.replace("/", "-")}_${contactName}.docx`;
+}
+
+// Count orders for the same farm+year with orderDate < order, plus same-date orders with id <= order.id.
+// The id tiebreaker ensures two orders on the same date get distinct invoice numbers.
+async function deriveInvoiceNumber(order: OrderWithRelations, farmId: string, token: SupabaseToken): Promise<string> {
+  const orderYear = new Date(order.orderDate).getFullYear();
+  const yearStart = new Date(orderYear, 0, 1);
+  const orderDateStr = new Date(order.orderDate).toISOString().slice(0, 10);
+  const db = makeRlsDb(token, farmId);
+  const [row] = await db.rls((tx) =>
+    tx
+      .select({ count: sql<number>`count(*)::int` })
+      .from(orders)
+      .where(
+        and(
+          eq(orders.farmId, farmId),
+          sql`${orders.orderDate} >= ${yearStart.toISOString().slice(0, 10)}`,
+          sql`(${orders.orderDate} < ${orderDateStr} OR (${orders.orderDate} = ${orderDateStr} AND ${orders.id} <= ${order.id}))`
+        )
+      )
+  );
+  const position = row?.count ?? 1;
+  return `${position}/${String(orderYear).slice(-2)}`;
+}
+
+export function invoicesApi(db: RlsDb, t: TFunction) {
+  const settings = invoiceSettingsApi(db);
+
+  return {
+    async downloadInvoice(orderId: string, farmId: string, token: SupabaseToken): Promise<{ base64: string; fileName: string }> {
+      const order = await db.rls((tx) => tx.query.orders.findFirst({ where: { id: orderId }, with: { contact: true, items: { with: { product: true } } } }));
+      if (!order) throw new Error("Order not found");
+      const invoiceSettings = await settings.getForFarm(farmId);
+      if (!invoiceSettings) throw new Error("Invoice settings not configured");
+      const invoiceNumber = await deriveInvoiceNumber(order as OrderWithRelations, farmId, token);
+      const buffer = await generateInvoiceDocx(order as OrderWithRelations, invoiceSettings, invoiceNumber, t);
+      return { base64: buffer.toString("base64"), fileName: invoiceFileName(invoiceNumber, order as OrderWithRelations) };
+    },
+
+    async downloadInvoicesBatch(
+      orderIds: string[],
+      farmId: string,
+      token: SupabaseToken,
+      mode: "single" | "zip"
+    ): Promise<{ base64: string; fileName: string }> {
+      const invoiceSettings = await settings.getForFarm(farmId);
+      if (!invoiceSettings) throw new Error("Invoice settings not configured");
+      const date = new Date().toISOString().slice(0, 10);
+
+      const resolved = await Promise.all(
+        orderIds.map(async (orderId) => {
+          const order = await db.rls((tx) => tx.query.orders.findFirst({ where: { id: orderId }, with: { contact: true, items: { with: { product: true } } } }));
+          if (!order) throw new Error(`Order not found: ${orderId}`);
+          const invoiceNumber = await deriveInvoiceNumber(order as OrderWithRelations, farmId, token);
+          return { order: order as OrderWithRelations, invoiceNumber, settings: invoiceSettings, t };
+        })
+      );
+
+      if (mode === "single") {
+        const buffer = await generateInvoicesDocxSingle(resolved);
+        return { base64: buffer.toString("base64"), fileName: `Rechnungen_${date}.docx` };
+      }
+
+      const JSZip = (await import("jszip")).default;
+      const zip = new JSZip();
+      await Promise.all(
+        resolved.map(async ({ order, invoiceNumber }) => {
+          const buffer = await generateInvoiceDocx(order, invoiceSettings, invoiceNumber, t);
+          zip.file(invoiceFileName(invoiceNumber, order), buffer);
+        })
+      );
+      const zipBuffer = await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
+      return { base64: zipBuffer.toString("base64"), fileName: `Rechnungen_${date}.zip` };
+    },
+  };
 }
