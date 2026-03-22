@@ -10,10 +10,12 @@ import { SupabaseToken } from "../supabase/supabase";
 import { OrderWithRelations } from "./orders";
 import { InvoiceSettings } from "./invoice-settings";
 
-// Count orders for the same farm+year with orderDate <= the given order → 1-based position = invoice number
+// Count orders for the same farm+year with orderDate < order, plus same-date orders with id <= order.id.
+// The id tiebreaker ensures two orders on the same date get distinct invoice numbers.
 async function deriveInvoiceNumber(order: OrderWithRelations, farmId: string, token: SupabaseToken): Promise<string> {
   const orderYear = new Date(order.orderDate).getFullYear();
   const yearStart = new Date(orderYear, 0, 1);
+  const orderDateStr = new Date(order.orderDate).toISOString().slice(0, 10);
   const db = makeRlsDb(token, farmId);
   const [row] = await db.rls((tx) =>
     tx
@@ -23,7 +25,7 @@ async function deriveInvoiceNumber(order: OrderWithRelations, farmId: string, to
         and(
           eq(orders.farmId, farmId),
           sql`${orders.orderDate} >= ${yearStart.toISOString().slice(0, 10)}`,
-          sql`${orders.orderDate} <= ${new Date(order.orderDate).toISOString().slice(0, 10)}`
+          sql`(${orders.orderDate} < ${orderDateStr} OR (${orders.orderDate} = ${orderDateStr} AND ${orders.id} <= ${order.id}))`
         )
       )
   );
