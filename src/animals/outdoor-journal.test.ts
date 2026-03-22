@@ -6,8 +6,10 @@ import {
   OutdoorJournalEntry,
 } from "./outdoor-journal";
 import { getAnimalCategoryTransitions } from "./animal-key-mapping";
+import { hasScheduleOverlap } from "./animals";
 import type {
   Animal,
+  ScheduleRangeForOverlap,
   AnimalCategory,
   AnimalSex,
   AnimalType,
@@ -835,5 +837,195 @@ describe("buildOutdoorJournal", () => {
     const result = buildOutdoorJournal([herd], d("2025-01-01"), d("2025-12-31"));
     expect(result.entries[0].category).toBe("C1");
     expect(result.entries[1].category).toBe("D1");
+  });
+});
+
+// --- hasScheduleOverlap ---
+
+function range(
+  startDate: string,
+  endDate: string | null,
+  recurrence?: { interval: number; until: string | null } | null,
+): ScheduleRangeForOverlap {
+  return {
+    start: d(startDate),
+    end: endDate ? d(endDate) : null,
+    recurrence: recurrence
+      ? { interval: recurrence.interval, until: recurrence.until ? d(recurrence.until) : null }
+      : null,
+  };
+}
+
+const annual = (until: string | null = null) => ({ interval: 1, until });
+const biennial = (until: string | null = null) => ({ interval: 2, until });
+
+describe("hasScheduleOverlap", () => {
+  // ---------------------------------------------------------------------------
+  // Non-recurring: plain absolute date range check
+  // ---------------------------------------------------------------------------
+
+  test("non-recurring: clear overlap (May–Aug vs Jul–Sep)", () => {
+    expect(hasScheduleOverlap(
+      [range("2025-05-01", "2025-08-31")],
+      range("2025-07-01", "2025-09-30"),
+    )).toBe(true);
+  });
+
+  test("non-recurring: adjacent months do not overlap (May–Jun vs Jul–Sep)", () => {
+    expect(hasScheduleOverlap(
+      [range("2025-05-01", "2025-06-30")],
+      range("2025-07-01", "2025-09-30"),
+    )).toBe(false);
+  });
+
+  test("non-recurring: year-crossing range overlaps a range in the spanned second year", () => {
+    // Nov 2025 – Mar 2026 crosses into 2026, overlaps Feb–Apr 2026
+    expect(hasScheduleOverlap(
+      [range("2025-11-01", "2026-03-31")],
+      range("2026-02-01", "2026-04-30"),
+    )).toBe(true);
+  });
+
+  test("non-recurring: adjacent year-crossing ranges do not overlap (Nov–Dec vs Jan–Mar next year)", () => {
+    // Dec 31 ends, Jan 1 begins — no shared day
+    expect(hasScheduleOverlap(
+      [range("2025-11-01", "2025-12-31")],
+      range("2026-01-01", "2026-03-31"),
+    )).toBe(false);
+  });
+
+  test("non-recurring: empty existing ranges never overlap", () => {
+    expect(hasScheduleOverlap([], range("2025-05-01", "2025-08-31"))).toBe(false);
+  });
+
+  test("non-recurring: identical single-day schedules overlap", () => {
+    expect(hasScheduleOverlap(
+      [range("2025-06-15", "2025-06-15")],
+      range("2025-06-15", "2025-06-15"),
+    )).toBe(true);
+  });
+
+  // ---------------------------------------------------------------------------
+  // Recurring: day-of-year window + shared occurrence year
+  // ---------------------------------------------------------------------------
+
+  test("recurring: both annual, overlapping day windows → overlap", () => {
+    // May–Aug and Jul–Sep share July–August days and both occur every year
+    expect(hasScheduleOverlap(
+      [range("2025-05-01", "2025-08-31", annual())],
+      range("2025-07-01", "2025-09-30", annual()),
+    )).toBe(true);
+  });
+
+  test("recurring: both annual, non-overlapping day windows → no overlap", () => {
+    // May–Aug vs Sep–Nov: no shared days in the year
+    expect(hasScheduleOverlap(
+      [range("2025-05-01", "2025-08-31", annual())],
+      range("2025-09-01", "2025-11-30", annual()),
+    )).toBe(false);
+  });
+
+  test("recurring: year-crossing annual (Nov–Mar) overlaps annual Jan–Feb (the cross-year bug)", () => {
+    // Nov–Mar crosses year boundary; January–February falls inside the Nov–Mar window.
+    // Without the year-boundary split this was incorrectly reported as NO overlap.
+    expect(hasScheduleOverlap(
+      [range("2025-11-01", "2026-03-31", annual())],
+      range("2026-01-01", "2026-02-28", annual()),
+    )).toBe(true);
+  });
+
+  test("recurring: year-crossing annual (Nov–Mar) does NOT overlap annual Apr–Oct", () => {
+    // Apr–Oct is entirely outside the Nov–Mar window even after splitting
+    expect(hasScheduleOverlap(
+      [range("2025-11-01", "2026-03-31", annual())],
+      range("2025-04-01", "2025-10-31", annual()),
+    )).toBe(false);
+  });
+
+  test("recurring: annual Nov–Dec does NOT overlap annual Jan–Feb (both within single year, different months)", () => {
+    // Nov–Dec ends on day 365, Jan–Feb starts on day 1 — no shared days
+    expect(hasScheduleOverlap(
+      [range("2025-11-01", "2025-12-31", annual())],
+      range("2026-01-01", "2026-02-28", annual()),
+    )).toBe(false);
+  });
+
+  test("recurring: biennial alternating years → no overlap", () => {
+    // A occurs 2025, 2027, 2029… B occurs 2026, 2028, 2030… — never share a year
+    expect(hasScheduleOverlap(
+      [range("2025-06-01", "2025-08-31", biennial())],
+      range("2026-06-01", "2026-08-31", biennial()),
+    )).toBe(false);
+  });
+
+  test("recurring: biennial same start year, overlapping day windows → overlap", () => {
+    // Both occur 2025, 2027, 2029… and share Jun–Aug days
+    expect(hasScheduleOverlap(
+      [range("2025-06-01", "2025-07-31", biennial())],
+      range("2025-07-01", "2025-08-31", biennial()),
+    )).toBe(true);
+  });
+
+  test("recurring: annual with until before new schedule's start year → no overlap", () => {
+    // A ran annually 2020–2022 and has expired; B starts annually in 2025
+    expect(hasScheduleOverlap(
+      [range("2020-06-01", "2020-08-31", annual("2022-12-31"))],
+      range("2025-06-01", "2025-08-31", annual()),
+    )).toBe(false);
+  });
+
+  // ---------------------------------------------------------------------------
+  // Mixed: one recurring, one non-recurring
+  // ---------------------------------------------------------------------------
+
+  test("mixed: recurring annual May–Aug vs one-time May 2025 → overlap", () => {
+    // 2025 is in the annual's occurrence years; day windows overlap
+    expect(hasScheduleOverlap(
+      [range("2024-05-01", "2024-08-31", annual())],
+      range("2025-05-15", "2025-07-15"),
+    )).toBe(true);
+  });
+
+  test("mixed: recurring annual May–Aug starting 2027 vs one-time May 2025 → no overlap", () => {
+    // The annual only occurs from 2027 onward; 2025 is not a shared year
+    expect(hasScheduleOverlap(
+      [range("2027-05-01", "2027-08-31", annual())],
+      range("2025-05-15", "2025-07-15"),
+    )).toBe(false);
+  });
+
+  test("mixed: year-crossing annual (Nov–Mar) vs one-time Feb in a shared year → overlap", () => {
+    // Annual Nov–Mar occurs every year; one-time Feb 2026 shares 2026 and falls in Nov–Mar window
+    expect(hasScheduleOverlap(
+      [range("2025-11-01", "2026-03-31", annual())],
+      range("2026-02-01", "2026-02-28"),
+    )).toBe(true);
+  });
+
+  test("year-crossing biennial: occurrence spanning into next year detected against non-recurring in that year", () => {
+    // A: biennial Nov 15 – Mar 15, interval=2, starting 2022.
+    // Occurrence in 2022 occupies Nov 2022 – Mar 2023.
+    // Without yearSpan fix: aYears = {2022,2024,2026,...} — 2023 missing → false negative.
+    // With yearSpan=1 fix: aYears = {2022,2023,2024,2025,...} → 2023 detected.
+    expect(hasScheduleOverlap(
+      [range("2022-11-15", "2023-03-15", biennial())],
+      range("2023-01-10", "2023-02-28"),
+    )).toBe(true);
+  });
+
+  test("year-crossing biennial: non-recurring before first occurrence → no overlap", () => {
+    // Jan 2021 is before the 2022 biennial start — no shared year
+    expect(hasScheduleOverlap(
+      [range("2022-11-15", "2023-03-15", biennial())],
+      range("2021-01-10", "2021-02-28"),
+    )).toBe(false);
+  });
+
+  test("multiple existing ranges: detects overlap with second range only", () => {
+    // First existing: Jan–Mar (no overlap). Second existing: Jun–Aug (overlaps Jul–Sep).
+    expect(hasScheduleOverlap(
+      [range("2025-01-01", "2025-03-31"), range("2025-06-01", "2025-08-31")],
+      range("2025-07-01", "2025-09-30"),
+    )).toBe(true);
   });
 });

@@ -1,6 +1,7 @@
 import { expect } from "@jest/globals";
 import merge from "lodash/merge";
-import { createTestUser, request } from "./helpers";
+import { createTestUser, getAdminDb, request } from "./helpers";
+import { membershipPayments } from "../db/schema";
 
 // ---------------------------------------------------------------------------
 // Common test data
@@ -104,12 +105,30 @@ type ApiEntity = Record<string, unknown> & { id: string; farmId: string };
 export async function createUserWithFarm(
   data?: Record<string, unknown>,
   email = "test@test.com",
+  opts: { withActiveMembership?: boolean } = {},
 ) {
   const { jwt, userId } = await createTestUser(email, "password123");
   const farmData = merge({}, DEFAULT_FARM, data);
   const res = await request("POST", "/v1/farm", farmData, jwt);
   const body = (await res.json()) as { data: { id: string } };
-  return { jwt, userId, farmId: body.data.id };
+  const farmId = body.data.id;
+
+  if (opts.withActiveMembership) {
+    const db = getAdminDb();
+    const periodEnd = new Date();
+    periodEnd.setFullYear(periodEnd.getFullYear() + 1);
+    await db.insert(membershipPayments).values({
+      userId,
+      stripePaymentId: `pi_test_util_${Date.now()}`,
+      stripeSubscriptionId: null,
+      amount: 29000,
+      currency: "chf",
+      status: "succeeded",
+      periodEnd,
+    });
+  }
+
+  return { jwt, userId, farmId };
 }
 
 export async function createAnimal(

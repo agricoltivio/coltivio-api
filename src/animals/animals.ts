@@ -97,32 +97,106 @@ export type OutdoorScheduleCreateInput = {
 
 export type OutdoorScheduleUpdateInput = Partial<OutdoorScheduleCreateInput>;
 
-// Pure date validation: checks if newRange overlaps with any existing range.
-// null end = infinity (always overlaps with future dates).
+const MS_PER_DAY = 86_400_000;
+
+// Type used for overlap checks — includes recurrence interval so we can correctly
+// compare day-of-year windows across occurrence years rather than raw date spans.
+export type ScheduleRangeForOverlap = {
+  start: Date;
+  end: Date | null; // end of a single occurrence (not recurrence.until)
+  recurrence?: { interval: number; until: Date | null } | null;
+};
+
+function getDayOfYear(date: Date): number {
+  const start = new Date(date.getFullYear(), 0, 0);
+  return Math.floor((date.getTime() - start.getTime()) / MS_PER_DAY);
+}
+
+// Check if two day-of-year windows overlap. Ranges that cross a year boundary
+// (fromDay > toDay, e.g. Nov–Mar) are split into two sub-ranges so we don't
+// produce false positives against non-overlapping windows in adjacent years.
+function dayRangesOverlap(aFrom: number, aTo: number, bFrom: number, bTo: number): boolean {
+  const aRanges: [number, number][] = aFrom <= aTo ? [[aFrom, aTo]] : [[aFrom, 366], [1, aTo]];
+  const bRanges: [number, number][] = bFrom <= bTo ? [[bFrom, bTo]] : [[bFrom, 366], [1, bTo]];
+  return aRanges.some(([af, at]) => bRanges.some(([bf, bt]) => af <= bt && at >= bf));
+}
+
+// Returns all years in which a recurring schedule has an occurrence, within a
+// ±10/+25 year window around today. Interval is interpreted in years.
+// yearSpan covers year-crossing schedules (e.g. Nov–Mar → yearSpan=1) so each
+// occurrence slot covers year through year+yearSpan.
+function getOccurrenceYears(startYear: number, interval: number, untilYear: number | null, yearSpan: number): Set<number> {
+  const rangeStart = new Date().getFullYear() - 10;
+  const rangeEnd = new Date().getFullYear() + 25;
+  const years = new Set<number>();
+  const effectiveEnd = untilYear ? Math.min(untilYear, rangeEnd) : rangeEnd;
+  for (let year = startYear; year <= effectiveEnd; year += interval) {
+    for (let span = 0; span <= yearSpan; span++) {
+      if (year + span >= rangeStart) years.add(year + span);
+    }
+  }
+  return years;
+}
+
+function shareCommonYear(a: ScheduleRangeForOverlap, b: ScheduleRangeForOverlap): boolean {
+  const aEnd = a.end ?? a.start;
+  const bEnd = b.end ?? b.start;
+  const aYearSpan = aEnd.getFullYear() - a.start.getFullYear();
+  const bYearSpan = bEnd.getFullYear() - b.start.getFullYear();
+  const aInterval = a.recurrence?.interval ?? 1;
+  const bInterval = b.recurrence?.interval ?? 1;
+  const aUntilYear = a.recurrence?.until ? a.recurrence.until.getFullYear() : null;
+  const bUntilYear = b.recurrence?.until ? b.recurrence.until.getFullYear() : null;
+
+  const aYears = a.recurrence
+    ? getOccurrenceYears(a.start.getFullYear(), aInterval, aUntilYear, aYearSpan)
+    : new Set(Array.from({ length: aYearSpan + 1 }, (_, i) => a.start.getFullYear() + i));
+  const bYears = b.recurrence
+    ? getOccurrenceYears(b.start.getFullYear(), bInterval, bUntilYear, bYearSpan)
+    : new Set(Array.from({ length: bYearSpan + 1 }, (_, i) => b.start.getFullYear() + i));
+
+  for (const year of aYears) {
+    if (bYears.has(year)) return true;
+  }
+  return false;
+}
+
+// Checks if newRange overlaps with any range in existingRanges.
+// For recurring schedules (annual or biennial etc.) we compare day-of-year windows
+// and shared occurrence years, correctly handling year-crossing ranges (e.g. Nov–Mar).
+// For non-recurring schedules we fall back to a plain date range check.
 export function hasScheduleOverlap(
-  existingRanges: { start: Date; end: Date | null }[],
-  newRange: { start: Date; end: Date | null },
+  existingRanges: ScheduleRangeForOverlap[],
+  newRange: ScheduleRangeForOverlap,
 ): boolean {
   for (const existing of existingRanges) {
-    const existingEnd = existing.end ?? new Date("9999-12-31");
-    const newEnd = newRange.end ?? new Date("9999-12-31");
-    if (newRange.start <= existingEnd && newEnd >= existing.start) {
-      return true;
+    const existingEnd = existing.end ?? existing.start;
+    const newEnd = newRange.end ?? newRange.start;
+
+    if (existing.recurrence || newRange.recurrence) {
+      const aFrom = getDayOfYear(existing.start);
+      const aTo = getDayOfYear(existingEnd);
+      const bFrom = getDayOfYear(newRange.start);
+      const bTo = getDayOfYear(newEnd);
+      if (dayRangesOverlap(aFrom, aTo, bFrom, bTo) && shareCommonYear(existing, newRange)) {
+        return true;
+      }
+    } else {
+      if (existing.start <= newEnd && existingEnd >= newRange.start) return true;
     }
   }
   return false;
 }
 
-// Compute effective date range for a schedule (considering recurrence)
-function effectiveRange(schedule: OutdoorScheduleWithRecurrence): {
-  start: Date;
-  end: Date | null;
-} {
+// Compute the overlap-check range for an existing DB schedule
+function effectiveRange(schedule: OutdoorScheduleWithRecurrence): ScheduleRangeForOverlap {
   if (schedule.recurrence) {
-    const until = schedule.recurrence.until
-      ? new Date(schedule.recurrence.until)
-      : null;
-    return { start: schedule.startDate, end: until };
+    const until = schedule.recurrence.until ? new Date(schedule.recurrence.until) : null;
+    return {
+      start: schedule.startDate,
+      end: schedule.endDate,
+      recurrence: { interval: schedule.recurrence.interval, until },
+    };
   }
   return { start: schedule.startDate, end: schedule.endDate };
 }
@@ -440,22 +514,24 @@ export function animalsApi(rlsDb: RlsDb) {
     ) {
       // Validate overlap among schedules before entering the transaction
       if (outdoorSchedules?.length) {
-        const ranges: { start: Date; end: Date | null }[] = [];
+        const ranges: ScheduleRangeForOverlap[] = [];
         for (const schedule of outdoorSchedules) {
-          const newRange = schedule.recurrence
+          const newRange: ScheduleRangeForOverlap = schedule.recurrence
             ? {
                 start: schedule.startDate,
-                end: schedule.recurrence.until
-                  ? new Date(schedule.recurrence.until)
-                  : null,
+                end: schedule.endDate ?? null,
+                recurrence: {
+                  interval: schedule.recurrence.interval,
+                  until: schedule.recurrence.until ? new Date(schedule.recurrence.until) : null,
+                },
               }
             : { start: schedule.startDate, end: schedule.endDate ?? null };
-          // if (hasScheduleOverlap(ranges, newRange)) {
-          //   throw createHttpError(
-          //     409,
-          //     "Schedule overlaps with another schedule",
-          //   );
-          // }
+          if (hasScheduleOverlap(ranges, newRange)) {
+            throw createHttpError(
+              409,
+              "Schedule overlaps with another schedule",
+            );
+          }
           ranges.push(newRange);
         }
       }
@@ -528,22 +604,24 @@ export function animalsApi(rlsDb: RlsDb) {
     ) {
       // Validate overlap among new schedules before entering the transaction
       if (outdoorSchedules?.length) {
-        const ranges: { start: Date; end: Date | null }[] = [];
+        const ranges: ScheduleRangeForOverlap[] = [];
         for (const schedule of outdoorSchedules) {
-          const newRange = schedule.recurrence
+          const newRange: ScheduleRangeForOverlap = schedule.recurrence
             ? {
                 start: schedule.startDate,
-                end: schedule.recurrence.until
-                  ? new Date(schedule.recurrence.until)
-                  : null,
+                end: schedule.endDate ?? null,
+                recurrence: {
+                  interval: schedule.recurrence.interval,
+                  until: schedule.recurrence.until ? new Date(schedule.recurrence.until) : null,
+                },
               }
             : { start: schedule.startDate, end: schedule.endDate ?? null };
-          // if (hasScheduleOverlap(ranges, newRange)) {
-          //   throw createHttpError(
-          //     409,
-          //     "Schedule overlaps with another schedule",
-          //   );
-          // }
+          if (hasScheduleOverlap(ranges, newRange)) {
+            throw createHttpError(
+              409,
+              "Schedule overlaps with another schedule",
+            );
+          }
           ranges.push(newRange);
         }
       }
@@ -674,19 +752,20 @@ export function animalsApi(rlsDb: RlsDb) {
       // Validate no overlap with existing schedules for this herd
       const existing = await this.getOutdoorSchedulesForHerd(herdId);
       const existingRanges = existing.map(effectiveRange);
-      const newRecurrenceUntil = recurrence?.until
-        ? new Date(recurrence.until)
-        : null;
-      const newRange = recurrence
-        ? { start: scheduleInput.startDate, end: newRecurrenceUntil }
-        : {
+      const newRange: ScheduleRangeForOverlap = recurrence
+        ? {
             start: scheduleInput.startDate,
             end: scheduleInput.endDate ?? null,
-          };
+            recurrence: {
+              interval: recurrence.interval,
+              until: recurrence.until ? new Date(recurrence.until) : null,
+            },
+          }
+        : { start: scheduleInput.startDate, end: scheduleInput.endDate ?? null };
 
-      // if (hasScheduleOverlap(existingRanges, newRange)) {
-      //   throw createHttpError(409, "Schedule overlaps with existing schedule");
-      // }
+      if (hasScheduleOverlap(existingRanges, newRange)) {
+        throw createHttpError(409, "Schedule overlaps with existing schedule");
+      }
 
       const result = await rlsDb.rls(async (tx) => {
         const [schedule] = await tx
@@ -742,19 +821,29 @@ export function animalsApi(rlsDb: RlsDb) {
             ? scheduleData.endDate
             : current.endDate;
 
-        let updatedRange: { start: Date; end: Date | null };
+        let updatedRange: ScheduleRangeForOverlap;
         if (recurrence !== undefined) {
           if (recurrence) {
-            const until = recurrence.until ? new Date(recurrence.until) : null;
-            updatedRange = { start: updatedStartDate, end: until };
+            updatedRange = {
+              start: updatedStartDate,
+              end: updatedEndDate,
+              recurrence: {
+                interval: recurrence.interval,
+                until: recurrence.until ? new Date(recurrence.until) : null,
+              },
+            };
           } else {
             updatedRange = { start: updatedStartDate, end: updatedEndDate };
           }
         } else if (current.recurrence) {
-          const until = current.recurrence.until
-            ? new Date(current.recurrence.until)
-            : null;
-          updatedRange = { start: updatedStartDate, end: until };
+          updatedRange = {
+            start: updatedStartDate,
+            end: updatedEndDate,
+            recurrence: {
+              interval: current.recurrence.interval,
+              until: current.recurrence.until ? new Date(current.recurrence.until) : null,
+            },
+          };
         } else {
           updatedRange = { start: updatedStartDate, end: updatedEndDate };
         }

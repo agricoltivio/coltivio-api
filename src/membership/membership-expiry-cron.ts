@@ -28,26 +28,30 @@ async function runExpiryReminderPass(now: Date): Promise<void> {
   const tenDaysAgo = new Date(now.getTime() - TEN_DAYS_MS);
   const lp = buildLatestPaymentSubquery();
 
+  // Use sql template with ISO strings to avoid postgres.js raw-Date serialization issue
+  // on sql<Date> subquery columns (which lose their column type encoder).
   const candidates = await adminDrizzle
     .select({ userId: lp.userId, periodEnd: lp.maxPeriodEnd })
     .from(lp)
     .leftJoin(userSubscriptions, eq(userSubscriptions.userId, lp.userId))
     .where(and(
-      lt(lp.maxPeriodEnd, now),
-      gt(lp.maxPeriodEnd, tenDaysAgo),
+      lt(lp.maxPeriodEnd, sql`${now.toISOString()}::timestamp`),
+      gt(lp.maxPeriodEnd, sql`${tenDaysAgo.toISOString()}::timestamp`),
       isNull(userSubscriptions.id), // manual payment only (no auto-renewing subscription)
     ));
 
   for (const candidate of candidates) {
+    // max() aggregate loses Drizzle's column decoder — coerce back to Date
+    const periodEnd = new Date(candidate.periodEnd);
     // Skip if payment_failed or expiry_reminder was already sent for this period
     const existing = await adminDrizzle.query.membershipExpiryNotifications.findFirst({
-      where: { userId: candidate.userId, periodEndDate: { eq: candidate.periodEnd }, type: { in: ["payment_failed", "expiry_reminder"] } },
+      where: { userId: candidate.userId, periodEndDate: { eq: periodEnd }, type: { in: ["payment_failed", "expiry_reminder"] } },
     });
     if (existing) continue;
 
     const inserted = await adminDrizzle
       .insert(membershipExpiryNotifications)
-      .values({ userId: candidate.userId, periodEndDate: candidate.periodEnd, type: "expiry_reminder" })
+      .values({ userId: candidate.userId, periodEndDate: periodEnd, type: "expiry_reminder" })
       .onConflictDoNothing()
       .returning({ id: membershipExpiryNotifications.id });
     if (inserted.length === 0) continue;
@@ -59,7 +63,7 @@ async function runExpiryReminderPass(now: Date): Promise<void> {
       email: profile.email,
       fullName: profile.fullName,
       locale: profile.locale,
-      periodEnd: candidate.periodEnd,
+      periodEnd,
       renewUrl: RENEW_URL,
     });
     console.log(`[membership-cron] expiry_reminder sent to ${profile.email}`);
@@ -76,19 +80,20 @@ async function runAccessLostPass(now: Date): Promise<void> {
     .select({ userId: lp.userId, periodEnd: lp.maxPeriodEnd })
     .from(lp)
     .where(and(
-      lt(lp.maxPeriodEnd, tenDaysAgo),
-      gt(lp.maxPeriodEnd, thirtyDaysAgo),
+      lt(lp.maxPeriodEnd, sql`${tenDaysAgo.toISOString()}::timestamp`),
+      gt(lp.maxPeriodEnd, sql`${thirtyDaysAgo.toISOString()}::timestamp`),
     ));
 
   for (const candidate of candidates) {
+    const periodEnd = new Date(candidate.periodEnd);
     const existing = await adminDrizzle.query.membershipExpiryNotifications.findFirst({
-      where: { userId: candidate.userId, periodEndDate: { eq: candidate.periodEnd }, type: "access_lost" },
+      where: { userId: candidate.userId, periodEndDate: { eq: periodEnd }, type: "access_lost" },
     });
     if (existing) continue;
 
     const inserted = await adminDrizzle
       .insert(membershipExpiryNotifications)
-      .values({ userId: candidate.userId, periodEndDate: candidate.periodEnd, type: "access_lost" })
+      .values({ userId: candidate.userId, periodEndDate: periodEnd, type: "access_lost" })
       .onConflictDoNothing()
       .returning({ id: membershipExpiryNotifications.id });
     if (inserted.length === 0) continue;
@@ -100,7 +105,7 @@ async function runAccessLostPass(now: Date): Promise<void> {
       email: profile.email,
       fullName: profile.fullName,
       locale: profile.locale,
-      periodEnd: candidate.periodEnd,
+      periodEnd,
       renewUrl: RENEW_URL,
     });
     console.log(`[membership-cron] access_lost sent to ${profile.email}`);
@@ -115,17 +120,18 @@ async function runMembershipEndedPass(now: Date): Promise<void> {
   const candidates = await adminDrizzle
     .select({ userId: lp.userId, periodEnd: lp.maxPeriodEnd })
     .from(lp)
-    .where(lt(lp.maxPeriodEnd, thirtyDaysAgo));
+    .where(lt(lp.maxPeriodEnd, sql`${thirtyDaysAgo.toISOString()}::timestamp`));
 
   for (const candidate of candidates) {
+    const periodEnd = new Date(candidate.periodEnd);
     const existing = await adminDrizzle.query.membershipExpiryNotifications.findFirst({
-      where: { userId: candidate.userId, periodEndDate: { eq: candidate.periodEnd }, type: "membership_ended" },
+      where: { userId: candidate.userId, periodEndDate: { eq: periodEnd }, type: "membership_ended" },
     });
     if (existing) continue;
 
     const inserted = await adminDrizzle
       .insert(membershipExpiryNotifications)
-      .values({ userId: candidate.userId, periodEndDate: candidate.periodEnd, type: "membership_ended" })
+      .values({ userId: candidate.userId, periodEndDate: periodEnd, type: "membership_ended" })
       .onConflictDoNothing()
       .returning({ id: membershipExpiryNotifications.id });
     if (inserted.length === 0) continue;
@@ -137,7 +143,7 @@ async function runMembershipEndedPass(now: Date): Promise<void> {
       email: profile.email,
       fullName: profile.fullName,
       locale: profile.locale,
-      periodEnd: candidate.periodEnd,
+      periodEnd,
       renewUrl: RENEW_URL,
     });
     console.log(`[membership-cron] membership_ended sent to ${profile.email}`);
@@ -150,6 +156,8 @@ async function runExpiryNotifications(): Promise<void> {
   await runAccessLostPass(now);
   await runMembershipEndedPass(now);
 }
+
+export { runExpiryNotifications };
 
 export function startMembershipExpiryCron(): void {
   // Run daily at 08:00 UTC

@@ -13,7 +13,7 @@ describe("Sponsorships", () => {
   beforeEach(cleanDb);
 
   it("retrieves sponsorship by id with sponsorshipProgram included", async () => {
-    const { jwt } = await createUserWithFarm();
+    const { jwt } = await createUserWithFarm({}, undefined, { withActiveMembership: true });
     const contact = await createContact(jwt);
     const animal = await createAnimal(jwt);
     const program = await createSponsorshipProgram(jwt, { yearlyCost: 150 });
@@ -40,7 +40,7 @@ describe("Sponsorships", () => {
 
   describe("GET /v1/sponsorships — paidThisYear flag", () => {
     it("returns paidThisYear=false when no payments exist", async () => {
-      const { jwt } = await createUserWithFarm();
+      const { jwt } = await createUserWithFarm({}, undefined, { withActiveMembership: true });
       const contact = await createContact(jwt);
       const animal = await createAnimal(jwt);
       const program = await createSponsorshipProgram(jwt, { yearlyCost: 200 });
@@ -57,7 +57,7 @@ describe("Sponsorships", () => {
     });
 
     it("returns paidThisYear=false when payments are insufficient", async () => {
-      const { jwt } = await createUserWithFarm();
+      const { jwt } = await createUserWithFarm({}, undefined, { withActiveMembership: true });
       const contact = await createContact(jwt);
       const animal = await createAnimal(jwt);
       const program = await createSponsorshipProgram(jwt, { yearlyCost: 200 });
@@ -79,7 +79,7 @@ describe("Sponsorships", () => {
     });
 
     it("returns paidThisYear=true when payments for this year cover yearlyCost", async () => {
-      const { jwt } = await createUserWithFarm();
+      const { jwt } = await createUserWithFarm({}, undefined, { withActiveMembership: true });
       const contact = await createContact(jwt);
       const animal = await createAnimal(jwt);
       const program = await createSponsorshipProgram(jwt, { yearlyCost: 200 });
@@ -106,7 +106,7 @@ describe("Sponsorships", () => {
     });
 
     it("does not count payments from previous years toward paidThisYear", async () => {
-      const { jwt } = await createUserWithFarm();
+      const { jwt } = await createUserWithFarm({}, undefined, { withActiveMembership: true });
       const contact = await createContact(jwt);
       const animal = await createAnimal(jwt);
       const program = await createSponsorshipProgram(jwt, { yearlyCost: 200 });
@@ -128,7 +128,7 @@ describe("Sponsorships", () => {
     });
 
     it("includes sponsorshipProgram in the list response", async () => {
-      const { jwt } = await createUserWithFarm();
+      const { jwt } = await createUserWithFarm({}, undefined, { withActiveMembership: true });
       const contact = await createContact(jwt);
       const animal = await createAnimal(jwt);
       const program = await createSponsorshipProgram(jwt, { name: "Gold", yearlyCost: 500 });

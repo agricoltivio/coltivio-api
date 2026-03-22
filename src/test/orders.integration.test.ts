@@ -12,7 +12,7 @@ describe("Orders", () => {
   beforeEach(cleanDb);
 
   it("creates an order and retrieves it by id with items and contact", async () => {
-    const { jwt } = await createUserWithFarm();
+    const { jwt } = await createUserWithFarm({}, undefined, { withActiveMembership: true });
     const contact = await createContact(jwt);
     const product = await createProduct(jwt, { pricePerUnit: 30 });
 
@@ -41,7 +41,7 @@ describe("Orders", () => {
   });
 
   it("creates an order directly with status confirmed", async () => {
-    const { jwt } = await createUserWithFarm();
+    const { jwt } = await createUserWithFarm({}, undefined, { withActiveMembership: true });
     const contact = await createContact(jwt);
     const product = await createProduct(jwt);
 
@@ -57,7 +57,7 @@ describe("Orders", () => {
 
   describe("GET /v1/orders — paidInFull flag", () => {
     it("returns paidInFull=false when no payments exist", async () => {
-      const { jwt } = await createUserWithFarm();
+      const { jwt } = await createUserWithFarm({}, undefined, { withActiveMembership: true });
       const contact = await createContact(jwt);
       // pricePerUnit=50, qty=2 → total=100
       const product = await createProduct(jwt, { pricePerUnit: 50 });
@@ -72,7 +72,7 @@ describe("Orders", () => {
     });
 
     it("returns paidInFull=false when payments are insufficient", async () => {
-      const { jwt } = await createUserWithFarm();
+      const { jwt } = await createUserWithFarm({}, undefined, { withActiveMembership: true });
       const contact = await createContact(jwt);
       const product = await createProduct(jwt, { pricePerUnit: 50 });
       const order = await createOrder(jwt, contact.id, [
@@ -89,7 +89,7 @@ describe("Orders", () => {
     });
 
     it("returns paidInFull=true when payments cover the order total", async () => {
-      const { jwt } = await createUserWithFarm();
+      const { jwt } = await createUserWithFarm({}, undefined, { withActiveMembership: true });
       const contact = await createContact(jwt);
       const product = await createProduct(jwt, { pricePerUnit: 50 });
       const order = await createOrder(jwt, contact.id, [
@@ -106,7 +106,7 @@ describe("Orders", () => {
     });
 
     it("includes items and contact in the list response", async () => {
-      const { jwt } = await createUserWithFarm();
+      const { jwt } = await createUserWithFarm({}, undefined, { withActiveMembership: true });
       const contact = await createContact(jwt);
       const product = await createProduct(jwt, { pricePerUnit: 25 });
       await createOrder(jwt, contact.id, [{ productId: product.id, quantity: 3 }]);
