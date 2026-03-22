@@ -35,7 +35,12 @@ export const createSubscriptionCheckoutEndpoint = authenticatedEndpointFactory.b
   input: checkoutUrlInput,
   output: z.object({ url: z.string() }),
   handler: async ({ input, ctx }) => {
-    return ctx.membership.createSubscriptionCheckout(ctx.user.id, ctx.user.locale ?? "de", input.successUrl, input.cancelUrl);
+    return ctx.membership.createSubscriptionCheckout(
+      ctx.user.id,
+      ctx.user.locale ?? "de",
+      input.successUrl,
+      input.cancelUrl
+    );
   },
 });
 

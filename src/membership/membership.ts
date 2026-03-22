@@ -177,7 +177,12 @@ export function membershipApi(db: RlsDb) {
     },
 
     // Stripe Subscription checkout (yearly, auto-renewing).
-    async createSubscriptionCheckout(userId: string, locale: string, successUrl: string, cancelUrl: string): Promise<{ url: string }> {
+    async createSubscriptionCheckout(
+      userId: string,
+      locale: string,
+      successUrl: string,
+      cancelUrl: string
+    ): Promise<{ url: string }> {
       const priceId = process.env.STRIPE_MEMBERSHIP_PRICE_ID_YEARLY;
       const productId = process.env.STRIPE_MEMBERSHIP_PRODUCT_ID;
       if (!priceId) throw new Error("STRIPE_MEMBERSHIP_PRICE_ID_YEARLY env var not set");
@@ -199,15 +204,17 @@ export function membershipApi(db: RlsDb) {
         customer: customerId,
         mode: "subscription",
         payment_method_types: ["card"],
-        line_items: [{
-          price_data: {
-            currency: price.currency,
-            unit_amount: price.unit_amount,
-            product: productId,
-            recurring: { interval: "year" },
+        line_items: [
+          {
+            price_data: {
+              currency: price.currency,
+              unit_amount: price.unit_amount,
+              product: productId,
+              recurring: { interval: "year" },
+            },
+            quantity: 1,
           },
-          quantity: 1,
-        }],
+        ],
         success_url: successUrl,
         cancel_url: cancelUrl,
         metadata: { type: "membership", userId },
@@ -220,7 +227,12 @@ export function membershipApi(db: RlsDb) {
     },
 
     // One-time annual payment checkout (no auto-renew)
-    async createManualCheckout(userId: string, locale: string, successUrl: string, cancelUrl: string): Promise<{ url: string }> {
+    async createManualCheckout(
+      userId: string,
+      locale: string,
+      successUrl: string,
+      cancelUrl: string
+    ): Promise<{ url: string }> {
       const priceId = process.env.STRIPE_MEMBERSHIP_PRICE_ID_MANUAL;
       const productId = process.env.STRIPE_MEMBERSHIP_PRODUCT_ID;
       if (!priceId) throw new Error("STRIPE_MEMBERSHIP_PRICE_ID_MANUAL env var not set");
@@ -236,14 +248,16 @@ export function membershipApi(db: RlsDb) {
         customer: customerId,
         mode: "payment",
         payment_method_types: ["card", "twint"],
-        line_items: [{
-          price_data: {
-            currency: price.currency,
-            unit_amount: price.unit_amount,
-            product: productId,
+        line_items: [
+          {
+            price_data: {
+              currency: price.currency,
+              unit_amount: price.unit_amount,
+              product: productId,
+            },
+            quantity: 1,
           },
-          quantity: 1,
-        }],
+        ],
         success_url: successUrl,
         cancel_url: cancelUrl,
         metadata: { type: "membership", userId },
