@@ -4,7 +4,6 @@ import { BBox } from "../geo/geojson";
 import { ez } from "express-zod-api";
 import { multiPolygonSchema } from "../db/schema";
 
-
 const BoundingBoxSchema = z.object({
   xmin: z.string().transform((value) => parseFloat(value)),
   ymin: z.string().transform((value) => parseFloat(value)),

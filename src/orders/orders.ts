@@ -177,10 +177,7 @@ export function ordersApi(rlsDb: RlsDb) {
       });
     },
 
-    async addOrderItem(
-      orderId: string,
-      item: OrderItemInput,
-    ): Promise<OrderItemWithProduct> {
+    async addOrderItem(orderId: string, item: OrderItemInput): Promise<OrderItemWithProduct> {
       return rlsDb.rls(async (tx) => {
         const product = await tx.query.products.findFirst({
           where: { id: item.productId },
@@ -204,16 +201,9 @@ export function ordersApi(rlsDb: RlsDb) {
       });
     },
 
-    async updateOrderItem(
-      orderItemId: string,
-      data: { quantity?: number; unitPrice?: number },
-    ): Promise<OrderItem> {
+    async updateOrderItem(orderItemId: string, data: { quantity?: number; unitPrice?: number }): Promise<OrderItem> {
       return rlsDb.rls(async (tx) => {
-        const [updated] = await tx
-          .update(orderItems)
-          .set(data)
-          .where(eq(orderItems.id, orderItemId))
-          .returning();
+        const [updated] = await tx.update(orderItems).set(data).where(eq(orderItems.id, orderItemId)).returning();
         if (!updated) {
           throw new Error(`Order item not found: ${orderItemId}`);
         }
