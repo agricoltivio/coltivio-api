@@ -376,8 +376,17 @@
       "features_title": "Vos avantages",
       "app_label": "App",
       "webapp_label": "WebApp",
-      "app_features": ["Tâches avec attribution à des animaux ou des surfaces et liste de contrôle automatique", "Inviter plusieurs utilisateurs et planifier ensemble", "Utiliser des images dans les entrées du wiki"],
-      "webapp_features": ["Toutes les fonctions de l'app dans le navigateur", "Gérer les contacts", "Enregistrer les commandes et suivre les paiements", "Gérer les parrainages d'animaux"],
+      "app_features": [
+        "Tâches avec attribution à des animaux ou des surfaces et liste de contrôle automatique",
+        "Inviter plusieurs utilisateurs et planifier ensemble",
+        "Utiliser des images dans les entrées du wiki"
+      ],
+      "webapp_features": [
+        "Toutes les fonctions de l'app dans le navigateur",
+        "Gérer les contacts",
+        "Enregistrer les commandes et suivre les paiements",
+        "Gérer les parrainages d'animaux"
+      ],
       "receipt_title": "Confirmation de votre paiement",
       "trial_billing_info": "Votre période d'essai se termine le {{date}}. Vous ne serez débité qu'à la fin de la période d'essai."
     },

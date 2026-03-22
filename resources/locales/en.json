@@ -376,8 +376,17 @@
       "features_title": "Your benefits",
       "app_label": "App",
       "webapp_label": "Web App",
-      "app_features": ["Tasks with animal or field assignment and automatic checklist", "Invite multiple users and plan together", "Use images in wiki entries"],
-      "webapp_features": ["All app features in the browser", "Manage contacts", "Record orders and track payments", "Manage animal sponsorships"],
+      "app_features": [
+        "Tasks with animal or field assignment and automatic checklist",
+        "Invite multiple users and plan together",
+        "Use images in wiki entries"
+      ],
+      "webapp_features": [
+        "All app features in the browser",
+        "Manage contacts",
+        "Record orders and track payments",
+        "Manage animal sponsorships"
+      ],
       "receipt_title": "Your payment confirmation",
       "trial_billing_info": "Your trial runs until {{date}}. You will only be charged once the trial period ends."
     },

@@ -376,8 +376,17 @@
       "features_title": "I tuoi vantaggi",
       "app_label": "App",
       "webapp_label": "Web App",
-      "app_features": ["Compiti con assegnazione ad animali o superfici e lista di controllo automatica", "Invita più utenti e pianifica insieme", "Usa immagini nelle voci del wiki"],
-      "webapp_features": ["Tutte le funzioni dell'app nel browser", "Gestire i contatti", "Registrare ordini e monitorare i pagamenti", "Gestire le adozioni di animali"],
+      "app_features": [
+        "Compiti con assegnazione ad animali o superfici e lista di controllo automatica",
+        "Invita più utenti e pianifica insieme",
+        "Usa immagini nelle voci del wiki"
+      ],
+      "webapp_features": [
+        "Tutte le funzioni dell'app nel browser",
+        "Gestire i contatti",
+        "Registrare ordini e monitorare i pagamenti",
+        "Gestire le adozioni di animali"
+      ],
       "receipt_title": "Conferma del pagamento",
       "trial_billing_info": "Il tuo periodo di prova termina il {{date}}. Verrai addebitato solo al termine del periodo di prova."
     },

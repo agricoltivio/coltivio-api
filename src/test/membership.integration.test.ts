@@ -179,12 +179,14 @@ function buildStripeMock(opts: {
   paymentMethod?: Stripe.PaymentMethod | null;
   paymentIntent?: Stripe.PaymentIntent;
   setupIntent?: Stripe.SetupIntent;
+  checkoutSessionUrl?: string;
 }): Stripe {
   const subscription = opts.subscription ?? makeStripeSubscription();
   const invoice = opts.invoice ?? makeStripeInvoice();
   const paymentMethod = opts.paymentMethod ?? makePaymentMethod();
   const paymentIntent = opts.paymentIntent ?? makePaymentIntent();
   const setupIntent = opts.setupIntent ?? makeSetupIntent();
+  const checkoutSessionUrl = opts.checkoutSessionUrl ?? "https://checkout.stripe.com/test";
   return {
     subscriptions: {
       retrieve: jest.fn().mockImplementation(async () => subscription),
@@ -204,6 +206,17 @@ function buildStripeMock(opts: {
     },
     customers: {
       create: jest.fn().mockImplementation(async () => ({ id: "cus_test" })),
+    },
+    prices: {
+      retrieve: jest.fn().mockImplementation(async () => ({
+        unit_amount: 29000,
+        currency: "chf",
+      })),
+    },
+    checkout: {
+      sessions: {
+        create: jest.fn().mockImplementation(async () => ({ url: checkoutSessionUrl })),
+      },
     },
   } as unknown as Stripe;
 }
@@ -870,6 +883,105 @@ describe("startTrial", () => {
     await api.startTrial(userId);
 
     await expect(api.startTrial(userId)).rejects.toThrow("Trial already used");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// I. Checkout session creation
+// ---------------------------------------------------------------------------
+describe("createSubscriptionCheckout", () => {
+  beforeEach(() => {
+    process.env.STRIPE_MEMBERSHIP_PRICE_ID_YEARLY = "price_yearly_test";
+    process.env.STRIPE_MEMBERSHIP_PRODUCT_ID = "prod_test";
+  });
+
+  it("returns checkout url and calls Stripe with price_data + recurring", async () => {
+    const { userId } = await createTestUser("i1@test.com", "password123");
+    const stripeMock = buildStripeMock({ checkoutSessionUrl: "https://checkout.stripe.com/sub" });
+    mockGetStripe.mockReturnValue(stripeMock);
+    const api = membershipApi(adminOnlyDb);
+
+    const { url } = await api.createSubscriptionCheckout(userId, "de", "https://success.com", "https://cancel.com");
+
+    expect(url).toBe("https://checkout.stripe.com/sub");
+    const createCall = jest.mocked(stripeMock.checkout.sessions.create);
+    expect(createCall).toHaveBeenCalledTimes(1);
+    const args = createCall.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(args.mode).toBe("subscription");
+    expect(args.locale).toBe("de");
+    const lineItem = (args.line_items as { price_data: Record<string, unknown> }[])[0];
+    expect(lineItem.price_data.product).toBe("prod_test");
+    expect(lineItem.price_data.unit_amount).toBe(29000);
+    expect(lineItem.price_data.recurring).toEqual({ interval: "year" });
+  });
+
+  it("applies trial_end when active trial exists", async () => {
+    const { userId } = await createTestUser("i2@test.com", "password123");
+    const db = getAdminDb();
+    const trialEnd = daysFromNow(15);
+    await db.insert(userTrials).values({ userId, endsAt: trialEnd });
+
+    const stripeMock = buildStripeMock({});
+    mockGetStripe.mockReturnValue(stripeMock);
+    const api = membershipApi(adminOnlyDb);
+
+    await api.createSubscriptionCheckout(userId, "en", "https://success.com", "https://cancel.com");
+
+    const createCall = jest.mocked(stripeMock.checkout.sessions.create);
+    const args = createCall.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect((args.subscription_data as { trial_end: number }).trial_end).toBeCloseTo(
+      Math.floor(trialEnd.getTime() / 1000),
+      -2
+    );
+  });
+
+  it("throws when STRIPE_MEMBERSHIP_PRICE_ID_YEARLY is not set", async () => {
+    delete process.env.STRIPE_MEMBERSHIP_PRICE_ID_YEARLY;
+    const { userId } = await createTestUser("i3@test.com", "password123");
+    const api = membershipApi(adminOnlyDb);
+    mockGetStripe.mockReturnValue(buildStripeMock({}));
+
+    await expect(api.createSubscriptionCheckout(userId, "de", "https://s.com", "https://c.com")).rejects.toThrow(
+      "STRIPE_MEMBERSHIP_PRICE_ID_YEARLY"
+    );
+  });
+});
+
+describe("createManualCheckout", () => {
+  beforeEach(() => {
+    process.env.STRIPE_MEMBERSHIP_PRICE_ID_MANUAL = "price_manual_test";
+    process.env.STRIPE_MEMBERSHIP_PRODUCT_ID = "prod_test";
+  });
+
+  it("returns checkout url and calls Stripe with price_data (no recurring)", async () => {
+    const { userId } = await createTestUser("i4@test.com", "password123");
+    const stripeMock = buildStripeMock({ checkoutSessionUrl: "https://checkout.stripe.com/manual" });
+    mockGetStripe.mockReturnValue(stripeMock);
+    const api = membershipApi(adminOnlyDb);
+
+    const { url } = await api.createManualCheckout(userId, "fr", "https://success.com", "https://cancel.com");
+
+    expect(url).toBe("https://checkout.stripe.com/manual");
+    const createCall = jest.mocked(stripeMock.checkout.sessions.create);
+    expect(createCall).toHaveBeenCalledTimes(1);
+    const args = createCall.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(args.mode).toBe("payment");
+    expect(args.locale).toBe("fr");
+    const lineItem = (args.line_items as { price_data: Record<string, unknown> }[])[0];
+    expect(lineItem.price_data.product).toBe("prod_test");
+    expect(lineItem.price_data.unit_amount).toBe(29000);
+    expect(lineItem.price_data.recurring).toBeUndefined();
+  });
+
+  it("throws when STRIPE_MEMBERSHIP_PRICE_ID_MANUAL is not set", async () => {
+    delete process.env.STRIPE_MEMBERSHIP_PRICE_ID_MANUAL;
+    const { userId } = await createTestUser("i5@test.com", "password123");
+    const api = membershipApi(adminOnlyDb);
+    mockGetStripe.mockReturnValue(buildStripeMock({}));
+
+    await expect(api.createManualCheckout(userId, "de", "https://s.com", "https://c.com")).rejects.toThrow(
+      "STRIPE_MEMBERSHIP_PRICE_ID_MANUAL"
+    );
   });
 });
 

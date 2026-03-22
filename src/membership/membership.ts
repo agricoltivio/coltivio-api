@@ -28,7 +28,6 @@ export type MembershipStatus = {
 export type FarmMembershipStatus = "none" | "trial" | "active";
 
 // Annual membership amount in CHF cents (used for manual/one-time checkout)
-const ANNUAL_AMOUNT_CHF_CENTS = 29000; // 290 CHF
 
 // Grace period: 10 days after periodEnd, users retain access
 const GRACE_PERIOD_MS = 10 * 24 * 60 * 60 * 1000;
@@ -178,11 +177,17 @@ export function membershipApi(db: RlsDb) {
     },
 
     // Stripe Subscription checkout (yearly, auto-renewing).
-    async createSubscriptionCheckout(userId: string, successUrl: string, cancelUrl: string): Promise<{ url: string }> {
+    async createSubscriptionCheckout(userId: string, locale: string, successUrl: string, cancelUrl: string): Promise<{ url: string }> {
       const priceId = process.env.STRIPE_MEMBERSHIP_PRICE_ID_YEARLY;
+      const productId = process.env.STRIPE_MEMBERSHIP_PRODUCT_ID;
       if (!priceId) throw new Error("STRIPE_MEMBERSHIP_PRICE_ID_YEARLY env var not set");
+      if (!productId) throw new Error("STRIPE_MEMBERSHIP_PRODUCT_ID env var not set");
 
-      const customerId = await getOrCreateStripeCustomer(userId);
+      const [price, customerId] = await Promise.all([
+        getStripe().prices.retrieve(priceId),
+        getOrCreateStripeCustomer(userId),
+      ]);
+      if (price.unit_amount == null) throw new Error(`Price ${priceId} has no unit_amount`);
 
       // If an active trial exists, delay billing until it ends
       const now = new Date();
@@ -194,38 +199,55 @@ export function membershipApi(db: RlsDb) {
         customer: customerId,
         mode: "subscription",
         payment_method_types: ["card"],
-        line_items: [{ price: priceId, quantity: 1 }],
+        line_items: [{
+          price_data: {
+            currency: price.currency,
+            unit_amount: price.unit_amount,
+            product: productId,
+            recurring: { interval: "year" },
+          },
+          quantity: 1,
+        }],
         success_url: successUrl,
         cancel_url: cancelUrl,
         metadata: { type: "membership", userId },
         subscription_data: activeTrial ? { trial_end: Math.floor(activeTrial.endsAt.getTime() / 1000) } : undefined,
         allow_promotion_codes: true,
+        locale: locale as "de" | "en" | "it" | "fr",
       });
 
       return { url: session.url! };
     },
 
     // One-time annual payment checkout (no auto-renew)
-    async createManualCheckout(userId: string, successUrl: string, cancelUrl: string): Promise<{ url: string }> {
-      const customerId = await getOrCreateStripeCustomer(userId);
+    async createManualCheckout(userId: string, locale: string, successUrl: string, cancelUrl: string): Promise<{ url: string }> {
+      const priceId = process.env.STRIPE_MEMBERSHIP_PRICE_ID_MANUAL;
+      const productId = process.env.STRIPE_MEMBERSHIP_PRODUCT_ID;
+      if (!priceId) throw new Error("STRIPE_MEMBERSHIP_PRICE_ID_MANUAL env var not set");
+      if (!productId) throw new Error("STRIPE_MEMBERSHIP_PRODUCT_ID env var not set");
+
+      const [price, customerId] = await Promise.all([
+        getStripe().prices.retrieve(priceId),
+        getOrCreateStripeCustomer(userId),
+      ]);
+      if (price.unit_amount == null) throw new Error(`Price ${priceId} has no unit_amount`);
 
       const session = await getStripe().checkout.sessions.create({
         customer: customerId,
         mode: "payment",
         payment_method_types: ["card", "twint"],
-        line_items: [
-          {
-            price_data: {
-              currency: "chf",
-              unit_amount: ANNUAL_AMOUNT_CHF_CENTS,
-              product_data: { name: "Jahres-Mitgliedschaft" },
-            },
-            quantity: 1,
+        line_items: [{
+          price_data: {
+            currency: price.currency,
+            unit_amount: price.unit_amount,
+            product: productId,
           },
-        ],
+          quantity: 1,
+        }],
         success_url: successUrl,
         cancel_url: cancelUrl,
         metadata: { type: "membership", userId },
+        locale: locale as "de" | "en" | "it" | "fr",
       });
 
       return { url: session.url! };
@@ -429,7 +451,8 @@ export function membershipApi(db: RlsDb) {
             where: { userId, status: "succeeded" },
           }));
 
-          const amount = session.amount_total ?? ANNUAL_AMOUNT_CHF_CENTS;
+          if (session.amount_total == null) throw new Error(`Missing amount_total on session ${session.id}`);
+          const amount = session.amount_total;
           await db.admin
             .insert(membershipPayments)
             .values({
