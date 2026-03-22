@@ -37,12 +37,7 @@ describe("Treatments CRUD", () => {
     expect(dbTreatment!.antibiogramAvailable).toBe(true);
 
     // GET by id includes animals
-    const getRes = await request(
-      "GET",
-      `/v1/treatments/byId/${treatment.id}`,
-      undefined,
-      jwt,
-    );
+    const getRes = await request("GET", `/v1/treatments/byId/${treatment.id}`, undefined, jwt);
     expect(getRes.status).toBe(200);
     const getBody = (await getRes.json()) as {
       data: { id: string; animals: Array<{ id: string }> };
@@ -74,12 +69,7 @@ describe("Treatments CRUD", () => {
     });
 
     // GET by id to verify both animals
-    const getRes = await request(
-      "GET",
-      `/v1/treatments/byId/${treatment.id}`,
-      undefined,
-      jwt,
-    );
+    const getRes = await request("GET", `/v1/treatments/byId/${treatment.id}`, undefined, jwt);
     const getBody = (await getRes.json()) as {
       data: { animals: Array<{ id: string }> };
     };
@@ -103,12 +93,7 @@ describe("Treatments CRUD", () => {
     expect(dbTreatment!.drugId).toBe(drug.id);
 
     // Drug should now be in use
-    const inUseRes = await request(
-      "GET",
-      `/v1/drugs/byId/${drug.id}/inUse`,
-      undefined,
-      jwt,
-    );
+    const inUseRes = await request("GET", `/v1/drugs/byId/${drug.id}/inUse`, undefined, jwt);
     const inUseBody = (await inUseRes.json()) as { data: { inUse: boolean } };
     expect(inUseBody.data.inUse).toBe(true);
   });
@@ -122,7 +107,7 @@ describe("Treatments CRUD", () => {
       "PATCH",
       `/v1/treatments/byId/${treatment.id}`,
       { name: "NewName", notes: "Went well" },
-      jwt,
+      jwt
     );
     expect(res.status).toBe(200);
 
@@ -140,12 +125,7 @@ describe("Treatments CRUD", () => {
     const animal = await createAnimal(jwt);
     const treatment = await createTreatment(jwt, [animal.id]);
 
-    const res = await request(
-      "DELETE",
-      `/v1/treatments/byId/${treatment.id}`,
-      undefined,
-      jwt,
-    );
+    const res = await request("DELETE", `/v1/treatments/byId/${treatment.id}`, undefined, jwt);
     expect(res.status).toBe(200);
 
     // Verify DB

@@ -1,17 +1,13 @@
 import { z } from "zod";
 import { adminOnlyDb } from "../db/db";
-import {
-  authenticatedEndpointFactory,
-  publicEndpointFactory,
-} from "../endpoint-factory";
+import { authenticatedEndpointFactory, publicEndpointFactory } from "../endpoint-factory";
 import { handoffApi } from "./handoff";
 
 export const createHandoffTokenEndpoint = authenticatedEndpointFactory.build({
   method: "post",
   input: z.object({}),
   output: z.object({ token: z.string(), expiresAt: z.date() }),
-  handler: async ({ input: {}, ctx }) =>
-    ctx.handoff.createHandoffToken(ctx.user.id),
+  handler: async ({ input: {}, ctx }) => ctx.handoff.createHandoffToken(ctx.user.id),
 });
 
 export const exchangeHandoffTokenEndpoint = publicEndpointFactory.build({

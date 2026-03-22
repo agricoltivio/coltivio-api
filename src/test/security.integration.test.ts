@@ -1,18 +1,9 @@
 import { describe, it, expect, beforeEach } from "@jest/globals";
 import { eq } from "drizzle-orm";
 import { profiles } from "../db/schema";
-import {
-  cleanDb,
-  createTestUser,
-  getAdminDb,
-  getAdminSql,
-  rawRequest,
-  request,
-  signTestJwt,
-} from "./helpers";
+import { cleanDb, createTestUser, getAdminDb, getAdminSql, rawRequest, request, signTestJwt } from "./helpers";
 
-const JWT_SECRET =
-  "super-secret-jwt-token-with-at-least-32-characters-long";
+const JWT_SECRET = "super-secret-jwt-token-with-at-least-32-characters-long";
 
 const TEST_FARM = {
   name: "Test Farm",
@@ -24,7 +15,17 @@ const TEST_PLOT = {
   name: "Test Plot",
   geometry: {
     type: "MultiPolygon" as const,
-    coordinates: [[[[8.5, 47.3], [8.6, 47.3], [8.6, 47.4], [8.5, 47.4], [8.5, 47.3]]]],
+    coordinates: [
+      [
+        [
+          [8.5, 47.3],
+          [8.6, 47.3],
+          [8.6, 47.4],
+          [8.5, 47.4],
+          [8.5, 47.3],
+        ],
+      ],
+    ],
   },
   size: 1000,
 };
@@ -56,11 +57,9 @@ describe("Authentication enforcement", () => {
   });
 
   it("rejects request with expired token", async () => {
-    const expired = signTestJwt(
-      { sub: "00000000-0000-0000-0000-000000000000", role: "authenticated" },
-      JWT_SECRET,
-      { expiresInSeconds: -3600 },
-    );
+    const expired = signTestJwt({ sub: "00000000-0000-0000-0000-000000000000", role: "authenticated" }, JWT_SECRET, {
+      expiresInSeconds: -3600,
+    });
     const res = await rawRequest("GET", "/v1/farm", {
       headers: { Authorization: `Bearer ${expired}` },
     });
@@ -71,10 +70,7 @@ describe("Authentication enforcement", () => {
     const { jwt } = await createTestUser("tamper@test.com", "password123");
     // Flip a character in the payload section of the JWT
     const parts = jwt.split(".");
-    const tamperedPayload =
-      parts[1].charAt(0) === "a"
-        ? "b" + parts[1].slice(1)
-        : "a" + parts[1].slice(1);
+    const tamperedPayload = parts[1].charAt(0) === "a" ? "b" + parts[1].slice(1) : "a" + parts[1].slice(1);
     const tampered = `${parts[0]}.${tamperedPayload}.${parts[2]}`;
     const res = await rawRequest("GET", "/v1/farm", {
       headers: { Authorization: `Bearer ${tampered}` },
@@ -167,12 +163,7 @@ describe("Cross-tenant isolation (RLS)", () => {
     const plotId = plotBody.data.id;
 
     // User B tries to update the plot
-    const res = await request(
-      "PATCH",
-      `/v1/plots/byId/${plotId}`,
-      { name: "Hacked" },
-      userB.jwt,
-    );
+    const res = await request("PATCH", `/v1/plots/byId/${plotId}`, { name: "Hacked" }, userB.jwt);
     // Should fail - either 404 or no effect
     expect([404, 500].includes(res.status) || res.status === 200).toBe(true);
 
@@ -203,12 +194,7 @@ describe("Cross-tenant isolation (RLS)", () => {
     const userB = await createUserWithFarm("b@test.com");
 
     // User A creates a crop
-    const cropRes = await request(
-      "POST",
-      "/v1/crops",
-      { name: "Secret Wheat", category: "grain" },
-      userA.jwt,
-    );
+    const cropRes = await request("POST", "/v1/crops", { name: "Secret Wheat", category: "grain" }, userA.jwt);
     expect(cropRes.status).toBe(200);
 
     // User B lists crops — should not contain User A's crop
@@ -240,7 +226,7 @@ describe("Cross-tenant isolation (RLS)", () => {
         registered: true,
         usage: "milk",
       },
-      userA.jwt,
+      userA.jwt
     );
 
     // User B lists animals
@@ -294,21 +280,13 @@ describe("Profile access control", () => {
   it("user can read same-farm member's profile", async () => {
     const userA = await createUserWithFarm("owner@test.com");
     // Create second user and add to same farm
-    const { jwt: jwtB, userId: userBId } = await createTestUser(
-      "member@test.com",
-      "password123",
-    );
+    const { jwt: jwtB, userId: userBId } = await createTestUser("member@test.com", "password123");
     // Link user B to user A's farm via admin DB
     const db = getAdminDb();
     await db.update(profiles).set({ farmId: userA.farmId }).where(eq(profiles.id, userBId));
 
     // User A reads User B's profile
-    const res = await request(
-      "GET",
-      `/v1/users/byId/${userBId}`,
-      undefined,
-      userA.jwt,
-    );
+    const res = await request("GET", `/v1/users/byId/${userBId}`, undefined, userA.jwt);
     expect(res.status).toBe(200);
   });
 
@@ -317,12 +295,7 @@ describe("Profile access control", () => {
     const userB = await createUserWithFarm("b@test.com");
 
     // User A tries to read User B's profile
-    const res = await request(
-      "GET",
-      `/v1/users/byId/${userB.userId}`,
-      undefined,
-      userA.jwt,
-    );
+    const res = await request("GET", `/v1/users/byId/${userB.userId}`, undefined, userA.jwt);
     // Should be 404 or empty due to RLS
     expect([404, 500].includes(res.status) || res.status === 200).toBe(true);
     if (res.status === 200) {
@@ -368,12 +341,7 @@ describe("Authorization boundaries", () => {
 
   it("user with farm cannot create a second farm", async () => {
     const user = await createUserWithFarm("has-farm@test.com");
-    const res = await request(
-      "POST",
-      "/v1/farm",
-      { ...TEST_FARM, name: "Second Farm" },
-      user.jwt,
-    );
+    const res = await request("POST", "/v1/farm", { ...TEST_FARM, name: "Second Farm" }, user.jwt);
     expect(res.status).toBe(400);
     const body = (await res.json()) as { error: string };
     expect(body.error).toContain("already has a farm");
@@ -395,12 +363,7 @@ describe("SQL injection resistance", () => {
 
   it("path param injection is rejected", async () => {
     const user = await createUserWithFarm("sqli@test.com");
-    const res = await request(
-      "GET",
-      "/v1/plots/byId/' OR '1'='1",
-      undefined,
-      user.jwt,
-    );
+    const res = await request("GET", "/v1/plots/byId/' OR '1'='1", undefined, user.jwt);
     // Should be 400 (invalid UUID) or 404, never 200 with data
     expect(res.status).not.toBe(200);
   });
@@ -408,12 +371,7 @@ describe("SQL injection resistance", () => {
   it("body field injection (name) is stored as literal string", async () => {
     const user = await createUserWithFarm("sqli@test.com");
     const maliciousName = "'; DROP TABLE farms;--";
-    const res = await request(
-      "PATCH",
-      "/v1/farm",
-      { name: maliciousName },
-      user.jwt,
-    );
+    const res = await request("PATCH", "/v1/farm", { name: maliciousName }, user.jwt);
     expect(res.status).toBe(200);
 
     // Verify the name is stored literally
@@ -437,7 +395,7 @@ describe("SQL injection resistance", () => {
         address: "Test",
         location: { type: "Point", coordinates: ["DROP TABLE", "farms"] },
       },
-      jwt,
+      jwt
     );
     expect(res.status).toBe(400);
   });
@@ -446,11 +404,9 @@ describe("SQL injection resistance", () => {
     const user = await createUserWithFarm("sqli@test.com");
     // parseFloat("1;DROP TABLE") returns 1 (stops at semicolon), so the SQL injection
     // payload is stripped by the type coercion. Verify no tables are dropped.
-    const res = await rawRequest(
-      "GET",
-      "/v1/layers/plots/bbox?xmin=1;DROP%20TABLE&ymin=2&xmax=3&ymax=4",
-      { headers: { Authorization: `Bearer ${user.jwt}` } },
-    );
+    const res = await rawRequest("GET", "/v1/layers/plots/bbox?xmin=1;DROP%20TABLE&ymin=2&xmax=3&ymax=4", {
+      headers: { Authorization: `Bearer ${user.jwt}` },
+    });
     // The request might succeed (parseFloat coerces safely) or fail — either way, DB is intact
     const db = getAdminDb();
     const farms = await db.query.farms.findMany();
@@ -480,7 +436,7 @@ describe("SQL injection resistance", () => {
       "GET",
       "/v1/plots/byId/00000000-0000-0000-0000-000000000000' OR 1=1--",
       undefined,
-      user.jwt,
+      user.jwt
     );
     expect(res.status).not.toBe(200);
   });
@@ -495,7 +451,7 @@ describe("SQL injection resistance", () => {
         __proto__: { admin: true },
         constructor: { prototype: { isAdmin: true } },
       },
-      user.jwt,
+      user.jwt
     );
     // Should either succeed (extra fields stripped) or be rejected
     expect([200, 400].includes(res.status)).toBe(true);
@@ -532,12 +488,7 @@ describe("Input validation edge cases", () => {
 
   it("null bytes in strings are handled", async () => {
     const user = await createUserWithFarm("null@test.com");
-    const res = await request(
-      "PATCH",
-      "/v1/farm",
-      { name: "test\x00injection" },
-      user.jwt,
-    );
+    const res = await request("PATCH", "/v1/farm", { name: "test\x00injection" }, user.jwt);
     // Should either reject (400) or sanitize and succeed (200)
     expect([200, 400, 500].includes(res.status)).toBe(true);
   });
@@ -558,7 +509,7 @@ describe("Input validation edge cases", () => {
         address: true,
         location: "not-an-object",
       } as unknown as Record<string, unknown>,
-      jwt,
+      jwt
     );
     expect(res.status).toBe(400);
   });
@@ -573,7 +524,7 @@ describe("Input validation edge cases", () => {
         hackerField: "evil",
         secretAdmin: true,
       },
-      user.jwt,
+      user.jwt
     );
     // express-zod-api strips unknown fields via Zod
     expect(res.status).toBe(200);
@@ -589,7 +540,7 @@ describe("Input validation edge cases", () => {
       "POST",
       "/v1/farm",
       { address: "test" }, // missing name and location
-      jwt,
+      jwt
     );
     expect(res.status).toBe(400);
   });
@@ -597,12 +548,7 @@ describe("Input validation edge cases", () => {
   it("unicode edge cases are handled", async () => {
     const user = await createUserWithFarm("unicode@test.com");
     const unicodeName = "\u200F\u200Etest\u200B\uFEFF\u202Afarm";
-    const res = await request(
-      "PATCH",
-      "/v1/farm",
-      { name: unicodeName },
-      user.jwt,
-    );
+    const res = await request("PATCH", "/v1/farm", { name: unicodeName }, user.jwt);
     expect(res.status).toBe(200);
     const body = (await res.json()) as { data: { name: string } };
     // The string should be stored (we don't mandate stripping, just no crash)
@@ -619,7 +565,7 @@ describe("Token/session edge cases", () => {
   it("JWT signed with wrong secret is rejected", async () => {
     const token = signTestJwt(
       { sub: "00000000-0000-0000-0000-000000000000", role: "authenticated" },
-      "wrong-secret-that-does-not-match-gotrue",
+      "wrong-secret-that-does-not-match-gotrue"
     );
     const res = await rawRequest("GET", "/v1/farm", {
       headers: { Authorization: `Bearer ${token}` },
@@ -629,10 +575,7 @@ describe("Token/session edge cases", () => {
 
   it("JWT with modified sub claim is rejected", async () => {
     // Sign with correct secret but fake user ID
-    const token = signTestJwt(
-      { sub: "00000000-0000-0000-0000-000000000000", role: "authenticated" },
-      JWT_SECRET,
-    );
+    const token = signTestJwt({ sub: "00000000-0000-0000-0000-000000000000", role: "authenticated" }, JWT_SECRET);
     const res = await rawRequest("GET", "/v1/farm", {
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -641,10 +584,7 @@ describe("Token/session edge cases", () => {
   });
 
   it("JWT with service_role claim does not grant escalated access", async () => {
-    const token = signTestJwt(
-      { sub: "00000000-0000-0000-0000-000000000000", role: "service_role" },
-      JWT_SECRET,
-    );
+    const token = signTestJwt({ sub: "00000000-0000-0000-0000-000000000000", role: "service_role" }, JWT_SECRET);
     const res = await rawRequest("GET", "/v1/farm", {
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -670,7 +610,7 @@ describe("Token/session edge cases", () => {
           };
           return { user: i % 2 === 0 ? "A" : "B", plots: body.data.result };
         });
-      }),
+      })
     );
 
     // Verify each user only sees their own plots

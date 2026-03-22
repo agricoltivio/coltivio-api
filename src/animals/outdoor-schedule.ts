@@ -4,7 +4,7 @@ export function outdoorScheduleApi(rlsDb: RlsDb) {
   return {
     async getOutdoorSchedules(from: Date, to: Date) {
       return rlsDb.rls(async (tx) => {
-        const schedule = await tx.query.outdoorSchedules.findMany({
+        return tx.query.outdoorSchedules.findMany({
           where: {
             AND: [{ startDate: { lte: to } }, { startDate: { gte: from } }],
           },

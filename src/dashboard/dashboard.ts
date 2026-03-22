@@ -41,11 +41,7 @@ export interface DashboardStats {
   };
 }
 
-export type FieldEventType =
-  | "harvest"
-  | "fertilizerApplication"
-  | "cropProtectionApplication"
-  | "tillage";
+export type FieldEventType = "harvest" | "fertilizerApplication" | "cropProtectionApplication" | "tillage";
 
 export interface FieldEvent {
   id: string;
@@ -68,7 +64,7 @@ type CropRotationWithCropAndRecurrence = typeof tables.cropRotations.$inferSelec
 // Expand recurrences and group active rotations by crop name + category.
 // Cannot be done at DB level because recurrences shift the original fromDate/toDate forward by N years.
 function computeActiveCropRotations(
-  rotations: CropRotationWithCropAndRecurrence[],
+  rotations: CropRotationWithCropAndRecurrence[]
 ): { cropName: string; category: string; plotCount: number; totalAreaM2: number }[] {
   const today = new Date();
   const byCrop = new Map<string, { plotIds: Set<string>; totalAreaM2: number }>();
@@ -108,10 +104,7 @@ const CONSERVATION_METHOD_LABELS: Record<
 };
 
 // Keyed lookup so TypeScript sees each t() call with a specific literal key (no dynamic template cast needed)
-const TILLAGE_ACTION_LABELS: Record<
-  (typeof tables.tillageAction.enumValues)[number],
-  (t: TFunction) => string
-> = {
+const TILLAGE_ACTION_LABELS: Record<(typeof tables.tillageAction.enumValues)[number], (t: TFunction) => string> = {
   plowing: (t) => t("tillages.actions.plowing"),
   tilling: (t) => t("tillages.actions.tilling"),
   harrowing: (t) => t("tillages.actions.harrowing"),
@@ -167,8 +160,8 @@ export function dashboardApi(rlsDb: RlsDb, t: TFunction) {
               and(
                 eq(tables.animals.farmId, farmId),
                 gte(tables.animals.dateOfBirth, yearStart),
-                lte(tables.animals.dateOfBirth, yearEnd),
-              ),
+                lte(tables.animals.dateOfBirth, yearEnd)
+              )
             ),
 
           // Animals died this year
@@ -180,8 +173,8 @@ export function dashboardApi(rlsDb: RlsDb, t: TFunction) {
                 eq(tables.animals.farmId, farmId),
                 isNotNull(tables.animals.dateOfDeath),
                 gte(tables.animals.dateOfDeath, yearStart),
-                lte(tables.animals.dateOfDeath, yearEnd),
-              ),
+                lte(tables.animals.dateOfDeath, yearEnd)
+              )
             ),
 
           // Harvests aggregated by crop + conservation method
@@ -189,8 +182,7 @@ export function dashboardApi(rlsDb: RlsDb, t: TFunction) {
             .select({
               cropName: tables.crops.name,
               conservationMethod: tables.harvests.conservationMethod,
-              totalKilos:
-                sql<number>`COALESCE(SUM(${tables.harvests.numberOfUnits} * ${tables.harvests.kilosPerUnit}), 0)`,
+              totalKilos: sql<number>`COALESCE(SUM(${tables.harvests.numberOfUnits} * ${tables.harvests.kilosPerUnit}), 0)`,
             })
             .from(tables.harvests)
             .innerJoin(tables.crops, eq(tables.harvests.cropId, tables.crops.id))
@@ -198,8 +190,8 @@ export function dashboardApi(rlsDb: RlsDb, t: TFunction) {
               and(
                 eq(tables.harvests.farmId, farmId),
                 gte(tables.harvests.date, yearStart),
-                lte(tables.harvests.date, yearEnd),
-              ),
+                lte(tables.harvests.date, yearEnd)
+              )
             )
             .groupBy(tables.crops.name, tables.harvests.conservationMethod),
 
@@ -208,8 +200,7 @@ export function dashboardApi(rlsDb: RlsDb, t: TFunction) {
             .select({
               plotId: tables.plots.id,
               plotName: tables.plots.name,
-              totalKilos:
-                sql<number>`COALESCE(SUM(${tables.harvests.numberOfUnits} * ${tables.harvests.kilosPerUnit}), 0)`,
+              totalKilos: sql<number>`COALESCE(SUM(${tables.harvests.numberOfUnits} * ${tables.harvests.kilosPerUnit}), 0)`,
               count: count(),
             })
             .from(tables.harvests)
@@ -218,8 +209,8 @@ export function dashboardApi(rlsDb: RlsDb, t: TFunction) {
               and(
                 eq(tables.harvests.farmId, farmId),
                 gte(tables.harvests.date, yearStart),
-                lte(tables.harvests.date, yearEnd),
-              ),
+                lte(tables.harvests.date, yearEnd)
+              )
             )
             .groupBy(tables.plots.id, tables.plots.name),
 
@@ -229,27 +220,18 @@ export function dashboardApi(rlsDb: RlsDb, t: TFunction) {
               fertilizerName: tables.fertilizers.name,
               type: tables.fertilizers.type,
               unit: tables.fertilizers.unit,
-              totalAmount:
-                sql<number>`COALESCE(SUM(${tables.fertilizerApplications.amountPerUnit} * ${tables.fertilizerApplications.numberOfUnits}), 0)`,
+              totalAmount: sql<number>`COALESCE(SUM(${tables.fertilizerApplications.amountPerUnit} * ${tables.fertilizerApplications.numberOfUnits}), 0)`,
             })
             .from(tables.fertilizerApplications)
-            .innerJoin(
-              tables.fertilizers,
-              eq(tables.fertilizerApplications.fertilizerId, tables.fertilizers.id),
-            )
+            .innerJoin(tables.fertilizers, eq(tables.fertilizerApplications.fertilizerId, tables.fertilizers.id))
             .where(
               and(
                 eq(tables.fertilizerApplications.farmId, farmId),
                 gte(tables.fertilizerApplications.date, yearStart),
-                lte(tables.fertilizerApplications.date, yearEnd),
-              ),
+                lte(tables.fertilizerApplications.date, yearEnd)
+              )
             )
-            .groupBy(
-              tables.fertilizers.id,
-              tables.fertilizers.name,
-              tables.fertilizers.type,
-              tables.fertilizers.unit,
-            ),
+            .groupBy(tables.fertilizers.id, tables.fertilizers.name, tables.fertilizers.type, tables.fertilizers.unit),
 
           // Fertilizer applications aggregated by plot
           tx
@@ -264,8 +246,8 @@ export function dashboardApi(rlsDb: RlsDb, t: TFunction) {
               and(
                 eq(tables.fertilizerApplications.farmId, farmId),
                 gte(tables.fertilizerApplications.date, yearStart),
-                lte(tables.fertilizerApplications.date, yearEnd),
-              ),
+                lte(tables.fertilizerApplications.date, yearEnd)
+              )
             )
             .groupBy(tables.plots.id, tables.plots.name),
 
@@ -275,28 +257,24 @@ export function dashboardApi(rlsDb: RlsDb, t: TFunction) {
             .select({
               productName: tables.cropProtectionProducts.name,
               unit: tables.cropProtectionProducts.unit,
-              totalAmount:
-                sql<number>`COALESCE(SUM(${tables.cropProtectionApplications.amountPerUnit} * ${tables.cropProtectionApplications.numberOfUnits}), 0)`,
+              totalAmount: sql<number>`COALESCE(SUM(${tables.cropProtectionApplications.amountPerUnit} * ${tables.cropProtectionApplications.numberOfUnits}), 0)`,
             })
             .from(tables.cropProtectionApplications)
             .innerJoin(
               tables.cropProtectionProducts,
-              eq(
-                tables.cropProtectionApplications.productId,
-                tables.cropProtectionProducts.id,
-              ),
+              eq(tables.cropProtectionApplications.productId, tables.cropProtectionProducts.id)
             )
             .where(
               and(
                 eq(tables.cropProtectionApplications.farmId, farmId),
                 gte(tables.cropProtectionApplications.dateTime, yearStart),
-                lte(tables.cropProtectionApplications.dateTime, new Date(year, 11, 31, 23, 59, 59)),
-              ),
+                lte(tables.cropProtectionApplications.dateTime, new Date(year, 11, 31, 23, 59, 59))
+              )
             )
             .groupBy(
               tables.cropProtectionProducts.id,
               tables.cropProtectionProducts.name,
-              tables.cropProtectionProducts.unit,
+              tables.cropProtectionProducts.unit
             ),
 
           // Crop protection applications aggregated by plot
@@ -307,16 +285,13 @@ export function dashboardApi(rlsDb: RlsDb, t: TFunction) {
               count: count(),
             })
             .from(tables.cropProtectionApplications)
-            .innerJoin(
-              tables.plots,
-              eq(tables.cropProtectionApplications.plotId, tables.plots.id),
-            )
+            .innerJoin(tables.plots, eq(tables.cropProtectionApplications.plotId, tables.plots.id))
             .where(
               and(
                 eq(tables.cropProtectionApplications.farmId, farmId),
                 gte(tables.cropProtectionApplications.dateTime, yearStart),
-                lte(tables.cropProtectionApplications.dateTime, new Date(year, 11, 31, 23, 59, 59)),
-              ),
+                lte(tables.cropProtectionApplications.dateTime, new Date(year, 11, 31, 23, 59, 59))
+              )
             )
             .groupBy(tables.plots.id, tables.plots.name),
 
@@ -416,115 +391,96 @@ export function dashboardApi(rlsDb: RlsDb, t: TFunction) {
       });
     },
 
-    async getFieldEvents(
-      farmId: string,
-      fromDate: Date,
-      toDate: Date,
-    ): Promise<FieldEvent[]> {
+    async getFieldEvents(farmId: string, fromDate: Date, toDate: Date): Promise<FieldEvent[]> {
       // For the timestamp cropProtectionApplications.dateTime, extend toDate to end-of-day
       const toDateEndOfDay = new Date(toDate.getFullYear(), toDate.getMonth(), toDate.getDate(), 23, 59, 59);
       return rlsDb.rls(async (tx) => {
         // Fetch all event types in parallel with their plot geometry
-        const [harvests, fertilizerApplications, cropProtectionApplications, tillages] =
-          await Promise.all([
-            tx
-              .select({
-                id: tables.harvests.id,
-                date: tables.harvests.date,
-                geometry: sql<MultiPolygon>`ST_AsGeoJSON(${tables.harvests.geometry})::json`,
-                plotId: tables.plots.id,
-                plotName: tables.plots.name,
-                cropName: tables.crops.name,
-                conservationMethod: tables.harvests.conservationMethod,
-              })
-              .from(tables.harvests)
-              .innerJoin(tables.plots, eq(tables.harvests.plotId, tables.plots.id))
-              .innerJoin(tables.crops, eq(tables.harvests.cropId, tables.crops.id))
-              .where(
-                and(
-                  eq(tables.harvests.farmId, farmId),
-                  gte(tables.harvests.date, fromDate),
-                  lte(tables.harvests.date, toDate),
-                ),
-              ),
+        const [harvests, fertilizerApplications, cropProtectionApplications, tillages] = await Promise.all([
+          tx
+            .select({
+              id: tables.harvests.id,
+              date: tables.harvests.date,
+              geometry: sql<MultiPolygon>`ST_AsGeoJSON(${tables.harvests.geometry})::json`,
+              plotId: tables.plots.id,
+              plotName: tables.plots.name,
+              cropName: tables.crops.name,
+              conservationMethod: tables.harvests.conservationMethod,
+            })
+            .from(tables.harvests)
+            .innerJoin(tables.plots, eq(tables.harvests.plotId, tables.plots.id))
+            .innerJoin(tables.crops, eq(tables.harvests.cropId, tables.crops.id))
+            .where(
+              and(
+                eq(tables.harvests.farmId, farmId),
+                gte(tables.harvests.date, fromDate),
+                lte(tables.harvests.date, toDate)
+              )
+            ),
 
-            tx
-              .select({
-                id: tables.fertilizerApplications.id,
-                date: tables.fertilizerApplications.date,
-                geometry:
-                  sql<MultiPolygon>`ST_AsGeoJSON(${tables.fertilizerApplications.geometry})::json`,
-                plotId: tables.plots.id,
-                plotName: tables.plots.name,
-                fertilizerName: tables.fertilizers.name,
-              })
-              .from(tables.fertilizerApplications)
-              .innerJoin(
-                tables.plots,
-                eq(tables.fertilizerApplications.plotId, tables.plots.id),
+          tx
+            .select({
+              id: tables.fertilizerApplications.id,
+              date: tables.fertilizerApplications.date,
+              geometry: sql<MultiPolygon>`ST_AsGeoJSON(${tables.fertilizerApplications.geometry})::json`,
+              plotId: tables.plots.id,
+              plotName: tables.plots.name,
+              fertilizerName: tables.fertilizers.name,
+            })
+            .from(tables.fertilizerApplications)
+            .innerJoin(tables.plots, eq(tables.fertilizerApplications.plotId, tables.plots.id))
+            .innerJoin(tables.fertilizers, eq(tables.fertilizerApplications.fertilizerId, tables.fertilizers.id))
+            .where(
+              and(
+                eq(tables.fertilizerApplications.farmId, farmId),
+                gte(tables.fertilizerApplications.date, fromDate),
+                lte(tables.fertilizerApplications.date, toDate)
               )
-              .innerJoin(
-                tables.fertilizers,
-                eq(tables.fertilizerApplications.fertilizerId, tables.fertilizers.id),
-              )
-              .where(
-                and(
-                  eq(tables.fertilizerApplications.farmId, farmId),
-                  gte(tables.fertilizerApplications.date, fromDate),
-                  lte(tables.fertilizerApplications.date, toDate),
-                ),
-              ),
+            ),
 
-            tx
-              .select({
-                id: tables.cropProtectionApplications.id,
-                dateTime: tables.cropProtectionApplications.dateTime,
-                geometry:
-                  sql<MultiPolygon>`ST_AsGeoJSON(${tables.cropProtectionApplications.geometry})::json`,
-                plotId: tables.plots.id,
-                plotName: tables.plots.name,
-                productName: tables.cropProtectionProducts.name,
-              })
-              .from(tables.cropProtectionApplications)
-              .innerJoin(
-                tables.plots,
-                eq(tables.cropProtectionApplications.plotId, tables.plots.id),
+          tx
+            .select({
+              id: tables.cropProtectionApplications.id,
+              dateTime: tables.cropProtectionApplications.dateTime,
+              geometry: sql<MultiPolygon>`ST_AsGeoJSON(${tables.cropProtectionApplications.geometry})::json`,
+              plotId: tables.plots.id,
+              plotName: tables.plots.name,
+              productName: tables.cropProtectionProducts.name,
+            })
+            .from(tables.cropProtectionApplications)
+            .innerJoin(tables.plots, eq(tables.cropProtectionApplications.plotId, tables.plots.id))
+            .innerJoin(
+              tables.cropProtectionProducts,
+              eq(tables.cropProtectionApplications.productId, tables.cropProtectionProducts.id)
+            )
+            .where(
+              and(
+                eq(tables.cropProtectionApplications.farmId, farmId),
+                gte(tables.cropProtectionApplications.dateTime, fromDate),
+                lte(tables.cropProtectionApplications.dateTime, toDateEndOfDay)
               )
-              .innerJoin(
-                tables.cropProtectionProducts,
-                eq(
-                  tables.cropProtectionApplications.productId,
-                  tables.cropProtectionProducts.id,
-                ),
-              )
-              .where(
-                and(
-                  eq(tables.cropProtectionApplications.farmId, farmId),
-                  gte(tables.cropProtectionApplications.dateTime, fromDate),
-                  lte(tables.cropProtectionApplications.dateTime, toDateEndOfDay),
-                ),
-              ),
+            ),
 
-            tx
-              .select({
-                id: tables.tillages.id,
-                date: tables.tillages.date,
-                geometry: sql<MultiPolygon>`ST_AsGeoJSON(${tables.tillages.geometry})::json`,
-                plotId: tables.plots.id,
-                plotName: tables.plots.name,
-                action: tables.tillages.action,
-                customAction: tables.tillages.customAction,
-              })
-              .from(tables.tillages)
-              .innerJoin(tables.plots, eq(tables.tillages.plotId, tables.plots.id))
-              .where(
-                and(
-                  eq(tables.tillages.farmId, farmId),
-                  gte(tables.tillages.date, fromDate),
-                  lte(tables.tillages.date, toDate),
-                ),
-              ),
-          ]);
+          tx
+            .select({
+              id: tables.tillages.id,
+              date: tables.tillages.date,
+              geometry: sql<MultiPolygon>`ST_AsGeoJSON(${tables.tillages.geometry})::json`,
+              plotId: tables.plots.id,
+              plotName: tables.plots.name,
+              action: tables.tillages.action,
+              customAction: tables.tillages.customAction,
+            })
+            .from(tables.tillages)
+            .innerJoin(tables.plots, eq(tables.tillages.plotId, tables.plots.id))
+            .where(
+              and(
+                eq(tables.tillages.farmId, farmId),
+                gte(tables.tillages.date, fromDate),
+                lte(tables.tillages.date, toDate)
+              )
+            ),
+        ]);
 
         const events: FieldEvent[] = [
           ...harvests.map((h) => ({
@@ -576,9 +532,7 @@ export function dashboardApi(rlsDb: RlsDb, t: TFunction) {
             plotName: tl.plotName,
             type: "tillage" as const,
             // Use customAction when action === 'custom', otherwise look up the translation by literal key
-            action: tl.action === "custom" && tl.customAction
-              ? tl.customAction
-              : TILLAGE_ACTION_LABELS[tl.action](t),
+            action: tl.action === "custom" && tl.customAction ? tl.customAction : TILLAGE_ACTION_LABELS[tl.action](t),
           })),
         ];
 

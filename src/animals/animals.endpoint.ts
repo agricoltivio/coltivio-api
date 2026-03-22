@@ -152,12 +152,7 @@ export const getAnimalByIdEndpoint = farmEndpointFactory.build({
 export const getFarmAnimalsEndpoint = farmEndpointFactory.build({
   method: "get",
   input: z.object({
-    animalTypes: z
-      .preprocess(
-        (val) => (typeof val === "string" ? [val] : val),
-        z.array(animalTypeSchema),
-      )
-      .optional(),
+    animalTypes: z.preprocess((val) => (typeof val === "string" ? [val] : val), z.array(animalTypeSchema)).optional(),
     onlyLiving: z
       .string()
       .optional()
@@ -168,16 +163,12 @@ export const getFarmAnimalsEndpoint = farmEndpointFactory.build({
     result: z.array(
       animalSchema.extend({
         milkAndMeatUsable: z.boolean(),
-      }),
+      })
     ),
     count: z.number(),
   }),
   handler: async ({ input, ctx: { animals, farmId } }) => {
-    const result = await animals.getAnimalsForFarm(
-      farmId,
-      input.onlyLiving,
-      input.animalTypes,
-    );
+    const result = await animals.getAnimalsForFarm(farmId, input.onlyLiving, input.animalTypes);
     return {
       result,
       count: result.length,
@@ -212,7 +203,7 @@ export const updateAnimalsEndpoint = farmEndpointFactory.build({
     animals: z.array(
       updateAnimalSchema.extend({
         id: z.string(),
-      }),
+      })
     ),
   }),
   output: z.object({
@@ -248,10 +239,7 @@ export const batchUpdateAnimalsEndpoint = farmEndpointFactory.build({
   }),
   handler: async ({ input, ctx: { animals } }) => {
     console.log(input.data);
-    const result = await animals.batchUpdateAnimals(
-      input.animalIds,
-      input.data,
-    );
+    const result = await animals.batchUpdateAnimals(input.animalIds, input.data);
     return {
       result,
       count: result.length,
@@ -279,30 +267,26 @@ export const deleteAnimalsEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const setCustomOutdoorJournalCategoriesEndpoint =
-  farmEndpointFactory.build({
-    method: "put",
-    input: z.object({
-      animalId: z.string(),
-      entries: z.array(
-        z.object({
-          startDate: ez.dateIn(),
-          endDate: ez.dateIn().optional().nullable(),
-          category: animalCateogrySchema,
-        }),
-      ),
-    }),
-    output: z.object({
-      result: z.array(customOutdoorJournalCategorySchema),
-    }),
-    handler: async ({ input, ctx: { animals } }) => {
-      const result = await animals.setCustomOutdoorJournalCategories(
-        input.animalId,
-        input.entries,
-      );
-      return { result };
-    },
-  });
+export const setCustomOutdoorJournalCategoriesEndpoint = farmEndpointFactory.build({
+  method: "put",
+  input: z.object({
+    animalId: z.string(),
+    entries: z.array(
+      z.object({
+        startDate: ez.dateIn(),
+        endDate: ez.dateIn().optional().nullable(),
+        category: animalCateogrySchema,
+      })
+    ),
+  }),
+  output: z.object({
+    result: z.array(customOutdoorJournalCategorySchema),
+  }),
+  handler: async ({ input, ctx: { animals } }) => {
+    const result = await animals.setCustomOutdoorJournalCategories(input.animalId, input.entries);
+    return { result };
+  },
+});
 
 export const getAnimalChildrenEndpoint = farmEndpointFactory.build({
   method: "get",
@@ -350,13 +334,7 @@ export const importAnimalsFromExcelEndpoint = farmEndpointFactory.build({
   }),
   handler: async ({ input, ctx: { animals, farmId, preferredLanguage } }) => {
     const { file, type, skipHeaderRow } = input;
-    return animals.importFromExcel(
-      file.data,
-      type,
-      skipHeaderRow,
-      farmId,
-      preferredLanguage,
-    );
+    return animals.importFromExcel(file.data, type, skipHeaderRow, farmId, preferredLanguage);
   },
 });
 
@@ -469,9 +447,7 @@ export const getOutdoorScheduleByIdEndpoint = farmEndpointFactory.build({
   input: z.object({ outdoorScheduleId: z.string() }),
   output: outdoorScheduleSchema,
   handler: async ({ input, ctx: { animals } }) => {
-    const schedule = await animals.getOutdoorScheduleById(
-      input.outdoorScheduleId,
-    );
+    const schedule = await animals.getOutdoorScheduleById(input.outdoorScheduleId);
     if (!schedule) {
       throw createHttpError(404, "Outdoor schedule not found");
     }

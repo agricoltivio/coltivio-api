@@ -39,12 +39,7 @@ describe("Drugs CRUD", () => {
     expect(dbDrug!.farmId).toBe(farmId);
 
     // GET by id
-    const getRes = await request(
-      "GET",
-      `/v1/drugs/byId/${drug.id}`,
-      undefined,
-      jwt,
-    );
+    const getRes = await request("GET", `/v1/drugs/byId/${drug.id}`, undefined, jwt);
     expect(getRes.status).toBe(200);
     const getBody = (await getRes.json()) as { data: { id: string } };
     expect(getBody.data.id).toBe(drug.id);
@@ -69,7 +64,7 @@ describe("Drugs CRUD", () => {
       "PATCH",
       `/v1/drugs/byId/${drug.id}`,
       { name: "NewDrug", notes: "Handle with care" },
-      jwt,
+      jwt
     );
     expect(res.status).toBe(200);
 
@@ -86,12 +81,7 @@ describe("Drugs CRUD", () => {
     const { jwt } = await createUserWithFarm();
     const drug = await createDrug(jwt);
 
-    const res = await request(
-      "DELETE",
-      `/v1/drugs/byId/${drug.id}`,
-      undefined,
-      jwt,
-    );
+    const res = await request("DELETE", `/v1/drugs/byId/${drug.id}`, undefined, jwt);
     expect(res.status).toBe(200);
 
     // Verify DB
@@ -106,12 +96,7 @@ describe("Drugs CRUD", () => {
     const { jwt } = await createUserWithFarm();
     const drug = await createDrug(jwt);
 
-    const res = await request(
-      "GET",
-      `/v1/drugs/byId/${drug.id}/inUse`,
-      undefined,
-      jwt,
-    );
+    const res = await request("GET", `/v1/drugs/byId/${drug.id}/inUse`, undefined, jwt);
     expect(res.status).toBe(200);
     const body = (await res.json()) as { data: { inUse: boolean } };
     expect(body.data.inUse).toBe(false);

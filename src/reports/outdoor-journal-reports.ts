@@ -6,16 +6,9 @@ import { AnimalCategory } from "../animals/animals";
 import { expandOutdoorSchedule } from "../animals/outdoor-journal";
 import { mapAnimalToCategory } from "../animals/animal-key-mapping";
 
-export function outdoorJournalReportsApi(
-  rlsDb: RlsDb,
-  t: TFunction,
-  locale: string = "de",
-) {
+export function outdoorJournalReportsApi(rlsDb: RlsDb, t: TFunction, locale: string = "de") {
   return {
-    async generateReportBuffer(
-      fromDate: Date,
-      toDate: Date,
-    ): Promise<{ buffer: Buffer; fileName: string }> {
+    async generateReportBuffer(fromDate: Date, toDate: Date): Promise<{ buffer: Buffer; fileName: string }> {
       return await rlsDb.rls(async (tx) => {
         const herds = await tx.query.herds.findMany({
           with: {
@@ -83,11 +76,7 @@ export function outdoorJournalReportsApi(
               for (const membership of herd.herdMemberships) {
                 if (membership.fromDate > date) continue;
                 if (membership.toDate && membership.toDate < date) continue;
-                if (
-                  membership.animal.dateOfDeath &&
-                  membership.animal.dateOfDeath < date
-                )
-                  continue;
+                if (membership.animal.dateOfDeath && membership.animal.dateOfDeath < date) continue;
 
                 const category = mapAnimalToCategory(membership.animal, date);
                 if (!category) continue;
@@ -99,7 +88,7 @@ export function outdoorJournalReportsApi(
                     Array.from({ length: days }, () => ({
                       pasture: false,
                       exerciseYard: false,
-                    })),
+                    }))
                   );
                 }
                 const dayFlags = monthData.get(category)![day - 1];
@@ -123,15 +112,18 @@ export function outdoorJournalReportsApi(
         const border: Partial<ExcelJS.Borders> = { top: thinSide, bottom: thinSide, left: thinSide, right: thinSide };
         // Thick left/right borders at month boundaries
         const borderFor = (c: number): Partial<ExcelJS.Borders> => ({
-          top: thinSide, bottom: thinSide,
+          top: thinSide,
+          bottom: thinSide,
           left: c === 0 ? thickSide : thinSide,
           right: c === numCats - 1 ? thickSide : thinSide,
         });
 
-        const sheet = workbook.addWorksheet(t("outdoor_journal_report.title", {
-          fromDate: fromDate.toLocaleDateString(locale),
-          toDate: toDate.toLocaleDateString(locale),
-        }));
+        const sheet = workbook.addWorksheet(
+          t("outdoor_journal_report.title", {
+            fromDate: fromDate.toLocaleDateString(locale),
+            toDate: toDate.toLocaleDateString(locale),
+          })
+        );
         sheet.pageSetup = { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0 };
 
         // Column for month m, category c: 2 + m * numCats + c

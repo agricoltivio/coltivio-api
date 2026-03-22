@@ -6,10 +6,7 @@ import { Contact } from "../contacts/contacts";
 import { Payment } from "../payments/payments";
 import { SponsorshipPrograms } from "./sponsorship-programs";
 
-export type SponsorshipCreateInput = Omit<
-  typeof sponsorships.$inferInsert,
-  "id" | "farmId"
->;
+export type SponsorshipCreateInput = Omit<typeof sponsorships.$inferInsert, "id" | "farmId">;
 export type SponsorshipUpdateInput = Partial<SponsorshipCreateInput>;
 export type Sponsorship = typeof sponsorships.$inferSelect;
 
@@ -22,9 +19,7 @@ export type SponsorshipWithRelations = Sponsorship & {
 
 export function sponsorshipsApi(rlsDb: RlsDb) {
   return {
-    async createSponsorship(
-      sponsorshipInput: SponsorshipCreateInput,
-    ): Promise<Sponsorship> {
+    async createSponsorship(sponsorshipInput: SponsorshipCreateInput): Promise<Sponsorship> {
       return rlsDb.rls(async (tx) => {
         const [sponsorship] = await tx
           .insert(sponsorships)
@@ -34,9 +29,7 @@ export function sponsorshipsApi(rlsDb: RlsDb) {
       });
     },
 
-    async getSponsorshipById(
-      id: string,
-    ): Promise<SponsorshipWithRelations | undefined> {
+    async getSponsorshipById(id: string): Promise<SponsorshipWithRelations | undefined> {
       return rlsDb.rls(async (tx) => {
         return tx.query.sponsorships.findFirst({
           where: { id },
@@ -54,10 +47,7 @@ export function sponsorshipsApi(rlsDb: RlsDb) {
       });
     },
 
-    async getSponsorshipsForFarm(
-      farmId: string,
-      onlyActive: boolean,
-    ): Promise<SponsorshipWithRelations[]> {
+    async getSponsorshipsForFarm(farmId: string, onlyActive: boolean): Promise<SponsorshipWithRelations[]> {
       return rlsDb.rls(async (tx) => {
         return tx.query.sponsorships.findMany({
           with: {
@@ -82,7 +72,7 @@ export function sponsorshipsApi(rlsDb: RlsDb) {
 
     async getSponsorshipsForContact(
       contactId: string,
-      onlyActive: boolean,
+      onlyActive: boolean
     ): Promise<Array<Omit<SponsorshipWithRelations, "contact">>> {
       return rlsDb.rls(async (tx) => {
         return tx.query.sponsorships.findMany({
@@ -107,7 +97,7 @@ export function sponsorshipsApi(rlsDb: RlsDb) {
 
     async getSponsorshipsForAnimal(
       animalId: string,
-      onlyActive: boolean,
+      onlyActive: boolean
     ): Promise<Array<Omit<SponsorshipWithRelations, "animal">>> {
       return rlsDb.rls(async (tx) => {
         return tx.query.sponsorships.findMany({
@@ -128,23 +118,13 @@ export function sponsorshipsApi(rlsDb: RlsDb) {
 
     async getPaymentsForSponsorship(sponsorshipId: string): Promise<Payment[]> {
       return rlsDb.rls(async (tx) => {
-        return tx
-          .select()
-          .from(payments)
-          .where(eq(payments.sponsorshipId, sponsorshipId));
+        return tx.select().from(payments).where(eq(payments.sponsorshipId, sponsorshipId));
       });
     },
 
-    async updateSponsorship(
-      id: string,
-      data: SponsorshipUpdateInput,
-    ): Promise<Sponsorship> {
+    async updateSponsorship(id: string, data: SponsorshipUpdateInput): Promise<Sponsorship> {
       return rlsDb.rls(async (tx) => {
-        const [sponsorship] = await tx
-          .update(sponsorships)
-          .set(data)
-          .where(eq(sponsorships.id, id))
-          .returning();
+        const [sponsorship] = await tx.update(sponsorships).set(data).where(eq(sponsorships.id, id)).returning();
         return sponsorship;
       });
     },

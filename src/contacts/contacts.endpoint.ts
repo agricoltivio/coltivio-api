@@ -1,12 +1,9 @@
 import createHttpError from "http-errors";
 import { z } from "zod";
-import { preferredCommunicationSchema, sponsorships } from "../db/schema";
+import { preferredCommunicationSchema } from "../db/schema";
 import { membershipEndpointFactory } from "../endpoint-factory";
 import { paymentSchema } from "../payments/payments.endpoint";
-import {
-  sponsorshipSchema,
-  sponsorshipWithRelationsSchema,
-} from "../sponsorships/sponsorships.endpoint";
+import { sponsorshipWithRelationsSchema } from "../sponsorships/sponsorships.endpoint";
 import { orderSchema } from "../orders/orders.endpoint";
 import { animalSchema } from "../animals/animals.endpoint";
 
@@ -32,7 +29,7 @@ export const contactWithRelationsSchema = contactSchema.extend({
     return z.array(
       sponsorshipWithRelationsSchema
         .omit({ contact: true, payments: true })
-        .extend({ animal: animalSchema.omit({ earTag: true }) }),
+        .extend({ animal: animalSchema.omit({ earTag: true }) })
     );
   },
   get orders() {

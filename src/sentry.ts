@@ -1,19 +1,13 @@
 import * as Sentry from "@sentry/node";
 import { captureException } from "@sentry/node";
-import {
-  ensureHttpError,
-  getMessageFromError,
-  ResultHandler,
-} from "express-zod-api";
+import { ensureHttpError, ResultHandler } from "express-zod-api";
 import createHttpError, { HttpError } from "http-errors";
 import { z } from "zod";
 
 Sentry.init({
   dsn: process.env.SENTRY_DSN,
   enabled:
-    !!process.env.SENTRY_DSN &&
-    (process.env.NODE_ENV === "development" ||
-      process.env.NODE_ENV === "production"),
+    !!process.env.SENTRY_DSN && (process.env.NODE_ENV === "development" || process.env.NODE_ENV === "production"),
 });
 
 export const sentryResultHandler = new ResultHandler({
@@ -44,9 +38,7 @@ export const sentryResultHandler = new ResultHandler({
         });
       }
       const message = getPublicErrorMessage(httpError);
-      return void response
-        .status(httpError.statusCode)
-        .json({ error: message });
+      return void response.status(httpError.statusCode).json({ error: message });
     }
     response.status(200).json({ data: output });
   },

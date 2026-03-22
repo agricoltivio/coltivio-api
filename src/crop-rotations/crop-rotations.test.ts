@@ -12,11 +12,7 @@ function d(dateStr: string): Date {
   return new Date(dateStr);
 }
 
-function range(
-  from: string,
-  to: string,
-  recurrence?: { interval: number; until?: string },
-): DateRangeWithRecurrence {
+function range(from: string, to: string, recurrence?: { interval: number; until?: string }): DateRangeWithRecurrence {
   return {
     fromDate: d(from),
     toDate: d(to),
@@ -68,39 +64,24 @@ function makeRotation(overrides: {
 
 describe("checkRotationOverlaps - no recurrence", () => {
   test("non-overlapping ranges do not throw", () => {
-    expectNoOverlap(
-      range("2025-03-01", "2025-06-30"),
-      range("2025-07-01", "2025-10-31"),
-    );
+    expectNoOverlap(range("2025-03-01", "2025-06-30"), range("2025-07-01", "2025-10-31"));
   });
 
   test("overlapping ranges throw", () => {
-    expectOverlap(
-      range("2025-03-01", "2025-07-15"),
-      range("2025-07-01", "2025-10-31"),
-    );
+    expectOverlap(range("2025-03-01", "2025-07-15"), range("2025-07-01", "2025-10-31"));
   });
 
   test("adjacent ranges (touching endpoints) throw", () => {
     // fromDate <= toDate means same-day counts as overlap
-    expectOverlap(
-      range("2025-03-01", "2025-06-30"),
-      range("2025-06-30", "2025-10-31"),
-    );
+    expectOverlap(range("2025-03-01", "2025-06-30"), range("2025-06-30", "2025-10-31"));
   });
 
   test("one range fully inside another throws", () => {
-    expectOverlap(
-      range("2025-01-01", "2025-12-31"),
-      range("2025-04-01", "2025-06-30"),
-    );
+    expectOverlap(range("2025-01-01", "2025-12-31"), range("2025-04-01", "2025-06-30"));
   });
 
   test("completely separate years do not throw", () => {
-    expectNoOverlap(
-      range("2024-03-01", "2024-06-30"),
-      range("2025-03-01", "2025-06-30"),
-    );
+    expectNoOverlap(range("2024-03-01", "2024-06-30"), range("2025-03-01", "2025-06-30"));
   });
 });
 
@@ -110,14 +91,14 @@ describe("checkRotationOverlaps - yearly recurrence", () => {
   test("same day-of-year range, both recurring yearly → overlap", () => {
     expectOverlap(
       range("2024-04-01", "2024-09-30", { interval: 1 }),
-      range("2025-04-01", "2025-09-30", { interval: 1 }),
+      range("2025-04-01", "2025-09-30", { interval: 1 })
     );
   });
 
   test("non-overlapping day-of-year ranges, both recurring → no overlap", () => {
     expectNoOverlap(
       range("2024-03-01", "2024-05-31", { interval: 1 }),
-      range("2025-07-01", "2025-09-30", { interval: 1 }),
+      range("2025-07-01", "2025-09-30", { interval: 1 })
     );
   });
 
@@ -125,7 +106,7 @@ describe("checkRotationOverlaps - yearly recurrence", () => {
     // Both start in even years, interval 2 → both occur in 2024, 2026, 2028...
     expectOverlap(
       range("2024-04-01", "2024-06-30", { interval: 2 }),
-      range("2026-04-01", "2026-06-30", { interval: 2 }),
+      range("2026-04-01", "2026-06-30", { interval: 2 })
     );
   });
 
@@ -133,7 +114,7 @@ describe("checkRotationOverlaps - yearly recurrence", () => {
     // One starts even year, other odd → they never share an occurrence year
     expectNoOverlap(
       range("2024-04-01", "2024-06-30", { interval: 2 }),
-      range("2025-04-01", "2025-06-30", { interval: 2 }),
+      range("2025-04-01", "2025-06-30", { interval: 2 })
     );
   });
 
@@ -141,33 +122,24 @@ describe("checkRotationOverlaps - yearly recurrence", () => {
     // A recurs from 2024, until 2025. B starts in 2026.
     expectNoOverlap(
       range("2024-04-01", "2024-06-30", { interval: 1, until: "2025-12-31" }),
-      range("2026-04-01", "2026-06-30", { interval: 1 }),
+      range("2026-04-01", "2026-06-30", { interval: 1 })
     );
   });
 
   test("recurring vs non-recurring: same year → overlap", () => {
-    expectOverlap(
-      range("2024-04-01", "2024-06-30", { interval: 1 }),
-      range("2024-04-15", "2024-05-15"),
-    );
+    expectOverlap(range("2024-04-01", "2024-06-30", { interval: 1 }), range("2024-04-15", "2024-05-15"));
   });
 
   test("recurring vs non-recurring: non-recurring year not in recurrence → no overlap", () => {
     // Recurrence starts 2024 with interval 2 (2024, 2026, 2028...)
     // Non-recurring in 2025 → 2025 is not an occurrence year
-    expectNoOverlap(
-      range("2024-04-01", "2024-06-30", { interval: 2 }),
-      range("2025-04-01", "2025-06-30"),
-    );
+    expectNoOverlap(range("2024-04-01", "2024-06-30", { interval: 2 }), range("2025-04-01", "2025-06-30"));
   });
 
   test("recurring vs non-recurring: non-recurring year IS in recurrence → overlap", () => {
     // Recurrence starts 2024 with interval 2 (2024, 2026, 2028...)
     // Non-recurring in 2026, same day-of-year → overlap
-    expectOverlap(
-      range("2024-04-01", "2024-06-30", { interval: 2 }),
-      range("2026-04-01", "2026-06-30"),
-    );
+    expectOverlap(range("2024-04-01", "2024-06-30", { interval: 2 }), range("2026-04-01", "2026-06-30"));
   });
 
   test("day-of-year overlap but different occurrence years → no overlap", () => {
@@ -176,7 +148,7 @@ describe("checkRotationOverlaps - yearly recurrence", () => {
     // Same day range but never share a year
     expectNoOverlap(
       range("2024-04-01", "2024-06-30", { interval: 3 }),
-      range("2025-04-01", "2025-06-30", { interval: 3 }),
+      range("2025-04-01", "2025-06-30", { interval: 3 })
     );
   });
 
@@ -186,7 +158,7 @@ describe("checkRotationOverlaps - yearly recurrence", () => {
     // They share 2027
     expectOverlap(
       range("2024-04-01", "2024-06-30", { interval: 3 }),
-      range("2027-04-01", "2027-06-30", { interval: 3 }),
+      range("2027-04-01", "2027-06-30", { interval: 3 })
     );
   });
 
@@ -194,7 +166,7 @@ describe("checkRotationOverlaps - yearly recurrence", () => {
     // Nov–Mar split into [305,366] and [1,59]; they share those day ranges
     expectOverlap(
       range("2024-11-01", "2025-02-28", { interval: 1 }),
-      range("2025-11-01", "2026-02-28", { interval: 1 }),
+      range("2025-11-01", "2026-02-28", { interval: 1 })
     );
   });
 
@@ -202,7 +174,7 @@ describe("checkRotationOverlaps - yearly recurrence", () => {
     // Nov–Mar split: [[305,366],[1,90]]. Apr–Oct: [[91,304]]. No intersection.
     expectNoOverlap(
       range("2024-11-01", "2025-03-31", { interval: 1 }),
-      range("2025-04-01", "2025-10-31", { interval: 1 }),
+      range("2025-04-01", "2025-10-31", { interval: 1 })
     );
   });
 
@@ -210,7 +182,7 @@ describe("checkRotationOverlaps - yearly recurrence", () => {
     // Nov–Mar split: [[305,366],[1,90]]. Jan–Feb: [[1,59]]. [1,90] overlaps [1,59].
     expectOverlap(
       range("2024-11-01", "2025-03-31", { interval: 1 }),
-      range("2025-01-01", "2025-02-28", { interval: 1 }),
+      range("2025-01-01", "2025-02-28", { interval: 1 })
     );
   });
 
@@ -218,16 +190,13 @@ describe("checkRotationOverlaps - yearly recurrence", () => {
     // Nov–Dec: [[305,365]]. Jan–Feb: [[1,59]]. No intersection.
     expectNoOverlap(
       range("2024-11-01", "2024-12-31", { interval: 1 }),
-      range("2025-01-01", "2025-02-28", { interval: 1 }),
+      range("2025-01-01", "2025-02-28", { interval: 1 })
     );
   });
 
   test("year-crossing: biennial Nov–Mar starting 2022 overlaps non-recurring Jan 2023", () => {
     // Occurrence in 2022 spans into 2023. Non-recurring Jan 2023 must be detected.
-    expectOverlap(
-      range("2022-11-15", "2023-03-15", { interval: 2 }),
-      range("2023-01-10", "2023-02-28"),
-    );
+    expectOverlap(range("2022-11-15", "2023-03-15", { interval: 2 }), range("2023-01-10", "2023-02-28"));
   });
 
   test("year-crossing: biennial Nov–Mar starting 2022 does NOT overlap non-recurring Jan 2024", () => {
@@ -235,20 +204,14 @@ describe("checkRotationOverlaps - yearly recurrence", () => {
     // Jan 2024 falls in the day range of 2024 occurrence → overlap.
     // Actually 2024 IS an occurrence year for interval=2 starting 2022 (2022,2024,2026).
     // This should overlap.
-    expectOverlap(
-      range("2022-11-15", "2023-03-15", { interval: 2 }),
-      range("2024-01-10", "2024-02-28"),
-    );
+    expectOverlap(range("2022-11-15", "2023-03-15", { interval: 2 }), range("2024-01-10", "2024-02-28"));
   });
 
   test("year-crossing: biennial Nov–Mar starting 2022 does NOT overlap non-recurring Jan 2025", () => {
     // 2025 is NOT in {2022,2023,2024,2025,...} — wait, 2024 occurrence spans into 2025.
     // So 2025 IS in the set. This should overlap too.
     // Instead test 2021 (before start): no overlap.
-    expectNoOverlap(
-      range("2022-11-15", "2023-03-15", { interval: 2 }),
-      range("2021-01-10", "2021-02-28"),
-    );
+    expectNoOverlap(range("2022-11-15", "2023-03-15", { interval: 2 }), range("2021-01-10", "2021-02-28"));
   });
 
   test("multiple ranges: third overlaps first", () => {

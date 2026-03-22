@@ -7,9 +7,7 @@ import { supabase } from "../supabase/supabase";
 
 export function handoffApi(db: RlsDb) {
   return {
-    async createHandoffToken(
-      userId: string,
-    ): Promise<{ token: string; expiresAt: Date }> {
+    async createHandoffToken(userId: string): Promise<{ token: string; expiresAt: Date }> {
       const token = crypto.randomBytes(32).toString("hex");
       const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
 
@@ -18,10 +16,7 @@ export function handoffApi(db: RlsDb) {
       return { token, expiresAt };
     },
 
-    async exchangeHandoffToken(
-      token: string,
-      redirectTo: string,
-    ): Promise<{ url: string }> {
+    async exchangeHandoffToken(token: string, redirectTo: string): Promise<{ url: string }> {
       const row = await db.admin.query.handoffTokens.findFirst({
         where: { token },
       });
@@ -37,10 +32,7 @@ export function handoffApi(db: RlsDb) {
       }
 
       // Mark as used before generating the link to prevent races
-      await db.admin
-        .update(handoffTokens)
-        .set({ usedAt: new Date() })
-        .where(eq(handoffTokens.id, row.id));
+      await db.admin.update(handoffTokens).set({ usedAt: new Date() }).where(eq(handoffTokens.id, row.id));
 
       const profile = await db.admin.query.profiles.findFirst({
         where: { id: row.userId },

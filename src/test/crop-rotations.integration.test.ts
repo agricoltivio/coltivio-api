@@ -2,12 +2,7 @@ import { describe, it, expect, beforeEach } from "@jest/globals";
 
 import { cleanDb, getAdminDb, request } from "./helpers";
 import * as schema from "../db/schema";
-import {
-  createUserWithFarm,
-  createPlot,
-  createCrop,
-  createCropRotation,
-} from "./test-utils";
+import { createUserWithFarm, createPlot, createCrop, createCropRotation } from "./test-utils";
 
 // ---------------------------------------------------------------------------
 // Crop Rotations CRUD
@@ -38,12 +33,7 @@ describe("Crop Rotations CRUD", () => {
     expect(dbRotation!.farmId).toBe(farmId);
 
     // GET by id includes crop
-    const getRes = await request(
-      "GET",
-      `/v1/cropRotations/byId/${rotation.id}`,
-      undefined,
-      jwt,
-    );
+    const getRes = await request("GET", `/v1/cropRotations/byId/${rotation.id}`, undefined, jwt);
     expect(getRes.status).toBe(200);
     const getBody = (await getRes.json()) as {
       data: { crop: { id: string; name: string } };
@@ -84,7 +74,7 @@ describe("Crop Rotations CRUD", () => {
       "GET",
       `/v1/plots/byId/${p1.id}/cropRotations?fromDate=2025-01-01&toDate=2025-12-31`,
       undefined,
-      jwt,
+      jwt
     );
     expect(res.status).toBe(200);
     const body = (await res.json()) as { data: { count: number } };
@@ -107,7 +97,7 @@ describe("Crop Rotations CRUD", () => {
           { cropId: crop2.id, fromDate: "2025-07-01", toDate: "2025-12-31" },
         ],
       },
-      jwt,
+      jwt
     );
     expect(res.status).toBe(200);
     const body = (await res.json()) as { data: { count: number } };
@@ -132,7 +122,7 @@ describe("Crop Rotations CRUD", () => {
       "PATCH",
       `/v1/cropRotations/byId/${rotation.id}`,
       { cropId: newCrop.id, sowingDate: "2025-02-15" },
-      jwt,
+      jwt
     );
     expect(res.status).toBe(200);
 
@@ -150,12 +140,7 @@ describe("Crop Rotations CRUD", () => {
     const crop = await createCrop(jwt);
     const rotation = await createCropRotation(jwt, plot.id, crop.id);
 
-    const res = await request(
-      "DELETE",
-      `/v1/cropRotations/byId/${rotation.id}`,
-      undefined,
-      jwt,
-    );
+    const res = await request("DELETE", `/v1/cropRotations/byId/${rotation.id}`, undefined, jwt);
     expect(res.status).toBe(200);
 
     // Verify DB
@@ -187,12 +172,7 @@ describe("Crop Rotations CRUD", () => {
     const crop = await createCrop(jwt, { name: "UsedCrop" });
     await createCropRotation(jwt, plot.id, crop.id);
 
-    const res = await request(
-      "GET",
-      `/v1/crops/byId/${crop.id}/inUse`,
-      undefined,
-      jwt,
-    );
+    const res = await request("GET", `/v1/crops/byId/${crop.id}/inUse`, undefined, jwt);
     expect(res.status).toBe(200);
     const body = (await res.json()) as { data: { inUse: boolean } };
     expect(body.data.inUse).toBe(true);

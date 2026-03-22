@@ -1,10 +1,5 @@
 import { describe, it, expect, beforeEach } from "@jest/globals";
-import {
-  cleanDb,
-  createTestUser,
-  getAdminDb,
-  request,
-} from "../test/helpers";
+import { cleanDb, createTestUser, getAdminDb, request } from "../test/helpers";
 
 describe("Farm CRUD", () => {
   beforeEach(async () => {
@@ -12,10 +7,7 @@ describe("Farm CRUD", () => {
   });
 
   it("creates a farm and retrieves it", async () => {
-    const { jwt, userId } = await createTestUser(
-      "test@example.com",
-      "password123",
-    );
+    const { jwt, userId } = await createTestUser("test@example.com", "password123");
 
     // Create farm via real HTTP request
     const createRes = await request(
@@ -26,7 +18,7 @@ describe("Farm CRUD", () => {
         address: "123 Farm St",
         location: { type: "Point", coordinates: [8.5, 47.3] },
       },
-      jwt,
+      jwt
     );
     expect(createRes.status).toBe(200);
 
@@ -60,7 +52,7 @@ describe("Farm CRUD", () => {
         address: "456 Barn Rd",
         location: { type: "Point", coordinates: [7.4, 46.9] },
       },
-      jwt,
+      jwt
     );
 
     // Retrieve it

@@ -21,7 +21,7 @@ export const createDonationCheckoutEndpoint = publicEndpointFactory.build({
       input.successUrl,
       input.cancelUrl,
       undefined,
-      ctx.preferredLanguage,
+      ctx.preferredLanguage
     );
   },
 });

@@ -31,11 +31,11 @@ export function federalPlotsLayerApi(authDb: RlsDb) {
           tx
             .select({
               bbox: sql`ST_Buffer(ST_Envelope(ST_Union(${federalFarmPlots.geometry}))::geometry, ${radiusInDegrees})`.as(
-                "bbox",
+                "bbox"
               ),
             })
             .from(federalFarmPlots)
-            .where(eq(federalFarmPlots.federalFarmId, federalId)),
+            .where(eq(federalFarmPlots.federalFarmId, federalId))
         );
 
         return tx
@@ -43,33 +43,23 @@ export function federalPlotsLayerApi(authDb: RlsDb) {
           .select(plotSelectColumns)
           .from(federalFarmPlots)
           .where(
-            sql`ST_Intersects(${federalFarmPlots.geometry}, ${sql`(select ${bufferedBbox.bbox} from ${bufferedBbox})`})`,
+            sql`ST_Intersects(${federalFarmPlots.geometry}, ${sql`(select ${bufferedBbox.bbox} from ${bufferedBbox})`})`
           );
       });
     },
-    async getPlotsWithinRadiusOfPoint(
-      longitude: number,
-      latitude: number,
-      radiusInKm: number,
-    ) {
+    async getPlotsWithinRadiusOfPoint(longitude: number, latitude: number, radiusInKm: number) {
       return authDb.rls(async (tx) => {
         // we nee to convert the meters in radius. this is a very rough approximation but good enough for us
         const radiusInDegrees = (radiusInKm * 1000) / 111000.0;
 
-        return tx.select(plotSelectColumns).from(federalFarmPlots)
-          .where(sql`ST_DWithin(
+        return tx.select(plotSelectColumns).from(federalFarmPlots).where(sql`ST_DWithin(
         ${federalFarmPlots.geometry},
         ST_SetSRID(ST_MakePoint(${longitude}, ${latitude}), 4326), 
         ${radiusInDegrees}
       )`);
       });
     },
-    async getPlotsLayerForBoundingBox(
-      xmin: number,
-      ymin: number,
-      xmax: number,
-      ymax: number,
-    ) {
+    async getPlotsLayerForBoundingBox(xmin: number, ymin: number, xmax: number, ymax: number) {
       return authDb.rls(async (tx) => {
         return tx.select(plotSelectColumns).from(federalFarmPlots).where(sql`
         ST_Intersects(
@@ -84,7 +74,7 @@ export function federalPlotsLayerApi(authDb: RlsDb) {
       longitude: number,
       latitude: number,
       radiusInKm: number,
-      limit: number,
+      limit: number
     ): Promise<string[]> {
       return authDb.rls(async (tx) => {
         await tx.execute(sql.raw("select set_limit(0.2)"));
@@ -103,8 +93,8 @@ export function federalPlotsLayerApi(authDb: RlsDb) {
         ST_SetSRID(ST_MakePoint(${longitude}, ${latitude}), 4326), 
         ${radiusInDegrees}
       )`,
-              sql`${federalFarmPlots.federalFarmId} % ${query}`,
-            ),
+              sql`${federalFarmPlots.federalFarmId} % ${query}`
+            )
           )
           .orderBy(sql`similarity desc`)
           .limit(limit);

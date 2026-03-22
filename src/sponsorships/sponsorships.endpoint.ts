@@ -52,9 +52,7 @@ export const getSponsorshipByIdEndpoint = membershipEndpointFactory.build({
   input: z.object({ sponsorshipId: z.string() }),
   output: sponsorshipWithRelationsSchema,
   handler: async ({ input, ctx: { sponsorships } }) => {
-    const sponsorship = await sponsorships.getSponsorshipById(
-      input.sponsorshipId,
-    );
+    const sponsorship = await sponsorships.getSponsorshipById(input.sponsorshipId);
     if (!sponsorship) {
       throw createHttpError(404, "Sponsorship not found");
     }
@@ -74,17 +72,13 @@ export const getFarmSponsorshipsEndpoint = membershipEndpointFactory.build({
     count: z.number(),
   }),
   handler: async ({ input, ctx: { sponsorships, farmId } }) => {
-    const rawResult = await sponsorships.getSponsorshipsForFarm(
-      farmId,
-      input.onlyActive,
-    );
+    const rawResult = await sponsorships.getSponsorshipsForFarm(farmId, input.onlyActive);
     const currentYear = new Date().getFullYear();
     const result = rawResult.map((sponsorship) => {
       const paidThisYear =
         sponsorship.payments
           .filter((p) => new Date(p.date).getFullYear() === currentYear)
-          .reduce((sum, p) => sum + p.amount, 0) >=
-        sponsorship.sponsorshipProgram.yearlyCost;
+          .reduce((sum, p) => sum + p.amount, 0) >= sponsorship.sponsorshipProgram.yearlyCost;
       return { ...sponsorship, paidThisYear };
     });
     return {
@@ -105,10 +99,7 @@ export const getContactSponsorshipsEndpoint = membershipEndpointFactory.build({
     count: z.number(),
   }),
   handler: async ({ input, ctx: { sponsorships } }) => {
-    const result = await sponsorships.getSponsorshipsForContact(
-      input.contactId,
-      input.onlyActive,
-    );
+    const result = await sponsorships.getSponsorshipsForContact(input.contactId, input.onlyActive);
     return {
       result,
       count: result.length,
@@ -127,10 +118,7 @@ export const getAnimalSponsorshipsEndpoint = membershipEndpointFactory.build({
     count: z.number(),
   }),
   handler: async ({ input, ctx: { sponsorships } }) => {
-    const result = await sponsorships.getSponsorshipsForAnimal(
-      input.animalId,
-      input.onlyActive,
-    );
+    const result = await sponsorships.getSponsorshipsForAnimal(input.animalId, input.onlyActive);
     return {
       result,
       count: result.length,

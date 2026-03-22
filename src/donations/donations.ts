@@ -12,7 +12,7 @@ export function donationsApi(db: RlsDb) {
       successUrl: string,
       cancelUrl: string,
       userId?: string,
-      locale?: string,
+      locale?: string
     ): Promise<{ url: string }> {
       if (amount < 100) throw new Error("Minimum donation amount is CHF 1.00 (100 cents)");
 
@@ -63,9 +63,7 @@ export function donationsApi(db: RlsDb) {
         .onConflictDoNothing();
 
       // Profile lookup for fullName; locale comes from checkout session metadata
-      const profile = userId
-        ? await db.admin.query.profiles.findFirst({ where: { id: userId } })
-        : undefined;
+      const profile = userId ? await db.admin.query.profiles.findFirst({ where: { id: userId } }) : undefined;
 
       await sendDonationConfirmationEmail({
         email,

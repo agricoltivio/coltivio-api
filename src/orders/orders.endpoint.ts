@@ -82,10 +82,7 @@ export const getFarmOrdersEndpoint = membershipEndpointFactory.build({
   handler: async ({ ctx: { orders, farmId } }) => {
     const rawResult = await orders.getOrdersForFarm(farmId);
     const result = rawResult.map((order) => {
-      const orderTotal = order.items.reduce(
-        (sum, item) => sum + item.quantity * item.unitPrice,
-        0,
-      );
+      const orderTotal = order.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
       const totalPaid = order.payments.reduce((sum, p) => sum + p.amount, 0);
       return { ...order, paidInFull: totalPaid >= orderTotal };
     });

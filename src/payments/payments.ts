@@ -5,10 +5,7 @@ import { Contact } from "../contacts/contacts";
 import { Sponsorship } from "../sponsorships/sponsorships";
 import { Order } from "../orders/orders";
 
-export type PaymentCreateInput = Omit<
-  typeof payments.$inferInsert,
-  "id" | "farmId"
->;
+export type PaymentCreateInput = Omit<typeof payments.$inferInsert, "id" | "farmId">;
 export type PaymentUpdateInput = Partial<PaymentCreateInput>;
 export type Payment = typeof payments.$inferSelect;
 
@@ -30,9 +27,7 @@ export function paymentsApi(rlsDb: RlsDb) {
       });
     },
 
-    async getPaymentById(
-      id: string,
-    ): Promise<PaymentWithRelations | undefined> {
+    async getPaymentById(id: string): Promise<PaymentWithRelations | undefined> {
       return rlsDb.rls(async (tx) => {
         return tx.query.payments.findFirst({
           where: { id },
@@ -58,9 +53,7 @@ export function paymentsApi(rlsDb: RlsDb) {
       });
     },
 
-    async getPaymentsForContact(
-      contactId: string,
-    ): Promise<Omit<PaymentWithRelations, "contact">[]> {
+    async getPaymentsForContact(contactId: string): Promise<Omit<PaymentWithRelations, "contact">[]> {
       return rlsDb.rls(async (tx) => {
         return tx.query.payments.findMany({
           with: {
@@ -78,16 +71,9 @@ export function paymentsApi(rlsDb: RlsDb) {
       });
     },
 
-    async updatePayment(
-      id: string,
-      data: PaymentUpdateInput,
-    ): Promise<Payment> {
+    async updatePayment(id: string, data: PaymentUpdateInput): Promise<Payment> {
       return rlsDb.rls(async (tx) => {
-        const [payment] = await tx
-          .update(payments)
-          .set(data)
-          .where(eq(payments.id, id))
-          .returning();
+        const [payment] = await tx.update(payments).set(data).where(eq(payments.id, id)).returning();
         return payment;
       });
     },

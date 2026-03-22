@@ -2,13 +2,7 @@ import { describe, it, expect, beforeEach } from "@jest/globals";
 
 import { cleanDb, getAdminDb, request } from "./helpers";
 import * as schema from "../db/schema";
-import {
-  createUserWithFarm,
-  createPlot,
-  createCrop,
-  createHarvests,
-  TEST_GEOMETRY,
-} from "./test-utils";
+import { createUserWithFarm, createPlot, createCrop, createHarvests, TEST_GEOMETRY } from "./test-utils";
 
 // ---------------------------------------------------------------------------
 // Harvests CRUD
@@ -47,12 +41,7 @@ describe("Harvests CRUD", () => {
     expect(dbHarvest!.farmId).toBe(farmId);
 
     // GET by id includes crop and plot
-    const getRes = await request(
-      "GET",
-      `/v1/harvests/byId/${harvest.id}`,
-      undefined,
-      jwt,
-    );
+    const getRes = await request("GET", `/v1/harvests/byId/${harvest.id}`, undefined, jwt);
     expect(getRes.status).toBe(200);
     const getBody = (await getRes.json()) as {
       data: {
@@ -84,12 +73,7 @@ describe("Harvests CRUD", () => {
     await createHarvests(jwt, p1.id, crop.id);
     await createHarvests(jwt, p2.id, crop.id);
 
-    const res = await request(
-      "GET",
-      `/v1/plots/byId/${p1.id}/harvests`,
-      undefined,
-      jwt,
-    );
+    const res = await request("GET", `/v1/plots/byId/${p1.id}/harvests`, undefined, jwt);
     expect(res.status).toBe(200);
     const body = (await res.json()) as { data: { count: number } };
     expect(body.data.count).toBe(1);
@@ -114,7 +98,7 @@ describe("Harvests CRUD", () => {
           { plotId: p2.id, geometry: TEST_GEOMETRY, size: 6000, numberOfUnits: 4 },
         ],
       },
-      jwt,
+      jwt
     );
     expect(res.status).toBe(200);
     const body = (await res.json()) as { data: { count: number } };
@@ -134,12 +118,7 @@ describe("Harvests CRUD", () => {
     const crop = await createCrop(jwt, { category: "grass" });
     const [harvest] = await createHarvests(jwt, plot.id, crop.id);
 
-    const res = await request(
-      "DELETE",
-      `/v1/harvests/byId/${harvest.id}`,
-      undefined,
-      jwt,
-    );
+    const res = await request("DELETE", `/v1/harvests/byId/${harvest.id}`, undefined, jwt);
     expect(res.status).toBe(200);
 
     // Verify DB
@@ -190,12 +169,14 @@ describe("Harvest Presets", () => {
       "POST",
       "/v1/harvests/presets",
       { name: "Hay Bale", unit: "round_bale", kilosPerUnit: 300 },
-      jwt,
+      jwt
     );
     expect(createRes.status).toBe(200);
-    const preset = ((await createRes.json()) as {
-      data: { id: string; name: string; unit: string; kilosPerUnit: number };
-    }).data;
+    const preset = (
+      (await createRes.json()) as {
+        data: { id: string; name: string; unit: string; kilosPerUnit: number };
+      }
+    ).data;
     expect(preset.name).toBe("Hay Bale");
     expect(preset.unit).toBe("round_bale");
     expect(preset.kilosPerUnit).toBe(300);
@@ -228,16 +209,11 @@ describe("Harvest Presets", () => {
       "POST",
       "/v1/harvests/presets",
       { name: "OldPreset", unit: "load", kilosPerUnit: 100 },
-      jwt,
+      jwt
     );
     const preset = ((await createRes.json()) as { data: { id: string } }).data;
 
-    await request(
-      "PATCH",
-      `/v1/harvests/presets/byId/${preset.id}`,
-      { name: "NewPreset", kilosPerUnit: 250 },
-      jwt,
-    );
+    await request("PATCH", `/v1/harvests/presets/byId/${preset.id}`, { name: "NewPreset", kilosPerUnit: 250 }, jwt);
 
     // Verify DB
     const db = getAdminDb();
@@ -254,16 +230,11 @@ describe("Harvest Presets", () => {
       "POST",
       "/v1/harvests/presets",
       { name: "ToDelete", unit: "load", kilosPerUnit: 100 },
-      jwt,
+      jwt
     );
     const preset = ((await createRes.json()) as { data: { id: string } }).data;
 
-    const res = await request(
-      "DELETE",
-      `/v1/harvests/presets/byId/${preset.id}`,
-      undefined,
-      jwt,
-    );
+    const res = await request("DELETE", `/v1/harvests/presets/byId/${preset.id}`, undefined, jwt);
     expect(res.status).toBe(200);
 
     // Verify DB

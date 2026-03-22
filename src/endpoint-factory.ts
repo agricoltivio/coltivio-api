@@ -1,8 +1,4 @@
-import {
-  defaultEndpointsFactory,
-  EndpointsFactory,
-  Middleware,
-} from "express-zod-api";
+import { EndpointsFactory, Middleware } from "express-zod-api";
 import createHttpError from "http-errors";
 import { jwtDecode } from "jwt-decode";
 import { z } from "zod";
@@ -20,7 +16,7 @@ export const supabaseAuthMiddleware = new Middleware({
     name: "authorization",
   },
   input: z.object({}),
-  handler: async ({ input: {}, request, logger }) => {
+  handler: async ({ input: {}, request, logger: _logger }) => {
     const authorizationHeader = request.headers.authorization;
     if (!authorizationHeader) {
       throw createHttpError(401, "Invalid authorization header");
@@ -41,24 +37,17 @@ export const supabaseAuthMiddleware = new Middleware({
     const token = jwtDecode<SupabaseToken>(jwt);
     const SUPPORTED_LOCALES = ["de", "en", "it", "fr"] as const;
     const rawLocale = request.headers["accept-language"]?.slice(0, 2);
-    const requestLocale = SUPPORTED_LOCALES.includes(rawLocale as typeof SUPPORTED_LOCALES[number])
-      ? (rawLocale as typeof SUPPORTED_LOCALES[number])
+    const requestLocale = SUPPORTED_LOCALES.includes(rawLocale as (typeof SUPPORTED_LOCALES)[number])
+      ? (rawLocale as (typeof SUPPORTED_LOCALES)[number])
       : null;
     if (requestLocale && user.locale !== requestLocale) {
-      await adminDrizzle
-        .update(tables.profiles)
-        .set({ locale: requestLocale })
-        .where(eq(tables.profiles.id, user.id));
+      await adminDrizzle.update(tables.profiles).set({ locale: requestLocale }).where(eq(tables.profiles.id, user.id));
       user.locale = requestLocale;
     }
     return {
       token,
       user,
-      ...sessionApi(
-        rlsDb(token, user.farmId),
-        request.t,
-        request.headers["accept-language"] ?? "de"
-      ),
+      ...sessionApi(rlsDb(token, user.farmId), request.t, request.headers["accept-language"] ?? "de"),
     };
   },
 });
@@ -68,21 +57,19 @@ const sentryEndpointFactory = new EndpointsFactory(sentryResultHandler);
 export const publicEndpointFactory = sentryEndpointFactory.addMiddleware(
   new Middleware({
     input: z.object({}),
-    handler: async ({ input: {}, request, logger }) => {
+    handler: async ({ input: {}, request, logger: _logger }) => {
       const preferredLanguage = request.headers["accept-language"] ?? "de";
       return { preferredLanguage };
     },
   })
 );
 
-export const authenticatedEndpointFactory = publicEndpointFactory.addMiddleware(
-  supabaseAuthMiddleware
-);
+export const authenticatedEndpointFactory = publicEndpointFactory.addMiddleware(supabaseAuthMiddleware);
 
 export const farmEndpointFactory = authenticatedEndpointFactory.addMiddleware(
   new Middleware({
     input: z.object({}),
-    handler: async ({ input: {}, request, logger, ctx }) => {
+    handler: async ({ input: {}, request: _request, logger: _logger, ctx }) => {
       if (!ctx.user.farmId) {
         throw createHttpError(400, "User has no farm");
       }

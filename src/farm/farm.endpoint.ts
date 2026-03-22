@@ -1,9 +1,6 @@
 import createHttpError from "http-errors";
 import { z } from "zod";
-import {
-  authenticatedEndpointFactory,
-  farmEndpointFactory,
-} from "../endpoint-factory";
+import { authenticatedEndpointFactory, farmEndpointFactory } from "../endpoint-factory";
 
 const pointSchema = z.object({
   type: z.literal("Point"),
@@ -42,7 +39,7 @@ export const getFarmEndpoint = farmEndpointFactory.build({
   method: "get",
   input: z.object({}),
   output: farmSchema,
-  handler: async ({ input, ctx }) => {
+  handler: async ({ ctx }) => {
     const [farm, status] = await Promise.all([
       ctx.farms.getFarmById(ctx.farmId),
       ctx.membership.getFarmMembershipStatus(ctx.farmId),

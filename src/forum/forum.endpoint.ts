@@ -1,10 +1,7 @@
 import createHttpError from "http-errors";
 import { z } from "zod";
 import { forumThreadStatusSchema, forumThreadTypeSchema } from "../db/schema";
-import {
-  userMembershipEndpointFactory,
-  userPaidMembershipEndpointFactory,
-} from "../endpoint-factory";
+import { userMembershipEndpointFactory, userPaidMembershipEndpointFactory } from "../endpoint-factory";
 
 // ─── Shared output schemas ────────────────────────────────────────────────────
 
@@ -110,8 +107,7 @@ export const updateForumThreadEndpoint = userPaidMembershipEndpointFactory.build
     const { threadId, ...data } = input;
     const thread = await forum.getThreadById(threadId);
     if (!thread) throw createHttpError(404, "Thread not found");
-    if (thread.createdBy !== user.id)
-      throw createHttpError(403, "You can only edit your own threads");
+    if (thread.createdBy !== user.id) throw createHttpError(403, "You can only edit your own threads");
 
     return forum.updateThread(threadId, user.id, data);
   },
@@ -128,8 +124,7 @@ export const deleteForumThreadEndpoint = userPaidMembershipEndpointFactory.build
     if (!thread) throw createHttpError(404, "Thread not found");
 
     const isMod = await forumModeration.isModerator(user.id);
-    if (!isMod && thread.createdBy !== user.id)
-      throw createHttpError(403, "You can only delete your own threads");
+    if (!isMod && thread.createdBy !== user.id) throw createHttpError(403, "You can only delete your own threads");
 
     await forumModeration.deleteThread(input.threadId);
     return {};
@@ -163,8 +158,7 @@ export const addForumReplyEndpoint = userPaidMembershipEndpointFactory.build({
   handler: async ({ input, ctx: { forum, user } }) => {
     const thread = await forum.getThreadById(input.threadId);
     if (!thread) throw createHttpError(404, "Thread not found");
-    if (thread.status === "closed")
-      throw createHttpError(400, "Cannot reply to a closed thread");
+    if (thread.status === "closed") throw createHttpError(400, "Cannot reply to a closed thread");
 
     return forum.addReply(input.threadId, user.id, input.body);
   },
@@ -195,8 +189,7 @@ export const deleteForumReplyEndpoint = userPaidMembershipEndpointFactory.build(
     if (!reply) throw createHttpError(404, "Reply not found");
 
     const isMod = await forumModeration.isModerator(user.id);
-    if (!isMod && reply.createdBy !== user.id)
-      throw createHttpError(403, "You can only delete your own replies");
+    if (!isMod && reply.createdBy !== user.id) throw createHttpError(403, "You can only delete your own replies");
 
     await forumModeration.deleteReply(input.replyId);
     return {};

@@ -43,9 +43,7 @@ export async function sendDonationConfirmationEmail(params: DonationEmailParams)
   const { email, fullName, locale, amount } = params;
   const t = i18next.getFixedT(locale);
 
-  const greeting = fullName
-    ? t("donation_email.greeting", { name: fullName })
-    : t("donation_email.greeting_anonymous");
+  const greeting = fullName ? t("donation_email.greeting", { name: fullName }) : t("donation_email.greeting_anonymous");
 
   const html = baseLayout(`
     <h1 style="margin:0 0 8px;font-size:24px;font-weight:700;color:#111827;">${greeting}</h1>

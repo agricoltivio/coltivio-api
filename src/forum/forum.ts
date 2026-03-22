@@ -30,10 +30,7 @@ export function forumApi(db: RlsDb) {
           ...(params.type ? [eq(forumThreads.type, params.type)] : []),
           ...(params.status ? [eq(forumThreads.status, params.status)] : []),
           ...(params.search
-            ? [or(
-                ilike(forumThreads.title, `%${params.search}%`),
-                ilike(forumThreads.body, `%${params.search}%`),
-              )]
+            ? [or(ilike(forumThreads.title, `%${params.search}%`), ilike(forumThreads.body, `%${params.search}%`))]
             : []),
         ];
         const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
@@ -95,7 +92,7 @@ export function forumApi(db: RlsDb) {
 
     async createThread(
       createdBy: string,
-      input: { title: string; body: string; type: ForumThreadType },
+      input: { title: string; body: string; type: ForumThreadType }
     ): Promise<ForumThreadWithCreator> {
       return db.rls(async (tx) => {
         const [thread] = await tx
@@ -121,7 +118,7 @@ export function forumApi(db: RlsDb) {
     async updateThread(
       threadId: string,
       updatedBy: string,
-      input: { title?: string; body?: string },
+      input: { title?: string; body?: string }
     ): Promise<ForumThreadWithCreator> {
       return db.rls(async (tx) => {
         const [existing] = await tx
@@ -183,16 +180,9 @@ export function forumApi(db: RlsDb) {
       });
     },
 
-    async addReply(
-      threadId: string,
-      createdBy: string,
-      body: string,
-    ): Promise<ForumReplyWithCreator> {
+    async addReply(threadId: string, createdBy: string, body: string): Promise<ForumReplyWithCreator> {
       return db.rls(async (tx) => {
-        const [reply] = await tx
-          .insert(forumReplies)
-          .values({ threadId, body, createdBy })
-          .returning();
+        const [reply] = await tx.insert(forumReplies).values({ threadId, body, createdBy }).returning();
 
         const [row] = await tx
           .select({
@@ -209,11 +199,7 @@ export function forumApi(db: RlsDb) {
       });
     },
 
-    async updateReply(
-      replyId: string,
-      updatedBy: string,
-      body: string,
-    ): Promise<ForumReplyWithCreator> {
+    async updateReply(replyId: string, updatedBy: string, body: string): Promise<ForumReplyWithCreator> {
       return db.rls(async (tx) => {
         const [existing] = await tx
           .select({ createdBy: forumReplies.createdBy })
@@ -224,10 +210,7 @@ export function forumApi(db: RlsDb) {
         if (!existing) throw new Error("Reply not found");
         if (existing.createdBy !== updatedBy) throw new Error("You can only edit your own replies");
 
-        await tx
-          .update(forumReplies)
-          .set({ body, updatedAt: new Date() })
-          .where(eq(forumReplies.id, replyId));
+        await tx.update(forumReplies).set({ body, updatedAt: new Date() }).where(eq(forumReplies.id, replyId));
 
         const [row] = await tx
           .select({

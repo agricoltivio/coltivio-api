@@ -51,7 +51,7 @@ const MAX_ITERATIONS = 10_000;
 export function expandOutdoorSchedule(
   schedule: OutdoorScheduleWithRecurrence,
   queryFrom: Date,
-  queryTo: Date,
+  queryTo: Date
 ): DateRange[] {
   const recurrence = schedule.recurrence;
 
@@ -60,15 +60,10 @@ export function expandOutdoorSchedule(
     const start = schedule.startDate;
     const end = schedule.endDate ?? queryTo;
     if (isAfter(start, queryTo) || isBefore(end, queryFrom)) return [];
-    return [
-      { startDate: max([start, queryFrom]), endDate: min([end, queryTo]) },
-    ];
+    return [{ startDate: max([start, queryFrom]), endDate: min([end, queryTo]) }];
   }
 
-  const durationMs = differenceInMilliseconds(
-    schedule.endDate ?? schedule.startDate,
-    schedule.startDate,
-  );
+  const durationMs = differenceInMilliseconds(schedule.endDate ?? schedule.startDate, schedule.startDate);
   const interval = recurrence.interval;
   const until = recurrence.until ? new Date(recurrence.until) : null;
   const maxCount = recurrence.count ?? Infinity;
@@ -102,10 +97,7 @@ export function expandOutdoorSchedule(
     while (iterations++ < MAX_ITERATIONS) {
       let occStart = current;
       // Override day-of-month if byMonthDay is set
-      if (
-        recurrence.byMonthDay !== null &&
-        recurrence.byMonthDay !== undefined
-      ) {
+      if (recurrence.byMonthDay !== null && recurrence.byMonthDay !== undefined) {
         occStart = new Date(occStart);
         occStart.setDate(recurrence.byMonthDay);
       }
@@ -135,10 +127,7 @@ export function expandOutdoorSchedule(
       if (isAfter(weekStart, queryTo)) break;
       if (occurrenceCount >= maxCount) break;
 
-      const weekdays =
-        recurrence.byWeekday && recurrence.byWeekday.length > 0
-          ? recurrence.byWeekday
-          : null;
+      const weekdays = recurrence.byWeekday && recurrence.byWeekday.length > 0 ? recurrence.byWeekday : null;
 
       if (weekdays) {
         // For each specified weekday, create an occurrence in this week
@@ -195,10 +184,7 @@ type HerdWithMembershipsAndSchedules = Herd & {
 
 // Subtracts covered ranges from a period, returning the uncovered sub-periods.
 // Assumes `covered` is sorted by startDate and already clamped to `period`.
-function subtractDateRanges(
-  period: DateRange,
-  covered: DateRange[],
-): DateRange[] {
+function subtractDateRanges(period: DateRange, covered: DateRange[]): DateRange[] {
   if (covered.length === 0) return [period];
 
   const uncovered: DateRange[] = [];
@@ -231,7 +217,7 @@ function subtractDateRanges(
 export function buildOutdoorJournal(
   herds: HerdWithMembershipsAndSchedules[],
   queryFrom: Date,
-  queryTo: Date,
+  queryTo: Date
 ): OutdoorJournalResult {
   // Collect all category fragments across all herds
   const fragments: {
@@ -265,26 +251,20 @@ export function buildOutdoorJournal(
         if (isAfter(effectiveStart, effectiveEnd)) continue;
 
         // Skip dead animals (died before effective start)
-        if (animal.dateOfDeath && isBefore(animal.dateOfDeath, effectiveStart))
-          continue;
+        if (animal.dateOfDeath && isBefore(animal.dateOfDeath, effectiveStart)) continue;
 
         // Find custom outdoor journal categories that overlap the effective period
         const customCats = (animal.customOutdoorJournalCategories ?? [])
           .filter((c) => {
             const cEnd = c.endDate ?? effectiveEnd;
-            return (
-              !isAfter(c.startDate, effectiveEnd) &&
-              !isBefore(cEnd, effectiveStart)
-            );
+            return !isAfter(c.startDate, effectiveEnd) && !isBefore(cEnd, effectiveStart);
           })
           .map((c) => ({
             category: c.category,
             startDate: max([c.startDate, effectiveStart]),
             endDate: min([c.endDate ?? effectiveEnd, effectiveEnd]),
           }))
-          .sort(
-            (a, b) => a.startDate.getTime() - b.startDate.getTime(),
-          );
+          .sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
 
         // Add custom category fragments directly
         for (const c of customCats) {
@@ -297,18 +277,11 @@ export function buildOutdoorJournal(
         }
 
         // Compute uncovered sub-periods (parts of effective period not covered by custom categories)
-        const uncovered = subtractDateRanges(
-          { startDate: effectiveStart, endDate: effectiveEnd },
-          customCats,
-        );
+        const uncovered = subtractDateRanges({ startDate: effectiveStart, endDate: effectiveEnd }, customCats);
 
         // For uncovered periods, use age-based transitions
         for (const period of uncovered) {
-          const transitions = getAnimalCategoryTransitions(
-            animal,
-            period.startDate,
-            period.endDate,
-          );
+          const transitions = getAnimalCategoryTransitions(animal, period.startDate, period.endDate);
           for (const t of transitions) {
             if (t.category === null) {
               animalIdsWithNullCategory.add(animal.id);
@@ -328,10 +301,7 @@ export function buildOutdoorJournal(
   }
 
   // Merge fragments by category using sweep-line
-  const byCategory = new Map<
-    AnimalCategory,
-    { category: AnimalCategory; startDate: Date; endDate: Date }[]
-  >();
+  const byCategory = new Map<AnimalCategory, { category: AnimalCategory; startDate: Date; endDate: Date }[]>();
   for (const f of fragments) {
     let list = byCategory.get(f.category);
     if (!list) {
@@ -359,16 +329,9 @@ export function buildOutdoorJournal(
     let currentCount = 0;
 
     for (const event of events) {
-      if (
-        runningCount > 0 &&
-        segmentStart !== null &&
-        event.date !== segmentStart
-      ) {
+      if (runningCount > 0 && segmentStart !== null && event.date !== segmentStart) {
         // Close current segment if count changes at a new date
-        if (
-          currentCount !== runningCount + event.delta ||
-          event.date !== segmentStart
-        ) {
+        if (currentCount !== runningCount + event.delta || event.date !== segmentStart) {
           entries.push({
             category,
             startDate: new Date(segmentStart),
@@ -385,11 +348,7 @@ export function buildOutdoorJournal(
       if (runningCount > 0 && segmentStart === null) {
         segmentStart = event.date;
         currentCount = runningCount;
-      } else if (
-        runningCount > 0 &&
-        segmentStart !== null &&
-        runningCount !== currentCount
-      ) {
+      } else if (runningCount > 0 && segmentStart !== null && runningCount !== currentCount) {
         // Count changed, start new segment
         segmentStart = event.date;
         currentCount = runningCount;

@@ -4,10 +4,7 @@ import fs from "fs";
 
 const TEMP_FILE = path.join(os.tmpdir(), "coltivio-test-env.json");
 
-const testEnv = JSON.parse(fs.readFileSync(TEMP_FILE, "utf-8")) as Record<
-  string,
-  string
->;
+const testEnv = JSON.parse(fs.readFileSync(TEMP_FILE, "utf-8")) as Record<string, string>;
 
 process.env.DATABASE_URL = testEnv.DATABASE_URL;
 process.env.APP_DATABASE_URL = testEnv.APP_DATABASE_URL;

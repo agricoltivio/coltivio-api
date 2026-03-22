@@ -2,17 +2,11 @@ import { eq } from "drizzle-orm";
 import { RlsDb } from "../db/db";
 import { contacts, farmIdColumnValue } from "../db/schema";
 import { Payment } from "../payments/payments";
-import {
-  Sponsorship,
-  SponsorshipWithRelations,
-} from "../sponsorships/sponsorships";
+import { SponsorshipWithRelations } from "../sponsorships/sponsorships";
 import { Order } from "../orders/orders";
 import { Animal } from "../animals/animals";
 
-export type ContactCreateInput = Omit<
-  typeof contacts.$inferInsert,
-  "id" | "farmId"
->;
+export type ContactCreateInput = Omit<typeof contacts.$inferInsert, "id" | "farmId">;
 export type ContactUpdateInput = Partial<ContactCreateInput>;
 export type Contact = typeof contacts.$inferSelect;
 
@@ -41,9 +35,7 @@ export function contactsApi(rlsDb: RlsDb) {
       });
     },
 
-    async getContactById(
-      id: string,
-    ): Promise<ContactWithRelations | undefined> {
+    async getContactById(id: string): Promise<ContactWithRelations | undefined> {
       return rlsDb.rls(async (tx) => {
         return tx.query.contacts.findFirst({
           where: { id },
@@ -67,16 +59,9 @@ export function contactsApi(rlsDb: RlsDb) {
       });
     },
 
-    async updateContact(
-      id: string,
-      data: ContactUpdateInput,
-    ): Promise<Contact> {
+    async updateContact(id: string, data: ContactUpdateInput): Promise<Contact> {
       return rlsDb.rls(async (tx) => {
-        const [contact] = await tx
-          .update(contacts)
-          .set(data)
-          .where(eq(contacts.id, id))
-          .returning();
+        const [contact] = await tx.update(contacts).set(data).where(eq(contacts.id, id)).returning();
         return contact;
       });
     },

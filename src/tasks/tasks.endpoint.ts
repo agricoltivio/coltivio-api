@@ -1,12 +1,7 @@
 import createHttpError from "http-errors";
 import { ez } from "express-zod-api";
 import { z } from "zod";
-import {
-  frequencySchema,
-  taskLinkTypeSchema,
-  taskStatusSchema,
-  weekdaySchema,
-} from "../db/schema";
+import { frequencySchema, taskLinkTypeSchema, taskStatusSchema, weekdaySchema } from "../db/schema";
 import { membershipEndpointFactory } from "../endpoint-factory";
 
 // ─── Output schemas ───────────────────────────────────────────────────────────
@@ -147,7 +142,7 @@ export const createTaskEndpoint = membershipEndpointFactory.build({
         links: input.links,
         checklistItems: input.checklistItems,
       },
-      user.id,
+      user.id
     );
   },
 });
@@ -207,10 +202,7 @@ export const setTaskStatusEndpoint = membershipEndpointFactory.build({
     if (!existing) {
       throw createHttpError(404, "Task not found");
     }
-    const { task: updated, nextTaskId } = await tasks.setTaskStatus(
-      input.taskId,
-      input.status,
-    );
+    const { task: updated, nextTaskId } = await tasks.setTaskStatus(input.taskId, input.status);
     // Merge updated scalar fields over the enriched existing shape for the response
     return { task: { ...existing, ...updated }, nextTaskId };
   },

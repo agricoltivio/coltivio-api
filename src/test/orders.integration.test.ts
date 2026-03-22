@@ -1,12 +1,6 @@
 import { describe, it, expect, beforeEach } from "@jest/globals";
 import { cleanDb, request } from "./helpers";
-import {
-  createUserWithFarm,
-  createContact,
-  createProduct,
-  createOrder,
-  createPayment,
-} from "./test-utils";
+import { createUserWithFarm, createContact, createProduct, createOrder, createPayment } from "./test-utils";
 
 describe("Orders", () => {
   beforeEach(cleanDb);
@@ -16,9 +10,7 @@ describe("Orders", () => {
     const contact = await createContact(jwt);
     const product = await createProduct(jwt, { pricePerUnit: 30 });
 
-    const order = await createOrder(jwt, contact.id, [
-      { productId: product.id, quantity: 2 },
-    ]);
+    const order = await createOrder(jwt, contact.id, [{ productId: product.id, quantity: 2 }]);
 
     expect(order.contactId).toBe(contact.id);
     expect(order.status).toBe("pending");
@@ -45,12 +37,7 @@ describe("Orders", () => {
     const contact = await createContact(jwt);
     const product = await createProduct(jwt);
 
-    const order = await createOrder(
-      jwt,
-      contact.id,
-      [{ productId: product.id, quantity: 1 }],
-      { status: "confirmed" },
-    );
+    const order = await createOrder(jwt, contact.id, [{ productId: product.id, quantity: 1 }], { status: "confirmed" });
 
     expect(order.status).toBe("confirmed");
   });
@@ -75,9 +62,7 @@ describe("Orders", () => {
       const { jwt } = await createUserWithFarm({}, undefined, { withActiveMembership: true });
       const contact = await createContact(jwt);
       const product = await createProduct(jwt, { pricePerUnit: 50 });
-      const order = await createOrder(jwt, contact.id, [
-        { productId: product.id, quantity: 2 },
-      ]);
+      const order = await createOrder(jwt, contact.id, [{ productId: product.id, quantity: 2 }]);
 
       // Pay only 80 of 100
       await createPayment(jwt, contact.id, { orderId: order.id, amount: 80 });
@@ -92,9 +77,7 @@ describe("Orders", () => {
       const { jwt } = await createUserWithFarm({}, undefined, { withActiveMembership: true });
       const contact = await createContact(jwt);
       const product = await createProduct(jwt, { pricePerUnit: 50 });
-      const order = await createOrder(jwt, contact.id, [
-        { productId: product.id, quantity: 2 },
-      ]);
+      const order = await createOrder(jwt, contact.id, [{ productId: product.id, quantity: 2 }]);
 
       // Pay exact total (100)
       await createPayment(jwt, contact.id, { orderId: order.id, amount: 100 });

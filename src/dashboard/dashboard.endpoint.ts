@@ -2,15 +2,7 @@ import { z } from "zod";
 import { farmEndpointFactory } from "../endpoint-factory";
 import { multiPolygonSchema } from "../db/schema";
 
-const animalTypeSchema = z.enum([
-  "goat",
-  "sheep",
-  "cow",
-  "horse",
-  "donkey",
-  "pig",
-  "deer",
-]);
+const animalTypeSchema = z.enum(["goat", "sheep", "cow", "horse", "donkey", "pig", "deer"]);
 
 const animalSexSchema = z.enum(["male", "female"]);
 
@@ -29,7 +21,7 @@ const dashboardStatsSchema = z.object({
         cropName: z.string(),
         conservationMethod: z.string().nullable(),
         totalKilos: z.number(),
-      }),
+      })
     ),
     byPlot: z.array(
       z.object({
@@ -37,7 +29,7 @@ const dashboardStatsSchema = z.object({
         plotName: z.string(),
         totalKilos: z.number(),
         count: z.number(),
-      }),
+      })
     ),
   }),
   fertilizerApplications: z.object({
@@ -48,31 +40,23 @@ const dashboardStatsSchema = z.object({
         type: z.enum(["mineral", "organic"]),
         totalAmount: z.number(),
         unit: z.string(),
-      }),
+      })
     ),
-    byPlot: z.array(
-      z.object({ plotId: z.string(), plotName: z.string(), count: z.number() }),
-    ),
+    byPlot: z.array(z.object({ plotId: z.string(), plotName: z.string(), count: z.number() })),
   }),
   cropProtectionApplications: z.object({
     totalCount: z.number(),
-    byProduct: z.array(
-      z.object({ productName: z.string(), totalAmount: z.number(), unit: z.string() }),
-    ),
-    byPlot: z.array(
-      z.object({ plotId: z.string(), plotName: z.string(), count: z.number() }),
-    ),
+    byProduct: z.array(z.object({ productName: z.string(), totalAmount: z.number(), unit: z.string() })),
+    byPlot: z.array(z.object({ plotId: z.string(), plotName: z.string(), count: z.number() })),
   }),
   plots: z.object({
     total: z.number(),
     totalAreaM2: z.number(),
-    byUsage: z.array(
-      z.object({ usage: z.string(), count: z.number(), totalAreaM2: z.number() }),
-    ),
+    byUsage: z.array(z.object({ usage: z.string(), count: z.number(), totalAreaM2: z.number() })),
   }),
   cropRotations: z.object({
     active: z.array(
-      z.object({ cropName: z.string(), category: z.string(), plotCount: z.number(), totalAreaM2: z.number() }),
+      z.object({ cropName: z.string(), category: z.string(), plotCount: z.number(), totalAreaM2: z.number() })
     ),
   }),
 });
@@ -83,12 +67,7 @@ const fieldEventSchema = z.object({
   geometry: multiPolygonSchema,
   plotId: z.string(),
   plotName: z.string(),
-  type: z.enum([
-    "harvest",
-    "fertilizerApplication",
-    "cropProtectionApplication",
-    "tillage",
-  ]),
+  type: z.enum(["harvest", "fertilizerApplication", "cropProtectionApplication", "tillage"]),
   action: z.string(),
 });
 

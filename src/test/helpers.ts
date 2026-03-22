@@ -51,16 +51,14 @@ export async function createTestUser(email: string, password: string) {
     detectSessionInUrl: false,
   });
 
-  const { data: createData, error: createError } =
-    await gotrue.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
-    });
+  const { data: createData, error: createError } = await gotrue.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+  });
   if (createError) throw createError;
 
-  const { data: signInData, error: signInError } =
-    await gotrue.signInWithPassword({ email, password });
+  const { data: signInData, error: signInError } = await gotrue.signInWithPassword({ email, password });
   if (signInError) throw signInError;
 
   return {
@@ -81,9 +79,7 @@ export async function cleanDb() {
   `;
 
   if (tables.length > 0) {
-    const tableNames = tables
-      .map((t) => `"${t.tablename}"`)
-      .join(", ");
+    const tableNames = tables.map((t) => `"${t.tablename}"`).join(", ");
     await sql.unsafe(`TRUNCATE ${tableNames} CASCADE`);
   }
 
@@ -94,12 +90,7 @@ export async function cleanDb() {
 /**
  * Fetch wrapper that prepends the test server base URL.
  */
-export async function request(
-  method: string,
-  path: string,
-  body?: Record<string, unknown>,
-  jwt?: string,
-) {
+export async function request(method: string, path: string, body?: Record<string, unknown>, jwt?: string) {
   const baseUrl = process.env.SERVER_URL!;
   const url = `${baseUrl}${path}`;
 
@@ -126,7 +117,7 @@ export async function rawRequest(
   options?: {
     body?: Record<string, unknown> | string;
     headers?: Record<string, string>;
-  },
+  }
 ) {
   const baseUrl = process.env.SERVER_URL!;
   const url = `${baseUrl}${path}`;
@@ -137,11 +128,7 @@ export async function rawRequest(
   };
 
   const body =
-    typeof options?.body === "string"
-      ? options.body
-      : options?.body
-        ? JSON.stringify(options.body)
-        : undefined;
+    typeof options?.body === "string" ? options.body : options?.body ? JSON.stringify(options.body) : undefined;
 
   return fetch(url, { method, headers, body });
 }
@@ -153,22 +140,17 @@ export async function rawRequest(
 export function signTestJwt(
   payload: Record<string, unknown>,
   secret: string,
-  options?: { expiresInSeconds?: number },
+  options?: { expiresInSeconds?: number }
 ): string {
-  const header = Buffer.from(
-    JSON.stringify({ alg: "HS256", typ: "JWT" }),
-  ).toString("base64url");
+  const header = Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url");
   const now = Math.floor(Date.now() / 1000);
   const body = Buffer.from(
     JSON.stringify({
       iat: now,
       exp: now + (options?.expiresInSeconds ?? 3600),
       ...payload,
-    }),
+    })
   ).toString("base64url");
-  const signature = crypto
-    .createHmac("sha256", secret)
-    .update(`${header}.${body}`)
-    .digest("base64url");
+  const signature = crypto.createHmac("sha256", secret).update(`${header}.${body}`).digest("base64url");
   return `${header}.${body}.${signature}`;
 }

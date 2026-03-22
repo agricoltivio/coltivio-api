@@ -76,10 +76,7 @@ export const deleteFertilizerEndpoint = farmEndpointFactory.build({
   method: "delete",
   input: z.object({ fertilizerId: z.string() }),
   output: z.object({}),
-  handler: async ({
-    input: { fertilizerId },
-    ctx: { fertilizers: fertilizer },
-  }) => {
+  handler: async ({ input: { fertilizerId }, ctx: { fertilizers: fertilizer } }) => {
     await fertilizer.deleteFertilizer(fertilizerId);
     return {};
   },

@@ -1,12 +1,7 @@
 import { TFunction } from "i18next";
 import { txEmailApi } from "../brevo/brevo";
 
-export async function sendFarmInviteEmail(
-  email: string,
-  code: string,
-  farmName: string,
-  t: TFunction,
-) {
+export async function sendFarmInviteEmail(email: string, code: string, farmName: string, t: TFunction) {
   if (process.env.NODE_ENV !== "production") return;
   const subject = t("farm_invite.subject", { farmName });
   const body = t("farm_invite.body", { farmName });

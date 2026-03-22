@@ -40,7 +40,7 @@ describe.skip("Field Calendar Reports", () => {
         generateCropProtectionApplications: false,
         generateHarvests: false,
       },
-      jwt,
+      jwt
     );
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
@@ -74,7 +74,7 @@ describe.skip("Treatment Reports", () => {
         fromDate: "2025-01-01",
         toDate: "2025-12-31",
       },
-      jwt,
+      jwt
     );
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
@@ -112,7 +112,7 @@ describe.skip("Outdoor Journal Reports", () => {
         fromDate: "2025-01-01",
         toDate: "2025-12-31",
       },
-      jwt,
+      jwt
     );
     expect(res.status).toBe(200);
     const body = (await res.json()) as {

@@ -2,7 +2,7 @@ import cron from "node-cron";
 import { and, eq, gt, isNull, lt, sql } from "drizzle-orm";
 import { captureException } from "@sentry/node";
 import { adminDrizzle } from "../db/db";
-import { membershipExpiryNotifications, membershipPayments, profiles, userSubscriptions } from "../db/schema";
+import { membershipExpiryNotifications, membershipPayments, userSubscriptions } from "../db/schema";
 import { sendAccessLostEmail, sendExpiryReminderEmail, sendMembershipEndedEmail } from "./membership.email";
 
 const TEN_DAYS_MS = 10 * 24 * 60 * 60 * 1000;
@@ -34,18 +34,24 @@ async function runExpiryReminderPass(now: Date): Promise<void> {
     .select({ userId: lp.userId, periodEnd: lp.maxPeriodEnd })
     .from(lp)
     .leftJoin(userSubscriptions, eq(userSubscriptions.userId, lp.userId))
-    .where(and(
-      lt(lp.maxPeriodEnd, sql`${now.toISOString()}::timestamp`),
-      gt(lp.maxPeriodEnd, sql`${tenDaysAgo.toISOString()}::timestamp`),
-      isNull(userSubscriptions.id), // manual payment only (no auto-renewing subscription)
-    ));
+    .where(
+      and(
+        lt(lp.maxPeriodEnd, sql`${now.toISOString()}::timestamp`),
+        gt(lp.maxPeriodEnd, sql`${tenDaysAgo.toISOString()}::timestamp`),
+        isNull(userSubscriptions.id) // manual payment only (no auto-renewing subscription)
+      )
+    );
 
   for (const candidate of candidates) {
     // max() aggregate loses Drizzle's column decoder — coerce back to Date
     const periodEnd = new Date(candidate.periodEnd);
     // Skip if payment_failed or expiry_reminder was already sent for this period
     const existing = await adminDrizzle.query.membershipExpiryNotifications.findFirst({
-      where: { userId: candidate.userId, periodEndDate: { eq: periodEnd }, type: { in: ["payment_failed", "expiry_reminder"] } },
+      where: {
+        userId: candidate.userId,
+        periodEndDate: { eq: periodEnd },
+        type: { in: ["payment_failed", "expiry_reminder"] },
+      },
     });
     if (existing) continue;
 
@@ -79,10 +85,12 @@ async function runAccessLostPass(now: Date): Promise<void> {
   const candidates = await adminDrizzle
     .select({ userId: lp.userId, periodEnd: lp.maxPeriodEnd })
     .from(lp)
-    .where(and(
-      lt(lp.maxPeriodEnd, sql`${tenDaysAgo.toISOString()}::timestamp`),
-      gt(lp.maxPeriodEnd, sql`${thirtyDaysAgo.toISOString()}::timestamp`),
-    ));
+    .where(
+      and(
+        lt(lp.maxPeriodEnd, sql`${tenDaysAgo.toISOString()}::timestamp`),
+        gt(lp.maxPeriodEnd, sql`${thirtyDaysAgo.toISOString()}::timestamp`)
+      )
+    );
 
   for (const candidate of candidates) {
     const periodEnd = new Date(candidate.periodEnd);

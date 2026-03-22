@@ -1,10 +1,6 @@
 import createHttpError from "http-errors";
 import { z } from "zod";
-import {
-  authenticatedEndpointFactory,
-  farmEndpointFactory,
-  membershipEndpointFactory,
-} from "../endpoint-factory";
+import { authenticatedEndpointFactory, farmEndpointFactory, membershipEndpointFactory } from "../endpoint-factory";
 import { userSchema } from "../user/users.endpoint";
 
 const inviteSchema = z.object({

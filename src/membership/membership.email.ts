@@ -50,7 +50,14 @@ function baseLayout(subtitle: string, content: string): string {
 </html>`;
 }
 
-function receiptHtml(t: TFunction, amount: number, periodEnd: Date, locale: string, cardBrand: string | null, cardLast4: string | null): string {
+function receiptHtml(
+  t: TFunction,
+  amount: number,
+  periodEnd: Date,
+  locale: string,
+  cardBrand: string | null,
+  cardLast4: string | null
+): string {
   return `
     <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:20px 24px;margin-bottom:28px;">
       <table width="100%" cellpadding="0" cellspacing="0">
@@ -72,7 +79,7 @@ function receiptHtml(t: TFunction, amount: number, periodEnd: Date, locale: stri
     </div>`;
 }
 
-function welcomeBody(t: TFunction, locale: string): string {
+function welcomeBody(t: TFunction, _locale: string): string {
   const appFeatures = t("membership_email.new.app_features", { returnObjects: true }) as string[];
   const webappFeatures = t("membership_email.new.webapp_features", { returnObjects: true }) as string[];
   return `
@@ -118,15 +125,16 @@ export async function sendNewMembershipEmail(params: MembershipEmailParams): Pro
     : `<p style="margin:24px 0 10px;font-size:14px;font-weight:600;color:#111827;">${t("membership_email.new.receipt_title")}</p>
        ${receiptHtml(t, amount, periodEnd, locale, cardBrand, cardLast4)}`;
 
-  const html = baseLayout(t("membership_email.subtitle"), `
+  const html = baseLayout(
+    t("membership_email.subtitle"),
+    `
     <h1 style="margin:0 0 20px;font-size:24px;font-weight:700;color:#111827;">${t("membership_email.new.greeting", { name })}</h1>
     ${welcomeBody(t, locale)}
     ${bottomBlock}
-  `);
+  `
+  );
 
-  const subject = isTrial
-    ? t("membership_email.new.subject_trial")
-    : t("membership_email.new.subject");
+  const subject = isTrial ? t("membership_email.new.subject_trial") : t("membership_email.new.subject");
 
   await txEmailApi.sendTransacEmail({
     to: [{ email, name: fullName ?? undefined }],
@@ -150,12 +158,15 @@ export async function sendFirstPaymentEmail(params: MembershipEmailParams): Prom
   const t = i18next.getFixedT(locale);
   const name = fullName ?? email;
 
-  const html = baseLayout(t("membership_email.subtitle"), `
+  const html = baseLayout(
+    t("membership_email.subtitle"),
+    `
     <h1 style="margin:0 0 8px;font-size:24px;font-weight:700;color:#111827;">${t("membership_email.first_payment.greeting", { name })}</h1>
     <p style="margin:0 0 24px;font-size:15px;color:#4b5563;line-height:1.6;">${t("membership_email.first_payment.intro")}</p>
     <p style="margin:0 0 10px;font-size:14px;font-weight:600;color:#111827;">${t("membership_email.first_payment.receipt_title")}</p>
     ${receiptHtml(t, amount, periodEnd, locale, cardBrand, cardLast4)}
-  `);
+  `
+  );
 
   await txEmailApi.sendTransacEmail({
     to: [{ email, name: fullName ?? undefined }],
@@ -178,12 +189,15 @@ export async function sendRenewalEmail(params: MembershipEmailParams): Promise<v
   const t = i18next.getFixedT(locale);
   const name = fullName ?? email;
 
-  const html = baseLayout(t("membership_email.subtitle"), `
+  const html = baseLayout(
+    t("membership_email.subtitle"),
+    `
     <h1 style="margin:0 0 8px;font-size:24px;font-weight:700;color:#111827;">${t("membership_email.renewal.greeting", { name })}</h1>
     <p style="margin:0 0 24px;font-size:15px;color:#4b5563;line-height:1.6;">${t("membership_email.renewal.intro")}</p>
     <p style="margin:0 0 10px;font-size:14px;font-weight:600;color:#111827;">${t("membership_email.renewal.receipt_title")}</p>
     ${receiptHtml(t, amount, periodEnd, locale, cardBrand, cardLast4)}
-  `);
+  `
+  );
 
   await txEmailApi.sendTransacEmail({
     to: [{ email, name: fullName ?? undefined }],
@@ -225,11 +239,14 @@ export async function sendPaymentFailedEmail(params: ExpiryEmailParams): Promise
   const t = i18next.getFixedT(locale);
   const name = fullName ?? email;
 
-  const html = baseLayout(t("membership_email.subtitle"), `
+  const html = baseLayout(
+    t("membership_email.subtitle"),
+    `
     <h1 style="margin:0 0 16px;font-size:24px;font-weight:700;color:#111827;">${t("membership_email.payment_failed.greeting", { name })}</h1>
     <p style="margin:0 0 24px;font-size:15px;color:#4b5563;line-height:1.6;">${t("membership_email.payment_failed.intro", { date: formatDate(periodEnd, locale) })}</p>
     ${ctaButton(renewUrl, t("membership_email.payment_failed.cta"))}
-  `);
+  `
+  );
 
   await txEmailApi.sendTransacEmail({
     to: [{ email, name: fullName ?? undefined }],
@@ -251,11 +268,14 @@ export async function sendExpiryReminderEmail(params: ExpiryEmailParams): Promis
   const t = i18next.getFixedT(locale);
   const name = fullName ?? email;
 
-  const html = baseLayout(t("membership_email.subtitle"), `
+  const html = baseLayout(
+    t("membership_email.subtitle"),
+    `
     <h1 style="margin:0 0 16px;font-size:24px;font-weight:700;color:#111827;">${t("membership_email.expiry_reminder.greeting", { name })}</h1>
     <p style="margin:0 0 24px;font-size:15px;color:#4b5563;line-height:1.6;">${t("membership_email.expiry_reminder.intro", { date: formatDate(periodEnd, locale) })}</p>
     ${ctaButton(renewUrl, t("membership_email.expiry_reminder.cta"))}
-  `);
+  `
+  );
 
   await txEmailApi.sendTransacEmail({
     to: [{ email, name: fullName ?? undefined }],
@@ -277,11 +297,14 @@ export async function sendAccessLostEmail(params: ExpiryEmailParams): Promise<vo
   const t = i18next.getFixedT(locale);
   const name = fullName ?? email;
 
-  const html = baseLayout(t("membership_email.subtitle"), `
+  const html = baseLayout(
+    t("membership_email.subtitle"),
+    `
     <h1 style="margin:0 0 16px;font-size:24px;font-weight:700;color:#111827;">${t("membership_email.access_lost.greeting", { name })}</h1>
     <p style="margin:0 0 24px;font-size:15px;color:#4b5563;line-height:1.6;">${t("membership_email.access_lost.intro", { date: formatDate(periodEnd, locale) })}</p>
     ${ctaButton(renewUrl, t("membership_email.access_lost.cta"))}
-  `);
+  `
+  );
 
   await txEmailApi.sendTransacEmail({
     to: [{ email, name: fullName ?? undefined }],
@@ -299,15 +322,18 @@ export async function sendAccessLostEmail(params: ExpiryEmailParams): Promise<vo
 }
 
 export async function sendMembershipEndedEmail(params: ExpiryEmailParams): Promise<void> {
-  const { email, fullName, locale, periodEnd, renewUrl } = params;
+  const { email, fullName, locale, periodEnd: _periodEnd, renewUrl } = params;
   const t = i18next.getFixedT(locale);
   const name = fullName ?? email;
 
-  const html = baseLayout(t("membership_email.subtitle"), `
+  const html = baseLayout(
+    t("membership_email.subtitle"),
+    `
     <h1 style="margin:0 0 16px;font-size:24px;font-weight:700;color:#111827;">${t("membership_email.membership_ended.greeting", { name })}</h1>
     <p style="margin:0 0 24px;font-size:15px;color:#4b5563;line-height:1.6;">${t("membership_email.membership_ended.intro")}</p>
     <a href="${renewUrl}" style="font-size:14px;color:#16a34a;text-decoration:underline;">${t("membership_email.membership_ended.cta")}</a>
-  `);
+  `
+  );
 
   await txEmailApi.sendTransacEmail({
     to: [{ email, name: fullName ?? undefined }],
@@ -329,12 +355,15 @@ export async function sendReactivationEmail(params: ReactivationEmailParams): Pr
   const t = i18next.getFixedT(locale);
   const name = fullName ?? email;
 
-  const html = baseLayout(t("membership_email.subtitle"), `
+  const html = baseLayout(
+    t("membership_email.subtitle"),
+    `
     <h1 style="margin:0 0 8px;font-size:24px;font-weight:700;color:#111827;">${t("membership_email.reactivation.greeting", { name })}</h1>
     <p style="margin:0;font-size:15px;color:#4b5563;line-height:1.6;">
       ${t("membership_email.reactivation.intro", { date: formatDate(periodEnd, locale) })}
     </p>
-  `);
+  `
+  );
 
   await txEmailApi.sendTransacEmail({
     to: [{ email, name: fullName ?? undefined }],

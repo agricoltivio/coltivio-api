@@ -1,12 +1,6 @@
 import { and, arrayContains, eq } from "drizzle-orm";
 import { RlsDb } from "../db/db";
-import {
-  farmIdColumnValue,
-  taskChecklistItems,
-  taskLinks,
-  taskRecurrences,
-  tasks,
-} from "../db/schema";
+import { farmIdColumnValue, taskChecklistItems, taskLinks, taskRecurrences, tasks } from "../db/schema";
 
 export type Task = typeof tasks.$inferSelect;
 export type TaskRecurrence = typeof taskRecurrences.$inferSelect;
@@ -49,14 +43,7 @@ export type TaskRecurrenceInput = {
 };
 
 export type TaskLinkInput = {
-  linkType:
-    | "animal"
-    | "plot"
-    | "contact"
-    | "order"
-    | "wiki_entry"
-    | "treatment"
-    | "herd";
+  linkType: "animal" | "plot" | "contact" | "order" | "wiki_entry" | "treatment" | "herd";
   linkedId: string;
 };
 
@@ -99,7 +86,7 @@ export type TaskListFilters = {
 async function resolveLinks(
   links: TaskLink[],
   tx: Parameters<Parameters<RlsDb["rls"]>[0]>[0],
-  locale: string,
+  locale: string
 ): Promise<ResolvedTaskLink[]> {
   return Promise.all(
     links.map(async (link) => {
@@ -112,9 +99,7 @@ async function resolveLinks(
             with: { earTag: true },
           });
           if (row) {
-            displayName = row.earTag
-              ? `${row.earTag.number} ${row.name}`
-              : row.name;
+            displayName = row.earTag ? `${row.earTag.number} ${row.name}` : row.name;
           }
           break;
         }
@@ -137,7 +122,7 @@ async function resolveLinks(
           const row = await tx.query.orders.findFirst({
             where: { id: link.linkedId },
           });
-          displayName = row ? row.orderDate?.toISOString().slice(0, 10) ?? null : null;
+          displayName = row ? (row.orderDate?.toISOString().slice(0, 10) ?? null) : null;
           break;
         }
         case "wiki_entry": {
@@ -145,9 +130,7 @@ async function resolveLinks(
             where: { id: link.linkedId },
             with: { translations: true },
           });
-          const translation =
-            row?.translations.find((t) => t.locale === locale) ??
-            row?.translations[0];
+          const translation = row?.translations.find((t) => t.locale === locale) ?? row?.translations[0];
           displayName = translation?.title ?? null;
           break;
         }
@@ -168,16 +151,13 @@ async function resolveLinks(
       }
 
       return { ...link, displayName };
-    }),
+    })
   );
 }
 
 // Calculate the next occurrence date after the given base date.
 // Returns null if the next date would exceed the `until` boundary.
-function calculateNextOccurrence(
-  baseDueDate: Date | null,
-  recurrence: TaskRecurrence,
-): Date | null {
+function calculateNextOccurrence(baseDueDate: Date | null, recurrence: TaskRecurrence): Date | null {
   const base = baseDueDate ?? new Date();
   const next = new Date(base);
 
@@ -187,11 +167,15 @@ function calculateNextOccurrence(
       // If specific weekdays are set, snap forward to the nearest matching one
       if (recurrence.byWeekday && recurrence.byWeekday.length > 0) {
         const dayMap: Record<string, number> = {
-          SU: 0, MO: 1, TU: 2, WE: 3, TH: 4, FR: 5, SA: 6,
+          SU: 0,
+          MO: 1,
+          TU: 2,
+          WE: 3,
+          TH: 4,
+          FR: 5,
+          SA: 6,
         };
-        const targetDays = new Set(
-          recurrence.byWeekday.map((d) => dayMap[d]),
-        );
+        const targetDays = new Set(recurrence.byWeekday.map((d) => dayMap[d]));
         // Search up to 7 days forward from the advanced date
         for (let i = 0; i < 7; i++) {
           if (targetDays.has(next.getDay())) break;
@@ -221,7 +205,7 @@ function calculateNextOccurrence(
 async function upsertRecurrence(
   tx: Parameters<Parameters<RlsDb["rls"]>[0]>[0],
   taskId: string,
-  input: TaskRecurrenceInput,
+  input: TaskRecurrenceInput
 ) {
   const existing = await tx.query.taskRecurrences.findFirst({
     where: { taskId },
@@ -235,10 +219,7 @@ async function upsertRecurrence(
     count: input.count,
   };
   if (existing) {
-    await tx
-      .update(taskRecurrences)
-      .set(values)
-      .where(eq(taskRecurrences.taskId, taskId));
+    await tx.update(taskRecurrences).set(values).where(eq(taskRecurrences.taskId, taskId));
   } else {
     await tx.insert(taskRecurrences).values({
       ...farmIdColumnValue,
@@ -255,12 +236,8 @@ export function tasksApi(rlsDb: RlsDb, locale: string) {
         // Use select().from() for SQL conditions (arrayContains), then fetch full data relationally
         const conditions = [
           filters.status ? eq(tasks.status, filters.status) : undefined,
-          filters.assigneeId
-            ? eq(tasks.assigneeId, filters.assigneeId)
-            : undefined,
-          filters.label
-            ? arrayContains(tasks.labels, [filters.label])
-            : undefined,
+          filters.assigneeId ? eq(tasks.assigneeId, filters.assigneeId) : undefined,
+          filters.label ? arrayContains(tasks.labels, [filters.label]) : undefined,
         ].filter((c): c is NonNullable<typeof c> => c !== undefined);
 
         let matchingIds: string[] | undefined;
@@ -317,10 +294,7 @@ export function tasksApi(rlsDb: RlsDb, locale: string) {
       });
     },
 
-    async createTask(
-      input: TaskCreateInput,
-      createdBy: string,
-    ): Promise<TaskWithRelations> {
+    async createTask(input: TaskCreateInput, createdBy: string): Promise<TaskWithRelations> {
       return rlsDb.rls(async (tx) => {
         const [task] = await tx
           .insert(tasks)
@@ -346,7 +320,7 @@ export function tasksApi(rlsDb: RlsDb, locale: string) {
               taskId: task.id,
               linkType: link.linkType,
               linkedId: link.linkedId,
-            })),
+            }))
           );
         }
 
@@ -357,7 +331,7 @@ export function tasksApi(rlsDb: RlsDb, locale: string) {
               taskId: task.id,
               name: item.name,
               dueDate: item.dueDate,
-            })),
+            }))
           );
         }
 
@@ -376,18 +350,13 @@ export function tasksApi(rlsDb: RlsDb, locale: string) {
       });
     },
 
-    async updateTask(
-      id: string,
-      input: TaskUpdateInput,
-    ): Promise<TaskWithRelations> {
+    async updateTask(id: string, input: TaskUpdateInput): Promise<TaskWithRelations> {
       return rlsDb.rls(async (tx) => {
         const updateFields: Partial<typeof tasks.$inferInsert> = {};
         if (input.name !== undefined) updateFields.name = input.name;
-        if (input.description !== undefined)
-          updateFields.description = input.description;
+        if (input.description !== undefined) updateFields.description = input.description;
         if (input.labels !== undefined) updateFields.labels = input.labels;
-        if (input.assigneeId !== undefined)
-          updateFields.assigneeId = input.assigneeId;
+        if (input.assigneeId !== undefined) updateFields.assigneeId = input.assigneeId;
         if (input.dueDate !== undefined) updateFields.dueDate = input.dueDate;
 
         if (Object.keys(updateFields).length > 0) {
@@ -409,15 +378,13 @@ export function tasksApi(rlsDb: RlsDb, locale: string) {
                 taskId: id,
                 linkType: link.linkType,
                 linkedId: link.linkedId,
-              })),
+              }))
             );
           }
         }
 
         if (input.checklistItems !== undefined) {
-          await tx
-            .delete(taskChecklistItems)
-            .where(eq(taskChecklistItems.taskId, id));
+          await tx.delete(taskChecklistItems).where(eq(taskChecklistItems.taskId, id));
           if (input.checklistItems.length > 0) {
             await tx.insert(taskChecklistItems).values(
               input.checklistItems.map((item) => ({
@@ -425,7 +392,7 @@ export function tasksApi(rlsDb: RlsDb, locale: string) {
                 taskId: id,
                 name: item.name,
                 dueDate: item.dueDate,
-              })),
+              }))
             );
           }
         }
@@ -451,16 +418,9 @@ export function tasksApi(rlsDb: RlsDb, locale: string) {
       });
     },
 
-    async setTaskStatus(
-      id: string,
-      status: "todo" | "done",
-    ): Promise<{ task: Task; nextTaskId: string | null }> {
+    async setTaskStatus(id: string, status: "todo" | "done"): Promise<{ task: Task; nextTaskId: string | null }> {
       return rlsDb.rls(async (tx) => {
-        const [task] = await tx
-          .update(tasks)
-          .set({ status })
-          .where(eq(tasks.id, id))
-          .returning();
+        const [task] = await tx.update(tasks).set({ status }).where(eq(tasks.id, id)).returning();
 
         // Only spawn next occurrence when marking done and a recurrence exists
         if (status !== "done") {
@@ -484,10 +444,9 @@ export function tasksApi(rlsDb: RlsDb, locale: string) {
         const existingLinks = await tx.query.taskLinks.findMany({
           where: { taskId: id },
         });
-        const existingChecklistItems =
-          await tx.query.taskChecklistItems.findMany({
-            where: { taskId: id },
-          });
+        const existingChecklistItems = await tx.query.taskChecklistItems.findMany({
+          where: { taskId: id },
+        });
 
         const [nextTask] = await tx
           .insert(tasks)
@@ -520,7 +479,7 @@ export function tasksApi(rlsDb: RlsDb, locale: string) {
               taskId: nextTask.id,
               linkType: link.linkType,
               linkedId: link.linkedId,
-            })),
+            }))
           );
         }
 
@@ -532,7 +491,7 @@ export function tasksApi(rlsDb: RlsDb, locale: string) {
               name: item.name,
               dueDate: item.dueDate,
               // done resets to false (default)
-            })),
+            }))
           );
         }
 
@@ -540,10 +499,7 @@ export function tasksApi(rlsDb: RlsDb, locale: string) {
       });
     },
 
-    async setChecklistItemDone(
-      itemId: string,
-      done: boolean,
-    ): Promise<TaskChecklistItem> {
+    async setChecklistItemDone(itemId: string, done: boolean): Promise<TaskChecklistItem> {
       return rlsDb.rls(async (tx) => {
         const [updated] = await tx
           .update(taskChecklistItems)

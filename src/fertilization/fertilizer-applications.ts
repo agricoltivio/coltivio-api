@@ -13,24 +13,20 @@ import {
 } from "../db/schema";
 import { MultiPolygon } from "../geo/geojson";
 
-export type FertilizerApplicationPreset =
-  typeof fertilizerApplicationPresets.$inferSelect & {
-    fertilizer: typeof fertilizers.$inferSelect;
-  };
+export type FertilizerApplicationPreset = typeof fertilizerApplicationPresets.$inferSelect & {
+  fertilizer: typeof fertilizers.$inferSelect;
+};
 export type FertilizerApplicationPresetCreateInput = Omit<
   typeof fertilizerApplicationPresets.$inferInsert,
   "id" | "farmId"
 >;
-export type FertilizerApplicationPresetUpdateInput =
-  Partial<FertilizerApplicationPresetCreateInput>;
+export type FertilizerApplicationPresetUpdateInput = Partial<FertilizerApplicationPresetCreateInput>;
 
-export type FertilizerApplicationUnit = z.infer<
-  typeof fertilizerApplicationUnitSchema
->;
+export type FertilizerApplicationUnit = z.infer<typeof fertilizerApplicationUnitSchema>;
 export type FertilizerUnit = z.infer<typeof fertilizerUnitSchema>;
 export type FertilizationMethod = z.infer<typeof fertilizationMethodSchema>;
 
-type CreateFertilizerApplicationInput = {
+type _CreateFertilizerApplicationInput = {
   plotId: string;
   date: Date;
   createdBy: string;
@@ -59,10 +55,7 @@ export type FertilizerApplicationApplicationBatchCreateInput = {
   }[];
 };
 
-type FertilizerApplication = Omit<
-  typeof fertilizerApplications.$inferSelect,
-  "geometry"
-> & {
+type FertilizerApplication = Omit<typeof fertilizerApplications.$inferSelect, "geometry"> & {
   geometry: MultiPolygon;
   fertilizer: typeof fertilizers.$inferSelect;
   plot: Pick<typeof plots.$inferSelect, "id" | "name">;
@@ -88,9 +81,7 @@ export function fertilizerApplicationsApi(rlsDb: RlsDb) {
     async createFertilizerApplications({
       plots,
       ...base
-    }: FertilizerApplicationApplicationBatchCreateInput): Promise<
-      FertilizerApplication[]
-    > {
+    }: FertilizerApplicationApplicationBatchCreateInput): Promise<FertilizerApplication[]> {
       const result = await rlsDb.rls(async (tx) => {
         return tx
           .insert(fertilizerApplications)
@@ -100,17 +91,13 @@ export function fertilizerApplicationsApi(rlsDb: RlsDb) {
               ...base,
               ...plot,
               geometry: sql<MultiPolygon>`ST_GeomFromGeoJSON(${JSON.stringify(plot.geometry)})`,
-            })),
+            }))
           )
           .returning({ id: fertilizerApplications.id });
       });
-      return this.getFertilizerApplicationsByIds(
-        result.map((application) => application.id),
-      )!;
+      return this.getFertilizerApplicationsByIds(result.map((application) => application.id))!;
     },
-    async getFertilizerApplicationsByIds(
-      ids: string[],
-    ): Promise<FertilizerApplication[]> {
+    async getFertilizerApplicationsByIds(ids: string[]): Promise<FertilizerApplication[]> {
       return rlsDb.rls(async (tx) => {
         return tx.query.fertilizerApplications.findMany({
           where: { id: { in: ids } },
@@ -124,18 +111,13 @@ export function fertilizerApplicationsApi(rlsDb: RlsDb) {
             },
           },
           extras: {
-            geometry: (t) =>
-              sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as(
-                "geometry",
-              ),
+            geometry: (t) => sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as("geometry"),
           },
         });
       });
     },
 
-    async getFertilizerApplicationById(
-      id: string,
-    ): Promise<FertilizerApplication | undefined> {
+    async getFertilizerApplicationById(id: string): Promise<FertilizerApplication | undefined> {
       return rlsDb.rls(async (tx) => {
         return tx.query.fertilizerApplications.findFirst({
           where: { id },
@@ -149,10 +131,7 @@ export function fertilizerApplicationsApi(rlsDb: RlsDb) {
             },
           },
           extras: {
-            geometry: (t) =>
-              sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as(
-                "geometry",
-              ),
+            geometry: (t) => sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as("geometry"),
           },
         });
       });
@@ -161,7 +140,7 @@ export function fertilizerApplicationsApi(rlsDb: RlsDb) {
     async getFertilizerApplicationsForFarm(
       farmId: string,
       fromDate: Date,
-      toDate: Date,
+      toDate: Date
     ): Promise<FertilizerApplication[]> {
       return rlsDb.rls(async (tx) => {
         return tx.query.fertilizerApplications.findMany({
@@ -179,19 +158,14 @@ export function fertilizerApplicationsApi(rlsDb: RlsDb) {
             fertilizer: true,
           },
           extras: {
-            geometry: (t) =>
-              sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as(
-                "geometry",
-              ),
+            geometry: (t) => sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as("geometry"),
           },
           orderBy: { date: "desc" },
         });
       });
     },
 
-    async getFertilizerApplicationsForPlot(
-      plotId: string,
-    ): Promise<Omit<FertilizerApplication, "plot">[]> {
+    async getFertilizerApplicationsForPlot(plotId: string): Promise<Omit<FertilizerApplication, "plot">[]> {
       return rlsDb.rls(async (tx) => {
         return tx.query.fertilizerApplications.findMany({
           where: { plotId },
@@ -199,10 +173,7 @@ export function fertilizerApplicationsApi(rlsDb: RlsDb) {
             fertilizer: true,
           },
           extras: {
-            geometry: (t) =>
-              sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as(
-                "geometry",
-              ),
+            geometry: (t) => sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as("geometry"),
           },
           orderBy: { date: "desc" },
         });
@@ -211,9 +182,7 @@ export function fertilizerApplicationsApi(rlsDb: RlsDb) {
 
     async deleteFertilizerApplication(id: string): Promise<void> {
       await rlsDb.rls(async (tx) => {
-        await tx
-          .delete(fertilizerApplications)
-          .where(eq(fertilizerApplications.id, id));
+        await tx.delete(fertilizerApplications).where(eq(fertilizerApplications.id, id));
       });
     },
 
@@ -226,19 +195,11 @@ export function fertilizerApplicationsApi(rlsDb: RlsDb) {
           orderBy: { date: "desc" },
         });
 
-        return Array.from(
-          new Set(
-            result.map((application) =>
-              application.date.getFullYear().toString(),
-            ),
-          ),
-        );
+        return Array.from(new Set(result.map((application) => application.date.getFullYear().toString())));
       });
     },
 
-    async getFertilizerApplicationSummaryForFarm(
-      farmId: string,
-    ): Promise<FertilizationApplicationSummary> {
+    async getFertilizerApplicationSummaryForFarm(farmId: string): Promise<FertilizationApplicationSummary> {
       // return { monthlyApplications: [] };
       return rlsDb.rls(async (tx) => {
         const result = await tx.query.fertilizerApplications.findMany({
@@ -261,9 +222,7 @@ export function fertilizerApplicationsApi(rlsDb: RlsDb) {
         return mapToMonthlySummary(result);
       });
     },
-    async getFertilizerApplicationSummaryForPlot(
-      plotId: string,
-    ): Promise<FertilizationApplicationSummary> {
+    async getFertilizerApplicationSummaryForPlot(plotId: string): Promise<FertilizationApplicationSummary> {
       return rlsDb.rls(async (tx) => {
         const result = await tx.query.fertilizerApplications.findMany({
           where: { plotId },
@@ -286,7 +245,7 @@ export function fertilizerApplicationsApi(rlsDb: RlsDb) {
       });
     },
     async createFertilizerApplicationPreset(
-      input: FertilizerApplicationPresetCreateInput,
+      input: FertilizerApplicationPresetCreateInput
     ): Promise<FertilizerApplicationPreset> {
       const result = await rlsDb.rls(async (tx) => {
         const [preset] = await tx
@@ -298,9 +257,7 @@ export function fertilizerApplicationsApi(rlsDb: RlsDb) {
       const preset = await this.getFertilizerApplicationPresetById(result.id);
       return preset!;
     },
-    async getFertilizerApplicationPresets(): Promise<
-      FertilizerApplicationPreset[]
-    > {
+    async getFertilizerApplicationPresets(): Promise<FertilizerApplicationPreset[]> {
       return rlsDb.rls(async (tx) => {
         return tx.query.fertilizerApplicationPresets.findMany({
           with: { fertilizer: true },
@@ -308,9 +265,7 @@ export function fertilizerApplicationsApi(rlsDb: RlsDb) {
         });
       });
     },
-    async getFertilizerApplicationPresetById(
-      id: string,
-    ): Promise<FertilizerApplicationPreset | undefined> {
+    async getFertilizerApplicationPresetById(id: string): Promise<FertilizerApplicationPreset | undefined> {
       return rlsDb.rls(async (tx) => {
         return tx.query.fertilizerApplicationPresets.findFirst({
           where: { id },
@@ -320,7 +275,7 @@ export function fertilizerApplicationsApi(rlsDb: RlsDb) {
     },
     async updateFertilizerApplicationPreset(
       id: string,
-      input: FertilizerApplicationPresetUpdateInput,
+      input: FertilizerApplicationPresetUpdateInput
     ): Promise<FertilizerApplicationPreset> {
       const result = await rlsDb.rls(async (tx) => {
         const [preset] = await tx
@@ -335,9 +290,7 @@ export function fertilizerApplicationsApi(rlsDb: RlsDb) {
     },
     async deleteFertilizerApplicationPreset(id: string): Promise<void> {
       return rlsDb.rls(async (tx) => {
-        await tx
-          .delete(fertilizerApplicationPresets)
-          .where(eq(fertilizerApplicationPresets.id, id));
+        await tx.delete(fertilizerApplicationPresets).where(eq(fertilizerApplicationPresets.id, id));
       });
     },
   };
@@ -348,16 +301,13 @@ export function fertilizerApplicationsApi(rlsDb: RlsDb) {
       amountPerUnit: number;
       date: Date;
       fertilizer: { name: string; unit: FertilizerUnit };
-    }[],
+    }[]
   ) {
     const applications = result.reduce<{
       [key: string]: {
         month: number;
         year: number;
-        appliedFertilizers: Record<
-          string,
-          { totalAmount: number; unit: FertilizerUnit; fertilizerName: string }
-        >;
+        appliedFertilizers: Record<string, { totalAmount: number; unit: FertilizerUnit; fertilizerName: string }>;
       };
     }>((acc, application) => {
       const date = application.date;
@@ -392,13 +342,11 @@ export function fertilizerApplicationsApi(rlsDb: RlsDb) {
       return acc;
     }, {});
     return {
-      monthlyApplications: Object.values(applications).map(
-        ({ year, month, appliedFertilizers }) => ({
-          year,
-          month,
-          appliedFertilizers: Object.values(appliedFertilizers),
-        }),
-      ),
+      monthlyApplications: Object.values(applications).map(({ year, month, appliedFertilizers }) => ({
+        year,
+        month,
+        appliedFertilizers: Object.values(appliedFertilizers),
+      })),
     };
   }
 }

@@ -23,10 +23,7 @@ export const getSponsorshipProgramByIdEndpoint = membershipEndpointFactory.build
   input: z.object({ sponsorshipProgramId: z.string() }),
   output: sponsorshipProgramSchema,
   handler: async ({ input, ctx: { sponsorshipPrograms } }) => {
-    const sponsorshipProgram =
-      await sponsorshipPrograms.getSponsorshipProgramById(
-        input.sponsorshipProgramId,
-      );
+    const sponsorshipProgram = await sponsorshipPrograms.getSponsorshipProgramById(input.sponsorshipProgramId);
     if (!sponsorshipProgram) {
       throw createHttpError(404, "Sponsorship type not found");
     }
@@ -42,8 +39,7 @@ export const getFarmSponsorshipProgramsEndpoint = membershipEndpointFactory.buil
     count: z.number(),
   }),
   handler: async ({ ctx: { sponsorshipPrograms, farmId } }) => {
-    const result =
-      await sponsorshipPrograms.getSponsorshipProgramsForFarm(farmId);
+    const result = await sponsorshipPrograms.getSponsorshipProgramsForFarm(farmId);
     return {
       result,
       count: result.length,
@@ -68,10 +64,7 @@ export const updateSponsorshipProgramEndpoint = membershipEndpointFactory.build(
   output: sponsorshipProgramSchema,
   handler: async ({ input, ctx: { sponsorshipPrograms } }) => {
     const { sponsorshipProgramId, ...data } = input;
-    return sponsorshipPrograms.updateSponsorshipProgram(
-      sponsorshipProgramId,
-      data,
-    );
+    return sponsorshipPrograms.updateSponsorshipProgram(sponsorshipProgramId, data);
   },
 });
 
@@ -79,10 +72,7 @@ export const deleteSponsorshipProgramEndpoint = membershipEndpointFactory.build(
   method: "delete",
   input: z.object({ sponsorshipProgramId: z.string() }),
   output: z.object({}),
-  handler: async ({
-    input: { sponsorshipProgramId },
-    ctx: { sponsorshipPrograms },
-  }) => {
+  handler: async ({ input: { sponsorshipProgramId }, ctx: { sponsorshipPrograms } }) => {
     await sponsorshipPrograms.deleteSponsorshipProgram(sponsorshipProgramId);
     return {};
   },

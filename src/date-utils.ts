@@ -19,9 +19,7 @@ export function hasOverlappingRanges(ranges: DateRange[]): boolean {
   if (ranges.length < 2) return false;
 
   // Sort by start date
-  const sorted = [...ranges].sort(
-    (a, b) => a.fromDate.getTime() - b.fromDate.getTime(),
-  );
+  const sorted = [...ranges].sort((a, b) => a.fromDate.getTime() - b.fromDate.getTime());
 
   for (let i = 1; i < sorted.length; i++) {
     const prev = sorted[i - 1];

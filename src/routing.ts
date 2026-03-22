@@ -16,7 +16,6 @@ import {
   getOutdoorScheduleByIdEndpoint,
   importAnimalsFromExcelEndpoint,
   updateAnimalEndpoint,
-  updateAnimalsEndpoint,
   updateHerdEndpoint,
   updateOutdoorScheduleEndpoint,
   batchUpdateAnimalsEndpoint,
@@ -76,22 +75,14 @@ import {
   getTreatmentByIdEndpoint,
   updateTreatmentEndpoint,
 } from "./treatments/treatments.endpoint";
-import {
-  createFarmEndpoint,
-  deleteFarmEndpoint,
-  getFarmEndpoint,
-  updateFarmEndpoint,
-} from "./farm/farm.endpoint";
+import { createFarmEndpoint, deleteFarmEndpoint, getFarmEndpoint, updateFarmEndpoint } from "./farm/farm.endpoint";
 import {
   listFarmInvitesEndpoint,
   createFarmInviteEndpoint,
   revokeFarmInviteEndpoint,
   acceptFarmInviteEndpoint,
 } from "./farm/farm-invites.endpoint";
-import {
-  getDashboardStatsEndpoint,
-  getFieldEventsEndpoint,
-} from "./dashboard/dashboard.endpoint";
+import { getDashboardStatsEndpoint, getFieldEventsEndpoint } from "./dashboard/dashboard.endpoint";
 import {
   createHarvestsEndpoint,
   deleteHarvestEndpoint,
@@ -248,10 +239,7 @@ import {
   getProductByIdEndpoint,
   updateProductEndpoint,
 } from "./products/products.endpoint";
-import {
-  sendFieldCalendarReport,
-  downloadFieldCalendarReport,
-} from "./reports/field-calendar-reports.endpoint";
+import { sendFieldCalendarReport, downloadFieldCalendarReport } from "./reports/field-calendar-reports.endpoint";
 import { downloadTreatmentReport } from "./reports/treatment-reports.endpoint";
 import { downloadOutdoorJournalReport } from "./reports/outdoor-journal-reports.endpoint";
 import { healthEndpoint } from "./chore/chore.endpoint";
@@ -317,14 +305,8 @@ import {
   updateForumReplyEndpoint,
   deleteForumReplyEndpoint,
 } from "./forum/forum.endpoint";
-import {
-  setForumThreadStatusEndpoint,
-  pinForumThreadEndpoint,
-} from "./forum/forum-moderation.endpoint";
-import {
-  createHandoffTokenEndpoint,
-  exchangeHandoffTokenEndpoint,
-} from "./auth/handoff.endpoint";
+import { setForumThreadStatusEndpoint, pinForumThreadEndpoint } from "./forum/forum-moderation.endpoint";
+import { createHandoffTokenEndpoint, exchangeHandoffTokenEndpoint } from "./auth/handoff.endpoint";
 
 export const routing: Routing = {
   healthz: healthEndpoint,
@@ -414,11 +396,9 @@ export const routing: Routing = {
           cropRotations: getCropRotationsForPlotEndpoint,
           tillages: getPlotTillagesEndpoint,
           cropProtectionApplications: getPlotCropProtectionApplicationsEndpoint,
-          cropProtectionApplicationSummary:
-            getCropProtectionApplicationSummaryForPlotEndpoint,
+          cropProtectionApplicationSummary: getCropProtectionApplicationSummaryForPlotEndpoint,
           fertilizerApplications: getFertilizerApplicationsForPlotEndpoint,
-          fertilizerApplicationSummary:
-            getFertilizerApplicationSummaryForPlotEndpoint,
+          fertilizerApplicationSummary: getFertilizerApplicationSummaryForPlotEndpoint,
           harvests: getHarvestsForPlotEndpoint,
           harvestSummary: getHarvestSummaryForPlotEndpoint,
           split: splitPlotEndpoint,
@@ -651,8 +631,7 @@ export const routing: Routing = {
           },
           children: getAnimalChildrenEndpoint,
           sponsorships: getAnimalSponsorshipsEndpoint,
-          customOutdoorJournalCategories:
-            setCustomOutdoorJournalCategoriesEndpoint,
+          customOutdoorJournalCategories: setCustomOutdoorJournalCategoriesEndpoint,
         },
       },
       outdoorJournal: getOutdoorJournalEndpoint,

@@ -21,20 +21,14 @@ import { InvoiceSettings } from "./invoice-settings";
 const LOGO_MAX_WIDTH = 150; // pixels (twips converted internally by docx)
 
 // Read pixel dimensions from PNG (IHDR at offset 16) or JPEG (scan for SOF marker)
-function getImageDimensions(
-  data: Buffer,
-  mimeType: string,
-): { width: number; height: number } {
+function getImageDimensions(data: Buffer, mimeType: string): { width: number; height: number } {
   if (mimeType === "png") {
     return { width: data.readUInt32BE(16), height: data.readUInt32BE(20) };
   }
   // JPEG: scan for SOF0/SOF2 marker (0xFFC0 / 0xFFC2)
   let offset = 2;
   while (offset < data.length - 8) {
-    if (
-      data[offset] === 0xff &&
-      (data[offset + 1] === 0xc0 || data[offset + 1] === 0xc2)
-    ) {
+    if (data[offset] === 0xff && (data[offset + 1] === 0xc0 || data[offset + 1] === 0xc2)) {
       return {
         width: data.readUInt16BE(offset + 7),
         height: data.readUInt16BE(offset + 5),
@@ -46,10 +40,7 @@ function getImageDimensions(
 }
 
 // Scale image to LOGO_MAX_WIDTH while preserving aspect ratio
-function scaleToMaxWidth(
-  data: Buffer,
-  mimeType: string,
-): { width: number; height: number } {
+function scaleToMaxWidth(data: Buffer, mimeType: string): { width: number; height: number } {
   const { width, height } = getImageDimensions(data, mimeType);
   const scale = LOGO_MAX_WIDTH / width;
   return { width: LOGO_MAX_WIDTH, height: Math.round(height * scale) };
@@ -57,11 +48,7 @@ function scaleToMaxWidth(
 
 // Split text on newlines into TextRuns with line breaks for proper rendering in DOCX
 function textRunsFromMultiline(text: string, size: number): TextRun[] {
-  return text
-    .split("\n")
-    .map(
-      (line, i) => new TextRun({ text: line, size, break: i === 0 ? 0 : 1 }),
-    );
+  return text.split("\n").map((line, i) => new TextRun({ text: line, size, break: i === 0 ? 0 : 1 }));
 }
 
 function formatCHF(amount: number): string {
@@ -98,13 +85,11 @@ function cell(
     align?: (typeof AlignmentType)[keyof typeof AlignmentType];
     borders?: ITableCellBorders;
     width?: number;
-  } = {},
+  } = {}
 ): TableCell {
   return new TableCell({
     borders: opts.borders ?? thinBorder,
-    width: opts.width
-      ? { size: opts.width, type: WidthType.PERCENTAGE }
-      : undefined,
+    width: opts.width ? { size: opts.width, type: WidthType.PERCENTAGE } : undefined,
     children: [
       new Paragraph({
         alignment: opts.align ?? AlignmentType.LEFT,
@@ -123,8 +108,7 @@ const PAGE_MARGIN = {
 
 function buildFooter(settings: InvoiceSettings): Footer {
   const footerLines: string[] = [];
-  if (settings.iban)
-    footerLines.push(`IBAN: ${settings.iban}${settings.bankName ? `  |  ${settings.bankName}` : ""}`);
+  if (settings.iban) footerLines.push(`IBAN: ${settings.iban}${settings.bankName ? `  |  ${settings.bankName}` : ""}`);
   if (settings.email) footerLines.push(settings.email);
   if (settings.phone) footerLines.push(settings.phone);
   if (settings.website) footerLines.push(settings.website);
@@ -140,7 +124,7 @@ function buildFooter(settings: InvoiceSettings): Footer {
           new Paragraph({
             alignment: AlignmentType.CENTER,
             children: [new TextRun({ text: line, size: 18, color: "222222" })],
-          }),
+          })
       ),
     ],
   });
@@ -150,23 +134,14 @@ function buildFooter(settings: InvoiceSettings): Footer {
 export function buildInvoiceChildren(
   order: OrderWithRelations,
   settings: InvoiceSettings,
-  invoiceNumber: string,
+  invoiceNumber: string
 ): (Paragraph | Table)[] {
   const contact = order.contact;
   const orderDate = formatDate(order.orderDate);
-  const shippingDate = order.shippingDate
-    ? formatDate(order.shippingDate)
-    : "—";
-  const introText = (settings.introText ?? "").replace(
-    /\{\{firstName\}\}/g,
-    contact.firstName,
-  );
+  const shippingDate = order.shippingDate ? formatDate(order.shippingDate) : "—";
+  const introText = (settings.introText ?? "").replace(/\{\{firstName\}\}/g, contact.firstName);
 
-  const senderLines = [
-    settings.senderName,
-    settings.street,
-    `${settings.zip} ${settings.city}`.trim(),
-  ].filter(Boolean);
+  const senderLines = [settings.senderName, settings.street, `${settings.zip} ${settings.city}`.trim()].filter(Boolean);
 
   const contactLines = [
     `${contact.firstName} ${contact.lastName}`.trim(),
@@ -174,10 +149,7 @@ export function buildInvoiceChildren(
     `${contact.zip ?? ""} ${contact.city ?? ""}`.trim(),
   ].filter(Boolean);
 
-  const metaRightLines: string[] = [
-    `Datum: ${orderDate}`,
-    `Lieferdatum: ${shippingDate}`,
-  ];
+  const metaRightLines: string[] = [`Datum: ${orderDate}`, `Lieferdatum: ${shippingDate}`];
   if (settings.email) metaRightLines.push(`E-Mail: ${settings.email}`);
   if (settings.phone) metaRightLines.push(`Tel: ${settings.phone}`);
 
@@ -202,10 +174,7 @@ export function buildInvoiceChildren(
                       new ImageRun({
                         data: new Uint8Array(settings.logoData),
                         type: settings.logoMimeType as "jpg" | "png",
-                        transformation: scaleToMaxWidth(
-                          settings.logoData,
-                          settings.logoMimeType,
-                        ),
+                        transformation: scaleToMaxWidth(settings.logoData, settings.logoMimeType),
                       }),
                     ],
                   }),
@@ -227,7 +196,7 @@ export function buildInvoiceChildren(
           (line) =>
             new Paragraph({
               children: [new TextRun({ text: line, size: 20 })],
-            }),
+            })
         ),
       }),
       new TableCell({
@@ -238,7 +207,7 @@ export function buildInvoiceChildren(
             new Paragraph({
               alignment: AlignmentType.RIGHT,
               children: [new TextRun({ text: line, size: 20 })],
-            }),
+            })
         ),
       }),
     ],
@@ -250,8 +219,7 @@ export function buildInvoiceChildren(
   });
 
   const recipientParagraphs = contactLines.map(
-    (line) =>
-      new Paragraph({ children: [new TextRun({ text: line, size: 20 })] }),
+    (line) => new Paragraph({ children: [new TextRun({ text: line, size: 20 })] })
   );
 
   const titleParagraph = new Paragraph({
@@ -265,9 +233,7 @@ export function buildInvoiceChildren(
     ],
   });
 
-  const introParagraph = introText
-    ? new Paragraph({ children: textRunsFromMultiline(introText, 22) })
-    : null;
+  const introParagraph = introText ? new Paragraph({ children: textRunsFromMultiline(introText, 22) }) : null;
 
   const itemsHeaderRow = new TableRow({
     children: [
@@ -315,9 +281,7 @@ export function buildInvoiceChildren(
         children: [
           new Paragraph({
             alignment: AlignmentType.RIGHT,
-            children: [
-              new TextRun({ text: "Rechnungsbetrag", bold: true, size: 20 }),
-            ],
+            children: [new TextRun({ text: "Rechnungsbetrag", bold: true, size: 20 })],
           }),
         ],
       }),
@@ -357,36 +321,32 @@ export function buildInvoiceChildren(
     new Paragraph({ children: [] }),
     titleParagraph,
     new Paragraph({ children: [] }),
-    ...(introParagraph
-      ? [introParagraph, new Paragraph({ children: [] })]
-      : []),
+    ...(introParagraph ? [introParagraph, new Paragraph({ children: [] })] : []),
     itemsTable,
     new Paragraph({ children: [] }),
     paymentTermsParagraph,
-    ...(closingParagraph
-      ? [new Paragraph({ children: [] }), closingParagraph]
-      : []),
+    ...(closingParagraph ? [new Paragraph({ children: [] }), closingParagraph] : []),
   ];
 }
 
 function wrapInDocument(children: (Paragraph | Table)[], footer: Footer): Document {
   return new Document({
-    sections: [{
-      properties: { page: { margin: PAGE_MARGIN } },
-      children,
-      footers: { default: footer },
-    }],
+    sections: [
+      {
+        properties: { page: { margin: PAGE_MARGIN } },
+        children,
+        footers: { default: footer },
+      },
+    ],
   });
 }
 
 export async function generateInvoiceDocx(
   order: OrderWithRelations,
   settings: InvoiceSettings,
-  invoiceNumber: string,
+  invoiceNumber: string
 ): Promise<Buffer> {
-  return Packer.toBuffer(
-    wrapInDocument(buildInvoiceChildren(order, settings, invoiceNumber), buildFooter(settings)),
-  );
+  return Packer.toBuffer(wrapInDocument(buildInvoiceChildren(order, settings, invoiceNumber), buildFooter(settings)));
 }
 
 // Combines multiple invoices into one document, each starting on a new page
@@ -395,21 +355,15 @@ export async function generateInvoicesDocxSingle(
     order: OrderWithRelations;
     settings: InvoiceSettings;
     invoiceNumber: string;
-  }>,
+  }>
 ): Promise<Buffer> {
-  const allChildren = invoices.flatMap(
-    ({ order, settings, invoiceNumber }, i) => {
-      const children = buildInvoiceChildren(order, settings, invoiceNumber);
-      if (i === 0) return children;
-      // Insert a page break before each subsequent invoice
-      const [first, ...rest] = children;
-      return [
-        new Paragraph({ pageBreakBefore: true, children: [] }),
-        first,
-        ...rest,
-      ];
-    },
-  );
+  const allChildren = invoices.flatMap(({ order, settings, invoiceNumber }, i) => {
+    const children = buildInvoiceChildren(order, settings, invoiceNumber);
+    if (i === 0) return children;
+    // Insert a page break before each subsequent invoice
+    const [first, ...rest] = children;
+    return [new Paragraph({ pageBreakBefore: true, children: [] }), first, ...rest];
+  });
   // Use footer from the first invoice's settings (all invoices share the same farm settings)
   return Packer.toBuffer(wrapInDocument(allChildren, buildFooter(invoices[0].settings)));
 }

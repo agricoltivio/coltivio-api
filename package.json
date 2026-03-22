@@ -25,6 +25,8 @@
     "db:migrate": "yarn drizzle-kit migrate",
     "db:backup": "supabase db dump --data-only --exclude=public.federal_farm_plots -f backup_data_$(date +%Y%m%d).sql",
     "fix": "ts-node ./to_geojson.ts",
+    "lint": "eslint src --fix",
+    "format": "prettier --write \"src/**/*.ts\"",
     "sentry:sourcemaps": "sentry-cli sourcemaps inject --org agricoltivio --project node-express ./dist && sentry-cli sourcemaps upload --org agricoltivio --project node-express ./dist"
   },
   "dependencies": {
@@ -83,7 +85,11 @@
     "@types/supertest": "^6.0.3",
     "@types/swagger-ui-express": "^4.1.8",
     "@types/uuid": "^11.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.57.1",
+    "@typescript-eslint/parser": "^8.57.1",
     "drizzle-kit": "^1.0.0-beta.11",
+    "eslint": "^10.1.0",
+    "eslint-plugin-unused-imports": "^4.4.1",
     "jest": "^30.2.0",
     "prettier": "^3.8.0",
     "swagger-ui-express": "^5.0.1",

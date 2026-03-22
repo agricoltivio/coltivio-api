@@ -2,12 +2,7 @@ import { describe, it, expect, beforeEach } from "@jest/globals";
 
 import { cleanDb, getAdminDb, request } from "./helpers";
 import * as schema from "../db/schema";
-import {
-  createUserWithFarm,
-  createPlot,
-  createTillage,
-  TEST_GEOMETRY,
-} from "./test-utils";
+import { createUserWithFarm, createPlot, createTillage, TEST_GEOMETRY } from "./test-utils";
 
 // ---------------------------------------------------------------------------
 // Tillages CRUD
@@ -38,12 +33,7 @@ describe("Tillages CRUD", () => {
     expect(dbTillage!.size).toBe(10000);
 
     // GET by id includes plot
-    const getRes = await request(
-      "GET",
-      `/v1/tillages/byId/${tillage.id}`,
-      undefined,
-      jwt,
-    );
+    const getRes = await request("GET", `/v1/tillages/byId/${tillage.id}`, undefined, jwt);
     expect(getRes.status).toBe(200);
     const getBody = (await getRes.json()) as {
       data: { id: string; plot: { id: string; name: string } };
@@ -71,12 +61,7 @@ describe("Tillages CRUD", () => {
     await createTillage(jwt, p1.id);
     await createTillage(jwt, p2.id);
 
-    const res = await request(
-      "GET",
-      `/v1/plots/byId/${p1.id}/tillages`,
-      undefined,
-      jwt,
-    );
+    const res = await request("GET", `/v1/plots/byId/${p1.id}/tillages`, undefined, jwt);
     expect(res.status).toBe(200);
     const body = (await res.json()) as { data: { count: number } };
     expect(body.data.count).toBe(1);
@@ -98,7 +83,7 @@ describe("Tillages CRUD", () => {
           { plotId: p2.id, geometry: TEST_GEOMETRY, size: 6000 },
         ],
       },
-      jwt,
+      jwt
     );
     expect(res.status).toBe(200);
     const body = (await res.json()) as { data: { count: number } };
@@ -120,7 +105,7 @@ describe("Tillages CRUD", () => {
       "PATCH",
       `/v1/tillages/byId/${tillage.id}`,
       { action: "tilling", additionalNotes: "Deep tilling" },
-      jwt,
+      jwt
     );
     expect(res.status).toBe(200);
 
@@ -138,12 +123,7 @@ describe("Tillages CRUD", () => {
     const plot = await createPlot(jwt);
     const tillage = await createTillage(jwt, plot.id);
 
-    const res = await request(
-      "DELETE",
-      `/v1/tillages/byId/${tillage.id}`,
-      undefined,
-      jwt,
-    );
+    const res = await request("DELETE", `/v1/tillages/byId/${tillage.id}`, undefined, jwt);
     expect(res.status).toBe(200);
 
     // Verify DB
@@ -177,16 +157,13 @@ describe("Tillage Presets", () => {
   it("creates a preset and retrieves it", async () => {
     const { jwt, farmId } = await createUserWithFarm();
 
-    const createRes = await request(
-      "POST",
-      "/v1/tillages/presets",
-      { name: "Deep Plow", action: "plowing" },
-      jwt,
-    );
+    const createRes = await request("POST", "/v1/tillages/presets", { name: "Deep Plow", action: "plowing" }, jwt);
     expect(createRes.status).toBe(200);
-    const preset = ((await createRes.json()) as {
-      data: { id: string; name: string; action: string; farmId: string };
-    }).data;
+    const preset = (
+      (await createRes.json()) as {
+        data: { id: string; name: string; action: string; farmId: string };
+      }
+    ).data;
     expect(preset.name).toBe("Deep Plow");
     expect(preset.action).toBe("plowing");
 
@@ -213,19 +190,14 @@ describe("Tillage Presets", () => {
 
   it("updates a preset", async () => {
     const { jwt } = await createUserWithFarm();
-    const createRes = await request(
-      "POST",
-      "/v1/tillages/presets",
-      { name: "OldPreset", action: "plowing" },
-      jwt,
-    );
+    const createRes = await request("POST", "/v1/tillages/presets", { name: "OldPreset", action: "plowing" }, jwt);
     const preset = ((await createRes.json()) as { data: { id: string } }).data;
 
     const res = await request(
       "PATCH",
       `/v1/tillages/presets/byId/${preset.id}`,
       { name: "NewPreset", action: "harrowing" },
-      jwt,
+      jwt
     );
     expect(res.status).toBe(200);
 
@@ -240,20 +212,10 @@ describe("Tillage Presets", () => {
 
   it("deletes a preset", async () => {
     const { jwt } = await createUserWithFarm();
-    const createRes = await request(
-      "POST",
-      "/v1/tillages/presets",
-      { name: "ToDelete", action: "rolling" },
-      jwt,
-    );
+    const createRes = await request("POST", "/v1/tillages/presets", { name: "ToDelete", action: "rolling" }, jwt);
     const preset = ((await createRes.json()) as { data: { id: string } }).data;
 
-    const res = await request(
-      "DELETE",
-      `/v1/tillages/presets/byId/${preset.id}`,
-      undefined,
-      jwt,
-    );
+    const res = await request("DELETE", `/v1/tillages/presets/byId/${preset.id}`, undefined, jwt);
     expect(res.status).toBe(200);
 
     // Verify DB

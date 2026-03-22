@@ -35,18 +35,14 @@ const config = createConfig({
   },
   upload: true,
   beforeRouting: ({ app, getLogger }) => {
-    getLogger().info(
-      "Serving the API documentation at http://localhost:8000/docs. ",
-    );
+    getLogger().info("Serving the API documentation at http://localhost:8000/docs. ");
     // Global CORS middleware — ensures CORS headers are present on ALL responses including 404s,
     // so browsers can read error responses from cross-origin requests.
     app.use((req, res, next) => {
       const allowedOrigins = [
         "https://coltivio.ch",
         "https://app.coltivio.ch",
-        ...(process.env.NODE_ENV !== "production"
-          ? ["http://localhost:4000", "http://localhost:4321"]
-          : []),
+        ...(process.env.NODE_ENV !== "production" ? ["http://localhost:4000", "http://localhost:4321"] : []),
       ];
       const origin = req.headers.origin;
       if (origin && allowedOrigins.includes(origin)) {
@@ -69,16 +65,12 @@ const config = createConfig({
     const allowedOrigins = [
       "https://coltivio.ch",
       "https://app.coltivio.ch",
-      ...(process.env.NODE_ENV !== "production"
-        ? ["http://localhost:4000", "http://localhost:4321"]
-        : []),
+      ...(process.env.NODE_ENV !== "production" ? ["http://localhost:4000", "http://localhost:4321"] : []),
     ];
     const origin = request.headers.origin;
     return {
       ...defaultHeaders,
-      ...(origin && allowedOrigins.includes(origin)
-        ? { "Access-Control-Allow-Origin": origin }
-        : {}),
+      ...(origin && allowedOrigins.includes(origin) ? { "Access-Control-Allow-Origin": origin } : {}),
       "Access-Control-Allow-Headers": "Authorization, Content-Type",
     };
   },

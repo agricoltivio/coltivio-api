@@ -15,7 +15,7 @@ const transporter = nodemailer.createTransport({
 
 export async function notifyModeratorsNewReview(
   changeRequestId: string,
-  type: "new_entry" | "change_request",
+  type: "new_entry" | "change_request"
 ): Promise<void> {
   if (process.env.NODE_ENV !== "production") return;
   if (!process.env.SMTP_HOST) return;
@@ -29,10 +29,7 @@ export async function notifyModeratorsNewReview(
   if (moderatorRows.length === 0) return;
 
   const bccAddresses = moderatorRows.map((r) => r.email);
-  const subject =
-    type === "new_entry"
-      ? "New wiki entry awaiting review"
-      : "Wiki change request awaiting review";
+  const subject = type === "new_entry" ? "New wiki entry awaiting review" : "Wiki change request awaiting review";
 
   const reviewUrl = `${process.env.APP_URL ?? ""}/wiki/moderation/${changeRequestId}`;
   const typeLabel = type === "new_entry" ? "new entry" : "change request";

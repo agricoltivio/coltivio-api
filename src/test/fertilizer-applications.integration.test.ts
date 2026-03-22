@@ -49,12 +49,7 @@ describe("Fertilizer Applications CRUD", () => {
     expect(dbApp!.farmId).toBe(farmId);
 
     // GET by id includes plot and fertilizer
-    const getRes = await request(
-      "GET",
-      `/v1/fertilizerApplications/byId/${app.id}`,
-      undefined,
-      jwt,
-    );
+    const getRes = await request("GET", `/v1/fertilizerApplications/byId/${app.id}`, undefined, jwt);
     expect(getRes.status).toBe(200);
     const getBody = (await getRes.json()) as {
       data: {
@@ -86,12 +81,7 @@ describe("Fertilizer Applications CRUD", () => {
     await createFertilizerApplication(jwt, p1.id, fert.id);
     await createFertilizerApplication(jwt, p2.id, fert.id);
 
-    const res = await request(
-      "GET",
-      `/v1/plots/byId/${p1.id}/fertilizerApplications`,
-      undefined,
-      jwt,
-    );
+    const res = await request("GET", `/v1/plots/byId/${p1.id}/fertilizerApplications`, undefined, jwt);
     expect(res.status).toBe(200);
     const body = (await res.json()) as { data: { count: number } };
     expect(body.data.count).toBe(1);
@@ -116,7 +106,7 @@ describe("Fertilizer Applications CRUD", () => {
           { plotId: p2.id, numberOfUnits: 3, geometry: TEST_GEOMETRY, size: 6000 },
         ],
       },
-      jwt,
+      jwt
     );
     expect(res.status).toBe(200);
     const body = (await res.json()) as { data: { count: number } };
@@ -136,12 +126,7 @@ describe("Fertilizer Applications CRUD", () => {
     const fert = await createFertilizer(jwt);
     const [app] = await createFertilizerApplication(jwt, plot.id, fert.id);
 
-    const res = await request(
-      "DELETE",
-      `/v1/fertilizerApplications/byId/${app.id}`,
-      undefined,
-      jwt,
-    );
+    const res = await request("DELETE", `/v1/fertilizerApplications/byId/${app.id}`, undefined, jwt);
     expect(res.status).toBe(200);
 
     // Verify DB
@@ -160,12 +145,7 @@ describe("Fertilizer Applications CRUD", () => {
       date: "2025-04-15",
     });
 
-    const res = await request(
-      "GET",
-      "/v1/fertilizerApplications/years",
-      undefined,
-      jwt,
-    );
+    const res = await request("GET", "/v1/fertilizerApplications/years", undefined, jwt);
     expect(res.status).toBe(200);
     const body = (await res.json()) as { data: { result: string[] } };
     expect(body.data.result).toContain("2025");
@@ -177,12 +157,7 @@ describe("Fertilizer Applications CRUD", () => {
     const fert = await createFertilizer(jwt, { name: "UsedFert" });
     await createFertilizerApplication(jwt, plot.id, fert.id);
 
-    const res = await request(
-      "GET",
-      `/v1/fertilizers/byId/${fert.id}/inUse`,
-      undefined,
-      jwt,
-    );
+    const res = await request("GET", `/v1/fertilizers/byId/${fert.id}/inUse`, undefined, jwt);
     expect(res.status).toBe(200);
     const body = (await res.json()) as { data: { inUse: boolean } };
     expect(body.data.inUse).toBe(true);
@@ -194,12 +169,7 @@ describe("Fertilizer Applications CRUD", () => {
     const fert = await createFertilizer(jwt);
     await createFertilizerApplication(jwt, plot.id, fert.id);
 
-    const res = await request(
-      "GET",
-      "/v1/fertilizerApplications/summaries",
-      undefined,
-      jwt,
-    );
+    const res = await request("GET", "/v1/fertilizerApplications/summaries", undefined, jwt);
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
       data: { monthlyApplications: unknown[] };
@@ -228,12 +198,14 @@ describe("Fertilizer Application Presets", () => {
         method: "spread",
         amountPerUnit: 500,
       },
-      jwt,
+      jwt
     );
     expect(createRes.status).toBe(200);
-    const preset = ((await createRes.json()) as {
-      data: { id: string; name: string; method: string; amountPerUnit: number };
-    }).data;
+    const preset = (
+      (await createRes.json()) as {
+        data: { id: string; name: string; method: string; amountPerUnit: number };
+      }
+    ).data;
     expect(preset.name).toBe("Standard Spread");
     expect(preset.method).toBe("spread");
     expect(preset.amountPerUnit).toBe(500);
@@ -257,7 +229,7 @@ describe("Fertilizer Application Presets", () => {
       "POST",
       "/v1/fertilizerApplications/presets",
       { name: "Old", fertilizerId: fert.id, unit: "load", amountPerUnit: 100 },
-      jwt,
+      jwt
     );
     const preset = ((await createRes.json()) as { data: { id: string } }).data;
 
@@ -265,7 +237,7 @@ describe("Fertilizer Application Presets", () => {
       "PATCH",
       `/v1/fertilizerApplications/presets/byId/${preset.id}`,
       { name: "New", amountPerUnit: 200 },
-      jwt,
+      jwt
     );
 
     // Verify DB
@@ -284,16 +256,11 @@ describe("Fertilizer Application Presets", () => {
       "POST",
       "/v1/fertilizerApplications/presets",
       { name: "ToDelete", fertilizerId: fert.id, unit: "load", amountPerUnit: 100 },
-      jwt,
+      jwt
     );
     const preset = ((await createRes.json()) as { data: { id: string } }).data;
 
-    const res = await request(
-      "DELETE",
-      `/v1/fertilizerApplications/presets/byId/${preset.id}`,
-      undefined,
-      jwt,
-    );
+    const res = await request("DELETE", `/v1/fertilizerApplications/presets/byId/${preset.id}`, undefined, jwt);
     expect(res.status).toBe(200);
 
     // Verify DB

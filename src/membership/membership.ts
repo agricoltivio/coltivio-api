@@ -1,10 +1,22 @@
 import Stripe from "stripe";
-import { eq, inArray } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import createHttpError from "http-errors";
 import { RlsDb } from "../db/db";
 import { getStripe } from "../stripe/stripe";
-import { profiles, userSubscriptions, userTrials, membershipPayments, membershipExpiryNotifications } from "../db/schema";
-import { sendNewMembershipEmail, sendReactivationEmail, sendRenewalEmail, sendFirstPaymentEmail, sendPaymentFailedEmail } from "./membership.email";
+import {
+  profiles,
+  userSubscriptions,
+  userTrials,
+  membershipPayments,
+  membershipExpiryNotifications,
+} from "../db/schema";
+import {
+  sendNewMembershipEmail,
+  sendReactivationEmail,
+  sendRenewalEmail,
+  sendFirstPaymentEmail,
+  sendPaymentFailedEmail,
+} from "./membership.email";
 
 export type MembershipStatus = {
   lastPeriodEnd: Date | null;
@@ -54,10 +66,7 @@ export function membershipApi(db: RlsDb) {
       email: profile.email,
     });
 
-    await db.admin
-      .update(profiles)
-      .set({ stripeCustomerId: customer.id })
-      .where(eq(profiles.id, userId));
+    await db.admin.update(profiles).set({ stripeCustomerId: customer.id }).where(eq(profiles.id, userId));
 
     return customer.id;
   }
@@ -83,7 +92,11 @@ export function membershipApi(db: RlsDb) {
       if (activeTrial) return true;
 
       const active = await db.admin.query.membershipPayments.findFirst({
-        where: { userId: { in: userIds }, status: "succeeded", periodEnd: { gt: new Date(now.getTime() - GRACE_PERIOD_MS) } },
+        where: {
+          userId: { in: userIds },
+          status: "succeeded",
+          periodEnd: { gt: new Date(now.getTime() - GRACE_PERIOD_MS) },
+        },
       });
       return active !== undefined;
     },
@@ -111,7 +124,11 @@ export function membershipApi(db: RlsDb) {
 
       const now = new Date();
       const active = await db.admin.query.membershipPayments.findFirst({
-        where: { userId: { in: userIds }, status: "succeeded", periodEnd: { gt: new Date(now.getTime() - GRACE_PERIOD_MS) } },
+        where: {
+          userId: { in: userIds },
+          status: "succeeded",
+          periodEnd: { gt: new Date(now.getTime() - GRACE_PERIOD_MS) },
+        },
       });
       return active !== undefined;
     },
@@ -161,11 +178,7 @@ export function membershipApi(db: RlsDb) {
     },
 
     // Stripe Subscription checkout (yearly, auto-renewing).
-    async createSubscriptionCheckout(
-      userId: string,
-      successUrl: string,
-      cancelUrl: string,
-    ): Promise<{ url: string }> {
+    async createSubscriptionCheckout(userId: string, successUrl: string, cancelUrl: string): Promise<{ url: string }> {
       const priceId = process.env.STRIPE_MEMBERSHIP_PRICE_ID_YEARLY;
       if (!priceId) throw new Error("STRIPE_MEMBERSHIP_PRICE_ID_YEARLY env var not set");
 
@@ -185,9 +198,7 @@ export function membershipApi(db: RlsDb) {
         success_url: successUrl,
         cancel_url: cancelUrl,
         metadata: { type: "membership", userId },
-        subscription_data: activeTrial
-          ? { trial_end: Math.floor(activeTrial.endsAt.getTime() / 1000) }
-          : undefined,
+        subscription_data: activeTrial ? { trial_end: Math.floor(activeTrial.endsAt.getTime() / 1000) } : undefined,
         allow_promotion_codes: true,
       });
 
@@ -195,11 +206,7 @@ export function membershipApi(db: RlsDb) {
     },
 
     // One-time annual payment checkout (no auto-renew)
-    async createManualCheckout(
-      userId: string,
-      successUrl: string,
-      cancelUrl: string,
-    ): Promise<{ url: string }> {
+    async createManualCheckout(userId: string, successUrl: string, cancelUrl: string): Promise<{ url: string }> {
       const customerId = await getOrCreateStripeCustomer(userId);
 
       const session = await getStripe().checkout.sessions.create({
@@ -225,11 +232,7 @@ export function membershipApi(db: RlsDb) {
     },
 
     // Stripe Setup mode checkout to update payment method on an existing subscription
-    async createPaymentMethodSetup(
-      userId: string,
-      successUrl: string,
-      cancelUrl: string,
-    ): Promise<{ url: string }> {
+    async createPaymentMethodSetup(userId: string, successUrl: string, cancelUrl: string): Promise<{ url: string }> {
       const customerId = await getOrCreateStripeCustomer(userId);
 
       const session = await getStripe().checkout.sessions.create({
@@ -318,7 +321,8 @@ export function membershipApi(db: RlsDb) {
 
         // Payment method setup: attach the new card to the existing subscription
         if (session.mode === "setup" && session.metadata?.type === "payment_method_setup" && session.setup_intent) {
-          const setupIntentId = typeof session.setup_intent === "string" ? session.setup_intent : session.setup_intent.id;
+          const setupIntentId =
+            typeof session.setup_intent === "string" ? session.setup_intent : session.setup_intent.id;
           const setupIntent = await getStripe().setupIntents.retrieve(setupIntentId);
           const sub = await db.admin.query.userSubscriptions.findFirst({ where: { userId } });
           if (sub && setupIntent.payment_method) {
@@ -331,9 +335,7 @@ export function membershipApi(db: RlsDb) {
 
         if (session.mode === "subscription" && session.subscription) {
           const stripeSubscriptionId =
-            typeof session.subscription === "string"
-              ? session.subscription
-              : session.subscription.id;
+            typeof session.subscription === "string" ? session.subscription : session.subscription.id;
 
           const stripeSubscription = await getStripe().subscriptions.retrieve(stripeSubscriptionId);
 
@@ -355,13 +357,12 @@ export function membershipApi(db: RlsDb) {
 
           const invoice = stripeSubscription.latest_invoice;
           if (invoice) {
-            const stripeInvoice = typeof invoice === "string"
-              ? await getStripe().invoices.retrieve(invoice)
-              : invoice;
+            const stripeInvoice = typeof invoice === "string" ? await getStripe().invoices.retrieve(invoice) : invoice;
 
-            const pmId = typeof stripeSubscription.default_payment_method === "string"
-              ? stripeSubscription.default_payment_method
-              : stripeSubscription.default_payment_method?.id ?? null;
+            const pmId =
+              typeof stripeSubscription.default_payment_method === "string"
+                ? stripeSubscription.default_payment_method
+                : (stripeSubscription.default_payment_method?.id ?? null);
             const cardDetails = await getCardDetailsFromPaymentMethod(pmId);
 
             const isFirstMembership = !(await db.admin.query.membershipPayments.findFirst({
@@ -397,7 +398,12 @@ export function membershipApi(db: RlsDb) {
                   trialEnd: stripeInvoice.amount_paid === 0 ? periodEnd : undefined,
                 });
               } else {
-                await sendReactivationEmail({ email: profile.email, fullName: profile.fullName, locale: profile.locale, periodEnd });
+                await sendReactivationEmail({
+                  email: profile.email,
+                  fullName: profile.fullName,
+                  locale: profile.locale,
+                  periodEnd,
+                });
               }
             }
           }
@@ -413,9 +419,10 @@ export function membershipApi(db: RlsDb) {
           const paymentIntent = await getStripe().paymentIntents.retrieve(paymentIntentId, {
             expand: ["payment_method"],
           });
-          const pmId = typeof paymentIntent.payment_method === "string"
-            ? paymentIntent.payment_method
-            : paymentIntent.payment_method?.id ?? null;
+          const pmId =
+            typeof paymentIntent.payment_method === "string"
+              ? paymentIntent.payment_method
+              : (paymentIntent.payment_method?.id ?? null);
           const cardDetails = await getCardDetailsFromPaymentMethod(pmId);
 
           const isFirstMembership = !(await db.admin.query.membershipPayments.findFirst({
@@ -449,15 +456,19 @@ export function membershipApi(db: RlsDb) {
                 cardLast4: cardDetails.cardLast4,
               });
             } else {
-              await sendReactivationEmail({ email: profile.email, fullName: profile.fullName, locale: profile.locale, periodEnd });
+              await sendReactivationEmail({
+                email: profile.email,
+                fullName: profile.fullName,
+                locale: profile.locale,
+                periodEnd,
+              });
             }
           }
         }
       } else if (event.type === "invoice.payment_succeeded") {
         const invoice = event.data.object as Stripe.Invoice;
         const subRef = invoice.parent?.subscription_details?.subscription;
-        const stripeSubscriptionId =
-          typeof subRef === "string" ? subRef : subRef?.id;
+        const stripeSubscriptionId = typeof subRef === "string" ? subRef : subRef?.id;
 
         if (!stripeSubscriptionId) return;
 
@@ -471,9 +482,10 @@ export function membershipApi(db: RlsDb) {
         const firstItem = stripeSubscription.items.data[0];
         const periodEnd = new Date((firstItem?.current_period_end ?? 0) * 1000);
 
-        const pmId = typeof stripeSubscription.default_payment_method === "string"
-          ? stripeSubscription.default_payment_method
-          : stripeSubscription.default_payment_method?.id ?? null;
+        const pmId =
+          typeof stripeSubscription.default_payment_method === "string"
+            ? stripeSubscription.default_payment_method
+            : (stripeSubscription.default_payment_method?.id ?? null);
         const cardDetails = await getCardDetailsFromPaymentMethod(pmId);
 
         await db.admin
@@ -527,8 +539,7 @@ export function membershipApi(db: RlsDb) {
       } else if (event.type === "invoice.payment_failed") {
         const invoice = event.data.object as Stripe.Invoice;
         const subRef = invoice.parent?.subscription_details?.subscription;
-        const stripeSubscriptionId =
-          typeof subRef === "string" ? subRef : subRef?.id;
+        const stripeSubscriptionId = typeof subRef === "string" ? subRef : subRef?.id;
 
         if (!stripeSubscriptionId) return;
 
@@ -581,16 +592,12 @@ export function membershipApi(db: RlsDb) {
         await db.admin
           .update(userSubscriptions)
           .set({ cancelAtPeriodEnd: stripeSubscription.cancel_at_period_end })
-          .where(
-            eq(userSubscriptions.stripeSubscriptionId, stripeSubscription.id),
-          );
+          .where(eq(userSubscriptions.stripeSubscriptionId, stripeSubscription.id));
       } else if (event.type === "customer.subscription.deleted") {
         const stripeSubscription = event.data.object as Stripe.Subscription;
         await db.admin
           .delete(userSubscriptions)
-          .where(
-            eq(userSubscriptions.stripeSubscriptionId, stripeSubscription.id),
-          );
+          .where(eq(userSubscriptions.stripeSubscriptionId, stripeSubscription.id));
       }
     },
   };

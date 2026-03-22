@@ -2,12 +2,7 @@ import { describe, it, expect, beforeEach } from "@jest/globals";
 
 import { cleanDb, getAdminDb, request } from "./helpers";
 import * as schema from "../db/schema";
-import {
-  createUserWithFarm,
-  createAnimal,
-  createHerd,
-  createOutdoorSchedule,
-} from "./test-utils";
+import { createUserWithFarm, createAnimal, createHerd, createOutdoorSchedule } from "./test-utils";
 
 // ---------------------------------------------------------------------------
 // Animals CRUD
@@ -45,12 +40,7 @@ describe("Animals CRUD", () => {
     expect(dbAnimal!.farmId).toBe(farmId);
 
     // GET by id
-    const getRes = await request(
-      "GET",
-      `/v1/animals/byId/${animal.id}`,
-      undefined,
-      jwt,
-    );
+    const getRes = await request("GET", `/v1/animals/byId/${animal.id}`, undefined, jwt);
     expect(getRes.status).toBe(200);
     const getBody = (await getRes.json()) as {
       data: {
@@ -87,12 +77,7 @@ describe("Animals CRUD", () => {
     await createAnimal(jwt, { name: "Goat1", type: "goat" });
 
     // Single value: query string sends it as a plain string, preprocess wraps it
-    const res = await request(
-      "GET",
-      "/v1/animals?animalTypes=cow",
-      undefined,
-      jwt,
-    );
+    const res = await request("GET", "/v1/animals?animalTypes=cow", undefined, jwt);
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
       data: { result: Array<{ type: string }>; count: number };
@@ -107,12 +92,7 @@ describe("Animals CRUD", () => {
     await createAnimal(jwt, { name: "Goat1", type: "goat" });
     await createAnimal(jwt, { name: "Sheep1", type: "sheep" });
 
-    const res = await request(
-      "GET",
-      "/v1/animals?animalTypes=cow&animalTypes=goat",
-      undefined,
-      jwt,
-    );
+    const res = await request("GET", "/v1/animals?animalTypes=cow&animalTypes=goat", undefined, jwt);
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
       data: { result: Array<{ type: string }>; count: number };
@@ -141,12 +121,7 @@ describe("Animals CRUD", () => {
     expect(body.data.result[0].name).toBe("Alive");
 
     // onlyLiving=false shows all
-    const allRes = await request(
-      "GET",
-      "/v1/animals?onlyLiving=false",
-      undefined,
-      jwt,
-    );
+    const allRes = await request("GET", "/v1/animals?onlyLiving=false", undefined, jwt);
     const allBody = (await allRes.json()) as {
       data: { result: unknown[]; count: number };
     };
@@ -157,12 +132,7 @@ describe("Animals CRUD", () => {
     const { jwt } = await createUserWithFarm();
     const animal = await createAnimal(jwt, { name: "OldName", usage: "milk" });
 
-    const res = await request(
-      "PATCH",
-      `/v1/animals/byId/${animal.id}`,
-      { name: "NewName", usage: "other" },
-      jwt,
-    );
+    const res = await request("PATCH", `/v1/animals/byId/${animal.id}`, { name: "NewName", usage: "other" }, jwt);
     expect(res.status).toBe(200);
     const body = (await res.json()) as { data: { name: string; usage: string } };
     expect(body.data.name).toBe("NewName");
@@ -181,12 +151,7 @@ describe("Animals CRUD", () => {
     const { jwt } = await createUserWithFarm();
     const animal = await createAnimal(jwt);
 
-    const res = await request(
-      "DELETE",
-      `/v1/animals/byId/${animal.id}`,
-      undefined,
-      jwt,
-    );
+    const res = await request("DELETE", `/v1/animals/byId/${animal.id}`, undefined, jwt);
     expect(res.status).toBe(200);
 
     // Verify DB
@@ -223,7 +188,7 @@ describe("Animals CRUD", () => {
       "PATCH",
       "/v1/animals/batch",
       { animalIds: [a1.id, a2.id], data: { usage: "other" } },
-      jwt,
+      jwt
     );
     expect(res.status).toBe(200);
 
@@ -263,12 +228,7 @@ describe("Animal parent-child relationships", () => {
     expect(dbCalf!.fatherId).toBe(father.id);
 
     // Verify via API - GET by id
-    const calfRes = await request(
-      "GET",
-      `/v1/animals/byId/${calf.id}`,
-      undefined,
-      jwt,
-    );
+    const calfRes = await request("GET", `/v1/animals/byId/${calf.id}`, undefined, jwt);
     const calfBody = (await calfRes.json()) as {
       data: { mother: { id: string } | null; father: { id: string } | null };
     };
@@ -276,12 +236,7 @@ describe("Animal parent-child relationships", () => {
     expect(calfBody.data.father!.id).toBe(father.id);
 
     // Children of mother
-    const childrenRes = await request(
-      "GET",
-      `/v1/animals/byId/${mother.id}/children`,
-      undefined,
-      jwt,
-    );
+    const childrenRes = await request("GET", `/v1/animals/byId/${mother.id}/children`, undefined, jwt);
     expect(childrenRes.status).toBe(200);
     const childrenBody = (await childrenRes.json()) as {
       data: { result: Array<{ id: string }>; count: number };
@@ -290,12 +245,7 @@ describe("Animal parent-child relationships", () => {
     expect(childrenBody.data.result[0].id).toBe(calf.id);
 
     // Children of father
-    const fatherChildrenRes = await request(
-      "GET",
-      `/v1/animals/byId/${father.id}/children`,
-      undefined,
-      jwt,
-    );
+    const fatherChildrenRes = await request("GET", `/v1/animals/byId/${father.id}/children`, undefined, jwt);
     const fatherChildrenBody = (await fatherChildrenRes.json()) as {
       data: { count: number };
     };
@@ -335,12 +285,7 @@ describe("Herds CRUD", () => {
     expect(dbAnimals.every((a) => a.herdId === herd.id)).toBe(true);
 
     // GET by id includes animals
-    const getRes = await request(
-      "GET",
-      `/v1/animals/herds/byId/${herd.id}`,
-      undefined,
-      jwt,
-    );
+    const getRes = await request("GET", `/v1/animals/herds/byId/${herd.id}`, undefined, jwt);
     expect(getRes.status).toBe(200);
     const getBody = (await getRes.json()) as {
       data: { animals: unknown[] };
@@ -369,7 +314,7 @@ describe("Herds CRUD", () => {
       "PATCH",
       `/v1/animals/herds/byId/${herd.id}`,
       { name: "NewName", animalIds: [a2.id] },
-      jwt,
+      jwt
     );
     expect(res.status).toBe(200);
 
@@ -394,12 +339,7 @@ describe("Herds CRUD", () => {
     const { jwt } = await createUserWithFarm();
     const herd = await createHerd(jwt, { name: "ToDelete" });
 
-    const res = await request(
-      "DELETE",
-      `/v1/animals/herds/byId/${herd.id}`,
-      undefined,
-      jwt,
-    );
+    const res = await request("DELETE", `/v1/animals/herds/byId/${herd.id}`, undefined, jwt);
     expect(res.status).toBe(200);
 
     // Verify DB
@@ -435,12 +375,7 @@ describe("Herds with inline outdoor schedules", () => {
     expect(dbSchedules).toHaveLength(2);
 
     // Verify API response
-    const res = await request(
-      "GET",
-      `/v1/animals/herds/byId/${herd.id}`,
-      undefined,
-      jwt,
-    );
+    const res = await request("GET", `/v1/animals/herds/byId/${herd.id}`, undefined, jwt);
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
       data: { outdoorSchedules: Array<{ type: string }> };
@@ -480,12 +415,7 @@ describe("Herds with inline outdoor schedules", () => {
     expect(dbRecurrences[0].frequency).toBe("weekly");
 
     // Verify API response
-    const res = await request(
-      "GET",
-      `/v1/animals/herds/byId/${herd.id}`,
-      undefined,
-      jwt,
-    );
+    const res = await request("GET", `/v1/animals/herds/byId/${herd.id}`, undefined, jwt);
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
       data: { outdoorSchedules: Array<{ recurrence: Record<string, unknown> | null }> };
@@ -507,7 +437,7 @@ describe("Herds with inline outdoor schedules", () => {
           { startDate: "2025-07-01", endDate: "2025-09-30", type: "exercise_yard" },
         ],
       },
-      jwt,
+      jwt
     );
     expect(res.status).toBe(409);
 
@@ -521,9 +451,7 @@ describe("Herds with inline outdoor schedules", () => {
     const { jwt } = await createUserWithFarm();
     const herd = await createHerd(jwt, {
       name: "ReplaceHerd",
-      outdoorSchedules: [
-        { startDate: "2025-05-01", endDate: "2025-09-30", type: "pasture" },
-      ],
+      outdoorSchedules: [{ startDate: "2025-05-01", endDate: "2025-09-30", type: "pasture" }],
     });
 
     // Replace with two new schedules
@@ -536,7 +464,7 @@ describe("Herds with inline outdoor schedules", () => {
           { startDate: "2025-07-01", endDate: "2025-09-30", type: "pasture" },
         ],
       },
-      jwt,
+      jwt
     );
     expect(patchRes.status).toBe(200);
 
@@ -548,12 +476,7 @@ describe("Herds with inline outdoor schedules", () => {
     expect(dbSchedules).toHaveLength(2);
 
     // Verify API response
-    const res = await request(
-      "GET",
-      `/v1/animals/herds/byId/${herd.id}`,
-      undefined,
-      jwt,
-    );
+    const res = await request("GET", `/v1/animals/herds/byId/${herd.id}`, undefined, jwt);
     const body = (await res.json()) as {
       data: { outdoorSchedules: Array<{ type: string }> };
     };
@@ -564,17 +487,10 @@ describe("Herds with inline outdoor schedules", () => {
     const { jwt } = await createUserWithFarm();
     const herd = await createHerd(jwt, {
       name: "ClearHerd",
-      outdoorSchedules: [
-        { startDate: "2025-05-01", endDate: "2025-09-30", type: "pasture" },
-      ],
+      outdoorSchedules: [{ startDate: "2025-05-01", endDate: "2025-09-30", type: "pasture" }],
     });
 
-    const patchRes = await request(
-      "PATCH",
-      `/v1/animals/herds/byId/${herd.id}`,
-      { outdoorSchedules: [] },
-      jwt,
-    );
+    const patchRes = await request("PATCH", `/v1/animals/herds/byId/${herd.id}`, { outdoorSchedules: [] }, jwt);
     expect(patchRes.status).toBe(200);
 
     // Verify DB
@@ -598,7 +514,7 @@ describe("Herds with inline outdoor schedules", () => {
           { startDate: "2025-07-01", endDate: "2025-09-30", type: "exercise_yard" },
         ],
       },
-      jwt,
+      jwt
     );
     expect(res.status).toBe(409);
 
@@ -614,18 +530,11 @@ describe("Herds with inline outdoor schedules", () => {
     const { jwt } = await createUserWithFarm();
     const herd = await createHerd(jwt, {
       name: "KeepSchedules",
-      outdoorSchedules: [
-        { startDate: "2025-05-01", endDate: "2025-09-30", type: "pasture" },
-      ],
+      outdoorSchedules: [{ startDate: "2025-05-01", endDate: "2025-09-30", type: "pasture" }],
     });
 
     // Update only the name
-    const patchRes = await request(
-      "PATCH",
-      `/v1/animals/herds/byId/${herd.id}`,
-      { name: "Renamed" },
-      jwt,
-    );
+    const patchRes = await request("PATCH", `/v1/animals/herds/byId/${herd.id}`, { name: "Renamed" }, jwt);
     expect(patchRes.status).toBe(200);
 
     // Verify DB — schedule still exists
@@ -636,12 +545,7 @@ describe("Herds with inline outdoor schedules", () => {
     expect(dbSchedules).toHaveLength(1);
 
     // Verify API response
-    const res = await request(
-      "GET",
-      `/v1/animals/herds/byId/${herd.id}`,
-      undefined,
-      jwt,
-    );
+    const res = await request("GET", `/v1/animals/herds/byId/${herd.id}`, undefined, jwt);
     const body = (await res.json()) as {
       data: { name: string; outdoorSchedules: unknown[] };
     };
@@ -719,7 +623,7 @@ describe("Outdoor Schedules CRUD", () => {
       "PATCH",
       `/v1/animals/herds/outdoorSchedules/byId/${schedule.id}`,
       { type: "exercise_yard", notes: "Updated notes" },
-      jwt,
+      jwt
     );
     expect(res.status).toBe(200);
 
@@ -737,12 +641,7 @@ describe("Outdoor Schedules CRUD", () => {
     const herd = await createHerd(jwt);
     const schedule = await createOutdoorSchedule(jwt, herd.id);
 
-    const res = await request(
-      "DELETE",
-      `/v1/animals/herds/outdoorSchedules/byId/${schedule.id}`,
-      undefined,
-      jwt,
-    );
+    const res = await request("DELETE", `/v1/animals/herds/outdoorSchedules/byId/${schedule.id}`, undefined, jwt);
     expect(res.status).toBe(200);
 
     // Verify DB
@@ -766,7 +665,7 @@ describe("Outdoor Schedules CRUD", () => {
       "POST",
       `/v1/animals/herds/byId/${herd.id}/outdoorSchedules`,
       { startDate: "2025-08-01", endDate: "2025-10-31", type: "pasture" },
-      jwt,
+      jwt
     );
     expect(res.status).toBe(409);
 
@@ -804,7 +703,7 @@ describe("Outdoor Journal", () => {
       "GET",
       "/v1/animals/outdoorJournal?fromDate=2027-01-01&toDate=2027-12-31",
       undefined,
-      jwt,
+      jwt
     );
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
@@ -837,7 +736,7 @@ describe("Outdoor Journal", () => {
       "GET",
       "/v1/animals/outdoorJournal?fromDate=2027-01-01&toDate=2027-12-31",
       undefined,
-      jwt,
+      jwt
     );
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
@@ -856,7 +755,7 @@ describe("Outdoor Journal", () => {
       "GET",
       "/v1/animals/outdoorJournal?fromDate=2027-01-01&toDate=2027-12-31",
       undefined,
-      jwt,
+      jwt
     );
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
@@ -892,7 +791,7 @@ describe("Outdoor Journal", () => {
       "GET",
       "/v1/animals/outdoorJournal?fromDate=2027-01-01&toDate=2027-12-31",
       undefined,
-      jwt,
+      jwt
     );
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
@@ -924,18 +823,13 @@ describe("Outdoor Journal", () => {
       startDate: "2027-05-01",
       endDate: "2027-09-30",
     });
-    await request(
-      "PATCH",
-      `/v1/animals/herds/byId/${herd.id}`,
-      { animalIds: [pig.id] },
-      jwt,
-    );
+    await request("PATCH", `/v1/animals/herds/byId/${herd.id}`, { animalIds: [pig.id] }, jwt);
 
     const res = await request(
       "GET",
       "/v1/animals/outdoorJournal?fromDate=2027-01-01&toDate=2027-12-31",
       undefined,
-      jwt,
+      jwt
     );
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
@@ -964,18 +858,13 @@ describe("Outdoor Journal", () => {
       dateOfBirth: "2024-01-01",
       usage: "other",
     });
-    await request(
-      "PATCH",
-      `/v1/animals/byId/${pig.id}`,
-      { herdId: herd.id },
-      jwt,
-    );
+    await request("PATCH", `/v1/animals/byId/${pig.id}`, { herdId: herd.id }, jwt);
 
     const res = await request(
       "GET",
       "/v1/animals/outdoorJournal?fromDate=2027-01-01&toDate=2027-12-31",
       undefined,
-      jwt,
+      jwt
     );
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
@@ -1008,7 +897,7 @@ describe("Outdoor Journal", () => {
       "GET",
       "/v1/animals/outdoorJournal?fromDate=2027-01-01&toDate=2027-12-31",
       undefined,
-      jwt,
+      jwt
     );
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
@@ -1044,7 +933,7 @@ describe("Custom Outdoor Journal Categories", () => {
           { startDate: "2027-07-01", endDate: "2027-09-30", category: "A2" },
         ],
       },
-      jwt,
+      jwt
     );
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
@@ -1056,10 +945,9 @@ describe("Custom Outdoor Journal Categories", () => {
 
     // Verify DB
     const db = getAdminDb();
-    const dbCategories =
-      await db.query.customOutdoorJournalCategories.findMany({
-        where: { animalId: animal.id },
-      });
+    const dbCategories = await db.query.customOutdoorJournalCategories.findMany({
+      where: { animalId: animal.id },
+    });
     expect(dbCategories).toHaveLength(2);
     expect(dbCategories.map((c) => c.category).sort()).toEqual(["A1", "A2"]);
   });
@@ -1077,11 +965,9 @@ describe("Custom Outdoor Journal Categories", () => {
       "PUT",
       `/v1/animals/byId/${animal.id}/customOutdoorJournalCategories`,
       {
-        entries: [
-          { startDate: "2027-05-01", endDate: "2027-09-30", category: "A1" },
-        ],
+        entries: [{ startDate: "2027-05-01", endDate: "2027-09-30", category: "A1" }],
       },
-      jwt,
+      jwt
     );
 
     // Replace with new ones
@@ -1089,11 +975,9 @@ describe("Custom Outdoor Journal Categories", () => {
       "PUT",
       `/v1/animals/byId/${animal.id}/customOutdoorJournalCategories`,
       {
-        entries: [
-          { startDate: "2027-06-01", endDate: "2027-07-31", category: "D1" },
-        ],
+        entries: [{ startDate: "2027-06-01", endDate: "2027-07-31", category: "D1" }],
       },
-      jwt,
+      jwt
     );
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
@@ -1104,10 +988,9 @@ describe("Custom Outdoor Journal Categories", () => {
 
     // Verify DB — old entries gone, only new one
     const db = getAdminDb();
-    const dbCategories =
-      await db.query.customOutdoorJournalCategories.findMany({
-        where: { animalId: animal.id },
-      });
+    const dbCategories = await db.query.customOutdoorJournalCategories.findMany({
+      where: { animalId: animal.id },
+    });
     expect(dbCategories).toHaveLength(1);
     expect(dbCategories[0].category).toBe("D1");
   });
@@ -1125,11 +1008,9 @@ describe("Custom Outdoor Journal Categories", () => {
       "PUT",
       `/v1/animals/byId/${animal.id}/customOutdoorJournalCategories`,
       {
-        entries: [
-          { startDate: "2027-05-01", endDate: "2027-09-30", category: "A1" },
-        ],
+        entries: [{ startDate: "2027-05-01", endDate: "2027-09-30", category: "A1" }],
       },
-      jwt,
+      jwt
     );
 
     // Clear
@@ -1137,16 +1018,15 @@ describe("Custom Outdoor Journal Categories", () => {
       "PUT",
       `/v1/animals/byId/${animal.id}/customOutdoorJournalCategories`,
       { entries: [] },
-      jwt,
+      jwt
     );
     expect(res.status).toBe(200);
 
     // Verify DB
     const db = getAdminDb();
-    const dbCategories =
-      await db.query.customOutdoorJournalCategories.findMany({
-        where: { animalId: animal.id },
-      });
+    const dbCategories = await db.query.customOutdoorJournalCategories.findMany({
+      where: { animalId: animal.id },
+    });
     expect(dbCategories).toHaveLength(0);
   });
 
@@ -1167,16 +1047,15 @@ describe("Custom Outdoor Journal Categories", () => {
           { startDate: "2027-07-01", endDate: "2027-09-30", category: "A2" },
         ],
       },
-      jwt,
+      jwt
     );
     expect(res.status).toBe(409);
 
     // Verify DB — nothing was created
     const db = getAdminDb();
-    const dbCategories =
-      await db.query.customOutdoorJournalCategories.findMany({
-        where: { animalId: animal.id },
-      });
+    const dbCategories = await db.query.customOutdoorJournalCategories.findMany({
+      where: { animalId: animal.id },
+    });
     expect(dbCategories).toHaveLength(0);
   });
 
@@ -1192,19 +1071,12 @@ describe("Custom Outdoor Journal Categories", () => {
       "PUT",
       `/v1/animals/byId/${animal.id}/customOutdoorJournalCategories`,
       {
-        entries: [
-          { startDate: "2027-05-01", endDate: "2027-09-30", category: "A1" },
-        ],
+        entries: [{ startDate: "2027-05-01", endDate: "2027-09-30", category: "A1" }],
       },
-      jwt,
+      jwt
     );
 
-    const res = await request(
-      "GET",
-      `/v1/animals/byId/${animal.id}`,
-      undefined,
-      jwt,
-    );
+    const res = await request("GET", `/v1/animals/byId/${animal.id}`, undefined, jwt);
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
       data: {
@@ -1217,9 +1089,7 @@ describe("Custom Outdoor Journal Categories", () => {
     };
     expect(body.data.customOutdoorJournalCategories).toHaveLength(1);
     expect(body.data.customOutdoorJournalCategories[0].category).toBe("A1");
-    expect(body.data.customOutdoorJournalCategories[0].animalId).toBe(
-      animal.id,
-    );
+    expect(body.data.customOutdoorJournalCategories[0].animalId).toBe(animal.id);
   });
 
   it("custom category overrides null age-based category in outdoor journal", async () => {
@@ -1237,11 +1107,9 @@ describe("Custom Outdoor Journal Categories", () => {
       "PUT",
       `/v1/animals/byId/${pig.id}/customOutdoorJournalCategories`,
       {
-        entries: [
-          { startDate: "2027-01-01", endDate: "2027-12-31", category: "D1" },
-        ],
+        entries: [{ startDate: "2027-01-01", endDate: "2027-12-31", category: "D1" }],
       },
-      jwt,
+      jwt
     );
 
     const herd = await createHerd(jwt, { animalIds: [pig.id] });
@@ -1254,7 +1122,7 @@ describe("Custom Outdoor Journal Categories", () => {
       "GET",
       "/v1/animals/outdoorJournal?fromDate=2027-01-01&toDate=2027-12-31",
       undefined,
-      jwt,
+      jwt
     );
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
@@ -1288,7 +1156,7 @@ describe("Custom Outdoor Journal Categories", () => {
       "GET",
       "/v1/animals/outdoorJournal?fromDate=2027-01-01&toDate=2027-12-31",
       undefined,
-      jwt,
+      jwt
     );
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
@@ -1314,11 +1182,9 @@ describe("Custom Outdoor Journal Categories", () => {
       "PUT",
       `/v1/animals/byId/${animal.id}/customOutdoorJournalCategories`,
       {
-        entries: [
-          { startDate: "2027-05-01", endDate: "2027-09-30", category: "A1" },
-        ],
+        entries: [{ startDate: "2027-05-01", endDate: "2027-09-30", category: "A1" }],
       },
-      jwt,
+      jwt
     );
 
     // Delete the animal
@@ -1326,10 +1192,9 @@ describe("Custom Outdoor Journal Categories", () => {
 
     // Verify DB — custom categories cascaded
     const db = getAdminDb();
-    const dbCategories =
-      await db.query.customOutdoorJournalCategories.findMany({
-        where: { animalId: animal.id },
-      });
+    const dbCategories = await db.query.customOutdoorJournalCategories.findMany({
+      where: { animalId: animal.id },
+    });
     expect(dbCategories).toHaveLength(0);
   });
 });
@@ -1349,12 +1214,7 @@ describe("Herd detail includes outdoor schedules", () => {
       type: "pasture",
     });
 
-    const res = await request(
-      "GET",
-      `/v1/animals/herds/byId/${herd.id}`,
-      undefined,
-      jwt,
-    );
+    const res = await request("GET", `/v1/animals/herds/byId/${herd.id}`, undefined, jwt);
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
       data: { outdoorSchedules: Array<{ type: string }> };
@@ -1383,7 +1243,7 @@ describe("Animals input validation", () => {
         registered: true,
         usage: "other",
       },
-      jwt,
+      jwt
     );
     expect(res.status).toBe(400);
 
@@ -1417,7 +1277,7 @@ describe("Animals input validation", () => {
         registered: true,
         usage: "milk",
       },
-      jwt,
+      jwt
     );
     expect(res.status).toBe(400);
 

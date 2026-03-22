@@ -34,12 +34,7 @@ describe("Fertilizers CRUD", () => {
     expect(dbFert!.farmId).toBe(farmId);
 
     // GET by id
-    const getRes = await request(
-      "GET",
-      `/v1/fertilizers/byId/${fert.id}`,
-      undefined,
-      jwt,
-    );
+    const getRes = await request("GET", `/v1/fertilizers/byId/${fert.id}`, undefined, jwt);
     expect(getRes.status).toBe(200);
   });
 
@@ -62,7 +57,7 @@ describe("Fertilizers CRUD", () => {
       "PATCH",
       `/v1/fertilizers/byId/${fert.id}`,
       { name: "NewName", description: "Rich in nitrogen" },
-      jwt,
+      jwt
     );
     expect(res.status).toBe(200);
 
@@ -79,12 +74,7 @@ describe("Fertilizers CRUD", () => {
     const { jwt } = await createUserWithFarm();
     const fert = await createFertilizer(jwt);
 
-    const res = await request(
-      "DELETE",
-      `/v1/fertilizers/byId/${fert.id}`,
-      undefined,
-      jwt,
-    );
+    const res = await request("DELETE", `/v1/fertilizers/byId/${fert.id}`, undefined, jwt);
     expect(res.status).toBe(200);
 
     // Verify DB
@@ -99,12 +89,7 @@ describe("Fertilizers CRUD", () => {
     const { jwt } = await createUserWithFarm();
     const fert = await createFertilizer(jwt);
 
-    const res = await request(
-      "GET",
-      `/v1/fertilizers/byId/${fert.id}/inUse`,
-      undefined,
-      jwt,
-    );
+    const res = await request("GET", `/v1/fertilizers/byId/${fert.id}/inUse`, undefined, jwt);
     expect(res.status).toBe(200);
     const body = (await res.json()) as { data: { inUse: boolean } };
     expect(body.data.inUse).toBe(false);

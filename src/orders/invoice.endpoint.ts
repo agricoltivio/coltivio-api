@@ -11,11 +11,7 @@ import { OrderWithRelations } from "./orders";
 import { InvoiceSettings } from "./invoice-settings";
 
 // Count orders for the same farm+year with orderDate <= the given order → 1-based position = invoice number
-async function deriveInvoiceNumber(
-  order: OrderWithRelations,
-  farmId: string,
-  token: SupabaseToken,
-): Promise<string> {
+async function deriveInvoiceNumber(order: OrderWithRelations, farmId: string, token: SupabaseToken): Promise<string> {
   const orderYear = new Date(order.orderDate).getFullYear();
   const yearStart = new Date(orderYear, 0, 1);
   const db = makeRlsDb(token, farmId);
@@ -27,9 +23,9 @@ async function deriveInvoiceNumber(
         and(
           eq(orders.farmId, farmId),
           sql`${orders.orderDate} >= ${yearStart.toISOString().slice(0, 10)}`,
-          sql`${orders.orderDate} <= ${new Date(order.orderDate).toISOString().slice(0, 10)}`,
-        ),
-      ),
+          sql`${orders.orderDate} <= ${new Date(order.orderDate).toISOString().slice(0, 10)}`
+        )
+      )
   );
   const position = row?.count ?? 1;
   return `${position}/${String(orderYear).slice(-2)}`;
@@ -81,7 +77,7 @@ export const downloadInvoicesBatchEndpoint = membershipEndpointFactory.build({
         if (!order) throw createHttpError(404, `Order not found: ${orderId}`);
         const invoiceNumber = await deriveInvoiceNumber(order, ctx.farmId, ctx.token);
         return { order, invoiceNumber, settings: settings as InvoiceSettings };
-      }),
+      })
     );
 
     if (input.mode === "single") {
@@ -95,7 +91,7 @@ export const downloadInvoicesBatchEndpoint = membershipEndpointFactory.build({
       resolved.map(async ({ order, invoiceNumber }) => {
         const buffer = await generateInvoiceDocx(order, settings as InvoiceSettings, invoiceNumber);
         zip.file(invoiceFileName(invoiceNumber, order), buffer);
-      }),
+      })
     );
     const zipBuffer = await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
     return { base64: zipBuffer.toString("base64"), fileName: `Rechnungen_${date}.zip` };

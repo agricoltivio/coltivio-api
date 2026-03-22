@@ -8,7 +8,7 @@ import { Treatment } from "../treatments/treatments";
 import { buildOutdoorJournal, expandOutdoorSchedule, OutdoorJournalResult } from "./outdoor-journal";
 
 // SQL fragment to compute if animal has no active waiting times from treatments
-const milkAndMeatUsableExtra = sql<boolean>`NOT EXISTS (
+const _milkAndMeatUsableExtra = sql<boolean>`NOT EXISTS (
   SELECT 1 FROM ${tables.animalTreatments}
   JOIN ${tables.treatments} ON ${tables.treatments.id} = ${tables.animalTreatments.treatmentId}
   WHERE ${tables.animalTreatments.animalId} = ${tables.animals.id}
@@ -71,14 +71,12 @@ export type AnimalDeathReason = (typeof tables.deathReason.enumValues)[number];
 export type Herd = typeof tables.herds.$inferSelect;
 export type HerdMembership = typeof tables.herdMemberships.$inferSelect;
 export type OutdoorSchedule = typeof tables.outdoorSchedules.$inferSelect;
-export type OutdoorScheduleRecurrence =
-  typeof tables.outdoorScheduleRecurrences.$inferSelect;
+export type OutdoorScheduleRecurrence = typeof tables.outdoorScheduleRecurrences.$inferSelect;
 
 export type OutdoorScheduleWithRecurrence = OutdoorSchedule & {
   recurrence: OutdoorScheduleRecurrence | null;
 };
-export type OutdoorScheduleType =
-  (typeof tables.outdoorScheduleType.enumValues)[number];
+export type OutdoorScheduleType = (typeof tables.outdoorScheduleType.enumValues)[number];
 
 export type OutdoorScheduleCreateInput = {
   startDate: Date;
@@ -128,10 +126,7 @@ function inputToSchedule(input: OutdoorScheduleCreateInput): OutdoorScheduleWith
 // Uses a 25-year window starting from the earliest schedule start date.
 export function hasScheduleOverlap(schedules: OutdoorScheduleWithRecurrence[]): boolean {
   if (schedules.length < 2) return false;
-  const windowFrom = schedules.reduce(
-    (min, s) => (s.startDate < min ? s.startDate : min),
-    schedules[0].startDate,
-  );
+  const windowFrom = schedules.reduce((min, s) => (s.startDate < min ? s.startDate : min), schedules[0].startDate);
   const windowTo = new Date(windowFrom.getFullYear() + 25, windowFrom.getMonth(), windowFrom.getDate());
   const expanded = schedules.map((s) => expandOutdoorSchedule(s, windowFrom, windowTo));
   for (let i = 0; i < expanded.length; i++) {
@@ -146,10 +141,7 @@ export function hasScheduleOverlap(schedules: OutdoorScheduleWithRecurrence[]): 
   return false;
 }
 
-export type AnimalCreateInput = Omit<
-  typeof tables.animals.$inferInsert,
-  "id" | "farmId"
->;
+export type AnimalCreateInput = Omit<typeof tables.animals.$inferInsert, "id" | "farmId">;
 export type AnimalUpdateInput = Partial<AnimalCreateInput>;
 export type BatchUpdateAnimalInput = {
   type?: AnimalType;
@@ -160,8 +152,7 @@ export type BatchUpdateAnimalInput = {
   motherId?: string | null;
   fatherId?: string | null;
 };
-export type CustomOutdoorJournalCategory =
-  typeof tables.customOutdoorJournalCategories.$inferSelect;
+export type CustomOutdoorJournalCategory = typeof tables.customOutdoorJournalCategories.$inferSelect;
 export type Animal = typeof tables.animals.$inferSelect & {
   earTag: EarTag | null;
 };
@@ -256,7 +247,7 @@ export function animalsApi(rlsDb: RlsDb) {
     async getAnimalsForFarm(
       farmId: string,
       onlyLiving: boolean,
-      animalTypes?: AnimalType[],
+      animalTypes?: AnimalType[]
     ): Promise<Array<Animal & { milkAndMeatUsable: boolean }>> {
       return rlsDb.rls(async (tx) => {
         return tx.query.animals.findMany({
@@ -281,29 +272,19 @@ export function animalsApi(rlsDb: RlsDb) {
       });
     },
 
-    async updateAnimals(
-      data: Array<AnimalUpdateInput & { id: string }>,
-    ): Promise<Animal[]> {
+    async updateAnimals(data: Array<AnimalUpdateInput & { id: string }>): Promise<Animal[]> {
       await rlsDb.rls(async (tx) => {
         const today = new Date();
         await Promise.all(
           data.map(async ({ id, ...animal }) => {
-            await tx
-              .update(tables.animals)
-              .set(animal)
-              .where(eq(tables.animals.id, id));
+            await tx.update(tables.animals).set(animal).where(eq(tables.animals.id, id));
 
             // Manage herd membership when herdId changes
             if (animal.herdId !== undefined) {
               await tx
                 .update(tables.herdMemberships)
                 .set({ toDate: today })
-                .where(
-                  and(
-                    eq(tables.herdMemberships.animalId, id),
-                    isNull(tables.herdMemberships.toDate),
-                  ),
-                );
+                .where(and(eq(tables.herdMemberships.animalId, id), isNull(tables.herdMemberships.toDate)));
               if (animal.herdId) {
                 await tx.insert(tables.herdMemberships).values({
                   ...tables.farmIdColumnValue,
@@ -313,7 +294,7 @@ export function animalsApi(rlsDb: RlsDb) {
                 });
               }
             }
-          }),
+          })
         );
       });
       const result = await rlsDb.rls(async (tx) => {
@@ -345,12 +326,7 @@ export function animalsApi(rlsDb: RlsDb) {
           await tx
             .update(tables.herdMemberships)
             .set({ toDate: today })
-            .where(
-              and(
-                eq(tables.herdMemberships.animalId, id),
-                isNull(tables.herdMemberships.toDate),
-              ),
-            );
+            .where(and(eq(tables.herdMemberships.animalId, id), isNull(tables.herdMemberships.toDate)));
           // Create new membership if assigned to a herd
           if (data.herdId) {
             await tx.insert(tables.herdMemberships).values({
@@ -374,15 +350,9 @@ export function animalsApi(rlsDb: RlsDb) {
       return animal!;
     },
 
-    async batchUpdateAnimals(
-      animalIds: string[],
-      data: BatchUpdateAnimalInput,
-    ): Promise<Animal[]> {
+    async batchUpdateAnimals(animalIds: string[], data: BatchUpdateAnimalInput): Promise<Animal[]> {
       return rlsDb.rls(async (tx) => {
-        await tx
-          .update(tables.animals)
-          .set(data)
-          .where(inArray(tables.animals.id, animalIds));
+        await tx.update(tables.animals).set(data).where(inArray(tables.animals.id, animalIds));
         return tx.query.animals.findMany({
           where: { id: { in: animalIds } },
           with: {
@@ -394,9 +364,7 @@ export function animalsApi(rlsDb: RlsDb) {
 
     async deleteAnimals(animalIds: string[]) {
       return rlsDb.rls(async (tx) => {
-        await tx
-          .delete(tables.animals)
-          .where(inArray(tables.animals.id, animalIds));
+        await tx.delete(tables.animals).where(inArray(tables.animals.id, animalIds));
       });
     },
 
@@ -452,11 +420,7 @@ export function animalsApi(rlsDb: RlsDb) {
       });
     },
 
-    async createHerd(
-      input: { name: string },
-      animalIds: string[],
-      outdoorSchedules?: OutdoorScheduleCreateInput[],
-    ) {
+    async createHerd(input: { name: string }, animalIds: string[], outdoorSchedules?: OutdoorScheduleCreateInput[]) {
       // Validate overlap among schedules before entering the transaction
       if (outdoorSchedules?.length) {
         if (hasScheduleOverlap(outdoorSchedules.map(inputToSchedule))) {
@@ -472,10 +436,7 @@ export function animalsApi(rlsDb: RlsDb) {
 
         if (animalIds.length > 0) {
           // Update denormalized herdId on animals
-          await tx
-            .update(tables.animals)
-            .set({ herdId: herd.id })
-            .where(inArray(tables.animals.id, animalIds));
+          await tx.update(tables.animals).set({ herdId: herd.id }).where(inArray(tables.animals.id, animalIds));
 
           // Close any active memberships and create new ones
           const today = new Date();
@@ -483,12 +444,7 @@ export function animalsApi(rlsDb: RlsDb) {
             await tx
               .update(tables.herdMemberships)
               .set({ toDate: today })
-              .where(
-                and(
-                  eq(tables.herdMemberships.animalId, animalId),
-                  isNull(tables.herdMemberships.toDate),
-                ),
-              );
+              .where(and(eq(tables.herdMemberships.animalId, animalId), isNull(tables.herdMemberships.toDate)));
             await tx.insert(tables.herdMemberships).values({
               ...tables.farmIdColumnValue,
               animalId,
@@ -528,7 +484,7 @@ export function animalsApi(rlsDb: RlsDb) {
       id: string,
       input: { name?: string },
       animalIds?: string[],
-      outdoorSchedules?: OutdoorScheduleCreateInput[],
+      outdoorSchedules?: OutdoorScheduleCreateInput[]
     ) {
       // Validate overlap among new schedules before entering the transaction
       if (outdoorSchedules?.length) {
@@ -541,11 +497,7 @@ export function animalsApi(rlsDb: RlsDb) {
         // Only run the update if there are fields to set (avoids Drizzle "No values to set" error)
         const [herd] =
           Object.keys(input).length > 0
-            ? await tx
-                .update(tables.herds)
-                .set(input)
-                .where(eq(tables.herds.id, id))
-                .returning()
+            ? await tx.update(tables.herds).set(input).where(eq(tables.herds.id, id)).returning()
             : await tx.query.herds.findMany({ where: { id }, limit: 1 });
 
         // If animalIds provided, replace all assignments: clear existing, set new
@@ -556,36 +508,20 @@ export function animalsApi(rlsDb: RlsDb) {
           await tx
             .update(tables.herdMemberships)
             .set({ toDate: today })
-            .where(
-              and(
-                eq(tables.herdMemberships.herdId, id),
-                isNull(tables.herdMemberships.toDate),
-              ),
-            );
+            .where(and(eq(tables.herdMemberships.herdId, id), isNull(tables.herdMemberships.toDate)));
 
           // Update denormalized herdId on animals
-          await tx
-            .update(tables.animals)
-            .set({ herdId: null })
-            .where(eq(tables.animals.herdId, id));
+          await tx.update(tables.animals).set({ herdId: null }).where(eq(tables.animals.herdId, id));
 
           if (animalIds.length > 0) {
-            await tx
-              .update(tables.animals)
-              .set({ herdId: id })
-              .where(inArray(tables.animals.id, animalIds));
+            await tx.update(tables.animals).set({ herdId: id }).where(inArray(tables.animals.id, animalIds));
 
             // Close any other active membership for each animal, then create new
             for (const animalId of animalIds) {
               await tx
                 .update(tables.herdMemberships)
                 .set({ toDate: today })
-                .where(
-                  and(
-                    eq(tables.herdMemberships.animalId, animalId),
-                    isNull(tables.herdMemberships.toDate),
-                  ),
-                );
+                .where(and(eq(tables.herdMemberships.animalId, animalId), isNull(tables.herdMemberships.toDate)));
               await tx.insert(tables.herdMemberships).values({
                 ...tables.farmIdColumnValue,
                 animalId,
@@ -599,9 +535,7 @@ export function animalsApi(rlsDb: RlsDb) {
         // If outdoorSchedules provided, delete all existing and replace with new ones
         if (outdoorSchedules !== undefined) {
           // Recurrences cascade-delete with their parent schedule
-          await tx
-            .delete(tables.outdoorSchedules)
-            .where(eq(tables.outdoorSchedules.herdId, id));
+          await tx.delete(tables.outdoorSchedules).where(eq(tables.outdoorSchedules.herdId, id));
 
           // Create new schedules (overlap already validated above)
           for (const { recurrence, ...scheduleInput } of outdoorSchedules) {
@@ -656,7 +590,7 @@ export function animalsApi(rlsDb: RlsDb) {
 
     async createOutdoorSchedule(
       herdId: string,
-      input: OutdoorScheduleCreateInput,
+      input: OutdoorScheduleCreateInput
     ): Promise<OutdoorScheduleWithRecurrence> {
       const { recurrence, ...scheduleInput } = input;
 
@@ -691,10 +625,7 @@ export function animalsApi(rlsDb: RlsDb) {
       return created!;
     },
 
-    async updateOutdoorSchedule(
-      id: string,
-      input: OutdoorScheduleUpdateInput,
-    ): Promise<OutdoorScheduleWithRecurrence> {
+    async updateOutdoorSchedule(id: string, input: OutdoorScheduleUpdateInput): Promise<OutdoorScheduleWithRecurrence> {
       const { recurrence, ...scheduleData } = input;
 
       // Fetch current schedule to know its herdId
@@ -704,21 +635,28 @@ export function animalsApi(rlsDb: RlsDb) {
       }
 
       // Validate no overlap (exclude self)
-      if (
-        scheduleData.startDate !== undefined ||
-        scheduleData.endDate !== undefined ||
-        recurrence !== undefined
-      ) {
+      if (scheduleData.startDate !== undefined || scheduleData.endDate !== undefined || recurrence !== undefined) {
         const existing = await this.getOutdoorSchedulesForHerd(current.herdId);
         const updatedSchedule: OutdoorScheduleWithRecurrence = {
           ...current,
           startDate: scheduleData.startDate ?? current.startDate,
           endDate: scheduleData.endDate !== undefined ? scheduleData.endDate : current.endDate,
-          recurrence: recurrence !== undefined
-            ? recurrence
-              ? { ...current.recurrence, id: current.recurrence?.id ?? "", farmId: current.farmId, outdoorScheduleId: current.id, ...recurrence, until: recurrence.until ?? null, byWeekday: recurrence.byWeekday ?? null, byMonthDay: recurrence.byMonthDay ?? null, count: recurrence.count ?? null }
-              : null
-            : current.recurrence,
+          recurrence:
+            recurrence !== undefined
+              ? recurrence
+                ? {
+                    ...current.recurrence,
+                    id: current.recurrence?.id ?? "",
+                    farmId: current.farmId,
+                    outdoorScheduleId: current.id,
+                    ...recurrence,
+                    until: recurrence.until ?? null,
+                    byWeekday: recurrence.byWeekday ?? null,
+                    byMonthDay: recurrence.byMonthDay ?? null,
+                    count: recurrence.count ?? null,
+                  }
+                : null
+              : current.recurrence,
         };
         if (hasScheduleOverlap([...existing.filter((s) => s.id !== id), updatedSchedule])) {
           throw createHttpError(409, "Schedule overlaps with existing schedule");
@@ -728,34 +666,26 @@ export function animalsApi(rlsDb: RlsDb) {
       await rlsDb.rls(async (tx) => {
         // Update schedule fields if any provided
         if (Object.keys(scheduleData).length > 0) {
-          await tx
-            .update(tables.outdoorSchedules)
-            .set(scheduleData)
-            .where(eq(tables.outdoorSchedules.id, id));
+          await tx.update(tables.outdoorSchedules).set(scheduleData).where(eq(tables.outdoorSchedules.id, id));
         }
 
         // Handle recurrence upsert/delete
         if (recurrence !== undefined) {
-          const existingRecurrence =
-            await tx.query.outdoorScheduleRecurrences.findFirst({
-              where: { outdoorScheduleId: id },
-            });
+          const existingRecurrence = await tx.query.outdoorScheduleRecurrences.findFirst({
+            where: { outdoorScheduleId: id },
+          });
 
           if (recurrence === null) {
             if (existingRecurrence) {
               await tx
                 .delete(tables.outdoorScheduleRecurrences)
-                .where(
-                  eq(tables.outdoorScheduleRecurrences.outdoorScheduleId, id),
-                );
+                .where(eq(tables.outdoorScheduleRecurrences.outdoorScheduleId, id));
             }
           } else if (existingRecurrence) {
             await tx
               .update(tables.outdoorScheduleRecurrences)
               .set(recurrence)
-              .where(
-                eq(tables.outdoorScheduleRecurrences.outdoorScheduleId, id),
-              );
+              .where(eq(tables.outdoorScheduleRecurrences.outdoorScheduleId, id));
           } else {
             await tx.insert(tables.outdoorScheduleRecurrences).values({
               ...tables.farmIdColumnValue,
@@ -772,9 +702,7 @@ export function animalsApi(rlsDb: RlsDb) {
 
     async deleteOutdoorSchedule(id: string) {
       return rlsDb.rls(async (tx) => {
-        await tx
-          .delete(tables.outdoorSchedules)
-          .where(eq(tables.outdoorSchedules.id, id));
+        await tx.delete(tables.outdoorSchedules).where(eq(tables.outdoorSchedules.id, id));
       });
     },
 
@@ -785,11 +713,11 @@ export function animalsApi(rlsDb: RlsDb) {
         startDate: Date;
         endDate?: Date | null;
         category: AnimalCategory;
-      }[],
+      }[]
     ): Promise<CustomOutdoorJournalCategory[]> {
       // Validate no overlaps among the entries
       const rangeSchedules = entries.map((e) =>
-        inputToSchedule({ startDate: e.startDate, endDate: e.endDate, type: "pasture", recurrence: null }),
+        inputToSchedule({ startDate: e.startDate, endDate: e.endDate, type: "pasture", recurrence: null })
       );
       if (hasScheduleOverlap(rangeSchedules)) {
         throw createHttpError(409, "Custom outdoor journal category date ranges overlap");
@@ -812,7 +740,7 @@ export function animalsApi(rlsDb: RlsDb) {
               startDate: e.startDate,
               endDate: e.endDate ?? null,
               category: e.category,
-            })),
+            }))
           )
           .returning();
       });
@@ -836,11 +764,7 @@ export function animalsApi(rlsDb: RlsDb) {
       });
     },
 
-    async getOutdoorJournal(
-      farmId: string,
-      fromDate: Date,
-      toDate: Date,
-    ): Promise<OutdoorJournalResult> {
+    async getOutdoorJournal(farmId: string, fromDate: Date, toDate: Date): Promise<OutdoorJournalResult> {
       const herds = await this.getHerdsWithMembershipsForFarm(farmId);
       return buildOutdoorJournal(herds, fromDate, toDate);
     },
@@ -851,7 +775,7 @@ export function animalsApi(rlsDb: RlsDb) {
       type: AnimalType,
       skipHeaderRow: boolean,
       farmId: string,
-      locale: string = "de",
+      locale: string = "de"
     ): Promise<ImportResult> {
       // Load Excel workbook from buffer
       const workbook = new ExcelJS.Workbook();
@@ -887,7 +811,7 @@ export function animalsApi(rlsDb: RlsDb) {
         const knownHeaders = Object.keys(headerMap).join(", ");
         throw createHttpError(
           400,
-          `Missing required columns: ${missingColumns.join(", ")}. Known header names: ${knownHeaders}`,
+          `Missing required columns: ${missingColumns.join(", ")}. Known header names: ${knownHeaders}`
         );
       }
 
@@ -898,13 +822,10 @@ export function animalsApi(rlsDb: RlsDb) {
           with: { animal: { with: { earTag: true } } },
         });
       });
-      const earTagByNumber = new Map(
-        existingEarTags.map((tag) => [tag.number.toLowerCase(), tag]),
-      );
+      const earTagByNumber = new Map(existingEarTags.map((tag) => [tag.number.toLowerCase(), tag]));
 
       const skippedRows: SkippedRow[] = [];
-      const validAnimals: (AnimalCreateInput & { earTagNumber?: string })[] =
-        [];
+      const validAnimals: (AnimalCreateInput & { earTagNumber?: string })[] = [];
       const earTagsToCreate = new Set<string>();
 
       // Process rows
@@ -913,11 +834,9 @@ export function animalsApi(rlsDb: RlsDb) {
         rowIndex++;
         if (skipHeaderRow && rowNumber === 1) return;
 
-        const earTagNumber =
-          row.getCell(columnIndex["earTag"]).text?.trim() || null;
+        const earTagNumber = row.getCell(columnIndex["earTag"]).text?.trim() || null;
         const name = row.getCell(columnIndex["name"]).text?.trim() || null;
-        const sexValue =
-          row.getCell(columnIndex["sex"]).text?.trim().toLowerCase() || null;
+        const sexValue = row.getCell(columnIndex["sex"]).text?.trim().toLowerCase() || null;
         const dobCell = row.getCell(columnIndex["dateOfBirth"]);
         const usageValue = columnIndex["usage"]
           ? row.getCell(columnIndex["usage"]).text?.trim().toLowerCase() || null
@@ -980,9 +899,7 @@ export function animalsApi(rlsDb: RlsDb) {
             dateOfBirth = parsed;
           } else if (typeof dobCell.value === "number") {
             // Excel date serial number
-            dateOfBirth = new Date(
-              Math.round((dobCell.value - 25569) * 86400 * 1000),
-            );
+            dateOfBirth = new Date(Math.round((dobCell.value - 25569) * 86400 * 1000));
           } else {
             skippedRows.push({
               row: rowNumber,
@@ -1045,25 +962,21 @@ export function animalsApi(rlsDb: RlsDb) {
               earTagNumbersToCreate.map((number) => ({
                 ...tables.farmIdColumnValue,
                 number,
-              })),
+              }))
             )
             .returning();
         });
       }
-      const newEarTagMap = new Map(
-        newEarTags.map((tag) => [tag.number.toLowerCase(), tag.id]),
-      );
+      const newEarTagMap = new Map(newEarTags.map((tag) => [tag.number.toLowerCase(), tag.id]));
 
       // Assign ear tag IDs
-      const animalsToCreate: AnimalCreateInput[] = validAnimals.map(
-        (animal) => {
-          const { earTagNumber, ...animalData } = animal;
-          if (earTagNumber && !animalData.earTagId) {
-            animalData.earTagId = newEarTagMap.get(earTagNumber.toLowerCase());
-          }
-          return animalData;
-        },
-      );
+      const animalsToCreate: AnimalCreateInput[] = validAnimals.map((animal) => {
+        const { earTagNumber, ...animalData } = animal;
+        if (earTagNumber && !animalData.earTagId) {
+          animalData.earTagId = newEarTagMap.get(earTagNumber.toLowerCase());
+        }
+        return animalData;
+      });
 
       // Batch create all valid animals
       let importedCount = 0;
@@ -1075,7 +988,7 @@ export function animalsApi(rlsDb: RlsDb) {
               animalsToCreate.map((input) => ({
                 ...tables.farmIdColumnValue,
                 ...input,
-              })),
+              }))
             )
             .returning({ id: tables.animals.id });
         });

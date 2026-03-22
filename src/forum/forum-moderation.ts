@@ -12,10 +12,7 @@ export function forumModerationApi(db: RlsDb) {
     },
 
     async setThreadStatus(threadId: string, status: "open" | "closed"): Promise<void> {
-      await db.admin
-        .update(forumThreads)
-        .set({ status, updatedAt: new Date() })
-        .where(eq(forumThreads.id, threadId));
+      await db.admin.update(forumThreads).set({ status, updatedAt: new Date() }).where(eq(forumThreads.id, threadId));
     },
 
     async pinThread(threadId: string, pinned: boolean): Promise<void> {
@@ -26,15 +23,11 @@ export function forumModerationApi(db: RlsDb) {
     },
 
     async deleteThread(threadId: string): Promise<void> {
-      await db.admin
-        .delete(forumThreads)
-        .where(eq(forumThreads.id, threadId));
+      await db.admin.delete(forumThreads).where(eq(forumThreads.id, threadId));
     },
 
     async deleteReply(replyId: string): Promise<void> {
-      await db.admin
-        .delete(forumReplies)
-        .where(eq(forumReplies.id, replyId));
+      await db.admin.delete(forumReplies).where(eq(forumReplies.id, replyId));
     },
   };
 }

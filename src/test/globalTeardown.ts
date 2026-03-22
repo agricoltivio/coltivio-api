@@ -17,25 +17,17 @@ export default async function globalTeardown() {
     | { servers: Array<{ close: (cb?: () => void) => void }> }
     | undefined;
   if (server) {
-    await Promise.all(
-      server.servers.map(
-        (s) => new Promise<void>((resolve) => s.close(() => resolve())),
-      ),
-    );
+    await Promise.all(server.servers.map((s) => new Promise<void>((resolve) => s.close(() => resolve()))));
   }
 
   // Stop auth proxy
-  const authProxy = (globalThis as Record<string, unknown>).__AUTH_PROXY__ as
-    | http.Server
-    | undefined;
+  const authProxy = (globalThis as Record<string, unknown>).__AUTH_PROXY__ as http.Server | undefined;
   if (authProxy) {
     await new Promise<void>((resolve) => authProxy.close(() => resolve()));
   }
 
   // Stop docker-compose environment
-  const compose = (globalThis as Record<string, unknown>).__COMPOSE__ as
-    | StartedDockerComposeEnvironment
-    | undefined;
+  const compose = (globalThis as Record<string, unknown>).__COMPOSE__ as StartedDockerComposeEnvironment | undefined;
   if (compose) {
     await compose.down();
   }

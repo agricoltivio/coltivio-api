@@ -25,7 +25,7 @@ export const sendFieldCalendarReport = farmEndpointFactory.build({
       input.generateTillages,
       input.generateFertilizerApplications,
       input.generateCropProtectionApplications,
-      input.generateHarvests,
+      input.generateHarvests
     );
     return {};
   },
@@ -39,16 +39,15 @@ export const downloadFieldCalendarReport = farmEndpointFactory.build({
     fileName: z.string(),
   }),
   handler: async ({ input, ctx }) => {
-    const { buffer, fileName } =
-      await ctx.fieldCalendarReports.generateReportBuffer(
-        input.fromDate,
-        input.toDate,
-        input.generateCropRotations,
-        input.generateTillages,
-        input.generateFertilizerApplications,
-        input.generateCropProtectionApplications,
-        input.generateHarvests,
-      );
+    const { buffer, fileName } = await ctx.fieldCalendarReports.generateReportBuffer(
+      input.fromDate,
+      input.toDate,
+      input.generateCropRotations,
+      input.generateTillages,
+      input.generateFertilizerApplications,
+      input.generateCropProtectionApplications,
+      input.generateHarvests
+    );
     return { base64: buffer.toString("base64"), fileName };
   },
 });

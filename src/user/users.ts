@@ -18,10 +18,7 @@ export function usersApi(authDb: RlsDb) {
     },
     async getUserById(id: string): Promise<User> {
       return authDb.rls(async (tx) => {
-        const [user] = await tx
-          .select()
-          .from(profiles)
-          .where(eq(profiles.id, id));
+        const [user] = await tx.select().from(profiles).where(eq(profiles.id, id));
         if (!user) {
           throw new Error(`User with id ${id} not found`);
         }
@@ -30,11 +27,7 @@ export function usersApi(authDb: RlsDb) {
     },
     async updateUser(id: string, updatedUser: UpdatedUser): Promise<User> {
       return authDb.rls(async (tx) => {
-        const [user] = await tx
-          .update(profiles)
-          .set(updatedUser)
-          .where(eq(profiles.id, id))
-          .returning();
+        const [user] = await tx.update(profiles).set(updatedUser).where(eq(profiles.id, id)).returning();
         return user;
       });
     },

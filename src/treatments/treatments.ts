@@ -5,16 +5,11 @@ import { RlsDb } from "../db/db";
 import { animalTreatments, farmIdColumnValue, treatments } from "../db/schema";
 import type { DrugWithTreatment } from "../drugs/drugs";
 
-export type TreatmentCreateInput = Omit<
-  typeof treatments.$inferInsert,
-  "id" | "farmId" | "createdAt" | "createdBy"
-> & {
+export type TreatmentCreateInput = Omit<typeof treatments.$inferInsert, "id" | "farmId" | "createdAt" | "createdBy"> & {
   animalIds: string[];
 };
 
-export type TreatmentUpdateInput = Partial<
-  Omit<TreatmentCreateInput, "drugId">
->;
+export type TreatmentUpdateInput = Partial<Omit<TreatmentCreateInput, "drugId">>;
 
 export type Treatment = typeof treatments.$inferSelect;
 
@@ -25,10 +20,7 @@ export type TreatmentWithRelations = Treatment & {
 
 export function treatmentsApi(rlsDb: RlsDb) {
   return {
-    async createTreatment(
-      treatmentInput: TreatmentCreateInput,
-      userId: string,
-    ): Promise<Treatment> {
+    async createTreatment(treatmentInput: TreatmentCreateInput, userId: string): Promise<Treatment> {
       const { animalIds, ...treatmentData } = treatmentInput;
 
       return rlsDb.rls(async (tx) => {
@@ -52,22 +44,14 @@ export function treatmentsApi(rlsDb: RlsDb) {
             },
           });
           if (!drugTreatmentData) {
-            throw new Error(
-              `No treatment data found for drug and animal type ${animal.type}`,
-            );
+            throw new Error(`No treatment data found for drug and animal type ${animal.type}`);
           }
 
           if (!milkUsableDate) {
-            milkUsableDate = addDays(
-              treatmentData.endDate,
-              drugTreatmentData.milkWaitingDays,
-            );
+            milkUsableDate = addDays(treatmentData.endDate, drugTreatmentData.milkWaitingDays);
           }
           if (!meatUsableDate) {
-            meatUsableDate = addDays(
-              treatmentData.endDate,
-              drugTreatmentData.meatWaitingDays,
-            );
+            meatUsableDate = addDays(treatmentData.endDate, drugTreatmentData.meatWaitingDays);
           }
         }
 
@@ -90,7 +74,7 @@ export function treatmentsApi(rlsDb: RlsDb) {
               ...farmIdColumnValue,
               animalId,
               treatmentId: treatment.id,
-            })),
+            }))
           );
         }
 
@@ -98,9 +82,7 @@ export function treatmentsApi(rlsDb: RlsDb) {
       });
     },
 
-    async getTreatmentById(
-      id: string,
-    ): Promise<TreatmentWithRelations | undefined> {
+    async getTreatmentById(id: string): Promise<TreatmentWithRelations | undefined> {
       return rlsDb.rls(async (tx) => {
         const result = await tx.query.treatments.findFirst({
           where: { id },
@@ -127,9 +109,7 @@ export function treatmentsApi(rlsDb: RlsDb) {
       });
     },
 
-    async getTreatmentsForFarm(
-      farmId: string,
-    ): Promise<TreatmentWithRelations[]> {
+    async getTreatmentsForFarm(farmId: string): Promise<TreatmentWithRelations[]> {
       return rlsDb.rls(async (tx) => {
         const results = await tx.query.treatments.findMany({
           where: { farmId },
@@ -156,32 +136,28 @@ export function treatmentsApi(rlsDb: RlsDb) {
       });
     },
 
-    async getTreatmentsForAnimal(
-      animalId: string,
-    ): Promise<TreatmentWithRelations[]> {
+    async getTreatmentsForAnimal(animalId: string): Promise<TreatmentWithRelations[]> {
       return rlsDb.rls(async (tx) => {
         // Find treatments through the junction table
-        const animalTreatmentRecords = await tx.query.animalTreatments.findMany(
-          {
-            where: { animalId },
-            with: {
-              treatment: {
-                with: {
-                  drug: {
-                    with: { drugTreatment: true },
-                  },
-                  animalTreatments: {
-                    with: {
-                      animal: {
-                        with: { earTag: true },
-                      },
+        const animalTreatmentRecords = await tx.query.animalTreatments.findMany({
+          where: { animalId },
+          with: {
+            treatment: {
+              with: {
+                drug: {
+                  with: { drugTreatment: true },
+                },
+                animalTreatments: {
+                  with: {
+                    animal: {
+                      with: { earTag: true },
                     },
                   },
                 },
               },
             },
           },
-        );
+        });
         return animalTreatmentRecords
           .map((at) => ({
             ...at.treatment,
@@ -191,25 +167,16 @@ export function treatmentsApi(rlsDb: RlsDb) {
       });
     },
 
-    async updateTreatment(
-      id: string,
-      data: TreatmentUpdateInput,
-    ): Promise<Treatment> {
+    async updateTreatment(id: string, data: TreatmentUpdateInput): Promise<Treatment> {
       const { animalIds, ...treatmentData } = data;
 
       return rlsDb.rls(async (tx) => {
         // Update treatment fields
-        const [treatment] = await tx
-          .update(treatments)
-          .set(treatmentData)
-          .where(eq(treatments.id, id))
-          .returning();
+        const [treatment] = await tx.update(treatments).set(treatmentData).where(eq(treatments.id, id)).returning();
 
         // If animalIds provided, replace all animal associations
         if (animalIds !== undefined) {
-          await tx
-            .delete(animalTreatments)
-            .where(eq(animalTreatments.treatmentId, id));
+          await tx.delete(animalTreatments).where(eq(animalTreatments.treatmentId, id));
 
           if (animalIds.length > 0) {
             await tx.insert(animalTreatments).values(
@@ -217,7 +184,7 @@ export function treatmentsApi(rlsDb: RlsDb) {
                 ...farmIdColumnValue,
                 animalId,
                 treatmentId: id,
-              })),
+              }))
             );
           }
         }

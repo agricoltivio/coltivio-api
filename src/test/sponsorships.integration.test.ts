@@ -19,12 +19,7 @@ describe("Sponsorships", () => {
     const program = await createSponsorshipProgram(jwt, { yearlyCost: 150 });
     const sponsorship = await createSponsorship(jwt, contact.id, animal.id, program.id);
 
-    const res = await request(
-      "GET",
-      `/v1/sponsorships/byId/${sponsorship.id}`,
-      undefined,
-      jwt,
-    );
+    const res = await request("GET", `/v1/sponsorships/byId/${sponsorship.id}`, undefined, jwt);
     expect(res.status).toBe(200);
     const body = (await res.json()) as { data: Record<string, unknown> };
     const fetched = body.data;

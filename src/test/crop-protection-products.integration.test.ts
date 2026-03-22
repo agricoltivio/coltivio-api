@@ -31,12 +31,7 @@ describe("Crop Protection Products CRUD", () => {
     expect(dbProduct!.farmId).toBe(farmId);
 
     // GET by id
-    const getRes = await request(
-      "GET",
-      `/v1/cropProtectionProducts/byId/${product.id}`,
-      undefined,
-      jwt,
-    );
+    const getRes = await request("GET", `/v1/cropProtectionProducts/byId/${product.id}`, undefined, jwt);
     expect(getRes.status).toBe(200);
   });
 
@@ -45,12 +40,7 @@ describe("Crop Protection Products CRUD", () => {
     await createCropProtectionProduct(jwt, { name: "P1" });
     await createCropProtectionProduct(jwt, { name: "P2" });
 
-    const res = await request(
-      "GET",
-      "/v1/cropProtectionProducts",
-      undefined,
-      jwt,
-    );
+    const res = await request("GET", "/v1/cropProtectionProducts", undefined, jwt);
     expect(res.status).toBe(200);
     const body = (await res.json()) as { data: { count: number } };
     expect(body.data.count).toBe(2);
@@ -64,7 +54,7 @@ describe("Crop Protection Products CRUD", () => {
       "PATCH",
       `/v1/cropProtectionProducts/byId/${product.id}`,
       { name: "NewName", description: "Broad spectrum herbicide" },
-      jwt,
+      jwt
     );
     expect(res.status).toBe(200);
 
@@ -81,12 +71,7 @@ describe("Crop Protection Products CRUD", () => {
     const { jwt } = await createUserWithFarm();
     const product = await createCropProtectionProduct(jwt);
 
-    const res = await request(
-      "DELETE",
-      `/v1/cropProtectionProducts/byId/${product.id}`,
-      undefined,
-      jwt,
-    );
+    const res = await request("DELETE", `/v1/cropProtectionProducts/byId/${product.id}`, undefined, jwt);
     expect(res.status).toBe(200);
 
     // Verify DB
@@ -101,12 +86,7 @@ describe("Crop Protection Products CRUD", () => {
     const { jwt } = await createUserWithFarm();
     const product = await createCropProtectionProduct(jwt);
 
-    const res = await request(
-      "GET",
-      `/v1/cropProtectionProducts/byId/${product.id}/inUse`,
-      undefined,
-      jwt,
-    );
+    const res = await request("GET", `/v1/cropProtectionProducts/byId/${product.id}/inUse`, undefined, jwt);
     expect(res.status).toBe(200);
     const body = (await res.json()) as { data: { inUse: boolean } };
     expect(body.data.inUse).toBe(false);
