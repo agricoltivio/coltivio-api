@@ -4,11 +4,6 @@ import { BBox } from "../geo/geojson";
 import { ez } from "express-zod-api";
 import { multiPolygonSchema } from "../db/schema";
 
-interface Geometry {
-  type: string;
-  coordinates: number[][][][];
-}
-
 const BoundingBoxSchema = z.object({
   xmin: z.string().transform((value) => parseFloat(value)),
   ymin: z.string().transform((value) => parseFloat(value)),
@@ -27,115 +22,85 @@ const selectFederalFarmPlotSchema = z.object({
   geometry: multiPolygonSchema,
 });
 
-export const getPlotsLayerForBoundingBoxEndpoint =
-  authenticatedEndpointFactory.build({
-    method: "get",
-    input: BoundingBoxSchema,
-    output: z.object({
-      result: selectFederalFarmPlotSchema.array(),
-      count: z.number(),
-      bbox: z.tuple([z.number(), z.number(), z.number(), z.number()]),
-      // bbox: z.object({
-      //   xmin: z.number(),
-      //   xmax: z.number(),
-      //   ymin: z.number(),
-      //   ymax: z.number(),
-      // }),
-    }),
-    handler: async ({
-      input: { xmax, xmin, ymax, ymin },
-      ctx: { federalParcelLayer },
-    }) => {
-      const parcels = await federalParcelLayer.getPlotsLayerForBoundingBox(
-        xmin,
-        ymin,
-        xmax,
-        ymax,
-      );
-      const bbox: BBox = [xmin, ymin, xmax, ymax];
+export const getPlotsLayerForBoundingBoxEndpoint = authenticatedEndpointFactory.build({
+  method: "get",
+  input: BoundingBoxSchema,
+  output: z.object({
+    result: selectFederalFarmPlotSchema.array(),
+    count: z.number(),
+    bbox: z.tuple([z.number(), z.number(), z.number(), z.number()]),
+    // bbox: z.object({
+    //   xmin: z.number(),
+    //   xmax: z.number(),
+    //   ymin: z.number(),
+    //   ymax: z.number(),
+    // }),
+  }),
+  handler: async ({ input: { xmax, xmin, ymax, ymin }, ctx: { federalParcelLayer } }) => {
+    const parcels = await federalParcelLayer.getPlotsLayerForBoundingBox(xmin, ymin, xmax, ymax);
+    const bbox: BBox = [xmin, ymin, xmax, ymax];
 
-      return {
-        result: parcels,
-        bbox,
-        count: parcels.length,
-      };
-    },
-  });
-
-export const getPlotsForFederalFarmIdEndpoint =
-  authenticatedEndpointFactory.build({
-    method: "get",
-    input: z.object({ federalFarmId: z.string() }),
-    output: z.object({
-      result: selectFederalFarmPlotSchema.array(),
-      count: z.number(),
-    }),
-    handler: async ({
-      input: { federalFarmId },
-      ctx: { federalParcelLayer },
-    }) => {
-      const parcels =
-        await federalParcelLayer.getPlotsForFederalFarmId(federalFarmId);
-      return {
-        result: parcels,
-        count: parcels.length,
-      };
-    },
-  });
-
-export const getFarmAndNearbyPlotsEndpoint = authenticatedEndpointFactory.build(
-  {
-    method: "get",
-    input: z.object({
-      federalFarmId: z.string(),
-      buffer: z.number().optional(),
-    }),
-    output: z.object({
-      result: selectFederalFarmPlotSchema.array(),
-      count: z.number(),
-    }),
-    handler: async ({
-      input: { federalFarmId, buffer },
-      ctx: { federalParcelLayer },
-    }) => {
-      const parcels = await federalParcelLayer.getFarmAndNearbyPlots(
-        federalFarmId,
-        buffer,
-      );
-      return {
-        result: parcels,
-        count: parcels.length,
-      };
-    },
+    return {
+      result: parcels,
+      bbox,
+      count: parcels.length,
+    };
   },
-);
-export const getPlotsWithinRadiusOfPointEndpoint =
-  authenticatedEndpointFactory.build({
-    method: "get",
-    input: z.object({
-      longitude: z.string().transform((value) => parseFloat(value)),
-      latitude: z.string().transform((value) => parseFloat(value)),
-      radiusInKm: z.string().transform((value) => parseInt(value)),
-    }),
-    output: z.object({
-      result: selectFederalFarmPlotSchema.array(),
-      count: z.number(),
-    }),
-    handler: async ({
-      input: { longitude, latitude, radiusInKm },
-      ctx: { federalParcelLayer },
-    }) => {
-      const parcels = await federalParcelLayer.getPlotsWithinRadiusOfPoint(
-        longitude,
-        latitude,
-        radiusInKm,
-      );
-      return {
-        result: parcels,
-        count: parcels.length,
-      };
-    },
-  });
+});
+
+export const getPlotsForFederalFarmIdEndpoint = authenticatedEndpointFactory.build({
+  method: "get",
+  input: z.object({ federalFarmId: z.string() }),
+  output: z.object({
+    result: selectFederalFarmPlotSchema.array(),
+    count: z.number(),
+  }),
+  handler: async ({ input: { federalFarmId }, ctx: { federalParcelLayer } }) => {
+    const parcels = await federalParcelLayer.getPlotsForFederalFarmId(federalFarmId);
+    return {
+      result: parcels,
+      count: parcels.length,
+    };
+  },
+});
+
+export const getFarmAndNearbyPlotsEndpoint = authenticatedEndpointFactory.build({
+  method: "get",
+  input: z.object({
+    federalFarmId: z.string(),
+    buffer: z.number().optional(),
+  }),
+  output: z.object({
+    result: selectFederalFarmPlotSchema.array(),
+    count: z.number(),
+  }),
+  handler: async ({ input: { federalFarmId, buffer }, ctx: { federalParcelLayer } }) => {
+    const parcels = await federalParcelLayer.getFarmAndNearbyPlots(federalFarmId, buffer);
+    return {
+      result: parcels,
+      count: parcels.length,
+    };
+  },
+});
+export const getPlotsWithinRadiusOfPointEndpoint = authenticatedEndpointFactory.build({
+  method: "get",
+  input: z.object({
+    longitude: z.string().transform((value) => parseFloat(value)),
+    latitude: z.string().transform((value) => parseFloat(value)),
+    radiusInKm: z.string().transform((value) => parseInt(value)),
+  }),
+  output: z.object({
+    result: selectFederalFarmPlotSchema.array(),
+    count: z.number(),
+  }),
+  handler: async ({ input: { longitude, latitude, radiusInKm }, ctx: { federalParcelLayer } }) => {
+    const parcels = await federalParcelLayer.getPlotsWithinRadiusOfPoint(longitude, latitude, radiusInKm);
+    return {
+      result: parcels,
+      count: parcels.length,
+    };
+  },
+});
 
 export const getFederalFarmIdsEndpoint = authenticatedEndpointFactory.build({
   method: "get",
@@ -156,7 +121,7 @@ export const getFederalFarmIdsEndpoint = authenticatedEndpointFactory.build({
       input.longitude,
       input.latitude,
       input.radiusInKm,
-      input.limit,
+      input.limit
     );
     return {
       result: federalFarmIds,

@@ -16,7 +16,6 @@ import {
   getOutdoorScheduleByIdEndpoint,
   importAnimalsFromExcelEndpoint,
   updateAnimalEndpoint,
-  updateAnimalsEndpoint,
   updateHerdEndpoint,
   updateOutdoorScheduleEndpoint,
   batchUpdateAnimalsEndpoint,
@@ -76,22 +75,14 @@ import {
   getTreatmentByIdEndpoint,
   updateTreatmentEndpoint,
 } from "./treatments/treatments.endpoint";
-import {
-  createFarmEndpoint,
-  deleteFarmEndpoint,
-  getFarmEndpoint,
-  updateFarmEndpoint,
-} from "./farm/farm.endpoint";
+import { createFarmEndpoint, deleteFarmEndpoint, getFarmEndpoint, updateFarmEndpoint } from "./farm/farm.endpoint";
 import {
   listFarmInvitesEndpoint,
   createFarmInviteEndpoint,
   revokeFarmInviteEndpoint,
   acceptFarmInviteEndpoint,
 } from "./farm/farm-invites.endpoint";
-import {
-  getDashboardStatsEndpoint,
-  getFieldEventsEndpoint,
-} from "./dashboard/dashboard.endpoint";
+import { getDashboardStatsEndpoint, getFieldEventsEndpoint } from "./dashboard/dashboard.endpoint";
 import {
   createHarvestsEndpoint,
   deleteHarvestEndpoint,
@@ -237,6 +228,13 @@ import {
   updateOrderItemEndpoint,
 } from "./orders/orders.endpoint";
 import {
+  getInvoiceSettingsEndpoint,
+  upsertInvoiceSettingsEndpoint,
+  uploadLogoEndpoint,
+  deleteLogoEndpoint,
+} from "./orders/invoice-settings.endpoint";
+import { downloadInvoiceEndpoint, downloadInvoicesBatchEndpoint } from "./orders/invoice.endpoint";
+import {
   createProductEndpoint,
   deleteProductEndpoint,
   getActiveProductsEndpoint,
@@ -244,10 +242,7 @@ import {
   getProductByIdEndpoint,
   updateProductEndpoint,
 } from "./products/products.endpoint";
-import {
-  sendFieldCalendarReport,
-  downloadFieldCalendarReport,
-} from "./reports/field-calendar-reports.endpoint";
+import { sendFieldCalendarReport, downloadFieldCalendarReport } from "./reports/field-calendar-reports.endpoint";
 import { downloadTreatmentReport } from "./reports/treatment-reports.endpoint";
 import { downloadOutdoorJournalReport } from "./reports/outdoor-journal-reports.endpoint";
 import { healthEndpoint } from "./chore/chore.endpoint";
@@ -291,6 +286,30 @@ import {
   createWikiCategoryEndpoint,
   deleteWikiCategoryEndpoint,
 } from "./wiki/wiki-moderation.endpoint";
+import {
+  createSubscriptionCheckoutEndpoint,
+  createManualCheckoutEndpoint,
+  getMembershipStatusEndpoint,
+  cancelMembershipEndpoint,
+  getMembershipPaymentsEndpoint,
+  createPaymentMethodSetupEndpoint,
+  reactivateMembershipEndpoint,
+  startTrialEndpoint,
+} from "./membership/membership.endpoint";
+import { createDonationCheckoutEndpoint } from "./donations/donations.endpoint";
+import {
+  listForumThreadsEndpoint,
+  createForumThreadEndpoint,
+  getForumThreadByIdEndpoint,
+  updateForumThreadEndpoint,
+  deleteForumThreadEndpoint,
+  listForumRepliesEndpoint,
+  addForumReplyEndpoint,
+  updateForumReplyEndpoint,
+  deleteForumReplyEndpoint,
+} from "./forum/forum.endpoint";
+import { setForumThreadStatusEndpoint, pinForumThreadEndpoint } from "./forum/forum-moderation.endpoint";
+import { createHandoffTokenEndpoint, exchangeHandoffTokenEndpoint } from "./auth/handoff.endpoint";
 
 export const routing: Routing = {
   healthz: healthEndpoint,
@@ -380,11 +399,9 @@ export const routing: Routing = {
           cropRotations: getCropRotationsForPlotEndpoint,
           tillages: getPlotTillagesEndpoint,
           cropProtectionApplications: getPlotCropProtectionApplicationsEndpoint,
-          cropProtectionApplicationSummary:
-            getCropProtectionApplicationSummaryForPlotEndpoint,
+          cropProtectionApplicationSummary: getCropProtectionApplicationSummaryForPlotEndpoint,
           fertilizerApplications: getFertilizerApplicationsForPlotEndpoint,
-          fertilizerApplicationSummary:
-            getFertilizerApplicationSummaryForPlotEndpoint,
+          fertilizerApplicationSummary: getFertilizerApplicationSummaryForPlotEndpoint,
           harvests: getHarvestsForPlotEndpoint,
           harvestSummary: getHarvestSummaryForPlotEndpoint,
           split: splitPlotEndpoint,
@@ -617,8 +634,7 @@ export const routing: Routing = {
           },
           children: getAnimalChildrenEndpoint,
           sponsorships: getAnimalSponsorshipsEndpoint,
-          customOutdoorJournalCategories:
-            setCustomOutdoorJournalCategoriesEndpoint,
+          customOutdoorJournalCategories: setCustomOutdoorJournalCategoriesEndpoint,
         },
       },
       outdoorJournal: getOutdoorJournalEndpoint,
@@ -728,6 +744,11 @@ export const routing: Routing = {
         get: getFarmOrdersEndpoint,
         post: createOrderEndpoint,
       },
+      invoiceSettings: {
+        "": { get: getInvoiceSettingsEndpoint, put: upsertInvoiceSettingsEndpoint },
+        logo: { put: uploadLogoEndpoint, delete: deleteLogoEndpoint },
+      },
+      invoices: { post: downloadInvoicesBatchEndpoint },
       byId: {
         ":orderId": {
           "": {
@@ -749,6 +770,7 @@ export const routing: Routing = {
           confirm: confirmOrderEndpoint,
           fulfill: fulfillOrderEndpoint,
           cancel: cancelOrderEndpoint,
+          invoice: { post: downloadInvoiceEndpoint },
         },
       },
     },
@@ -881,6 +903,60 @@ export const routing: Routing = {
             byId: {
               ":itemId": { patch: setChecklistItemDoneEndpoint },
             },
+          },
+        },
+      },
+    },
+    membership: {
+      checkout: {
+        subscription: { post: createSubscriptionCheckoutEndpoint },
+        manual: { post: createManualCheckoutEndpoint },
+      },
+      status: { get: getMembershipStatusEndpoint },
+      paymentMethod: { post: createPaymentMethodSetupEndpoint },
+      subscription: {
+        delete: cancelMembershipEndpoint,
+        post: reactivateMembershipEndpoint,
+      },
+      payments: { get: getMembershipPaymentsEndpoint },
+      trial: { post: startTrialEndpoint },
+    },
+    donations: {
+      checkout: { post: createDonationCheckoutEndpoint },
+    },
+    auth: {
+      handoff: { post: createHandoffTokenEndpoint },
+      exchange: { post: exchangeHandoffTokenEndpoint },
+    },
+    forum: {
+      threads: {
+        "": {
+          get: listForumThreadsEndpoint,
+          post: createForumThreadEndpoint,
+        },
+        byId: {
+          ":threadId": {
+            "": {
+              get: getForumThreadByIdEndpoint,
+              patch: updateForumThreadEndpoint,
+              delete: deleteForumThreadEndpoint,
+            },
+            replies: {
+              "": {
+                get: listForumRepliesEndpoint,
+                post: addForumReplyEndpoint,
+              },
+            },
+            status: { post: setForumThreadStatusEndpoint },
+            pin: { post: pinForumThreadEndpoint },
+          },
+        },
+      },
+      replies: {
+        byId: {
+          ":replyId": {
+            patch: updateForumReplyEndpoint,
+            delete: deleteForumReplyEndpoint,
           },
         },
       },

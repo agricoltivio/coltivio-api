@@ -1,9 +1,8 @@
 import { ez } from "express-zod-api";
 import createHttpError from "http-errors";
 import { z } from "zod";
-import { cropSchema, cropFamilySchema } from "../crops/crops.endpoint";
+import { cropSchema } from "../crops/crops.endpoint";
 import { ensureDateRange } from "../date-utils";
-import { frequencySchema, weekdaySchema } from "../db/schema";
 import { farmEndpointFactory } from "../endpoint-factory";
 
 export const cropRotationSchema = z.object({
@@ -61,11 +60,7 @@ export const getCropRotationsForPlotEndpoint = farmEndpointFactory.build({
     count: z.number(),
   }),
   handler: async ({ input, ctx: { cropRotations } }) => {
-    const result = await cropRotations.getCropRotationsForPlot(
-      input.plotId,
-      input.fromDate,
-      input.toDate,
-    );
+    const result = await cropRotations.getCropRotationsForPlot(input.plotId, input.fromDate, input.toDate);
     return {
       result,
       count: result.length,
@@ -82,10 +77,7 @@ const booleanQueryParam = (defaultValue: boolean) =>
 export const getCropRotationsForPlotsEndpoint = farmEndpointFactory.build({
   method: "get",
   input: z.object({
-    plotIds: z.preprocess(
-      (val) => (typeof val === "string" ? [val] : val),
-      z.array(z.string()).min(1),
-    ),
+    plotIds: z.preprocess((val) => (typeof val === "string" ? [val] : val), z.array(z.string()).min(1)),
     onlyCurrent: booleanQueryParam(true),
     expand: booleanQueryParam(true),
     withRecurrences: booleanQueryParam(false),
@@ -102,7 +94,7 @@ export const getCropRotationsForPlotsEndpoint = farmEndpointFactory.build({
       input.onlyCurrent,
       input.fromDate,
       input.toDate,
-      { expand: input.expand, withRecurrences: input.withRecurrences },
+      { expand: input.expand, withRecurrences: input.withRecurrences }
     );
     return {
       result,
@@ -134,7 +126,7 @@ export const getCropRotationsForFarmEndpoint = farmEndpointFactory.build({
     result: z.array(
       cropRotationSchema.extend({
         plot: z.object({ name: z.string() }),
-      }),
+      })
     ),
     count: z.number(),
   }),
@@ -168,7 +160,7 @@ export const createCropRotationsByPlotEndpoint = farmEndpointFactory.build({
         fromDate: ez.dateIn(),
         toDate: ez.dateIn(),
         recurrence: recurrenceSchema.optional(),
-      }),
+      })
     ),
   }),
   output: z.object({
@@ -198,9 +190,9 @@ export const planCropRotationsEndpoint = farmEndpointFactory.build({
             fromDate: ez.dateIn(),
             toDate: ez.dateIn(),
             recurrence: recurrenceSchema.optional(),
-          }),
+          })
         ),
-      }),
+      })
     ),
   }),
   output: z.object({
@@ -239,10 +231,7 @@ export const updateCropRotationEndpoint = farmEndpointFactory.build({
   method: "patch",
   input: updateCropRotationSchema.extend({ rotationId: z.string() }),
   output: cropRotationSchema,
-  handler: async ({
-    input: { rotationId, ...data },
-    ctx: { cropRotations },
-  }) => {
+  handler: async ({ input: { rotationId, ...data }, ctx: { cropRotations } }) => {
     return cropRotations.updateCropRotation(rotationId, data);
   },
 });

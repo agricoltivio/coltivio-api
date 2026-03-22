@@ -5,16 +5,10 @@ import { MultiPolygon } from "../geo/geojson";
 import { Plot } from "../plots/plots";
 
 export type TillagePreset = typeof tillagePresets.$inferSelect;
-export type TillagePresetCreateInput = Omit<
-  typeof tillagePresets.$inferInsert,
-  "id" | "farmId"
->;
+export type TillagePresetCreateInput = Omit<typeof tillagePresets.$inferInsert, "id" | "farmId">;
 export type TillagePresetUpdateInput = Partial<TillagePresetCreateInput>;
 
-export type TillageCreateInput = Omit<
-  typeof tillages.$inferInsert,
-  "id" | "farmId" | "geometry"
-> & {
+export type TillageCreateInput = Omit<typeof tillages.$inferInsert, "id" | "farmId" | "geometry"> & {
   geometry: MultiPolygon;
 };
 
@@ -54,10 +48,7 @@ export function tillagesApi(rlsDb: RlsDb) {
       const tillage = await this.getTillageById(result.id);
       return tillage!;
     },
-    async createTillages({
-      plots,
-      ...base
-    }: TillageBatchCreateInput): Promise<Tillage[]> {
+    async createTillages({ plots, ...base }: TillageBatchCreateInput): Promise<Tillage[]> {
       const result = await rlsDb.rls(async (tx) => {
         return tx
           .insert(tillages)
@@ -67,13 +58,11 @@ export function tillagesApi(rlsDb: RlsDb) {
               ...base,
               ...plot,
               geometry: sql<MultiPolygon>`ST_GeomFromGeoJSON(${JSON.stringify(plot.geometry)})`,
-            })),
+            }))
           )
           .returning({ id: tillages.id });
       });
-      return this.getTillagesByIds(
-        result.map((application) => application.id),
-      )!;
+      return this.getTillagesByIds(result.map((application) => application.id))!;
     },
     async getTillagesByIds(ids: string[]): Promise<Tillage[]> {
       return rlsDb.rls(async (tx) => {
@@ -83,10 +72,7 @@ export function tillagesApi(rlsDb: RlsDb) {
             plot: true,
           },
           extras: {
-            geometry: (t) =>
-              sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as(
-                "geometry",
-              ),
+            geometry: (t) => sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as("geometry"),
           },
         });
       });
@@ -99,19 +85,12 @@ export function tillagesApi(rlsDb: RlsDb) {
             plot: true,
           },
           extras: {
-            geometry: (t) =>
-              sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as(
-                "geometry",
-              ),
+            geometry: (t) => sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as("geometry"),
           },
         });
       });
     },
-    async getTillagesForFarm(
-      farmId: string,
-      fromDate: Date,
-      toDate: Date,
-    ): Promise<Tillage[]> {
+    async getTillagesForFarm(farmId: string, fromDate: Date, toDate: Date): Promise<Tillage[]> {
       return rlsDb.rls(async (tx) => {
         return tx.query.tillages.findMany({
           where: {
@@ -122,10 +101,7 @@ export function tillagesApi(rlsDb: RlsDb) {
             plot: true,
           },
           extras: {
-            geometry: (t) =>
-              sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as(
-                "geometry",
-              ),
+            geometry: (t) => sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as("geometry"),
           },
           orderBy: { date: "desc" },
         });
@@ -139,19 +115,13 @@ export function tillagesApi(rlsDb: RlsDb) {
             plot: true,
           },
           extras: {
-            geometry: (t) =>
-              sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as(
-                "geometry",
-              ),
+            geometry: (t) => sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as("geometry"),
           },
           orderBy: { date: "desc" },
         });
       });
     },
-    async updateTillage(
-      id: string,
-      data: TillageUpdateInput,
-    ): Promise<Tillage> {
+    async updateTillage(id: string, data: TillageUpdateInput): Promise<Tillage> {
       const result = await rlsDb.rls(async (tx) => {
         const geometry = data.geometry
           ? sql<MultiPolygon>`ST_GeomFromGeoJSON(${JSON.stringify(data.geometry)})`
@@ -181,18 +151,10 @@ export function tillagesApi(rlsDb: RlsDb) {
           orderBy: { date: "desc" },
         });
 
-        return Array.from(
-          new Set(
-            result.map((application) =>
-              application.date.getFullYear().toString(),
-            ),
-          ),
-        );
+        return Array.from(new Set(result.map((application) => application.date.getFullYear().toString())));
       });
     },
-    async createTillagePreset(
-      input: TillagePresetCreateInput,
-    ): Promise<TillagePreset> {
+    async createTillagePreset(input: TillagePresetCreateInput): Promise<TillagePreset> {
       return rlsDb.rls(async (tx) => {
         const [preset] = await tx
           .insert(tillagePresets)
@@ -213,16 +175,9 @@ export function tillagesApi(rlsDb: RlsDb) {
         return tx.query.tillagePresets.findFirst({ where: { id } });
       });
     },
-    async updateTillagePreset(
-      id: string,
-      input: TillagePresetUpdateInput,
-    ): Promise<TillagePreset> {
+    async updateTillagePreset(id: string, input: TillagePresetUpdateInput): Promise<TillagePreset> {
       return rlsDb.rls(async (tx) => {
-        const [preset] = await tx
-          .update(tillagePresets)
-          .set(input)
-          .where(eq(tillagePresets.id, id))
-          .returning();
+        const [preset] = await tx.update(tillagePresets).set(input).where(eq(tillagePresets.id, id)).returning();
         return preset;
       });
     },

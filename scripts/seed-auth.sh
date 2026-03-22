@@ -1,24 +1,32 @@
 #!/bin/bash
-# Create auth users via Supabase Admin API (GoTrue handles password hashing, identities, etc.)
+# Creates auth users via the public signup endpoint (no admin JWT needed),
+# captures the generated UUID, then runs seed.sql with that UUID substituted in.
 set -e
 
-SERVICE_KEY=$(supabase status -o env 2>/dev/null | grep SERVICE_ROLE_KEY | cut -d= -f2 | tr -d '"')
-API_URL="http://127.0.0.1:54321"
+DB_URL="postgresql://postgres:postgres@127.0.0.1:54322/postgres"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-create_user() {
-  local response
-  response=$(curl -s -w "\n%{http_code}" -X POST "$API_URL/auth/v1/admin/users" \
-    -H "Authorization: Bearer $SERVICE_KEY" \
-    -H "apikey: $SERVICE_KEY" \
-    -H "Content-Type: application/json" \
-    -d "$1")
-  local http_code=$(echo "$response" | tail -1)
-  if [ "$http_code" -ge 400 ]; then
-    echo "Failed to create user: $(echo "$response" | head -1)" >&2
-    exit 1
-  fi
-}
+PUBLISHABLE_KEY=$(supabase status -o env 2>/dev/null | grep '^PUBLISHABLE_KEY=' | cut -d= -f2 | tr -d '"')
+if [ -z "$PUBLISHABLE_KEY" ]; then
+  PUBLISHABLE_KEY=$(supabase status -o env 2>/dev/null | grep '^ANON_KEY=' | cut -d= -f2 | tr -d '"')
+fi
 
 echo "Creating auth users..."
-create_user '{"id":"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa","email":"farmA@test.ch","password":"123456","email_confirm":true}'
-echo "Auth users created."
+
+RESPONSE=$(curl -s -X POST "http://127.0.0.1:54321/auth/v1/signup" \
+  -H "apikey: $PUBLISHABLE_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"farmA@test.ch","password":"123456"}')
+
+USER_ID=$(echo "$RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin)['user']['id'])")
+
+if [ -z "$USER_ID" ]; then
+  echo "Failed to get user ID from signup response: $RESPONSE" >&2
+  exit 1
+fi
+
+echo "Auth user created: $USER_ID"
+
+echo "Seeding database..."
+sed "s/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/$USER_ID/g" "$SCRIPT_DIR/../supabase/seed.sql" | psql "$DB_URL"
+echo "Done."

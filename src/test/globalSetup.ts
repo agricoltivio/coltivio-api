@@ -7,29 +7,20 @@ import { execSync } from "child_process";
 import { DockerComposeEnvironment, Wait } from "testcontainers";
 import postgres from "postgres";
 
-const JWT_SECRET =
-  "super-secret-jwt-token-with-at-least-32-characters-long";
+const JWT_SECRET = "super-secret-jwt-token-with-at-least-32-characters-long";
 const TEMP_FILE = path.join(os.tmpdir(), "coltivio-test-env.json");
 const PROJECT_ROOT = path.resolve(__dirname, "../..");
 
-function signJwt(
-  payload: Record<string, unknown>,
-  secret: string,
-): string {
-  const header = Buffer.from(
-    JSON.stringify({ alg: "HS256", typ: "JWT" }),
-  ).toString("base64url");
+function signJwt(payload: Record<string, unknown>, secret: string): string {
+  const header = Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url");
   const body = Buffer.from(
     JSON.stringify({
       ...payload,
       iat: Math.floor(Date.now() / 1000),
       exp: Math.floor(Date.now() / 1000) + 3600,
-    }),
+    })
   ).toString("base64url");
-  const signature = crypto
-    .createHmac("sha256", secret)
-    .update(`${header}.${body}`)
-    .digest("base64url");
+  const signature = crypto.createHmac("sha256", secret).update(`${header}.${body}`).digest("base64url");
   return `${header}.${body}.${signature}`;
 }
 
@@ -50,7 +41,7 @@ function startAuthProxy(gotrueUrl: string): Promise<http.Server> {
         (proxyRes) => {
           res.writeHead(proxyRes.statusCode ?? 502, proxyRes.headers);
           proxyRes.pipe(res);
-        },
+        }
       );
       proxyReq.on("error", () => {
         res.writeHead(502);
@@ -67,10 +58,7 @@ export default async function globalSetup() {
   console.log("[test] Starting docker-compose environment...");
 
   // 1. Start containers
-  const environment = await new DockerComposeEnvironment(
-    PROJECT_ROOT,
-    "docker-compose.test.yml",
-  )
+  const environment = await new DockerComposeEnvironment(PROJECT_ROOT, "docker-compose.test.yml")
     .withWaitStrategy("db-1", Wait.forHealthCheck())
     .withWaitStrategy("auth-1", Wait.forHealthCheck())
     .up();
@@ -94,18 +82,12 @@ export default async function globalSetup() {
   const supabaseApiUrl = `http://localhost:${proxyPort}`;
 
   // 4. Generate service_role JWT
-  const serviceRoleKey = signJwt(
-    { role: "service_role", iss: "supabase" },
-    JWT_SECRET,
-  );
+  const serviceRoleKey = signJwt({ role: "service_role", iss: "supabase" }, JWT_SECRET);
 
   // 5. Run setup SQL (creates app role, farm_id(), trigger function)
   console.log("[test] Running setup SQL...");
   const adminSql = postgres(databaseUrl);
-  const setupSqlContent = fs.readFileSync(
-    path.join(PROJECT_ROOT, "scripts/setup-test-db.sql"),
-    "utf-8",
-  );
+  const setupSqlContent = fs.readFileSync(path.join(PROJECT_ROOT, "scripts/setup-test-db.sql"), "utf-8");
   await adminSql.unsafe(setupSqlContent);
   await adminSql.end();
 
@@ -153,8 +135,7 @@ export default async function globalSetup() {
 
   const httpServer = server.servers[0];
   const address = httpServer.address();
-  const serverPort =
-    typeof address === "string" ? 0 : (address?.port ?? 0);
+  const serverPort = typeof address === "string" ? 0 : (address?.port ?? 0);
 
   // 9. Store references for teardown
   (globalThis as Record<string, unknown>).__COMPOSE__ = environment;

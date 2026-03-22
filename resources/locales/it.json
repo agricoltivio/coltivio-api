@@ -359,6 +359,88 @@
       }
     }
   },
+  "membership_email": {
+    "subtitle": "di AgriColtivio",
+    "product_name": "Iscrizione",
+    "valid_until": "Valido fino al",
+    "payment_method": "Metodo di pagamento",
+    "amount": "Importo",
+    "contact_question": "Per domande, contattaci a",
+    "contact_newsletter": "Iscriviti alla nostra newsletter su",
+    "forum_cta": "Visita il Forum per entrare in contatto con altri membri e persone con la stessa visione.",
+    "new": {
+      "subject": "Benvenuto ad AgriColtivio – la tua Iscrizione è attiva",
+      "subject_trial": "Benvenuto ad AgriColtivio – la tua Iscrizione è configurata",
+      "greeting": "Ciao {{name}}",
+      "welcome": "Benvenuto ad AgriColtivio – l'associazione dietro Coltivio. La tua azienda agricola ha pieno accesso a tutte le funzioni dell'App e della Web App.",
+      "features_title": "I tuoi vantaggi",
+      "app_label": "App",
+      "webapp_label": "Web App",
+      "app_features": [
+        "Compiti con assegnazione ad animali o superfici e lista di controllo automatica",
+        "Invita più utenti e pianifica insieme",
+        "Usa immagini nelle voci del wiki"
+      ],
+      "webapp_features": [
+        "Tutte le funzioni dell'app nel browser",
+        "Gestire i contatti",
+        "Registrare ordini e monitorare i pagamenti",
+        "Gestire le adozioni di animali"
+      ],
+      "receipt_title": "Conferma del pagamento",
+      "trial_billing_info": "Il tuo periodo di prova termina il {{date}}. Verrai addebitato solo al termine del periodo di prova."
+    },
+    "first_payment": {
+      "subject": "La tua Iscrizione è stata addebitata",
+      "greeting": "Ciao {{name}}",
+      "intro": "La tua Iscrizione è stata addebitata con successo. Grazie per far parte di AgriColtivio!",
+      "receipt_title": "Conferma del pagamento"
+    },
+    "renewal": {
+      "subject": "La tua Iscrizione Coltivio è stata rinnovata",
+      "greeting": "Ciao {{name}}",
+      "intro": "Siamo felici che tu sia ancora con noi! La tua Iscrizione è stata rinnovata con successo — hai ancora pieno accesso a tutte le funzioni di Coltivio.",
+      "receipt_title": "La tua ricevuta di rinnovo"
+    },
+    "reactivation": {
+      "subject": "Bentornato su Coltivio",
+      "greeting": "Ciao {{name}}, bentornato!",
+      "intro": "Siamo felici di riaverти con noi. La tua Iscrizione è di nuovo attiva — hai pieno accesso a tutte le funzioni fino al {{date}}."
+    },
+    "expiry_reminder": {
+      "subject": "La tua iscrizione a Coltivio è scaduta",
+      "greeting": "Ciao {{name}}",
+      "intro": "La tua iscrizione è scaduta il {{date}}. Hai ancora 10 giorni di accesso a tutte le funzioni di Coltivio — ti preghiamo di rinnovare la tua iscrizione per mantenere l'accesso completo.",
+      "cta": "Rinnova l'iscrizione"
+    },
+    "payment_failed": {
+      "subject": "Pagamento fallito – aggiorna il metodo di pagamento",
+      "greeting": "Ciao {{name}}",
+      "intro": "Il rinnovo automatico della tua iscrizione a Coltivio è fallito. Hai ancora 10 giorni di accesso — aggiorna il tuo metodo di pagamento per evitare un'interruzione.",
+      "cta": "Aggiorna il metodo di pagamento"
+    },
+    "access_lost": {
+      "subject": "Il tuo accesso a Coltivio è stato sospeso",
+      "greeting": "Ciao {{name}}",
+      "intro": "La tua iscrizione a Coltivio è scaduta e il tuo accesso alle funzioni dell'app è stato temporaneamente sospeso. Puoi ancora rinnovare la tua iscrizione entro 20 giorni per ripristinare l'accesso completo.",
+      "cta": "Ripristina l'iscrizione"
+    },
+    "membership_ended": {
+      "subject": "La tua iscrizione a Coltivio è terminata",
+      "greeting": "Ciao {{name}}",
+      "intro": "La tua iscrizione ad AgriColtivio è ora terminata. Ti ringraziamo sinceramente per il tempo che hai fatto parte della nostra comunità — è stato un piacere accompagnare te e la tua azienda. I tuoi dati sono conservati e puoi tornare in qualsiasi momento.",
+      "cta": "Iscriviti di nuovo"
+    }
+  },
+  "donation_email": {
+    "subject": "Grazie per la tua donazione ad AgriColtivio",
+    "greeting": "Ciao {{name}}",
+    "greeting_anonymous": "Ciao",
+    "intro": "Grazie per la tua donazione! Stai sostenendo un'agricoltura aperta e giusta in Svizzera.",
+    "receipt_title": "Conferma della tua donazione",
+    "product_name": "Donazione a Coltivio",
+    "amount": "Importo"
+  },
   "farm_invite": {
     "subject": "Sei stato invitato a unirti a {{farmName}} su Coltivio",
     "body": "Sei stato invitato a unirti a <strong>{{farmName}}</strong> su Coltivio.",

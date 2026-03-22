@@ -15,12 +15,11 @@ export const downloadTreatmentReport = farmEndpointFactory.build({
     fileName: z.string(),
   }),
   handler: async ({ input, ctx }) => {
-    const { buffer, fileName } =
-      await ctx.treatmentReports.generateReportBuffer(
-        input.fromDate,
-        input.toDate,
-        input.animalTypes,
-      );
+    const { buffer, fileName } = await ctx.treatmentReports.generateReportBuffer(
+      input.fromDate,
+      input.toDate,
+      input.animalTypes
+    );
     return { base64: buffer.toString("base64"), fileName };
   },
 });

@@ -31,12 +31,7 @@ describe("Crops CRUD", () => {
     expect(dbCrop!.farmId).toBe(farmId);
 
     // GET by id
-    const getRes = await request(
-      "GET",
-      `/v1/crops/byId/${crop.id}`,
-      undefined,
-      jwt,
-    );
+    const getRes = await request("GET", `/v1/crops/byId/${crop.id}`, undefined, jwt);
     expect(getRes.status).toBe(200);
   });
 
@@ -75,12 +70,7 @@ describe("Crops CRUD", () => {
     const { jwt } = await createUserWithFarm();
     const crop = await createCrop(jwt, { name: "OldWheat" });
 
-    const res = await request(
-      "PATCH",
-      `/v1/crops/byId/${crop.id}`,
-      { name: "Winter Wheat", variety: "Arina" },
-      jwt,
-    );
+    const res = await request("PATCH", `/v1/crops/byId/${crop.id}`, { name: "Winter Wheat", variety: "Arina" }, jwt);
     expect(res.status).toBe(200);
 
     // Verify DB
@@ -96,12 +86,7 @@ describe("Crops CRUD", () => {
     const { jwt } = await createUserWithFarm();
     const crop = await createCrop(jwt);
 
-    const res = await request(
-      "DELETE",
-      `/v1/crops/byId/${crop.id}`,
-      undefined,
-      jwt,
-    );
+    const res = await request("DELETE", `/v1/crops/byId/${crop.id}`, undefined, jwt);
     expect(res.status).toBe(200);
 
     // Verify DB
@@ -116,12 +101,7 @@ describe("Crops CRUD", () => {
     const { jwt } = await createUserWithFarm();
     const crop = await createCrop(jwt);
 
-    const res = await request(
-      "GET",
-      `/v1/crops/byId/${crop.id}/inUse`,
-      undefined,
-      jwt,
-    );
+    const res = await request("GET", `/v1/crops/byId/${crop.id}/inUse`, undefined, jwt);
     expect(res.status).toBe(200);
     const body = (await res.json()) as { data: { inUse: boolean } };
     expect(body.data.inUse).toBe(false);
@@ -173,7 +153,7 @@ describe("Crop Families CRUD", () => {
       "PATCH",
       `/v1/crops/families/byId/${family.id}`,
       { name: "NewName", waitingTimeInYears: 5 },
-      jwt,
+      jwt
     );
     expect(res.status).toBe(200);
 
@@ -190,12 +170,7 @@ describe("Crop Families CRUD", () => {
     const { jwt } = await createUserWithFarm();
     const family = await createCropFamily(jwt);
 
-    const res = await request(
-      "DELETE",
-      `/v1/crops/families/byId/${family.id}`,
-      undefined,
-      jwt,
-    );
+    const res = await request("DELETE", `/v1/crops/families/byId/${family.id}`, undefined, jwt);
     expect(res.status).toBe(200);
 
     // Verify DB
@@ -211,12 +186,7 @@ describe("Crop Families CRUD", () => {
     const family = await createCropFamily(jwt, { name: "Solanaceae" });
     await createCrop(jwt, { familyId: family.id });
 
-    const res = await request(
-      "GET",
-      `/v1/crops/families/byId/${family.id}/inUse`,
-      undefined,
-      jwt,
-    );
+    const res = await request("GET", `/v1/crops/families/byId/${family.id}/inUse`, undefined, jwt);
     expect(res.status).toBe(200);
     const body = (await res.json()) as { data: { inUse: boolean } };
     expect(body.data.inUse).toBe(true);
@@ -226,12 +196,7 @@ describe("Crop Families CRUD", () => {
     const { jwt } = await createUserWithFarm();
     const family = await createCropFamily(jwt);
 
-    const res = await request(
-      "GET",
-      `/v1/crops/families/byId/${family.id}/inUse`,
-      undefined,
-      jwt,
-    );
+    const res = await request("GET", `/v1/crops/families/byId/${family.id}/inUse`, undefined, jwt);
     expect(res.status).toBe(200);
     const body = (await res.json()) as { data: { inUse: boolean } };
     expect(body.data.inUse).toBe(false);

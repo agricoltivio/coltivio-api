@@ -1,9 +1,6 @@
 import createHttpError from "http-errors";
 import { z } from "zod";
-import {
-  farmEndpointFactory,
-  authenticatedEndpointFactory,
-} from "../endpoint-factory";
+import { farmEndpointFactory, authenticatedEndpointFactory } from "../endpoint-factory";
 
 export const userSchema = z.object({
   id: z.string(),
@@ -89,7 +86,7 @@ export const deleteUserProfileEndpoint = authenticatedEndpointFactory.build({
   method: "delete",
   input: z.object({ userId: z.string() }),
   output: z.object({}),
-  handler: async ({ input: { userId }, ctx }) => {
+  handler: async ({ input: { userId: _userId }, ctx: _ctx }) => {
     throw new Error("Not implemented");
     return {};
   },

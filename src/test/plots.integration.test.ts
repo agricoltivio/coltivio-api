@@ -28,12 +28,7 @@ describe("Plots CRUD", () => {
     expect(dbPlot!.farmId).toBe(farmId);
 
     // GET by id
-    const getRes = await request(
-      "GET",
-      `/v1/plots/byId/${plot.id}`,
-      undefined,
-      jwt,
-    );
+    const getRes = await request("GET", `/v1/plots/byId/${plot.id}`, undefined, jwt);
     expect(getRes.status).toBe(200);
     const getBody = (await getRes.json()) as { data: { id: string } };
     expect(getBody.data.id).toBe(plot.id);
@@ -58,7 +53,7 @@ describe("Plots CRUD", () => {
       "PATCH",
       `/v1/plots/byId/${plot.id}`,
       { name: "NewName", size: 8000, additionalNotes: "Wet corner" },
-      jwt,
+      jwt
     );
     expect(res.status).toBe(200);
 
@@ -76,12 +71,7 @@ describe("Plots CRUD", () => {
     const { jwt } = await createUserWithFarm();
     const plot = await createPlot(jwt);
 
-    const res = await request(
-      "DELETE",
-      `/v1/plots/byId/${plot.id}`,
-      undefined,
-      jwt,
-    );
+    const res = await request("DELETE", `/v1/plots/byId/${plot.id}`, undefined, jwt);
     expect(res.status).toBe(200);
 
     // Verify DB
@@ -99,13 +89,29 @@ describe("Plots CRUD", () => {
     const subGeometry1 = {
       type: "MultiPolygon" as const,
       coordinates: [
-        [[[8.0, 47.0], [8.05, 47.0], [8.05, 47.1], [8.0, 47.1], [8.0, 47.0]]],
+        [
+          [
+            [8.0, 47.0],
+            [8.05, 47.0],
+            [8.05, 47.1],
+            [8.0, 47.1],
+            [8.0, 47.0],
+          ],
+        ],
       ],
     };
     const subGeometry2 = {
       type: "MultiPolygon" as const,
       coordinates: [
-        [[[8.05, 47.0], [8.1, 47.0], [8.1, 47.1], [8.05, 47.1], [8.05, 47.0]]],
+        [
+          [
+            [8.05, 47.0],
+            [8.1, 47.0],
+            [8.1, 47.1],
+            [8.05, 47.1],
+            [8.05, 47.0],
+          ],
+        ],
       ],
     };
 
@@ -119,7 +125,7 @@ describe("Plots CRUD", () => {
           { geometry: subGeometry2, name: "Split B", size: 5000 },
         ],
       },
-      jwt,
+      jwt
     );
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
@@ -147,7 +153,7 @@ describe("Plots CRUD", () => {
         plotIds: [p1.id, p2.id],
         name: "Merged Field",
       },
-      jwt,
+      jwt
     );
     expect(res.status).toBe(200);
     const body = (await res.json()) as {

@@ -4,7 +4,6 @@ import {
   wikiCategories,
   wikiCategoryTranslations,
   wikiChangeRequests,
-  wikiChangeRequestTranslations,
   wikiEntries,
   wikiEntryImages,
   wikiEntryTags,
@@ -55,33 +54,25 @@ export function wikiModerationApi(db: RlsDb) {
     },
 
     async promoteModerator(userId: string): Promise<void> {
-      await db.admin
-        .insert(wikiModerators)
-        .values({ userId })
-        .onConflictDoNothing();
+      await db.admin.insert(wikiModerators).values({ userId }).onConflictDoNothing();
     },
 
     async demoteModerator(userId: string): Promise<void> {
-      await db.admin
-        .delete(wikiModerators)
-        .where(eq(wikiModerators.userId, userId));
+      await db.admin.delete(wikiModerators).where(eq(wikiModerators.userId, userId));
     },
 
     async createCategory(
       slug: string,
-      translations: { locale: WikiLocale; name: string }[],
+      translations: { locale: WikiLocale; name: string }[]
     ): Promise<WikiCategoryWithTranslations> {
-      const [category] = await db.admin
-        .insert(wikiCategories)
-        .values({ slug })
-        .returning();
+      const [category] = await db.admin.insert(wikiCategories).values({ slug }).returning();
 
       await db.admin.insert(wikiCategoryTranslations).values(
         translations.map((t) => ({
           categoryId: category.id,
           locale: t.locale,
           name: t.name,
-        })),
+        }))
       );
 
       return db.admin.query.wikiCategories.findFirst({
@@ -91,9 +82,7 @@ export function wikiModerationApi(db: RlsDb) {
     },
 
     async deleteCategory(categoryId: string): Promise<void> {
-      await db.admin
-        .delete(wikiCategories)
-        .where(eq(wikiCategories.id, categoryId));
+      await db.admin.delete(wikiCategories).where(eq(wikiCategories.id, categoryId));
     },
 
     // List all pending change requests with full entry context for review
@@ -108,10 +97,7 @@ export function wikiModerationApi(db: RlsDb) {
     // Approve a change request:
     // - new_entry: create a new public entry from the snapshotted content; source private entry untouched
     // - change_request: merge proposed translations into the existing public entry
-    async approveChangeRequest(
-      changeRequestId: string,
-      reviewedBy: string,
-    ): Promise<void> {
+    async approveChangeRequest(changeRequestId: string, reviewedBy: string): Promise<void> {
       const changeRequest = await db.admin.query.wikiChangeRequests.findFirst({
         where: { id: changeRequestId, status: "under_review" },
         with: { translations: true },
@@ -150,7 +136,7 @@ export function wikiModerationApi(db: RlsDb) {
                 body: t.body,
                 updatedBy: reviewedBy,
                 updatedAt: new Date(),
-              })),
+              }))
             );
           }
 
@@ -169,7 +155,7 @@ export function wikiModerationApi(db: RlsDb) {
                   storagePath: img.storagePath,
                   altText: img.altText,
                   uploadedBy: img.uploadedBy,
-                })),
+                }))
               );
             }
 
@@ -177,9 +163,7 @@ export function wikiModerationApi(db: RlsDb) {
               where: { entryId: changeRequest.entryId },
             });
             if (sourceTags.length > 0) {
-              await tx.insert(wikiEntryTags).values(
-                sourceTags.map((t) => ({ entryId: newEntry.id, tagId: t.tagId })),
-              );
+              await tx.insert(wikiEntryTags).values(sourceTags.map((t) => ({ entryId: newEntry.id, tagId: t.tagId })));
             }
           }
         } else {
@@ -199,10 +183,7 @@ export function wikiModerationApi(db: RlsDb) {
                 updatedAt: new Date(),
               })
               .onConflictDoUpdate({
-                target: [
-                  wikiEntryTranslations.entryId,
-                  wikiEntryTranslations.locale,
-                ],
+                target: [wikiEntryTranslations.entryId, wikiEntryTranslations.locale],
                 set: {
                   title: proposed.title,
                   body: proposed.body,
@@ -211,10 +192,7 @@ export function wikiModerationApi(db: RlsDb) {
                 },
               });
           }
-          await tx
-            .update(wikiEntries)
-            .set({ updatedAt: new Date() })
-            .where(eq(wikiEntries.id, changeRequest.entryId));
+          await tx.update(wikiEntries).set({ updatedAt: new Date() }).where(eq(wikiEntries.id, changeRequest.entryId));
         }
 
         await tx
@@ -258,9 +236,7 @@ export function wikiModerationApi(db: RlsDb) {
     },
 
     // Get a single change request with full entry context for the moderation UI
-    async getChangeRequestById(
-      id: string,
-    ): Promise<WikiModerationChangeRequest | undefined> {
+    async getChangeRequestById(id: string): Promise<WikiModerationChangeRequest | undefined> {
       return db.admin.query.wikiChangeRequests.findFirst({
         where: { id },
         with: reviewQueueWith,

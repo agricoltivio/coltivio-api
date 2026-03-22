@@ -1,18 +1,7 @@
-import {
-  and,
-  eq,
-  getTableColumns,
-  inArray,
-  isNull,
-  ne,
-  sql,
-} from "drizzle-orm";
+import { and, eq, getTableColumns, inArray, isNull, ne, sql } from "drizzle-orm";
 import { writeFileSync } from "fs";
 import path from "path";
-import {
-  CropRotation,
-  expandRecurrence,
-} from "../crop-rotations/crop-rotations";
+import { CropRotation, expandRecurrence } from "../crop-rotations/crop-rotations";
 import { RlsDb } from "../db/db";
 import {
   cropProtectionApplications,
@@ -32,10 +21,7 @@ export type SplitPlotInput = {
   size: number;
 };
 
-export type PlotCreateInput = Omit<
-  typeof plots.$inferInsert,
-  "id" | "farmId" | "geometry"
-> & {
+export type PlotCreateInput = Omit<typeof plots.$inferInsert, "id" | "farmId" | "geometry"> & {
   geometry: MultiPolygon;
 };
 export type PlotUpdateInput = Partial<PlotCreateInput>;
@@ -67,12 +53,7 @@ export function plotsApi(rlsDb: RlsDb) {
             geometry: sql<MultiPolygon>`ST_ForcePolygonCCW(ST_Multi(ST_Difference(${plots.geometry}, ${plot.geom})))`,
             size: sql<number>`ST_Area(ST_Transform(ST_Difference(${plots.geometry}, ${plot.geom}),2056))`,
           })
-          .where(
-            and(
-              ne(plots.id, plot.id),
-              sql`ST_Intersects(${plots.geometry}, ${plot.geom})`,
-            ),
-          );
+          .where(and(ne(plots.id, plot.id), sql`ST_Intersects(${plots.geometry}, ${plot.geom})`));
         return plot;
       });
       const plot = await this.getPlotById(result.id);
@@ -92,10 +73,7 @@ export function plotsApi(rlsDb: RlsDb) {
                   { toDate: { gte: today } },
                   {
                     recurrence: {
-                      OR: [
-                        { until: { isNull: true } },
-                        { until: { gte: today } },
-                      ],
+                      OR: [{ until: { isNull: true } }, { until: { gte: today } }],
                     },
                   },
                 ],
@@ -108,10 +86,7 @@ export function plotsApi(rlsDb: RlsDb) {
             },
           },
           extras: {
-            geometry: (t) =>
-              sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as(
-                "geometry",
-              ),
+            geometry: (t) => sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as("geometry"),
           },
         });
         if (plot) {
@@ -121,8 +96,7 @@ export function plotsApi(rlsDb: RlsDb) {
             ...rest,
             currentCropRotation: currentRotation
               ? (expandRecurrence(currentRotation, today, today).find(
-                  (rotation) =>
-                    rotation.fromDate <= today && rotation.toDate >= today,
+                  (rotation) => rotation.fromDate <= today && rotation.toDate >= today
                 ) ?? null)
               : null,
           };
@@ -135,11 +109,7 @@ export function plotsApi(rlsDb: RlsDb) {
         const today = new Date();
         const plots = await tx.query.plots.findMany({
           where: { farmId },
-          orderBy: (plots, { asc }) => [
-            asc(plots.name),
-            asc(plots.localId),
-            asc(plots.usage),
-          ],
+          orderBy: (plots, { asc }) => [asc(plots.name), asc(plots.localId), asc(plots.usage)],
           with: {
             cropRotations: {
               orderBy: { fromDate: "desc" },
@@ -149,10 +119,7 @@ export function plotsApi(rlsDb: RlsDb) {
                   { toDate: { gte: today } },
                   {
                     recurrence: {
-                      OR: [
-                        { until: { isNull: true } },
-                        { until: { gte: today } },
-                      ],
+                      OR: [{ until: { isNull: true } }, { until: { gte: today } }],
                     },
                   },
                 ],
@@ -164,18 +131,14 @@ export function plotsApi(rlsDb: RlsDb) {
             },
           },
           extras: {
-            geometry: (t) =>
-              sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as(
-                "geometry",
-              ),
+            geometry: (t) => sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as("geometry"),
           },
         });
         return plots.map(({ cropRotations, ...plot }) => ({
           ...plot,
           currentCropRotation: cropRotations[0]
             ? (expandRecurrence(cropRotations[0], today, today).find(
-                (rotation) =>
-                  rotation.fromDate <= today && rotation.toDate >= today,
+                (rotation) => rotation.fromDate <= today && rotation.toDate >= today
               ) ?? null)
             : null,
         }));
@@ -202,12 +165,7 @@ export function plotsApi(rlsDb: RlsDb) {
               geometry: sql<MultiPolygon>`ST_ForcePolygonCCW(ST_Multi(ST_Difference(${plots.geometry}, ${plot.geometry})))`,
               size: sql<number>`ST_Area(ST_Transform(ST_Difference(${plots.geometry}, ${plot.geometry}),2056))`,
             })
-            .where(
-              and(
-                ne(plots.id, plot.id),
-                sql`ST_Intersects(${plots.geometry}, ${plot.geometry})`,
-              ),
-            );
+            .where(and(ne(plots.id, plot.id), sql`ST_Intersects(${plots.geometry}, ${plot.geometry})`));
         }
         return plot;
       });
@@ -226,7 +184,7 @@ export function plotsApi(rlsDb: RlsDb) {
       subPlots: SplitPlotInput[],
       options:
         | { strategy: "keep_reference"; originalPlotName?: string }
-        | { strategy: "delete_and_migrate"; migrateToIndex: number },
+        | { strategy: "delete_and_migrate"; migrateToIndex: number }
     ): Promise<Plot[]> {
       const createdIds = await rlsDb.rls(async (tx) => {
         const originalPlot = await tx.query.plots.findFirst({
@@ -261,9 +219,7 @@ export function plotsApi(rlsDb: RlsDb) {
             .set({
               geometry: sql<MultiPolygon>`ST_GeomFromGeoJSON(${JSON.stringify({ type: "MultiPolygon", coordinates: [] })})`,
               size: 0,
-              ...(options.originalPlotName
-                ? { name: options.originalPlotName }
-                : {}),
+              ...(options.originalPlotName ? { name: options.originalPlotName } : {}),
             })
             .where(eq(plots.id, plotId));
         } else {
@@ -279,10 +235,7 @@ export function plotsApi(rlsDb: RlsDb) {
             fertilizerApplications,
           ] as const;
           for (const table of migrationTables) {
-            await tx
-              .update(table)
-              .set({ plotId: targetId })
-              .where(eq(table.plotId, plotId));
+            await tx.update(table).set({ plotId: targetId }).where(eq(table.plotId, plotId));
           }
 
           await tx.delete(plots).where(eq(plots.id, plotId));
@@ -310,9 +263,7 @@ export function plotsApi(rlsDb: RlsDb) {
         cuttingDate?: Date | null;
         additionalNotes?: string;
       },
-      options:
-        | { strategy: "keep_reference" }
-        | { strategy: "delete_and_migrate" },
+      options: { strategy: "keep_reference" } | { strategy: "delete_and_migrate" }
     ): Promise<Plot> {
       const newPlotId = await rlsDb.rls(async (tx) => {
         // Collect source plot geometries into a single MultiPolygon (preserving individual polygon boundaries for future splitting)
@@ -334,17 +285,9 @@ export function plotsApi(rlsDb: RlsDb) {
 
         if (options.strategy === "delete_and_migrate") {
           // Migrate relation tables (excluding cropRotations) from source plots to new plot
-          const migrationTables = [
-            tillages,
-            cropProtectionApplications,
-            harvests,
-            fertilizerApplications,
-          ] as const;
+          const migrationTables = [tillages, cropProtectionApplications, harvests, fertilizerApplications] as const;
           for (const table of migrationTables) {
-            await tx
-              .update(table)
-              .set({ plotId: newPlot.id })
-              .where(inArray(table.plotId, plotIds));
+            await tx.update(table).set({ plotId: newPlot.id }).where(inArray(table.plotId, plotIds));
           }
 
           // Delete source plots (cascade deletes their crop rotations)
@@ -376,13 +319,12 @@ export function plotsApi(rlsDb: RlsDb) {
           tx
             .select({
               farmId: plots.farmId,
-              cluster:
-                sql`UNNEST(ST_ClusterWithin(${plots.geometry}, 0.0005) over (partition by ${plots.farmId}))`.as(
-                  "cluster",
-                ),
+              cluster: sql`UNNEST(ST_ClusterWithin(${plots.geometry}, 0.0005) over (partition by ${plots.farmId}))`.as(
+                "cluster"
+              ),
             })
             .from(plots)
-            .where(isNull(plots.localId)),
+            .where(isNull(plots.localId))
         );
 
         const envelopes = await tx.$with("envelopes").as(
@@ -392,7 +334,7 @@ export function plotsApi(rlsDb: RlsDb) {
               box: sql`ST_Extent(${clusters.cluster})`.as("box"),
             })
             .from(clusters)
-            .groupBy(clusters.farmId, clusters.cluster),
+            .groupBy(clusters.farmId, clusters.cluster)
         );
 
         const selectEsriEnvelope = sql<string>` 
@@ -406,14 +348,9 @@ export function plotsApi(rlsDb: RlsDb) {
           .select({ farmId: envelopes.farmId, envelope: selectEsriEnvelope })
           .from(envelopes);
 
-        const geoAdminParcels = await getParcelsForEnvelopes(
-          plotGroups.map((group) => group.envelope),
-        );
+        const geoAdminParcels = await getParcelsForEnvelopes(plotGroups.map((group) => group.envelope));
 
-        writeFileSync(
-          path.join(__dirname, "geoparcels.json"),
-          JSON.stringify(geoAdminParcels),
-        );
+        writeFileSync(path.join(__dirname, "geoparcels.json"), JSON.stringify(geoAdminParcels));
 
         const candidates = await tx.query.plots.findMany({
           where: { localId: { isNull: true } },
@@ -431,8 +368,8 @@ export function plotsApi(rlsDb: RlsDb) {
               .where(
                 and(
                   inArray(plots.id, plotIds),
-                  sql`ST_Within(${plots.geometry}, ST_Buffer(ST_MakeValid(ST_GeomFromGeoJSON(${JSON.stringify(parcel.geometry)})), 0.0001))`,
-                ),
+                  sql`ST_Within(${plots.geometry}, ST_Buffer(ST_MakeValid(ST_GeomFromGeoJSON(${JSON.stringify(parcel.geometry)})), 0.0001))`
+                )
               );
           }
         }

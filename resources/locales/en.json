@@ -359,6 +359,88 @@
       }
     }
   },
+  "membership_email": {
+    "subtitle": "by AgriColtivio",
+    "product_name": "Membership",
+    "valid_until": "Valid until",
+    "payment_method": "Payment method",
+    "amount": "Amount",
+    "contact_question": "If you have any questions, reach out to us at",
+    "contact_newsletter": "Subscribe to our newsletter at",
+    "forum_cta": "Visit the Forum to connect with other members and like-minded farmers.",
+    "new": {
+      "subject": "Welcome to AgriColtivio – your Membership is active",
+      "subject_trial": "Welcome to AgriColtivio – your Membership is set up",
+      "greeting": "Hello {{name}}",
+      "welcome": "Welcome to AgriColtivio – the association behind Coltivio. Your farm now has full access to all features of the App and the WebApp.",
+      "features_title": "Your benefits",
+      "app_label": "App",
+      "webapp_label": "Web App",
+      "app_features": [
+        "Tasks with animal or field assignment and automatic checklist",
+        "Invite multiple users and plan together",
+        "Use images in wiki entries"
+      ],
+      "webapp_features": [
+        "All app features in the browser",
+        "Manage contacts",
+        "Record orders and track payments",
+        "Manage animal sponsorships"
+      ],
+      "receipt_title": "Your payment confirmation",
+      "trial_billing_info": "Your trial runs until {{date}}. You will only be charged once the trial period ends."
+    },
+    "first_payment": {
+      "subject": "Your Membership has been charged",
+      "greeting": "Hello {{name}}",
+      "intro": "Your Membership has been successfully charged. Thank you for being part of AgriColtivio!",
+      "receipt_title": "Your payment confirmation"
+    },
+    "renewal": {
+      "subject": "Your Coltivio Membership has been renewed",
+      "greeting": "Hello {{name}}",
+      "intro": "Great to have you still with us! Your Membership has been successfully renewed — you continue to have full access to all Coltivio features.",
+      "receipt_title": "Your renewal receipt"
+    },
+    "reactivation": {
+      "subject": "Welcome back to Coltivio",
+      "greeting": "Hello {{name}}, welcome back!",
+      "intro": "Great to have you back. Your Membership is active again — you have full access to all features until {{date}}."
+    },
+    "expiry_reminder": {
+      "subject": "Your Coltivio membership has expired",
+      "greeting": "Hello {{name}}",
+      "intro": "Your membership expired on {{date}}. You still have 10 days of access to all Coltivio features — please renew your membership to keep full access.",
+      "cta": "Renew Membership"
+    },
+    "payment_failed": {
+      "subject": "Payment failed – please update your payment method",
+      "greeting": "Hello {{name}}",
+      "intro": "The automatic renewal of your Coltivio membership has failed. You still have 10 days of access — please update your payment method to avoid an interruption.",
+      "cta": "Update Payment Method"
+    },
+    "access_lost": {
+      "subject": "Your Coltivio access has been suspended",
+      "greeting": "Hello {{name}}",
+      "intro": "Your Coltivio membership has expired and your access to the app features has been temporarily suspended. You can still renew your membership within 20 days to restore full access.",
+      "cta": "Restore Membership"
+    },
+    "membership_ended": {
+      "subject": "Your Coltivio membership has ended",
+      "greeting": "Hello {{name}}",
+      "intro": "Your membership with AgriColtivio has now ended. We sincerely thank you for the time you were part of our community — it was a pleasure to accompany you and your farm. Your data is preserved and you can return at any time.",
+      "cta": "Rejoin now"
+    }
+  },
+  "donation_email": {
+    "subject": "Thank you for your donation to AgriColtivio",
+    "greeting": "Hello {{name}}",
+    "greeting_anonymous": "Hello",
+    "intro": "Thank you for your donation! You are supporting open and fair agriculture in Switzerland.",
+    "receipt_title": "Donation confirmation",
+    "product_name": "Donation to Coltivio",
+    "amount": "Amount"
+  },
   "farm_invite": {
     "subject": "You've been invited to join {{farmName}} on Coltivio",
     "body": "You've been invited to join <strong>{{farmName}}</strong> on Coltivio.",

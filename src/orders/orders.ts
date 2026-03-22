@@ -1,21 +1,13 @@
 import { eq } from "drizzle-orm";
 import { RlsDb } from "../db/db";
-import {
-  orders,
-  orderItems,
-  products,
-  contacts,
-  payments,
-  farmIdColumnValue,
-} from "../db/schema";
+import { orders, orderItems, farmIdColumnValue } from "../db/schema";
 import { Contact } from "../contacts/contacts";
 import { Payment } from "../payments/payments";
 import { Product } from "../products/products";
 
-export type OrderCreateInput = Omit<
-  typeof orders.$inferInsert,
-  "id" | "farmId" | "status"
-> & { status?: "pending" | "confirmed" };
+export type OrderCreateInput = Omit<typeof orders.$inferInsert, "id" | "farmId" | "status"> & {
+  status?: "pending" | "confirmed";
+};
 export type OrderUpdateInput = {
   notes?: string | null;
   shippingDate?: Date | null;
@@ -41,10 +33,7 @@ export type OrderWithRelations = Order & {
 export function ordersApi(rlsDb: RlsDb) {
   return {
     // Creates an order with items and decrements stock from products
-    async createOrder(
-      orderInput: OrderCreateInput,
-      items: OrderItemInput[],
-    ): Promise<OrderWithRelations> {
+    async createOrder(orderInput: OrderCreateInput, items: OrderItemInput[]): Promise<OrderWithRelations> {
       const result = await rlsDb.rls(async (tx) => {
         // First validate all products exist and have sufficient stock
         const productIds = items.map((item) => item.productId);
@@ -62,9 +51,7 @@ export function ordersApi(rlsDb: RlsDb) {
         // Create order items and decrement stock
         for (let i = 0; i < items.length; i++) {
           const item = items[i];
-          const product = allProducts.find(
-            (product) => product.id === item.productId,
-          );
+          const product = allProducts.find((product) => product.id === item.productId);
           if (!product) {
             throw new Error(`Product not found: ${item.productId}`);
           }
@@ -103,7 +90,7 @@ export function ordersApi(rlsDb: RlsDb) {
     },
 
     async getOrdersForFarm(
-      farmId: string,
+      farmId: string
     ): Promise<Array<Order & { contact: Contact; items: OrderItemWithProduct[]; payments: Payment[] }>> {
       return rlsDb.rls(async (tx) => {
         return tx.query.orders.findMany({
@@ -129,10 +116,7 @@ export function ordersApi(rlsDb: RlsDb) {
 
     async getOrderItems(orderId: string): Promise<OrderItem[]> {
       return rlsDb.rls(async (tx) => {
-        return tx
-          .select()
-          .from(orderItems)
-          .where(eq(orderItems.orderId, orderId));
+        return tx.select().from(orderItems).where(eq(orderItems.orderId, orderId));
       });
     },
 
@@ -143,15 +127,9 @@ export function ordersApi(rlsDb: RlsDb) {
           throw new Error(`Order not found: ${id}`);
         }
         if (order.status !== "pending") {
-          throw new Error(
-            `Cannot confirm order with status "${order.status}". Only pending orders can be confirmed.`,
-          );
+          throw new Error(`Cannot confirm order with status "${order.status}". Only pending orders can be confirmed.`);
         }
-        const [updated] = await tx
-          .update(orders)
-          .set({ status: "confirmed" })
-          .where(eq(orders.id, id))
-          .returning();
+        const [updated] = await tx.update(orders).set({ status: "confirmed" }).where(eq(orders.id, id)).returning();
         return updated;
       });
     },
@@ -164,13 +142,10 @@ export function ordersApi(rlsDb: RlsDb) {
         }
         if (order.status !== "confirmed") {
           throw new Error(
-            `Cannot fulfill order with status "${order.status}". Only confirmed orders can be fulfilled.`,
+            `Cannot fulfill order with status "${order.status}". Only confirmed orders can be fulfilled.`
           );
         }
-        const [updated] = await tx
-          .update(orders)
-          .set({ status: "fulfilled" })
-          .where(eq(orders.id, id));
+        const [updated] = await tx.update(orders).set({ status: "fulfilled" }).where(eq(orders.id, id));
         return updated;
       });
     },
@@ -190,28 +165,19 @@ export function ordersApi(rlsDb: RlsDb) {
         }
 
         // Update order status
-        const [updated] = await tx
-          .update(orders)
-          .set({ status: "cancelled" })
-          .where(eq(orders.id, id));
+        const [updated] = await tx.update(orders).set({ status: "cancelled" }).where(eq(orders.id, id));
         return updated;
       });
     },
 
     async updateOrderNotes(id: string, data: OrderUpdateInput): Promise<Order> {
       return rlsDb.rls(async (tx) => {
-        const [updated] = await tx
-          .update(orders)
-          .set(data)
-          .where(eq(orders.id, id));
+        const [updated] = await tx.update(orders).set(data).where(eq(orders.id, id)).returning();
         return updated;
       });
     },
 
-    async addOrderItem(
-      orderId: string,
-      item: OrderItemInput,
-    ): Promise<OrderItemWithProduct> {
+    async addOrderItem(orderId: string, item: OrderItemInput): Promise<OrderItemWithProduct> {
       return rlsDb.rls(async (tx) => {
         const product = await tx.query.products.findFirst({
           where: { id: item.productId },
@@ -235,16 +201,9 @@ export function ordersApi(rlsDb: RlsDb) {
       });
     },
 
-    async updateOrderItem(
-      orderItemId: string,
-      data: { quantity?: number; unitPrice?: number },
-    ): Promise<OrderItem> {
+    async updateOrderItem(orderItemId: string, data: { quantity?: number; unitPrice?: number }): Promise<OrderItem> {
       return rlsDb.rls(async (tx) => {
-        const [updated] = await tx
-          .update(orderItems)
-          .set(data)
-          .where(eq(orderItems.id, orderItemId))
-          .returning();
+        const [updated] = await tx.update(orderItems).set(data).where(eq(orderItems.id, orderItemId)).returning();
         if (!updated) {
           throw new Error(`Order item not found: ${orderItemId}`);
         }

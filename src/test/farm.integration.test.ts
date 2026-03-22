@@ -46,7 +46,7 @@ describe("Farm CRUD", () => {
         address: "Somewhere",
         location: { type: "Point", coordinates: [8.0, 47.0] },
       },
-      jwt,
+      jwt
     );
     expect(res.status).toBe(400);
 
@@ -59,12 +59,7 @@ describe("Farm CRUD", () => {
   it("updates a farm", async () => {
     const { jwt, farmId } = await createUserWithFarm({ name: "OldName" });
 
-    const res = await request(
-      "PATCH",
-      "/v1/farm",
-      { name: "NewName", address: "New Address 1" },
-      jwt,
-    );
+    const res = await request("PATCH", "/v1/farm", { name: "NewName", address: "New Address 1" }, jwt);
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
       data: { name: string; address: string };
@@ -84,12 +79,7 @@ describe("Farm CRUD", () => {
   it("updates farm federalId and tvdId", async () => {
     const { jwt, farmId } = await createUserWithFarm();
 
-    const res = await request(
-      "PATCH",
-      "/v1/farm",
-      { federalId: "CH-1234", tvdId: "TVD-5678" },
-      jwt,
-    );
+    const res = await request("PATCH", "/v1/farm", { federalId: "CH-1234", tvdId: "TVD-5678" }, jwt);
     expect(res.status).toBe(200);
 
     // Verify DB
@@ -104,12 +94,7 @@ describe("Farm CRUD", () => {
   it("deletes a farm without deleting account", async () => {
     const { jwt, farmId, userId } = await createUserWithFarm();
 
-    const res = await request(
-      "DELETE",
-      "/v1/farm?deleteAccount=false",
-      undefined,
-      jwt,
-    );
+    const res = await request("DELETE", "/v1/farm?deleteAccount=false", undefined, jwt);
     expect(res.status).toBe(200);
 
     // Verify DB: farm gone, user profile still exists
@@ -148,12 +133,7 @@ describe("Users", () => {
   it("updates own user profile", async () => {
     const { jwt, userId } = await createUserWithFarm();
 
-    const res = await request(
-      "PATCH",
-      "/v1/me",
-      { fullName: "John Doe" },
-      jwt,
-    );
+    const res = await request("PATCH", "/v1/me", { fullName: "John Doe" }, jwt);
     expect(res.status).toBe(200);
     const body = (await res.json()) as { data: { fullName: string | null } };
     expect(body.data.fullName).toBe("John Doe");
@@ -180,12 +160,7 @@ describe("Users", () => {
   it("retrieves user by id", async () => {
     const { jwt, userId } = await createUserWithFarm();
 
-    const res = await request(
-      "GET",
-      `/v1/users/byId/${userId}`,
-      undefined,
-      jwt,
-    );
+    const res = await request("GET", `/v1/users/byId/${userId}`, undefined, jwt);
     expect(res.status).toBe(200);
     const body = (await res.json()) as { data: { id: string } };
     expect(body.data.id).toBe(userId);

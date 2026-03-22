@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { v4 as uuidv4 } from "uuid";
 import { RlsDb } from "../db/db";
 import {
@@ -42,8 +42,7 @@ export type WikiChangeRequestInput = {
 };
 
 export type WikiCategory = typeof wikiCategories.$inferSelect;
-export type WikiCategoryTranslation =
-  typeof wikiCategoryTranslations.$inferSelect;
+export type WikiCategoryTranslation = typeof wikiCategoryTranslations.$inferSelect;
 export type WikiCategoryWithTranslations = WikiCategory & {
   translations: WikiCategoryTranslation[];
 };
@@ -53,8 +52,7 @@ export type WikiEntryTranslation = typeof wikiEntryTranslations.$inferSelect;
 export type WikiEntryImage = typeof wikiEntryImages.$inferSelect;
 export type WikiTag = typeof wikiTags.$inferSelect;
 export type WikiChangeRequest = typeof wikiChangeRequests.$inferSelect;
-export type WikiChangeRequestTranslation =
-  typeof wikiChangeRequestTranslations.$inferSelect;
+export type WikiChangeRequestTranslation = typeof wikiChangeRequestTranslations.$inferSelect;
 export type WikiChangeRequestNote = typeof wikiChangeRequestNotes.$inferSelect;
 
 export type WikiEntryTagWithTag = {
@@ -132,10 +130,8 @@ export function wikiApi(db: RlsDb) {
           const lowerSearch = params.search.toLowerCase();
           return entries.filter((entry) =>
             entry.translations.some(
-              (t) =>
-                t.title.toLowerCase().includes(lowerSearch) ||
-                t.body.toLowerCase().includes(lowerSearch),
-            ),
+              (t) => t.title.toLowerCase().includes(lowerSearch) || t.body.toLowerCase().includes(lowerSearch)
+            )
           );
         }
 
@@ -165,10 +161,7 @@ export function wikiApi(db: RlsDb) {
     },
 
     // Create a new wiki entry as DRAFT with initial translations and tags
-    async createEntry(
-      createdBy: string,
-      input: WikiEntryCreateInput,
-    ): Promise<WikiEntryWithRelations> {
+    async createEntry(createdBy: string, input: WikiEntryCreateInput): Promise<WikiEntryWithRelations> {
       return db.rls(async (tx) => {
         const entryId = input.id ?? uuidv4();
 
@@ -189,14 +182,12 @@ export function wikiApi(db: RlsDb) {
               title: t.title,
               body: t.body,
               updatedBy: createdBy,
-            })),
+            }))
           );
         }
 
         if (input.tagIds && input.tagIds.length > 0) {
-          await tx.insert(wikiEntryTags).values(
-            input.tagIds.map((tagId) => ({ entryId, tagId })),
-          );
+          await tx.insert(wikiEntryTags).values(input.tagIds.map((tagId) => ({ entryId, tagId })));
         }
 
         const created = await tx.query.wikiEntries.findFirst({
@@ -211,7 +202,7 @@ export function wikiApi(db: RlsDb) {
     async updateEntry(
       entryId: string,
       updatedBy: string,
-      input: WikiEntryUpdateInput,
+      input: WikiEntryUpdateInput
     ): Promise<WikiEntryWithRelations> {
       return db.rls(async (tx) => {
         if (input.categoryId) {
@@ -235,10 +226,7 @@ export function wikiApi(db: RlsDb) {
                 updatedAt: new Date(),
               })
               .onConflictDoUpdate({
-                target: [
-                  wikiEntryTranslations.entryId,
-                  wikiEntryTranslations.locale,
-                ],
+                target: [wikiEntryTranslations.entryId, wikiEntryTranslations.locale],
                 set: {
                   title: t.title,
                   body: t.body,
@@ -251,14 +239,10 @@ export function wikiApi(db: RlsDb) {
 
         // Replace tag associations if provided
         if (input.tagIds !== undefined) {
-          await tx
-            .delete(wikiEntryTags)
-            .where(eq(wikiEntryTags.entryId, entryId));
+          await tx.delete(wikiEntryTags).where(eq(wikiEntryTags.entryId, entryId));
 
           if (input.tagIds.length > 0) {
-            await tx.insert(wikiEntryTags).values(
-              input.tagIds.map((tagId) => ({ entryId, tagId })),
-            );
+            await tx.insert(wikiEntryTags).values(input.tagIds.map((tagId) => ({ entryId, tagId })));
           }
         }
 
@@ -277,19 +261,14 @@ export function wikiApi(db: RlsDb) {
     async deleteEntry(entryId: string): Promise<void> {
       await db.admin.transaction(async (tx) => {
         // No FK cascade on wiki_entry_images.entry_id — delete explicitly
-        await tx
-          .delete(wikiEntryImages)
-          .where(eq(wikiEntryImages.entryId, entryId));
+        await tx.delete(wikiEntryImages).where(eq(wikiEntryImages.entryId, entryId));
         await tx.delete(wikiEntries).where(eq(wikiEntries.id, entryId));
       });
     },
 
     // Submit a private entry for public review — snapshots content into a new_entry change request.
     // The source private entry is untouched and remains fully editable by the owner.
-    async submitForReview(
-      entryId: string,
-      submittedBy: string,
-    ): Promise<WikiChangeRequestWithRelations> {
+    async submitForReview(entryId: string, submittedBy: string): Promise<WikiChangeRequestWithRelations> {
       return db.rls(async (tx) => {
         const entry = await tx.query.wikiEntries.findFirst({
           where: { id: entryId },
@@ -297,10 +276,8 @@ export function wikiApi(db: RlsDb) {
         });
 
         if (!entry) throw new Error("Entry not found");
-        if (entry.visibility !== "private")
-          throw new Error("Only private entries can be submitted");
-        if (entry.translations.length === 0)
-          throw new Error("Entry must have at least one translation");
+        if (entry.visibility !== "private") throw new Error("Only private entries can be submitted");
+        if (entry.translations.length === 0) throw new Error("Entry must have at least one translation");
 
         // Prevent duplicate submissions while an active CR exists for this entry
         const existing = await tx.query.wikiChangeRequests.findFirst({
@@ -308,7 +285,7 @@ export function wikiApi(db: RlsDb) {
         });
         if (existing)
           throw new Error(
-            "This entry already has an active change request. Edit the existing draft or wait for the review to complete.",
+            "This entry already has an active change request. Edit the existing draft or wait for the review to complete."
           );
 
         const [changeRequest] = await tx
@@ -330,7 +307,7 @@ export function wikiApi(db: RlsDb) {
             locale: t.locale,
             title: t.title,
             body: t.body,
-          })),
+          }))
         );
 
         const created = await tx.query.wikiChangeRequests.findFirst({
@@ -345,7 +322,7 @@ export function wikiApi(db: RlsDb) {
     async createChangeRequest(
       entryId: string,
       submittedBy: string,
-      input: WikiChangeRequestInput,
+      input: WikiChangeRequestInput
     ): Promise<WikiChangeRequestWithRelations> {
       return db.rls(async (tx) => {
         const [changeRequest] = await tx
@@ -365,7 +342,7 @@ export function wikiApi(db: RlsDb) {
               locale: t.locale,
               title: t.title,
               body: t.body,
-            })),
+            }))
           );
         }
 
@@ -384,7 +361,7 @@ export function wikiApi(db: RlsDb) {
     async requestSignedImageUrl(
       entryId: string,
       requestedBy: string,
-      filename: string,
+      filename: string
     ): Promise<{ signedUrl: string; path: string }> {
       const existingEntry = await db.admin.query.wikiEntries.findFirst({
         where: { id: entryId },
@@ -398,9 +375,7 @@ export function wikiApi(db: RlsDb) {
 
       const { data, error } = await wikiStorage.createSignedUploadUrl(path);
       if (error || !data) {
-        throw new Error(
-          `Failed to create signed upload URL: ${error?.message}`,
-        );
+        throw new Error(`Failed to create signed upload URL: ${error?.message}`);
       }
 
       return { signedUrl: data.signedUrl, path };
@@ -412,7 +387,7 @@ export function wikiApi(db: RlsDb) {
     async registerImage(
       entryId: string,
       storagePath: string,
-      uploadedBy: string,
+      uploadedBy: string
     ): Promise<{ id: string; publicUrl: string }> {
       // Ensure the storage path is scoped to this entry's folder to prevent
       // a user from registering paths that belong to other entries
@@ -428,10 +403,7 @@ export function wikiApi(db: RlsDb) {
         throw new Error("You do not own this entry");
       }
 
-      const [image] = await db.admin
-        .insert(wikiEntryImages)
-        .values({ entryId, storagePath, uploadedBy })
-        .returning();
+      const [image] = await db.admin.insert(wikiEntryImages).values({ entryId, storagePath, uploadedBy }).returning();
 
       const { data } = wikiStorage.getPublicUrl(storagePath);
       return { id: image.id, publicUrl: data.publicUrl };
@@ -446,9 +418,7 @@ export function wikiApi(db: RlsDb) {
 
         if (!image) return;
 
-        await tx
-          .delete(wikiEntryImages)
-          .where(eq(wikiEntryImages.id, imageId));
+        await tx.delete(wikiEntryImages).where(eq(wikiEntryImages.id, imageId));
 
         // Best-effort storage removal; orphan cleanup job handles stragglers
         await wikiStorage.remove([image.storagePath]);
@@ -456,21 +426,14 @@ export function wikiApi(db: RlsDb) {
     },
 
     // Get or create a tag by name/slug
-    async upsertTag(
-      name: string,
-      slug: string,
-      createdBy: string,
-    ): Promise<WikiTag> {
+    async upsertTag(name: string, slug: string, createdBy: string): Promise<WikiTag> {
       return db.rls(async (tx) => {
         const existing = await tx.query.wikiTags.findFirst({
           where: { slug },
         });
         if (existing) return existing;
 
-        const [tag] = await tx
-          .insert(wikiTags)
-          .values({ name, slug, createdBy })
-          .returning();
+        const [tag] = await tx.insert(wikiTags).values({ name, slug, createdBy }).returning();
         return tag;
       });
     },
@@ -483,9 +446,7 @@ export function wikiApi(db: RlsDb) {
     },
 
     // Get the authenticated user's own submitted change requests
-    async getMyChangeRequests(
-      submittedBy: string,
-    ): Promise<WikiChangeRequestWithRelations[]> {
+    async getMyChangeRequests(submittedBy: string): Promise<WikiChangeRequestWithRelations[]> {
       return db.rls(async (tx) => {
         return tx.query.wikiChangeRequests.findMany({
           where: { submittedBy },
@@ -504,7 +465,7 @@ export function wikiApi(db: RlsDb) {
         translations?: WikiEntryTranslationInput[];
         proposedCategoryId?: string;
         proposedFarmId?: string | null;
-      },
+      }
     ): Promise<WikiChangeRequestWithRelations> {
       return db.rls(async (tx) => {
         const cr = await tx.query.wikiChangeRequests.findFirst({
@@ -528,10 +489,7 @@ export function wikiApi(db: RlsDb) {
               .insert(wikiChangeRequestTranslations)
               .values({ changeRequestId, locale: t.locale, title: t.title, body: t.body })
               .onConflictDoUpdate({
-                target: [
-                  wikiChangeRequestTranslations.changeRequestId,
-                  wikiChangeRequestTranslations.locale,
-                ],
+                target: [wikiChangeRequestTranslations.changeRequestId, wikiChangeRequestTranslations.locale],
                 set: { title: t.title, body: t.body },
               });
           }
@@ -548,7 +506,7 @@ export function wikiApi(db: RlsDb) {
     // Submit a draft change request for moderator review.
     async submitDraftChangeRequest(
       changeRequestId: string,
-      submittedBy: string,
+      submittedBy: string
     ): Promise<WikiChangeRequestWithRelations> {
       return db.rls(async (tx) => {
         const cr = await tx.query.wikiChangeRequests.findFirst({
@@ -556,8 +514,7 @@ export function wikiApi(db: RlsDb) {
           with: { translations: true },
         });
         if (!cr) throw new Error("Draft change request not found");
-        if (cr.translations.length === 0)
-          throw new Error("At least one translation is required before submitting");
+        if (cr.translations.length === 0) throw new Error("At least one translation is required before submitting");
 
         await tx
           .update(wikiChangeRequests)
@@ -573,9 +530,7 @@ export function wikiApi(db: RlsDb) {
     },
 
     // Fetch a change request by ID (RLS-scoped — caller must have access)
-    async getChangeRequestById(
-      changeRequestId: string,
-    ): Promise<WikiChangeRequestWithRelations | undefined> {
+    async getChangeRequestById(changeRequestId: string): Promise<WikiChangeRequestWithRelations | undefined> {
       return db.rls(async (tx) => {
         return tx.query.wikiChangeRequests.findFirst({
           where: { id: changeRequestId },
@@ -588,7 +543,7 @@ export function wikiApi(db: RlsDb) {
     async addChangeRequestNote(
       changeRequestId: string,
       authorId: string,
-      body: string,
+      body: string
     ): Promise<WikiChangeRequestNote> {
       const [note] = await db.admin
         .insert(wikiChangeRequestNotes)
@@ -598,9 +553,7 @@ export function wikiApi(db: RlsDb) {
     },
 
     // Get all notes for a change request (visible to submitter via RLS)
-    async getChangeRequestNotes(
-      changeRequestId: string,
-    ): Promise<WikiChangeRequestNote[]> {
+    async getChangeRequestNotes(changeRequestId: string): Promise<WikiChangeRequestNote[]> {
       return db.rls(async (tx) => {
         return tx.query.wikiChangeRequestNotes.findMany({
           where: { changeRequestId },

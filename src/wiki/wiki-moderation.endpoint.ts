@@ -14,7 +14,7 @@ export const getWikiReviewQueueEndpoint = authenticatedEndpointFactory.build({
       wikiChangeRequestSchema.extend({
         // null for new_entry type when source private entry has been deleted
         entry: wikiEntrySchema.nullable(),
-      }),
+      })
     ),
     count: z.number(),
   }),
@@ -29,59 +29,54 @@ export const getWikiReviewQueueEndpoint = authenticatedEndpointFactory.build({
 
 // ─── Get single change request for review ────────────────────────────────────
 
-export const getWikiChangeRequestForReviewEndpoint =
-  authenticatedEndpointFactory.build({
-    method: "get",
-    input: z.object({ changeRequestId: z.string() }),
-    output: wikiChangeRequestSchema.extend({ entry: wikiEntrySchema.nullable() }),
-    handler: async ({ input, ctx: { wikiModeration, user } }) => {
-      const isMod = await wikiModeration.isModerator(user.id);
-      if (!isMod) throw createHttpError(403, "Not a wiki moderator");
+export const getWikiChangeRequestForReviewEndpoint = authenticatedEndpointFactory.build({
+  method: "get",
+  input: z.object({ changeRequestId: z.string() }),
+  output: wikiChangeRequestSchema.extend({ entry: wikiEntrySchema.nullable() }),
+  handler: async ({ input, ctx: { wikiModeration, user } }) => {
+    const isMod = await wikiModeration.isModerator(user.id);
+    if (!isMod) throw createHttpError(403, "Not a wiki moderator");
 
-      const cr = await wikiModeration.getChangeRequestById(
-        input.changeRequestId,
-      );
-      if (!cr) throw createHttpError(404, "Change request not found");
-      return cr;
-    },
-  });
+    const cr = await wikiModeration.getChangeRequestById(input.changeRequestId);
+    if (!cr) throw createHttpError(404, "Change request not found");
+    return cr;
+  },
+});
 
 // ─── Approve ──────────────────────────────────────────────────────────────────
 
-export const approveWikiChangeRequestEndpoint =
-  authenticatedEndpointFactory.build({
-    method: "post",
-    input: z.object({ changeRequestId: z.string() }),
-    output: z.object({}),
-    handler: async ({ input, ctx: { wikiModeration, user } }) => {
-      const isMod = await wikiModeration.isModerator(user.id);
-      if (!isMod) throw createHttpError(403, "Not a wiki moderator");
+export const approveWikiChangeRequestEndpoint = authenticatedEndpointFactory.build({
+  method: "post",
+  input: z.object({ changeRequestId: z.string() }),
+  output: z.object({}),
+  handler: async ({ input, ctx: { wikiModeration, user } }) => {
+    const isMod = await wikiModeration.isModerator(user.id);
+    if (!isMod) throw createHttpError(403, "Not a wiki moderator");
 
-      try {
-        await wikiModeration.approveChangeRequest(input.changeRequestId, user.id);
-      } catch (e) {
-        if (e instanceof Error) throw createHttpError(400, e.message);
-        throw e;
-      }
-      return {};
-    },
-  });
+    try {
+      await wikiModeration.approveChangeRequest(input.changeRequestId, user.id);
+    } catch (e) {
+      if (e instanceof Error) throw createHttpError(400, e.message);
+      throw e;
+    }
+    return {};
+  },
+});
 
 // ─── Reject ───────────────────────────────────────────────────────────────────
 
-export const rejectWikiChangeRequestEndpoint =
-  authenticatedEndpointFactory.build({
-    method: "post",
-    input: z.object({ changeRequestId: z.string() }),
-    output: z.object({}),
-    handler: async ({ input, ctx: { wikiModeration, user } }) => {
-      const isMod = await wikiModeration.isModerator(user.id);
-      if (!isMod) throw createHttpError(403, "Not a wiki moderator");
+export const rejectWikiChangeRequestEndpoint = authenticatedEndpointFactory.build({
+  method: "post",
+  input: z.object({ changeRequestId: z.string() }),
+  output: z.object({}),
+  handler: async ({ input, ctx: { wikiModeration, user } }) => {
+    const isMod = await wikiModeration.isModerator(user.id);
+    if (!isMod) throw createHttpError(403, "Not a wiki moderator");
 
-      await wikiModeration.rejectChangeRequest(input.changeRequestId);
-      return {};
-    },
-  });
+    await wikiModeration.rejectChangeRequest(input.changeRequestId);
+    return {};
+  },
+});
 
 // ─── Request changes ──────────────────────────────────────────────────────────
 
@@ -108,7 +103,10 @@ const categoryTranslationInputSchema = z.object({
 export const createWikiCategoryEndpoint = authenticatedEndpointFactory.build({
   method: "post",
   input: z.object({
-    slug: z.string().min(1).regex(/^[a-z0-9-]+$/),
+    slug: z
+      .string()
+      .min(1)
+      .regex(/^[a-z0-9-]+$/),
     translations: z.array(categoryTranslationInputSchema).min(1),
   }),
   output: wikiCategorySchema,

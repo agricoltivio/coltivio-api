@@ -76,11 +76,11 @@ const harvestSummaryResponseSchema = z.object({
               unit: z.string(),
               totalAmountInKilos: z.number(),
               totalProducedUnits: z.number(),
-            }),
+            })
           ),
-        }),
+        })
       ),
-    }),
+    })
   ),
 });
 
@@ -88,7 +88,7 @@ export const getHarvestSummaryForFarmEndpoint = farmEndpointFactory.build({
   method: "get",
   input: z.object({}),
   output: harvestSummaryResponseSchema,
-  handler: async ({ input, ctx: { harvests, farmId } }) => {
+  handler: async ({ ctx: { harvests, farmId } }) => {
     const result = await harvests.getHarvestSummaryForFarm(farmId);
     return result;
   },
@@ -218,9 +218,7 @@ export const createHarvestPresetEndpoint = farmEndpointFactory.build({
     name: z.string(),
     unit: tables.harvestUnitsSchema,
     kilosPerUnit: z.number(),
-    conservationMethod: tables.conservationMethodEnumSchema
-      .optional()
-      .nullable(),
+    conservationMethod: tables.conservationMethodEnumSchema.optional().nullable(),
   }),
   output: harvestPresetSchema,
   handler: async ({ input, ctx: { harvests } }) => {
@@ -235,9 +233,7 @@ export const updateHarvestPresetEndpoint = farmEndpointFactory.build({
     name: z.string().optional(),
     unit: tables.harvestUnitsSchema.optional(),
     kilosPerUnit: z.number().optional(),
-    conservationMethod: tables.conservationMethodEnumSchema
-      .optional()
-      .nullable(),
+    conservationMethod: tables.conservationMethodEnumSchema.optional().nullable(),
   }),
   output: harvestPresetSchema,
   handler: async ({ input: { presetId, ...data }, ctx: { harvests } }) => {

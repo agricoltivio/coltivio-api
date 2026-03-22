@@ -52,12 +52,7 @@ describe("Crop Protection Applications CRUD", () => {
     expect(dbApp!.farmId).toBe(farmId);
 
     // GET by id includes product and plot
-    const getRes = await request(
-      "GET",
-      `/v1/cropProtectionApplications/byId/${app.id}`,
-      undefined,
-      jwt,
-    );
+    const getRes = await request("GET", `/v1/cropProtectionApplications/byId/${app.id}`, undefined, jwt);
     expect(getRes.status).toBe(200);
     const getBody = (await getRes.json()) as {
       data: {
@@ -75,12 +70,7 @@ describe("Crop Protection Applications CRUD", () => {
     const product = await createCropProtectionProduct(jwt);
     await createCropProtectionApplication(jwt, plot.id, product.id);
 
-    const res = await request(
-      "GET",
-      "/v1/cropProtectionApplications",
-      undefined,
-      jwt,
-    );
+    const res = await request("GET", "/v1/cropProtectionApplications", undefined, jwt);
     expect(res.status).toBe(200);
     const body = (await res.json()) as { data: { count: number } };
     expect(body.data.count).toBe(1);
@@ -94,12 +84,7 @@ describe("Crop Protection Applications CRUD", () => {
     await createCropProtectionApplication(jwt, p1.id, product.id);
     await createCropProtectionApplication(jwt, p2.id, product.id);
 
-    const res = await request(
-      "GET",
-      `/v1/plots/byId/${p1.id}/cropProtectionApplications`,
-      undefined,
-      jwt,
-    );
+    const res = await request("GET", `/v1/plots/byId/${p1.id}/cropProtectionApplications`, undefined, jwt);
     expect(res.status).toBe(200);
     const body = (await res.json()) as { data: { count: number } };
     expect(body.data.count).toBe(1);
@@ -125,7 +110,7 @@ describe("Crop Protection Applications CRUD", () => {
           { plotId: p2.id, geometry: TEST_GEOMETRY, size: 6000, numberOfUnits: 6 },
         ],
       },
-      jwt,
+      jwt
     );
     expect(res.status).toBe(200);
     const body = (await res.json()) as { data: { count: number } };
@@ -151,7 +136,7 @@ describe("Crop Protection Applications CRUD", () => {
       "PATCH",
       `/v1/cropProtectionApplications/byId/${app.id}`,
       { method: "broadcasting", additionalNotes: "Changed method" },
-      jwt,
+      jwt
     );
     expect(res.status).toBe(200);
 
@@ -170,12 +155,7 @@ describe("Crop Protection Applications CRUD", () => {
     const product = await createCropProtectionProduct(jwt);
     const app = await createCropProtectionApplication(jwt, plot.id, product.id);
 
-    const res = await request(
-      "DELETE",
-      `/v1/cropProtectionApplications/byId/${app.id}`,
-      undefined,
-      jwt,
-    );
+    const res = await request("DELETE", `/v1/cropProtectionApplications/byId/${app.id}`, undefined, jwt);
     expect(res.status).toBe(200);
 
     // Verify DB
@@ -194,12 +174,7 @@ describe("Crop Protection Applications CRUD", () => {
       dateTime: "2025-06-15T08:00:00Z",
     });
 
-    const res = await request(
-      "GET",
-      "/v1/cropProtectionApplications/years",
-      undefined,
-      jwt,
-    );
+    const res = await request("GET", "/v1/cropProtectionApplications/years", undefined, jwt);
     expect(res.status).toBe(200);
     const body = (await res.json()) as { data: { result: string[] } };
     expect(body.data.result).toContain("2025");
@@ -211,12 +186,7 @@ describe("Crop Protection Applications CRUD", () => {
     const product = await createCropProtectionProduct(jwt, { name: "UsedProduct" });
     await createCropProtectionApplication(jwt, plot.id, product.id);
 
-    const res = await request(
-      "GET",
-      `/v1/cropProtectionProducts/byId/${product.id}/inUse`,
-      undefined,
-      jwt,
-    );
+    const res = await request("GET", `/v1/cropProtectionProducts/byId/${product.id}/inUse`, undefined, jwt);
     expect(res.status).toBe(200);
     const body = (await res.json()) as { data: { inUse: boolean } };
     expect(body.data.inUse).toBe(true);
@@ -241,12 +211,14 @@ describe("Crop Protection Application Presets", () => {
         unit: "amount_per_hectare",
         amountPerUnit: 2.5,
       },
-      jwt,
+      jwt
     );
     expect(createRes.status).toBe(200);
-    const preset = ((await createRes.json()) as {
-      data: { id: string; name: string; method: string; amountPerUnit: number };
-    }).data;
+    const preset = (
+      (await createRes.json()) as {
+        data: { id: string; name: string; method: string; amountPerUnit: number };
+      }
+    ).data;
     expect(preset.name).toBe("Standard Spray");
     expect(preset.method).toBe("spraying");
 
@@ -268,7 +240,7 @@ describe("Crop Protection Application Presets", () => {
       "POST",
       "/v1/cropProtectionApplications/presets",
       { name: "Old", method: "spraying", unit: "amount_per_hectare", amountPerUnit: 1.0 },
-      jwt,
+      jwt
     );
     const preset = ((await createRes.json()) as { data: { id: string } }).data;
 
@@ -276,7 +248,7 @@ describe("Crop Protection Application Presets", () => {
       "PATCH",
       `/v1/cropProtectionApplications/presets/byId/${preset.id}`,
       { name: "New", amountPerUnit: 3.0 },
-      jwt,
+      jwt
     );
 
     // Verify DB
@@ -294,16 +266,11 @@ describe("Crop Protection Application Presets", () => {
       "POST",
       "/v1/cropProtectionApplications/presets",
       { name: "ToDelete", unit: "amount_per_hectare", amountPerUnit: 1.0 },
-      jwt,
+      jwt
     );
     const preset = ((await createRes.json()) as { data: { id: string } }).data;
 
-    const res = await request(
-      "DELETE",
-      `/v1/cropProtectionApplications/presets/byId/${preset.id}`,
-      undefined,
-      jwt,
-    );
+    const res = await request("DELETE", `/v1/cropProtectionApplications/presets/byId/${preset.id}`, undefined, jwt);
     expect(res.status).toBe(200);
 
     // Verify DB

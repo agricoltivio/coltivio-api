@@ -11,15 +11,27 @@ import {
   pgRole,
   pgSchema,
   pgTable,
+  pgView,
   real,
   text,
   timestamp,
   unique,
   uuid,
 } from "drizzle-orm/pg-core";
-import { authenticatedRole, authUid, authUsers } from "drizzle-orm/supabase";
+import { authenticatedRole, authUsers } from "drizzle-orm/supabase";
 
 import { z } from "zod";
+
+const bytea = customType<{ data: Buffer; driverData: Buffer | string }>({
+  dataType() {
+    return "bytea";
+  },
+  fromDriver(value: Buffer | string) {
+    if (Buffer.isBuffer(value)) return value;
+    // pg returns bytea as \x-prefixed hex string in text protocol
+    return Buffer.from((value as string).replace(/^\\x/, ""), "hex");
+  },
+});
 
 const polygon = customType<{ data: string }>({
   dataType() {
@@ -32,11 +44,13 @@ const point = customType<{ data: string }>({
   },
 });
 
-export const currentFarmId = sql.raw(`farm_id()`);
+// Wrapped in (select ...) so Postgres caches the result per statement instead of evaluating per row
+export const currentFarmId = sql`(select farm_id())`;
 export const farmIdColumnValue = { farmId: currentFarmId };
+const selectAuthUid = sql`(select auth.uid())`;
 
-const appRole = pgRole("rls_client").existing();
-const extensions = pgSchema("extensions");
+const _appRole = pgRole("rls_client").existing();
+const _extensions = pgSchema("extensions");
 
 export const federalFarmPlots = pgTable.withRLS(
   "federal_farm_plots",
@@ -53,20 +67,25 @@ export const federalFarmPlots = pgTable.withRLS(
 
   (table) => [
     index("federal_farm_plots_geometries_idx").using("gist", table.geometry),
-    index("federal_farm_id_idx").using(
-      "gin",
-      table.federalFarmId.op("gin_trgm_ops"),
-    ),
+    index("federal_farm_id_idx").using("gin", table.federalFarmId.op("gin_trgm_ops")),
     pgPolicy("authenticated users can read", {
       as: "permissive",
       to: authenticatedRole,
       for: "select",
       using: sql`true`,
     }),
-  ],
+  ]
 );
 
 export const farmRoleEnum = pgEnum("farm_role", ["owner", "member"]);
+
+export const membershipPaymentStatusEnum = pgEnum("membership_payment_status", [
+  "pending",
+  "succeeded",
+  "failed",
+  "refunded",
+]);
+export const donationStatusEnum = pgEnum("donation_status", ["pending", "succeeded", "failed", "refunded"]);
 
 export const profiles = pgTable.withRLS(
   "profiles",
@@ -75,8 +94,10 @@ export const profiles = pgTable.withRLS(
     email: text().notNull().unique(),
     fullName: text(),
     emailVerified: boolean().notNull().default(false),
+    locale: text().notNull().default("de"),
     farmId: uuid().references(() => farms.id, { onDelete: "set null" }),
     farmRole: farmRoleEnum(),
+    stripeCustomerId: text(),
   },
   (table) => [
     foreignKey({
@@ -88,28 +109,30 @@ export const profiles = pgTable.withRLS(
       as: "permissive",
       to: authenticatedRole,
       for: "insert",
-      withCheck: eq(authUid, table.id),
+      withCheck: eq(selectAuthUid, table.id),
     }),
     pgPolicy("user can update own profile", {
       as: "permissive",
       to: authenticatedRole,
       for: "update",
-      using: eq(authUid, table.id),
+      using: eq(selectAuthUid, table.id),
     }),
-    pgPolicy(
-      "members of same farm can read each others profile and owners can read their own profile",
-      {
-        as: "permissive",
-        to: authenticatedRole,
-        for: "select",
-        using: or(
-          and(isNotNull(table.farmId), eq(table.farmId, currentFarmId)),
-          eq(authUid, table.id),
-        ),
-      },
-    ),
-  ],
+    pgPolicy("members of same farm can read each others profile and owners can read their own profile", {
+      as: "permissive",
+      to: authenticatedRole,
+      for: "select",
+      using: or(and(isNotNull(table.farmId), eq(table.farmId, currentFarmId)), eq(selectAuthUid, table.id)),
+    }),
+  ]
 );
+
+// View exposing only id + full_name — security_invoker=false + owned by postgres
+// means it bypasses profiles RLS, allowing forum threads to show author names across farms.
+// After migration, run: ALTER VIEW profile_names OWNER TO postgres; GRANT SELECT ON profile_names TO authenticated;
+export const profileNamesView = pgView("profile_names", {
+  id: uuid("id").notNull(),
+  fullName: text("full_name"),
+}).as(sql`SELECT id, full_name FROM profiles`);
 
 export const farms = pgTable.withRLS(
   "farms",
@@ -122,7 +145,7 @@ export const farms = pgTable.withRLS(
     location: point(),
   },
   (table) => [
-pgPolicy("only farm members can read", {
+    pgPolicy("only farm members can read", {
       as: "permissive",
       to: authenticatedRole,
       for: "select",
@@ -141,14 +164,165 @@ pgPolicy("only farm members can read", {
       for: "delete",
       using: eq(currentFarmId, table.id),
     }),
-  ],
+  ]
 );
 
-export const userRoleEnum = pgEnum("user_role", [
-  "ADMIN",
-  "USER",
-  "CONTRACTOR",
+export const invoiceSettings = pgTable.withRLS(
+  "invoice_settings",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    farmId: uuid()
+      .notNull()
+      .unique()
+      .references(() => farms.id, { onDelete: "cascade" }),
+    senderName: text().notNull().default(""),
+    street: text().notNull().default(""),
+    zip: text().notNull().default(""),
+    city: text().notNull().default(""),
+    phone: text(),
+    email: text(),
+    website: text(),
+    iban: text(),
+    bankName: text(),
+    paymentTermsDays: integer().notNull().default(30),
+    introText: text(),
+    closingText: text(),
+    logoData: bytea(),
+    logoMimeType: text(), // "jpg" | "png"
+    updatedAt: timestamp({ mode: "date" }).defaultNow().notNull(),
+  },
+  (table) => [
+    pgPolicy("only farm members", {
+      as: "permissive",
+      to: authenticatedRole,
+      using: eq(table.farmId, currentFarmId),
+      withCheck: eq(table.farmId, currentFarmId),
+    }),
+  ]
+);
+
+// Tracks auto-renewing Stripe Subscriptions per user (one row max per user)
+export const userSubscriptions = pgTable.withRLS(
+  "user_subscriptions",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    userId: uuid()
+      .notNull()
+      .unique()
+      .references(() => profiles.id, { onDelete: "cascade" }),
+    stripeSubscriptionId: text().notNull().unique(),
+    cancelAtPeriodEnd: boolean().notNull().default(false),
+    createdAt: timestamp({ mode: "date" }).defaultNow().notNull(),
+  },
+  (table) => [
+    pgPolicy("user can read own subscription", {
+      as: "permissive",
+      to: authenticatedRole,
+      for: "select",
+      using: eq(table.userId, selectAuthUid),
+    }),
+  ]
+);
+
+// One trial per user ever — free, no credit card required
+export const userTrials = pgTable.withRLS(
+  "user_trials",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    userId: uuid()
+      .notNull()
+      .unique()
+      .references(() => profiles.id, { onDelete: "cascade" }),
+    endsAt: timestamp({ mode: "date" }).notNull(),
+    createdAt: timestamp({ mode: "date" }).defaultNow().notNull(),
+  },
+  (table) => [
+    pgPolicy("user can read own trial", {
+      as: "permissive",
+      to: authenticatedRole,
+      for: "select",
+      using: eq(table.userId, selectAuthUid),
+    }),
+  ]
+);
+
+// One row per payment period (subscription renewals + manual one-time payments)
+// Active membership = exists a row with status='succeeded' AND periodEnd > now()
+export const membershipPayments = pgTable.withRLS(
+  "membership_payments",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    userId: uuid()
+      .notNull()
+      .references(() => profiles.id, { onDelete: "cascade" }),
+    stripePaymentId: text().notNull().unique(), // PaymentIntent ID or Invoice ID
+    stripeSubscriptionId: text(), // only for auto-renewing payments
+    amount: integer().notNull(), // CHF cents
+    currency: text().notNull().default("chf"),
+    status: membershipPaymentStatusEnum().notNull().default("pending"),
+    periodEnd: timestamp({ mode: "date" }).notNull(), // when this payment's coverage expires
+    cardLast4: text(),
+    cardBrand: text(),
+    cardExpMonth: integer(),
+    cardExpYear: integer(),
+    createdAt: timestamp({ mode: "date" }).defaultNow().notNull(),
+  },
+  (table) => [
+    pgPolicy("user can read own payments", {
+      as: "permissive",
+      to: authenticatedRole,
+      for: "select",
+      using: eq(table.userId, selectAuthUid),
+    }),
+  ]
+);
+
+export const membershipExpiryNotificationTypeEnum = pgEnum("membership_expiry_notification_type", [
+  "payment_failed", // auto-renewal failed, sent via webhook immediately
+  "expiry_reminder", // manual expiry day 0, sent via cron
+  "access_lost", // day +10, sent via cron
+  "membership_ended", // day +30, sent via cron
 ]);
+
+// No RLS needed — managed via db.admin only
+export const membershipExpiryNotifications = pgTable(
+  "membership_expiry_notifications",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    userId: uuid()
+      .notNull()
+      .references(() => profiles.id, { onDelete: "cascade" }),
+    periodEndDate: date({ mode: "date" }).notNull(), // the periodEnd of the expired payment (DATE precision)
+    type: membershipExpiryNotificationTypeEnum().notNull(),
+    sentAt: timestamp({ mode: "date" }).defaultNow().notNull(),
+  },
+  (table) => [unique().on(table.userId, table.type, table.periodEndDate)]
+);
+
+// Donations — no RLS, managed via db.admin only
+export const handoffTokens = pgTable.withRLS("handoff_tokens", {
+  id: uuid().primaryKey().defaultRandom(),
+  userId: uuid()
+    .notNull()
+    .references(() => profiles.id, { onDelete: "cascade" }),
+  token: text().notNull().unique(),
+  expiresAt: timestamp({ mode: "date" }).notNull(),
+  usedAt: timestamp({ mode: "date" }),
+  createdAt: timestamp({ mode: "date" }).defaultNow().notNull(),
+});
+
+export const donations = pgTable("donations", {
+  id: uuid().primaryKey().defaultRandom(),
+  userId: uuid().references(() => profiles.id, { onDelete: "set null" }), // null = anonymous
+  email: text().notNull(),
+  stripePaymentId: text().notNull().unique(),
+  amount: integer().notNull(), // CHF cents
+  currency: text().notNull().default("chf"),
+  status: donationStatusEnum().notNull().default("pending"),
+  createdAt: timestamp({ mode: "date" }).defaultNow().notNull(),
+});
+
+export const userRoleEnum = pgEnum("user_role", ["ADMIN", "USER", "CONTRACTOR"]);
 
 export const parcels = pgTable.withRLS(
   "parcels",
@@ -174,7 +348,7 @@ export const parcels = pgTable.withRLS(
       using: eq(table.farmId, currentFarmId),
       withCheck: eq(table.farmId, currentFarmId),
     }),
-  ],
+  ]
 );
 export const cropRotations = pgTable.withRLS(
   "crop_rotations",
@@ -202,7 +376,7 @@ export const cropRotations = pgTable.withRLS(
       using: eq(table.farmId, currentFarmId),
       withCheck: eq(table.farmId, currentFarmId),
     }),
-  ],
+  ]
 );
 
 export const frequency = pgEnum("frequency", ["weekly", "monthly", "yearly"]);
@@ -219,15 +393,7 @@ export const taskLinkType = pgEnum("task_link_type", [
   "herd",
 ]);
 
-export const weekday = pgEnum("weekday", [
-  "MO",
-  "TU",
-  "WE",
-  "TH",
-  "FR",
-  "SA",
-  "SU",
-]);
+export const weekday = pgEnum("weekday", ["MO", "TU", "WE", "TH", "FR", "SA", "SU"]);
 
 export const cropRotationYearlyRecurrences = pgTable.withRLS(
   "crop_rotation_yearly_recurrences",
@@ -250,7 +416,7 @@ export const cropRotationYearlyRecurrences = pgTable.withRLS(
       using: eq(table.farmId, currentFarmId),
       withCheck: eq(table.farmId, currentFarmId),
     }),
-  ],
+  ]
 );
 
 export const tillageReason = pgEnum("tillage_reason", [
@@ -295,7 +461,7 @@ export const tillagePresets = pgTable.withRLS(
       using: eq(table.farmId, currentFarmId),
       withCheck: eq(table.farmId, currentFarmId),
     }),
-  ],
+  ]
 );
 
 export const tillages = pgTable.withRLS(
@@ -327,15 +493,10 @@ export const tillages = pgTable.withRLS(
       using: eq(table.farmId, currentFarmId),
       withCheck: eq(table.farmId, currentFarmId),
     }),
-  ],
+  ]
 );
 
-export const cropProtectionUnit = pgEnum("crop_protection_unit", [
-  "ml",
-  "l",
-  "g",
-  "kg",
-]);
+export const cropProtectionUnit = pgEnum("crop_protection_unit", ["ml", "l", "g", "kg"]);
 
 export const cropProtectionProducts = pgTable.withRLS(
   "crop_protection_products",
@@ -357,18 +518,24 @@ export const cropProtectionProducts = pgTable.withRLS(
       using: eq(table.farmId, currentFarmId),
       withCheck: eq(table.farmId, currentFarmId),
     }),
-  ],
+  ]
 );
 
-export const cropProtectionApplicationMethod = pgEnum(
-  "crop_protection_application_method",
-  ["spraying", "misting", "broadcasting", "injecting", "other"],
-);
+export const cropProtectionApplicationMethod = pgEnum("crop_protection_application_method", [
+  "spraying",
+  "misting",
+  "broadcasting",
+  "injecting",
+  "other",
+]);
 
-export const cropProtectionApplicationUnit = pgEnum(
-  "crop_protection_application_unit",
-  ["load", "bag", "total_amount", "amount_per_hectare", "other"],
-);
+export const cropProtectionApplicationUnit = pgEnum("crop_protection_application_unit", [
+  "load",
+  "bag",
+  "total_amount",
+  "amount_per_hectare",
+  "other",
+]);
 
 export const cropProtectionApplicationPresets = pgTable.withRLS(
   "crop_protection_application_presets",
@@ -392,7 +559,7 @@ export const cropProtectionApplicationPresets = pgTable.withRLS(
       using: eq(table.farmId, currentFarmId),
       withCheck: eq(table.farmId, currentFarmId),
     }),
-  ],
+  ]
 );
 
 export const cropProtectionApplications = pgTable.withRLS(
@@ -428,7 +595,7 @@ export const cropProtectionApplications = pgTable.withRLS(
       using: eq(table.farmId, currentFarmId),
       withCheck: eq(table.farmId, currentFarmId),
     }),
-  ],
+  ]
 );
 
 export const plots = pgTable.withRLS(
@@ -457,24 +624,12 @@ export const plots = pgTable.withRLS(
       using: eq(table.farmId, currentFarmId),
       withCheck: eq(table.farmId, currentFarmId),
     }),
-  ],
+  ]
 );
 
-export const conservationMethod = pgEnum("conservation_method", [
-  "dried",
-  "silage",
-  "haylage",
-  "other",
-  "none",
-]);
+export const conservationMethod = pgEnum("conservation_method", ["dried", "silage", "haylage", "other", "none"]);
 
-export const cropCategory = pgEnum("crop_category", [
-  "grass",
-  "grain",
-  "vegetable",
-  "fruit",
-  "other",
-]);
+export const cropCategory = pgEnum("crop_category", ["grass", "grain", "vegetable", "fruit", "other"]);
 
 export const cropFamilies = pgTable.withRLS(
   "crop_families",
@@ -496,7 +651,7 @@ export const cropFamilies = pgTable.withRLS(
       using: eq(table.farmId, currentFarmId),
       withCheck: eq(table.farmId, currentFarmId),
     }),
-  ],
+  ]
 );
 
 export const crops = pgTable.withRLS(
@@ -525,7 +680,7 @@ export const crops = pgTable.withRLS(
       using: eq(table.farmId, currentFarmId),
       withCheck: eq(table.farmId, currentFarmId),
     }),
-  ],
+  ]
 );
 
 export const harvestUnits = pgEnum("harvest_unit", [
@@ -558,7 +713,7 @@ export const harvestPresets = pgTable.withRLS(
       using: eq(table.farmId, currentFarmId),
       withCheck: eq(table.farmId, currentFarmId),
     }),
-  ],
+  ]
 );
 
 export const harvests = pgTable.withRLS(
@@ -595,53 +750,24 @@ export const harvests = pgTable.withRLS(
       using: eq(table.farmId, currentFarmId),
       withCheck: eq(table.farmId, currentFarmId),
     }),
-  ],
+  ]
 );
 
 export const fertilizerUnit = pgEnum("fertilizer_unit", ["l", "kg", "dt", "t"]);
 
 export const animalSex = pgEnum("animal_sex", ["male", "female"]);
 
-export const animalType = pgEnum("animal_type", [
-  "goat",
-  "sheep",
-  "cow",
-  "horse",
-  "donkey",
-  "pig",
-  "deer",
-]);
+export const animalType = pgEnum("animal_type", ["goat", "sheep", "cow", "horse", "donkey", "pig", "deer"]);
 
 export const deathReason = pgEnum("death_reason", ["died", "slaughtered"]);
 
-export const productCategory = pgEnum("product_category", [
-  "meat",
-  "vegetables",
-  "dairy",
-  "eggs",
-  "other",
-]);
+export const productCategory = pgEnum("product_category", ["meat", "vegetables", "dairy", "eggs", "other"]);
 
-export const productUnit = pgEnum("product_unit", [
-  "kg",
-  "g",
-  "piece",
-  "bunch",
-  "liter",
-]);
+export const productUnit = pgEnum("product_unit", ["kg", "g", "piece", "bunch", "liter"]);
 
-export const orderStatus = pgEnum("order_status", [
-  "pending",
-  "confirmed",
-  "fulfilled",
-  "cancelled",
-]);
+export const orderStatus = pgEnum("order_status", ["pending", "confirmed", "fulfilled", "cancelled"]);
 
-export const preferredCommunication = pgEnum("preferred_communication", [
-  "email",
-  "phone",
-  "whatsapp",
-]);
+export const preferredCommunication = pgEnum("preferred_communication", ["email", "phone", "whatsapp"]);
 
 export const contacts = pgTable.withRLS(
   "contacts",
@@ -669,7 +795,7 @@ export const contacts = pgTable.withRLS(
       using: eq(table.farmId, currentFarmId),
       withCheck: eq(table.farmId, currentFarmId),
     }),
-  ],
+  ]
 );
 
 export const products = pgTable.withRLS(
@@ -695,7 +821,7 @@ export const products = pgTable.withRLS(
       using: eq(table.farmId, currentFarmId),
       withCheck: eq(table.farmId, currentFarmId),
     }),
-  ],
+  ]
 );
 
 export const orders = pgTable.withRLS(
@@ -724,7 +850,7 @@ export const orders = pgTable.withRLS(
       using: eq(table.farmId, currentFarmId),
       withCheck: eq(table.farmId, currentFarmId),
     }),
-  ],
+  ]
 );
 
 export const orderItems = pgTable.withRLS(
@@ -756,16 +882,10 @@ export const orderItems = pgTable.withRLS(
       using: eq(table.farmId, currentFarmId),
       withCheck: eq(table.farmId, currentFarmId),
     }),
-  ],
+  ]
 );
 
-export const paymentMethod = pgEnum("payment_method", [
-  "cash",
-  "bank_transfer",
-  "twint",
-  "card",
-  "other",
-]);
+export const paymentMethod = pgEnum("payment_method", ["cash", "bank_transfer", "twint", "card", "other"]);
 
 export const sponsorshipPrograms = pgTable.withRLS(
   "sponsorship_programs",
@@ -787,7 +907,7 @@ export const sponsorshipPrograms = pgTable.withRLS(
       using: eq(table.farmId, currentFarmId),
       withCheck: eq(table.farmId, currentFarmId),
     }),
-  ],
+  ]
 );
 
 export const sponsorships = pgTable.withRLS(
@@ -826,7 +946,7 @@ export const sponsorships = pgTable.withRLS(
       using: eq(table.farmId, currentFarmId),
       withCheck: eq(table.farmId, currentFarmId),
     }),
-  ],
+  ]
 );
 
 export const payments = pgTable.withRLS(
@@ -862,15 +982,11 @@ export const payments = pgTable.withRLS(
       using: eq(table.farmId, currentFarmId),
       withCheck: eq(table.farmId, currentFarmId),
     }),
-  ],
+  ]
 );
 
 export const fertilizerType = pgEnum("fertilizer_type", ["mineral", "organic"]);
-export const fertilizationMethod = pgEnum("fertilization_method", [
-  "spray",
-  "spread",
-  "other",
-]);
+export const fertilizationMethod = pgEnum("fertilization_method", ["spray", "spread", "other"]);
 
 export const fertilizers = pgTable.withRLS(
   "fertilizers",
@@ -896,7 +1012,7 @@ export const fertilizers = pgTable.withRLS(
       using: eq(table.farmId, currentFarmId),
       withCheck: eq(table.farmId, currentFarmId),
     }),
-  ],
+  ]
 );
 
 export const fertilizerApplicationUnit = pgEnum("fertilizer_application_unit", [
@@ -933,7 +1049,7 @@ export const fertilizerApplicationPresets = pgTable.withRLS(
       using: eq(table.farmId, currentFarmId),
       withCheck: eq(table.farmId, currentFarmId),
     }),
-  ],
+  ]
 );
 
 export const fertilizerApplications = pgTable.withRLS(
@@ -971,7 +1087,7 @@ export const fertilizerApplications = pgTable.withRLS(
       using: eq(table.farmId, currentFarmId),
       withCheck: eq(table.farmId, currentFarmId),
     }),
-  ],
+  ]
 );
 
 export const earTags = pgTable.withRLS(
@@ -992,7 +1108,7 @@ export const earTags = pgTable.withRLS(
       using: eq(table.farmId, currentFarmId),
       withCheck: eq(table.farmId, currentFarmId),
     }),
-  ],
+  ]
 );
 
 export const animalCategory = pgEnum("animal_category", [
@@ -1062,7 +1178,7 @@ export const animals = pgTable.withRLS(
       using: eq(table.farmId, currentFarmId),
       withCheck: eq(table.farmId, currentFarmId),
     }),
-  ],
+  ]
 );
 
 export const herds = pgTable.withRLS(
@@ -1083,7 +1199,7 @@ export const herds = pgTable.withRLS(
       using: eq(table.farmId, currentFarmId),
       withCheck: eq(table.farmId, currentFarmId),
     }),
-  ],
+  ]
 );
 
 export const herdMemberships = pgTable.withRLS(
@@ -1111,7 +1227,7 @@ export const herdMemberships = pgTable.withRLS(
       using: eq(table.farmId, currentFarmId),
       withCheck: eq(table.farmId, currentFarmId),
     }),
-  ],
+  ]
 );
 
 export const customOutdoorJournalCategories = pgTable.withRLS(
@@ -1136,13 +1252,10 @@ export const customOutdoorJournalCategories = pgTable.withRLS(
       using: eq(table.farmId, currentFarmId),
       withCheck: eq(table.farmId, currentFarmId),
     }),
-  ],
+  ]
 );
 
-export const outdoorScheduleType = pgEnum("outdoor_schedule_type", [
-  "pasture",
-  "exercise_yard",
-]);
+export const outdoorScheduleType = pgEnum("outdoor_schedule_type", ["pasture", "exercise_yard"]);
 
 export const outdoorSchedules = pgTable.withRLS(
   "outdoor_shedules",
@@ -1168,7 +1281,7 @@ export const outdoorSchedules = pgTable.withRLS(
       using: eq(table.farmId, currentFarmId),
       withCheck: eq(table.farmId, currentFarmId),
     }),
-  ],
+  ]
 );
 
 export const outdoorScheduleRecurrences = pgTable.withRLS(
@@ -1201,7 +1314,7 @@ export const outdoorScheduleRecurrences = pgTable.withRLS(
       using: eq(table.farmId, currentFarmId),
       withCheck: eq(table.farmId, currentFarmId),
     }),
-  ],
+  ]
 );
 
 export const drugs = pgTable.withRLS(
@@ -1226,7 +1339,7 @@ export const drugs = pgTable.withRLS(
       using: eq(table.farmId, currentFarmId),
       withCheck: eq(table.farmId, currentFarmId),
     }),
-  ],
+  ]
 );
 export const drugDoseUnit = pgEnum("drug_dose_unit", [
   "tablet",
@@ -1240,12 +1353,7 @@ export const drugDoseUnit = pgEnum("drug_dose_unit", [
   "drop",
 ]);
 
-export const drugDosePerUnit = pgEnum("dose_per_unit", [
-  "kg",
-  "animal",
-  "day",
-  "total_amount",
-]);
+export const drugDosePerUnit = pgEnum("dose_per_unit", ["kg", "animal", "day", "total_amount"]);
 
 export const drugTreatment = pgTable.withRLS(
   "drug_treatment",
@@ -1264,20 +1372,13 @@ export const drugTreatment = pgTable.withRLS(
   },
   (table) => [
     index("drug_treatment_drug_id_idx").on(table.drugId),
-    unique("drug_treatment_drug_animal_unique").on(
-      table.drugId,
-      table.animalType,
-    ),
+    unique("drug_treatment_drug_animal_unique").on(table.drugId, table.animalType),
     pgPolicy("only farm members", {
       as: "permissive",
       to: authenticatedRole,
-      using: sql`EXISTS (
-        SELECT 1 FROM ${drugs}
-        WHERE ${drugs.id} = ${table.drugId}
-        AND ${drugs.farmId} = current_setting('request.farm_id')::uuid
-      )`,
+      using: sql`(SELECT current_setting('request.farm_id')::uuid) IN (SELECT farm_id FROM ${drugs} WHERE id = ${table.drugId})`,
     }),
-  ],
+  ]
 );
 
 export const treatments = pgTable.withRLS(
@@ -1316,7 +1417,7 @@ export const treatments = pgTable.withRLS(
       using: eq(table.farmId, currentFarmId),
       withCheck: eq(table.farmId, currentFarmId),
     }),
-  ],
+  ]
 );
 
 export const animalTreatments = pgTable.withRLS(
@@ -1343,7 +1444,7 @@ export const animalTreatments = pgTable.withRLS(
       using: eq(table.farmId, currentFarmId),
       withCheck: eq(table.farmId, currentFarmId),
     }),
-  ],
+  ]
 );
 
 // Wiki knowledgebase tables
@@ -1356,24 +1457,27 @@ export const wikiEntryStatus = pgEnum("wiki_entry_status", [
   "rejected",
 ]);
 
-export const wikiVisibility = pgEnum("wiki_visibility", [
-  "private",
-  "public",
-]);
+export const wikiVisibility = pgEnum("wiki_visibility", ["private", "public"]);
 
-export const wikiChangeRequestType = pgEnum("wiki_change_request_type", [
-  "new_entry",
-  "change_request",
-]);
+export const wikiChangeRequestType = pgEnum("wiki_change_request_type", ["new_entry", "change_request"]);
 
 export const wikiChangeRequestStatus = pgEnum("wiki_change_request_status", [
-  "draft",         // editable by submitter; moderator cannot act on it yet
-  "under_review",  // frozen; moderator is reviewing
+  "draft", // editable by submitter; moderator cannot act on it yet
+  "under_review", // frozen; moderator is reviewing
   "approved",
   "rejected",
 ]);
 
 export const wikiLocale = pgEnum("wiki_locale", ["de", "en", "it", "fr"]);
+
+export const forumThreadTypeEnum = pgEnum("forum_thread_type", [
+  "question",
+  "feature_request",
+  "bug_report",
+  "general",
+]);
+
+export const forumThreadStatusEnum = pgEnum("forum_thread_status", ["open", "closed"]);
 
 // Categories are admin-managed and dynamically created (not an enum).
 // Defined before wiki_entries because wiki_entries holds a FK to this table.
@@ -1392,7 +1496,7 @@ export const wikiCategories = pgTable.withRLS(
       using: sql`true`,
     }),
     // INSERT / UPDATE / DELETE handled exclusively via adminDrizzle (API key protected)
-  ],
+  ]
 );
 
 export const wikiCategoryTranslations = pgTable.withRLS(
@@ -1406,10 +1510,7 @@ export const wikiCategoryTranslations = pgTable.withRLS(
     name: text().notNull(),
   },
   (table) => [
-    unique("wiki_category_translations_unique").on(
-      table.categoryId,
-      table.locale,
-    ),
+    unique("wiki_category_translations_unique").on(table.categoryId, table.locale),
     index("wiki_category_translations_category_id_idx").on(table.categoryId),
     pgPolicy("authenticated users can read wiki category translations", {
       as: "permissive",
@@ -1417,7 +1518,7 @@ export const wikiCategoryTranslations = pgTable.withRLS(
       for: "select",
       using: sql`true`,
     }),
-  ],
+  ]
 );
 
 export const wikiEntries = pgTable.withRLS(
@@ -1437,40 +1538,34 @@ export const wikiEntries = pgTable.withRLS(
     updatedAt: timestamp().notNull().defaultNow(),
   },
   (table) => [
-    index("wiki_entries_status_visibility_idx").on(
-      table.status,
-      table.visibility,
-    ),
+    index("wiki_entries_status_visibility_idx").on(table.status, table.visibility),
     // Can read: published public entries, own entries, or entries from same farm
     pgPolicy("authenticated users can read wiki entries", {
       as: "permissive",
       to: authenticatedRole,
       for: "select",
-      using: sql`(${table.status} = 'published'::wiki_entry_status AND ${table.visibility} = 'public'::wiki_visibility) OR ${table.createdBy} = auth.uid() OR (${table.farmId} IS NOT NULL AND ${table.farmId} = current_setting('request.farm_id', TRUE)::uuid)`,
+      using: sql`(${table.status} = 'published'::wiki_entry_status AND ${table.visibility} = 'public'::wiki_visibility) OR ${table.createdBy} = (SELECT auth.uid()) OR (${table.farmId} IS NOT NULL AND ${table.farmId} = (SELECT current_setting('request.farm_id', TRUE)::uuid))`,
     }),
     pgPolicy("authenticated users can create wiki entries", {
       as: "permissive",
       to: authenticatedRole,
       for: "insert",
-      withCheck: eq(table.createdBy, authUid),
+      withCheck: eq(table.createdBy, selectAuthUid),
     }),
     pgPolicy("creator can update own wiki entries", {
       as: "permissive",
       to: authenticatedRole,
       for: "update",
-      using: eq(table.createdBy, authUid),
-      withCheck: eq(table.createdBy, authUid),
+      using: eq(table.createdBy, selectAuthUid),
+      withCheck: eq(table.createdBy, selectAuthUid),
     }),
     pgPolicy("creator can delete own private wiki entries", {
       as: "permissive",
       to: authenticatedRole,
       for: "delete",
-      using: and(
-        eq(table.createdBy, authUid),
-        eq(table.visibility, sql`'private'::wiki_visibility`),
-      ),
+      using: and(eq(table.createdBy, selectAuthUid), eq(table.visibility, sql`'private'::wiki_visibility`)),
     }),
-  ],
+  ]
 );
 
 export const wikiTags = pgTable.withRLS(
@@ -1495,7 +1590,7 @@ export const wikiTags = pgTable.withRLS(
       for: "insert",
       withCheck: sql`true`,
     }),
-  ],
+  ]
 );
 
 export const wikiEntryTags = pgTable.withRLS(
@@ -1514,22 +1609,14 @@ export const wikiEntryTags = pgTable.withRLS(
     pgPolicy("follow entry access for entry tags", {
       as: "permissive",
       to: authenticatedRole,
-      using: sql`EXISTS (
-        SELECT 1 FROM ${wikiEntries} we
-        WHERE we.id = ${table.entryId}
-        AND (
-          (we.status = 'published'::wiki_entry_status AND we.visibility = 'public'::wiki_visibility)
-          OR we.created_by = auth.uid()
-          OR (we.farm_id IS NOT NULL AND we.farm_id = current_setting('request.farm_id', TRUE)::uuid)
-        )
-      )`,
-      withCheck: sql`EXISTS (
-        SELECT 1 FROM ${wikiEntries} we
-        WHERE we.id = ${table.entryId}
-        AND we.created_by = auth.uid()
-      )`,
+      using: sql`
+        EXISTS (SELECT 1 FROM ${wikiEntries} we WHERE we.id = ${table.entryId} AND we.status = 'published'::wiki_entry_status AND we.visibility = 'public'::wiki_visibility)
+        OR (SELECT auth.uid()) IN (SELECT created_by FROM ${wikiEntries} WHERE id = ${table.entryId})
+        OR (SELECT current_setting('request.farm_id', TRUE)::uuid) IN (SELECT farm_id FROM ${wikiEntries} WHERE id = ${table.entryId} AND farm_id IS NOT NULL)
+      `,
+      withCheck: sql`(SELECT auth.uid()) IN (SELECT created_by FROM ${wikiEntries} WHERE id = ${table.entryId})`,
     }),
-  ],
+  ]
 );
 
 export const wikiEntryTranslations = pgTable.withRLS(
@@ -1546,30 +1633,19 @@ export const wikiEntryTranslations = pgTable.withRLS(
     updatedAt: timestamp().notNull().defaultNow(),
   },
   (table) => [
-    unique("wiki_entry_translations_entry_locale_unique").on(
-      table.entryId,
-      table.locale,
-    ),
+    unique("wiki_entry_translations_entry_locale_unique").on(table.entryId, table.locale),
     index("wiki_entry_translations_entry_id_idx").on(table.entryId),
     pgPolicy("follow entry access for translations", {
       as: "permissive",
       to: authenticatedRole,
-      using: sql`EXISTS (
-        SELECT 1 FROM ${wikiEntries} we
-        WHERE we.id = ${table.entryId}
-        AND (
-          (we.status = 'published'::wiki_entry_status AND we.visibility = 'public'::wiki_visibility)
-          OR we.created_by = auth.uid()
-          OR (we.farm_id IS NOT NULL AND we.farm_id = current_setting('request.farm_id', TRUE)::uuid)
-        )
-      )`,
-      withCheck: sql`EXISTS (
-        SELECT 1 FROM ${wikiEntries} we
-        WHERE we.id = ${table.entryId}
-        AND we.created_by = auth.uid()
-      )`,
+      using: sql`
+        EXISTS (SELECT 1 FROM ${wikiEntries} we WHERE we.id = ${table.entryId} AND we.status = 'published'::wiki_entry_status AND we.visibility = 'public'::wiki_visibility)
+        OR (SELECT auth.uid()) IN (SELECT created_by FROM ${wikiEntries} WHERE id = ${table.entryId})
+        OR (SELECT current_setting('request.farm_id', TRUE)::uuid) IN (SELECT farm_id FROM ${wikiEntries} WHERE id = ${table.entryId} AND farm_id IS NOT NULL)
+      `,
+      withCheck: sql`(SELECT auth.uid()) IN (SELECT created_by FROM ${wikiEntries} WHERE id = ${table.entryId})`,
     }),
-  ],
+  ]
 );
 
 export const wikiEntryImages = pgTable.withRLS(
@@ -1589,22 +1665,14 @@ export const wikiEntryImages = pgTable.withRLS(
     pgPolicy("follow entry access for images", {
       as: "permissive",
       to: authenticatedRole,
-      using: sql`EXISTS (
-        SELECT 1 FROM ${wikiEntries} we
-        WHERE we.id = ${table.entryId}
-        AND (
-          (we.status = 'published'::wiki_entry_status AND we.visibility = 'public'::wiki_visibility)
-          OR we.created_by = auth.uid()
-          OR (we.farm_id IS NOT NULL AND we.farm_id = current_setting('request.farm_id', TRUE)::uuid)
-        )
-      )`,
-      withCheck: sql`EXISTS (
-        SELECT 1 FROM ${wikiEntries} we
-        WHERE we.id = ${table.entryId}
-        AND we.created_by = auth.uid()
-      )`,
+      using: sql`
+        EXISTS (SELECT 1 FROM ${wikiEntries} we WHERE we.id = ${table.entryId} AND we.status = 'published'::wiki_entry_status AND we.visibility = 'public'::wiki_visibility)
+        OR (SELECT auth.uid()) IN (SELECT created_by FROM ${wikiEntries} WHERE id = ${table.entryId})
+        OR (SELECT current_setting('request.farm_id', TRUE)::uuid) IN (SELECT farm_id FROM ${wikiEntries} WHERE id = ${table.entryId} AND farm_id IS NOT NULL)
+      `,
+      withCheck: sql`(SELECT auth.uid()) IN (SELECT created_by FROM ${wikiEntries} WHERE id = ${table.entryId})`,
     }),
-  ],
+  ]
 );
 
 export const wikiChangeRequests = pgTable.withRLS(
@@ -1634,13 +1702,13 @@ export const wikiChangeRequests = pgTable.withRLS(
       as: "permissive",
       to: authenticatedRole,
       for: "select",
-      using: eq(table.submittedBy, authUid),
+      using: eq(table.submittedBy, selectAuthUid),
     }),
     pgPolicy("authenticated can create change requests", {
       as: "permissive",
       to: authenticatedRole,
       for: "insert",
-      withCheck: eq(table.submittedBy, authUid),
+      withCheck: eq(table.submittedBy, selectAuthUid),
     }),
     // Submitter can update their own draft CRs (edit content + resubmit).
     // Moderator actions (approve/reject/requestChanges) are performed via admin role.
@@ -1648,13 +1716,10 @@ export const wikiChangeRequests = pgTable.withRLS(
       as: "permissive",
       to: authenticatedRole,
       for: "update",
-      using: and(
-        eq(table.submittedBy, authUid),
-        eq(table.status, sql`'draft'::wiki_change_request_status`),
-      ),
-      withCheck: eq(table.submittedBy, authUid),
+      using: and(eq(table.submittedBy, selectAuthUid), eq(table.status, sql`'draft'::wiki_change_request_status`)),
+      withCheck: eq(table.submittedBy, selectAuthUid),
     }),
-  ],
+  ]
 );
 
 export const wikiChangeRequestTranslations = pgTable.withRLS(
@@ -1669,26 +1734,15 @@ export const wikiChangeRequestTranslations = pgTable.withRLS(
     body: text().notNull().default(""),
   },
   (table) => [
-    unique("wiki_cr_translations_unique").on(
-      table.changeRequestId,
-      table.locale,
-    ),
+    unique("wiki_cr_translations_unique").on(table.changeRequestId, table.locale),
     index("wiki_cr_translations_cr_id_idx").on(table.changeRequestId),
     pgPolicy("follow change request access for cr translations", {
       as: "permissive",
       to: authenticatedRole,
-      using: sql`EXISTS (
-        SELECT 1 FROM ${wikiChangeRequests} wcr
-        WHERE wcr.id = ${table.changeRequestId}
-        AND wcr.submitted_by = auth.uid()
-      )`,
-      withCheck: sql`EXISTS (
-        SELECT 1 FROM ${wikiChangeRequests} wcr
-        WHERE wcr.id = ${table.changeRequestId}
-        AND wcr.submitted_by = auth.uid()
-      )`,
+      using: sql`(SELECT auth.uid()) IN (SELECT submitted_by FROM ${wikiChangeRequests} WHERE id = ${table.changeRequestId})`,
+      withCheck: sql`(SELECT auth.uid()) IN (SELECT submitted_by FROM ${wikiChangeRequests} WHERE id = ${table.changeRequestId})`,
     }),
-  ],
+  ]
 );
 
 // Notes thread on a change request — used for communication between submitter and moderators
@@ -1712,18 +1766,10 @@ export const wikiChangeRequestNotes = pgTable.withRLS(
     pgPolicy("submitter can read and write notes on own change requests", {
       as: "permissive",
       to: authenticatedRole,
-      using: sql`EXISTS (
-        SELECT 1 FROM ${wikiChangeRequests} wcr
-        WHERE wcr.id = ${table.changeRequestId}
-        AND wcr.submitted_by = auth.uid()
-      )`,
-      withCheck: sql`EXISTS (
-        SELECT 1 FROM ${wikiChangeRequests} wcr
-        WHERE wcr.id = ${table.changeRequestId}
-        AND wcr.submitted_by = auth.uid()
-      ) AND ${table.authorId} = auth.uid()`,
+      using: sql`(SELECT auth.uid()) IN (SELECT submitted_by FROM ${wikiChangeRequests} WHERE id = ${table.changeRequestId})`,
+      withCheck: sql`(SELECT auth.uid()) IN (SELECT submitted_by FROM ${wikiChangeRequests} WHERE id = ${table.changeRequestId}) AND ${table.authorId} = (SELECT auth.uid())`,
     }),
-  ],
+  ]
 );
 
 export const wikiModerators = pgTable.withRLS(
@@ -1743,7 +1789,119 @@ export const wikiModerators = pgTable.withRLS(
       using: sql`true`,
     }),
     // INSERT/UPDATE/DELETE managed by service role only
-  ],
+  ]
+);
+
+// Platform-wide forum threads (not farm-scoped); any authenticated user can read,
+// membership-gated writes are enforced at app layer via membershipEndpointFactory
+export const forumThreads = pgTable.withRLS(
+  "forum_threads",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    title: text().notNull(),
+    body: text().notNull().default(""),
+    type: forumThreadTypeEnum().notNull().default("general"),
+    status: forumThreadStatusEnum().notNull().default("open"),
+    isPinned: boolean("is_pinned").notNull().default(false),
+    createdBy: uuid()
+      .notNull()
+      .references(() => profiles.id, { onDelete: "restrict" }),
+    createdAt: timestamp().notNull().defaultNow(),
+    updatedAt: timestamp().notNull().defaultNow(),
+  },
+  (table) => [
+    index("forum_threads_status_idx").on(table.status),
+    index("forum_threads_type_idx").on(table.type),
+    pgPolicy("authenticated users can read forum threads", {
+      as: "permissive",
+      to: authenticatedRole,
+      for: "select",
+      using: sql`true`,
+    }),
+    pgPolicy("authenticated users can create forum threads", {
+      as: "permissive",
+      to: authenticatedRole,
+      for: "insert",
+      withCheck: eq(table.createdBy, selectAuthUid),
+    }),
+    pgPolicy("creator can update own forum threads", {
+      as: "permissive",
+      to: authenticatedRole,
+      for: "update",
+      using: eq(table.createdBy, selectAuthUid),
+      withCheck: eq(table.createdBy, selectAuthUid),
+    }),
+    pgPolicy("creator can delete own forum threads", {
+      as: "permissive",
+      to: authenticatedRole,
+      for: "delete",
+      using: eq(table.createdBy, selectAuthUid),
+    }),
+  ]
+);
+
+export const forumReplies = pgTable.withRLS(
+  "forum_replies",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    threadId: uuid()
+      .notNull()
+      .references(() => forumThreads.id, { onDelete: "cascade" }),
+    body: text().notNull(),
+    createdBy: uuid()
+      .notNull()
+      .references(() => profiles.id, { onDelete: "restrict" }),
+    createdAt: timestamp().notNull().defaultNow(),
+    updatedAt: timestamp().notNull().defaultNow(),
+  },
+  (table) => [
+    index("forum_replies_thread_id_idx").on(table.threadId),
+    pgPolicy("authenticated users can read forum replies", {
+      as: "permissive",
+      to: authenticatedRole,
+      for: "select",
+      using: sql`true`,
+    }),
+    pgPolicy("authenticated users can create forum replies", {
+      as: "permissive",
+      to: authenticatedRole,
+      for: "insert",
+      withCheck: eq(table.createdBy, selectAuthUid),
+    }),
+    pgPolicy("creator can update own forum replies", {
+      as: "permissive",
+      to: authenticatedRole,
+      for: "update",
+      using: eq(table.createdBy, selectAuthUid),
+      withCheck: eq(table.createdBy, selectAuthUid),
+    }),
+    pgPolicy("creator can delete own forum replies", {
+      as: "permissive",
+      to: authenticatedRole,
+      for: "delete",
+      using: eq(table.createdBy, selectAuthUid),
+    }),
+  ]
+);
+
+// Moderator permission table — admin-managed, authenticated users can read (to check own status)
+export const forumModerators = pgTable.withRLS(
+  "forum_moderators",
+  {
+    userId: uuid()
+      .primaryKey()
+      .references(() => profiles.id, { onDelete: "cascade" }),
+    grantedBy: uuid().references(() => profiles.id, { onDelete: "set null" }),
+    grantedAt: timestamp().notNull().defaultNow(),
+  },
+  () => [
+    pgPolicy("authenticated users can read forum moderators", {
+      as: "permissive",
+      to: authenticatedRole,
+      for: "select",
+      using: sql`true`,
+    }),
+  ]
 );
 
 export const tasks = pgTable.withRLS(
@@ -1769,7 +1927,7 @@ export const tasks = pgTable.withRLS(
       using: eq(table.farmId, currentFarmId),
       withCheck: eq(table.farmId, currentFarmId),
     }),
-  ],
+  ]
 );
 
 export const taskRecurrences = pgTable.withRLS(
@@ -1796,7 +1954,7 @@ export const taskRecurrences = pgTable.withRLS(
       using: eq(table.farmId, currentFarmId),
       withCheck: eq(table.farmId, currentFarmId),
     }),
-  ],
+  ]
 );
 
 export const taskLinks = pgTable.withRLS(
@@ -1821,7 +1979,7 @@ export const taskLinks = pgTable.withRLS(
       using: eq(table.farmId, currentFarmId),
       withCheck: eq(table.farmId, currentFarmId),
     }),
-  ],
+  ]
 );
 
 export const taskChecklistItems = pgTable.withRLS(
@@ -1847,7 +2005,7 @@ export const taskChecklistItems = pgTable.withRLS(
       using: eq(table.farmId, currentFarmId),
       withCheck: eq(table.farmId, currentFarmId),
     }),
-  ],
+  ]
 );
 
 export const farmInvites = pgTable.withRLS(
@@ -1871,7 +2029,7 @@ export const farmInvites = pgTable.withRLS(
       using: eq(table.farmId, currentFarmId),
       withCheck: eq(table.farmId, currentFarmId),
     }),
-  ],
+  ]
 );
 
 // Schema object for defineRelations (contains all tables)
@@ -1924,11 +2082,21 @@ const tables = {
   wikiChangeRequestTranslations,
   wikiChangeRequestNotes,
   wikiModerators,
+  forumThreads,
+  forumReplies,
+  forumModerators,
   tasks,
   taskRecurrences,
   taskLinks,
   taskChecklistItems,
   farmInvites,
+  userSubscriptions,
+  userTrials,
+  membershipPayments,
+  membershipExpiryNotifications,
+  donations,
+  handoffTokens,
+  invoiceSettings,
 };
 
 // Define all relations using the new Drizzle v1 API
@@ -1938,6 +2106,13 @@ export const relations = defineRelations(tables, (r) => ({
       from: r.profiles.farmId,
       to: r.farms.id,
     }), // optional - farmId can be null
+    handoffTokens: r.many.handoffTokens(),
+  },
+  handoffTokens: {
+    user: r.one.profiles({
+      from: r.handoffTokens.userId,
+      to: r.profiles.id,
+    }),
   },
   farms: {
     users: r.many.profiles(),
@@ -1946,6 +2121,33 @@ export const relations = defineRelations(tables, (r) => ({
     harvests: r.many.harvests(),
     fertilizerApplications: r.many.fertilizerApplications(),
     invites: r.many.farmInvites(),
+  },
+  userSubscriptions: {
+    user: r.one.profiles({
+      from: r.userSubscriptions.userId,
+      to: r.profiles.id,
+      optional: false,
+    }),
+  },
+  userTrials: {
+    user: r.one.profiles({
+      from: r.userTrials.userId,
+      to: r.profiles.id,
+      optional: false,
+    }),
+  },
+  membershipPayments: {
+    user: r.one.profiles({
+      from: r.membershipPayments.userId,
+      to: r.profiles.id,
+      optional: false,
+    }),
+  },
+  donations: {
+    user: r.one.profiles({
+      from: r.donations.userId,
+      to: r.profiles.id,
+    }),
   },
   farmInvites: {
     farm: r.one.farms({
@@ -2463,6 +2665,33 @@ export const relations = defineRelations(tables, (r) => ({
       optional: false,
     }),
   },
+  forumThreads: {
+    creator: r.one.profiles({
+      from: r.forumThreads.createdBy,
+      to: r.profiles.id,
+      optional: false,
+    }),
+    replies: r.many.forumReplies(),
+  },
+  forumReplies: {
+    thread: r.one.forumThreads({
+      from: r.forumReplies.threadId,
+      to: r.forumThreads.id,
+      optional: false,
+    }),
+    creator: r.one.profiles({
+      from: r.forumReplies.createdBy,
+      to: r.profiles.id,
+      optional: false,
+    }),
+  },
+  forumModerators: {
+    user: r.one.profiles({
+      from: r.forumModerators.userId,
+      to: r.profiles.id,
+      optional: false,
+    }),
+  },
   tasks: {
     farm: r.one.farms({
       from: r.tasks.farmId,
@@ -2516,25 +2745,17 @@ export const pointSchema = z.object({
 });
 
 export const cropCategorySchema = z.enum(cropCategory.enumValues);
-export const cropProtectionApplicationUnitSchema = z.enum(
-  cropProtectionApplicationUnit.enumValues,
-);
-export const cropProtectionApplicationMethodSchema = z.enum(
-  cropProtectionApplicationMethod.enumValues,
-);
+export const cropProtectionApplicationUnitSchema = z.enum(cropProtectionApplicationUnit.enumValues);
+export const cropProtectionApplicationMethodSchema = z.enum(cropProtectionApplicationMethod.enumValues);
 export const tillageActionSchema = z.enum(tillageAction.enumValues);
 export const tillageReasonSchema = z.enum(tillageReason.enumValues);
 
 export const cropProtectionUnitSchema = z.enum(cropProtectionUnit.enumValues);
 
 export const harvestUnitsSchema = z.enum(harvestUnits.enumValues);
-export const conservationMethodEnumSchema = z.enum(
-  conservationMethod.enumValues,
-);
+export const conservationMethodEnumSchema = z.enum(conservationMethod.enumValues);
 
-export const fertilizerApplicationUnitSchema = z.enum(
-  fertilizerApplicationUnit.enumValues,
-);
+export const fertilizerApplicationUnitSchema = z.enum(fertilizerApplicationUnit.enumValues);
 export const fertilizerUnitSchema = z.enum(fertilizerUnit.enumValues);
 export const fertilizerTypeSchema = z.enum(fertilizerType.enumValues);
 export const fertilizationMethodSchema = z.enum(fertilizationMethod.enumValues);
@@ -2548,9 +2769,7 @@ export const drugDoseUnitSchema = z.enum(drugDoseUnit.enumValues);
 export const drugDosePerUnitSchema = z.enum(drugDosePerUnit.enumValues);
 export const outdoorScheduleTypeSchema = z.enum(outdoorScheduleType.enumValues);
 
-export const preferredCommunicationSchema = z.enum(
-  preferredCommunication.enumValues,
-);
+export const preferredCommunicationSchema = z.enum(preferredCommunication.enumValues);
 
 export const frequencySchema = z.enum(frequency.enumValues);
 export const weekdaySchema = z.enum(weekday.enumValues);
@@ -2571,19 +2790,21 @@ export const wikiCategorySchema = z.object({
       categoryId: z.string(),
       locale: z.enum(["de", "en", "it", "fr"]),
       name: z.string(),
-    }),
+    })
   ),
 });
 
 export const wikiEntryStatusSchema = z.enum(wikiEntryStatus.enumValues);
 export const wikiVisibilitySchema = z.enum(wikiVisibility.enumValues);
-export const wikiChangeRequestTypeSchema = z.enum(
-  wikiChangeRequestType.enumValues,
-);
-export const wikiChangeRequestStatusSchema = z.enum(
-  wikiChangeRequestStatus.enumValues,
-);
+export const wikiChangeRequestTypeSchema = z.enum(wikiChangeRequestType.enumValues);
+export const wikiChangeRequestStatusSchema = z.enum(wikiChangeRequestStatus.enumValues);
 export const wikiLocaleSchema = z.enum(wikiLocale.enumValues);
 
 export const taskStatusSchema = z.enum(taskStatus.enumValues);
 export const taskLinkTypeSchema = z.enum(taskLinkType.enumValues);
+
+export const membershipPaymentStatusSchema = z.enum(membershipPaymentStatusEnum.enumValues);
+export const donationStatusSchema = z.enum(donationStatusEnum.enumValues);
+
+export const forumThreadTypeSchema = z.enum(forumThreadTypeEnum.enumValues);
+export const forumThreadStatusSchema = z.enum(forumThreadStatusEnum.enumValues);

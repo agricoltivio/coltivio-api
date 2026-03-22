@@ -1,6 +1,6 @@
 import createHttpError from "http-errors";
 import { z } from "zod";
-import { farmEndpointFactory } from "../endpoint-factory";
+import { membershipEndpointFactory } from "../endpoint-factory";
 
 export const sponsorshipProgramSchema = z.object({
   id: z.string(),
@@ -18,15 +18,12 @@ const createSponsorshipProgramSchema = z.object({
 
 const updateSponsorshipProgramSchema = createSponsorshipProgramSchema.partial();
 
-export const getSponsorshipProgramByIdEndpoint = farmEndpointFactory.build({
+export const getSponsorshipProgramByIdEndpoint = membershipEndpointFactory.build({
   method: "get",
   input: z.object({ sponsorshipProgramId: z.string() }),
   output: sponsorshipProgramSchema,
   handler: async ({ input, ctx: { sponsorshipPrograms } }) => {
-    const sponsorshipProgram =
-      await sponsorshipPrograms.getSponsorshipProgramById(
-        input.sponsorshipProgramId,
-      );
+    const sponsorshipProgram = await sponsorshipPrograms.getSponsorshipProgramById(input.sponsorshipProgramId);
     if (!sponsorshipProgram) {
       throw createHttpError(404, "Sponsorship type not found");
     }
@@ -34,7 +31,7 @@ export const getSponsorshipProgramByIdEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const getFarmSponsorshipProgramsEndpoint = farmEndpointFactory.build({
+export const getFarmSponsorshipProgramsEndpoint = membershipEndpointFactory.build({
   method: "get",
   input: z.object({}),
   output: z.object({
@@ -42,8 +39,7 @@ export const getFarmSponsorshipProgramsEndpoint = farmEndpointFactory.build({
     count: z.number(),
   }),
   handler: async ({ ctx: { sponsorshipPrograms, farmId } }) => {
-    const result =
-      await sponsorshipPrograms.getSponsorshipProgramsForFarm(farmId);
+    const result = await sponsorshipPrograms.getSponsorshipProgramsForFarm(farmId);
     return {
       result,
       count: result.length,
@@ -51,7 +47,7 @@ export const getFarmSponsorshipProgramsEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const createSponsorshipProgramEndpoint = farmEndpointFactory.build({
+export const createSponsorshipProgramEndpoint = membershipEndpointFactory.build({
   method: "post",
   input: createSponsorshipProgramSchema,
   output: sponsorshipProgramSchema,
@@ -60,7 +56,7 @@ export const createSponsorshipProgramEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const updateSponsorshipProgramEndpoint = farmEndpointFactory.build({
+export const updateSponsorshipProgramEndpoint = membershipEndpointFactory.build({
   method: "patch",
   input: updateSponsorshipProgramSchema.extend({
     sponsorshipProgramId: z.string(),
@@ -68,21 +64,15 @@ export const updateSponsorshipProgramEndpoint = farmEndpointFactory.build({
   output: sponsorshipProgramSchema,
   handler: async ({ input, ctx: { sponsorshipPrograms } }) => {
     const { sponsorshipProgramId, ...data } = input;
-    return sponsorshipPrograms.updateSponsorshipProgram(
-      sponsorshipProgramId,
-      data,
-    );
+    return sponsorshipPrograms.updateSponsorshipProgram(sponsorshipProgramId, data);
   },
 });
 
-export const deleteSponsorshipProgramEndpoint = farmEndpointFactory.build({
+export const deleteSponsorshipProgramEndpoint = membershipEndpointFactory.build({
   method: "delete",
   input: z.object({ sponsorshipProgramId: z.string() }),
   output: z.object({}),
-  handler: async ({
-    input: { sponsorshipProgramId },
-    ctx: { sponsorshipPrograms },
-  }) => {
+  handler: async ({ input: { sponsorshipProgramId }, ctx: { sponsorshipPrograms } }) => {
     await sponsorshipPrograms.deleteSponsorshipProgram(sponsorshipProgramId);
     return {};
   },

@@ -80,7 +80,7 @@ export const wikiChangeRequestSchema = z.object({
       locale: wikiLocaleSchema,
       title: z.string(),
       body: z.string(),
-    }),
+    })
   ),
 });
 
@@ -91,7 +91,6 @@ const translationInputSchema = z.object({
   title: z.string(),
   body: z.string(),
 });
-
 
 const createEntryInputSchema = z.object({
   id: z.string().optional(), // Pre-generated UUID for image upload flow
@@ -109,29 +108,28 @@ const updateEntryInputSchema = z.object({
 
 // ─── List published entries ──────────────────────────────────────────────────
 
-export const listPublishedWikiEntriesEndpoint =
-  authenticatedEndpointFactory.build({
-    method: "get",
-    input: z.object({
-      locale: wikiLocaleSchema.optional(),
-      categorySlug: z.string().optional(),
-      tagSlug: z.string().optional(),
-      search: z.string().optional(),
-    }),
-    output: z.object({
-      result: z.array(wikiEntrySchema),
-      count: z.number(),
-    }),
-    handler: async ({ input, ctx: { wiki } }) => {
-      const result = await wiki.listPublished({
-        locale: input.locale,
-        categorySlug: input.categorySlug,
-        tagSlug: input.tagSlug,
-        search: input.search,
-      });
-      return { result, count: result.length };
-    },
-  });
+export const listPublishedWikiEntriesEndpoint = authenticatedEndpointFactory.build({
+  method: "get",
+  input: z.object({
+    locale: wikiLocaleSchema.optional(),
+    categorySlug: z.string().optional(),
+    tagSlug: z.string().optional(),
+    search: z.string().optional(),
+  }),
+  output: z.object({
+    result: z.array(wikiEntrySchema),
+    count: z.number(),
+  }),
+  handler: async ({ input, ctx: { wiki } }) => {
+    const result = await wiki.listPublished({
+      locale: input.locale,
+      categorySlug: input.categorySlug,
+      tagSlug: input.tagSlug,
+      search: input.search,
+    });
+    return { result, count: result.length };
+  },
+});
 
 // ─── Get entry by ID (private or public, RLS-scoped) ─────────────────────────
 
@@ -185,10 +183,8 @@ export const updateWikiEntryEndpoint = authenticatedEndpointFactory.build({
     const { entryId, ...data } = input;
     const entry = await wiki.getById(entryId);
     if (!entry) throw createHttpError(404, "Wiki entry not found");
-    if (entry.createdBy !== user.id)
-      throw createHttpError(403, "You can only edit your own entries");
-    if (entry.visibility !== "private")
-      throw createHttpError(400, "Only private entries can be updated");
+    if (entry.createdBy !== user.id) throw createHttpError(403, "You can only edit your own entries");
+    if (entry.visibility !== "private") throw createHttpError(400, "Only private entries can be updated");
     return wiki.updateEntry(entryId, user.id, {
       ...data,
       translations: data.translations?.filter((t) => t.title.trim().length > 0),
@@ -209,12 +205,10 @@ export const deleteWikiEntryEndpoint = authenticatedEndpointFactory.build({
     if (entry.visibility === "public") {
       // Public entries can only be deleted by moderators
       const isMod = await wikiModeration.isModerator(user.id);
-      if (!isMod)
-        throw createHttpError(403, "Only moderators can delete public entries");
+      if (!isMod) throw createHttpError(403, "Only moderators can delete public entries");
     } else {
       // Private entries can only be deleted by their owner
-      if (entry.createdBy !== user.id)
-        throw createHttpError(403, "You can only delete your own entries");
+      if (entry.createdBy !== user.id) throw createHttpError(403, "You can only delete your own entries");
     }
 
     await wiki.deleteEntry(input.entryId);
@@ -231,10 +225,8 @@ export const submitWikiEntryEndpoint = authenticatedEndpointFactory.build({
   handler: async ({ input, ctx: { wiki, user } }) => {
     const entry = await wiki.getById(input.entryId);
     if (!entry) throw createHttpError(404, "Wiki entry not found");
-    if (entry.createdBy !== user.id)
-      throw createHttpError(403, "You can only submit your own entries");
-    if (entry.visibility !== "private")
-      throw createHttpError(400, "Only private entries can be submitted");
+    if (entry.createdBy !== user.id) throw createHttpError(403, "You can only submit your own entries");
+    if (entry.visibility !== "private") throw createHttpError(400, "Only private entries can be submitted");
     const cr = await wiki.submitForReview(input.entryId, user.id);
     notifyModeratorsNewReview(cr.id, cr.type).catch(captureException);
     return cr;
@@ -243,76 +235,72 @@ export const submitWikiEntryEndpoint = authenticatedEndpointFactory.build({
 
 // ─── Create change request on existing public entry ──────────────────────────
 
-export const createWikiChangeRequestEndpoint =
-  authenticatedEndpointFactory.build({
-    method: "post",
-    input: z.object({
-      entryId: z.string(),
-      translations: z.array(translationInputSchema).min(1),
-    }),
-    output: wikiChangeRequestSchema,
-    handler: async ({ input, ctx: { wiki, user } }) => {
-      const { entryId, translations } = input;
-      const entry = await wiki.getById(entryId);
-      if (!entry) throw createHttpError(404, "Wiki entry not found");
-      if (entry.visibility !== "public")
-        throw createHttpError(
-          400,
-          "Can only request changes on published public entries",
-        );
-      const cr = await wiki.createChangeRequest(entryId, user.id, { translations });
-      notifyModeratorsNewReview(cr.id, cr.type).catch(captureException);
-      return cr;
-    },
-  });
+export const createWikiChangeRequestEndpoint = authenticatedEndpointFactory.build({
+  method: "post",
+  input: z.object({
+    entryId: z.string(),
+    translations: z.array(translationInputSchema).min(1),
+  }),
+  output: wikiChangeRequestSchema,
+  handler: async ({ input, ctx: { wiki, user } }) => {
+    const { entryId, translations } = input;
+    const entry = await wiki.getById(entryId);
+    if (!entry) throw createHttpError(404, "Wiki entry not found");
+    if (entry.visibility !== "public")
+      throw createHttpError(400, "Can only request changes on published public entries");
+    const cr = await wiki.createChangeRequest(entryId, user.id, { translations });
+    notifyModeratorsNewReview(cr.id, cr.type).catch(captureException);
+    return cr;
+  },
+});
 
 // ─── Draft change request: update ────────────────────────────────────────────
 
-export const updateWikiChangeRequestDraftEndpoint =
-  authenticatedEndpointFactory.build({
-    method: "patch",
-    input: z.object({
-      changeRequestId: z.string(),
-      translations: z.array(translationInputSchema).optional(),
-      proposedCategoryId: z.string().uuid().optional(),
-      proposedFarmId: z.string().uuid().nullable().optional(),
-    }),
-    output: wikiChangeRequestSchema,
-    handler: async ({ input, ctx: { wiki, user } }) => {
-      const { changeRequestId, ...data } = input;
-      return wiki.updateDraftChangeRequest(changeRequestId, user.id, data);
-    },
-  });
+export const updateWikiChangeRequestDraftEndpoint = authenticatedEndpointFactory.build({
+  method: "patch",
+  input: z.object({
+    changeRequestId: z.string(),
+    translations: z.array(translationInputSchema).optional(),
+    proposedCategoryId: z.string().uuid().optional(),
+    proposedFarmId: z.string().uuid().nullable().optional(),
+  }),
+  output: wikiChangeRequestSchema,
+  handler: async ({ input, ctx: { wiki, user } }) => {
+    const { changeRequestId, ...data } = input;
+    return wiki.updateDraftChangeRequest(changeRequestId, user.id, data);
+  },
+});
 
 // ─── Draft change request: submit ────────────────────────────────────────────
 
-export const submitWikiChangeRequestDraftEndpoint =
-  authenticatedEndpointFactory.build({
-    method: "post",
-    input: z.object({ changeRequestId: z.string() }),
-    output: wikiChangeRequestSchema,
-    handler: async ({ input, ctx: { wiki, user } }) => {
-      return wiki.submitDraftChangeRequest(input.changeRequestId, user.id);
-    },
-  });
+export const submitWikiChangeRequestDraftEndpoint = authenticatedEndpointFactory.build({
+  method: "post",
+  input: z.object({ changeRequestId: z.string() }),
+  output: wikiChangeRequestSchema,
+  handler: async ({ input, ctx: { wiki, user } }) => {
+    return wiki.submitDraftChangeRequest(input.changeRequestId, user.id);
+  },
+});
 
 // ─── Image: request signed upload URL ────────────────────────────────────────
 
-export const requestWikiImageSignedUrlEndpoint =
-  authenticatedEndpointFactory.build({
-    method: "post",
-    input: z.object({
-      entryId: z.string(),
-      filename: z.string().min(1),
-    }),
-    output: z.object({
-      signedUrl: z.string(),
-      path: z.string(),
-    }),
-    handler: async ({ input, ctx: { wiki, user } }) => {
-      return wiki.requestSignedImageUrl(input.entryId, user.id, input.filename);
-    },
-  });
+export const requestWikiImageSignedUrlEndpoint = authenticatedEndpointFactory.build({
+  method: "post",
+  input: z.object({
+    entryId: z.string(),
+    filename: z.string().min(1),
+  }),
+  output: z.object({
+    signedUrl: z.string(),
+    path: z.string(),
+  }),
+  handler: async ({ input, ctx: { wiki, user, membership } }) => {
+    if (!user.farmId) throw createHttpError(403, "Active membership required");
+    const active = await membership.isActive(user.farmId);
+    if (!active) throw createHttpError(403, "Active membership required");
+    return wiki.requestSignedImageUrl(input.entryId, user.id, input.filename);
+  },
+});
 
 // ─── Image: register after direct upload ─────────────────────────────────────
 
@@ -326,7 +314,10 @@ export const registerWikiImageEndpoint = authenticatedEndpointFactory.build({
     id: z.string(),
     publicUrl: z.string(),
   }),
-  handler: async ({ input, ctx: { wiki, user } }) => {
+  handler: async ({ input, ctx: { wiki, user, membership } }) => {
+    if (!user.farmId) throw createHttpError(403, "Active membership required");
+    const active = await membership.isActive(user.farmId);
+    if (!active) throw createHttpError(403, "Active membership required");
     return wiki.registerImage(input.entryId, input.storagePath, user.id);
   },
 });
@@ -353,40 +344,38 @@ export const wikiChangeRequestNoteSchema = z.object({
   createdAt: z.string().or(z.date()),
 });
 
-export const addWikiChangeRequestNoteEndpoint =
-  authenticatedEndpointFactory.build({
-    method: "post",
-    input: z.object({
-      changeRequestId: z.string(),
-      body: z.string().min(1),
-    }),
-    output: wikiChangeRequestNoteSchema,
-    handler: async ({ input, ctx: { wiki, wikiModeration, user } }) => {
-      const cr = await wiki.getChangeRequestById(input.changeRequestId);
-      if (!cr) throw createHttpError(404, "Change request not found");
+export const addWikiChangeRequestNoteEndpoint = authenticatedEndpointFactory.build({
+  method: "post",
+  input: z.object({
+    changeRequestId: z.string(),
+    body: z.string().min(1),
+  }),
+  output: wikiChangeRequestNoteSchema,
+  handler: async ({ input, ctx: { wiki, wikiModeration, user } }) => {
+    const cr = await wiki.getChangeRequestById(input.changeRequestId);
+    if (!cr) throw createHttpError(404, "Change request not found");
 
-      // Only the submitter or a moderator may add notes
-      const isMod = await wikiModeration.isModerator(user.id);
-      if (cr.submittedBy !== user.id && !isMod)
-        throw createHttpError(403, "Not authorized to add notes to this change request");
+    // Only the submitter or a moderator may add notes
+    const isMod = await wikiModeration.isModerator(user.id);
+    if (cr.submittedBy !== user.id && !isMod)
+      throw createHttpError(403, "Not authorized to add notes to this change request");
 
-      return wiki.addChangeRequestNote(input.changeRequestId, user.id, input.body);
-    },
-  });
+    return wiki.addChangeRequestNote(input.changeRequestId, user.id, input.body);
+  },
+});
 
-export const getWikiChangeRequestNotesEndpoint =
-  authenticatedEndpointFactory.build({
-    method: "get",
-    input: z.object({ changeRequestId: z.string() }),
-    output: z.object({
-      result: z.array(wikiChangeRequestNoteSchema),
-      count: z.number(),
-    }),
-    handler: async ({ input, ctx: { wiki } }) => {
-      const result = await wiki.getChangeRequestNotes(input.changeRequestId);
-      return { result, count: result.length };
-    },
-  });
+export const getWikiChangeRequestNotesEndpoint = authenticatedEndpointFactory.build({
+  method: "get",
+  input: z.object({ changeRequestId: z.string() }),
+  output: z.object({
+    result: z.array(wikiChangeRequestNoteSchema),
+    count: z.number(),
+  }),
+  handler: async ({ input, ctx: { wiki } }) => {
+    const result = await wiki.getChangeRequestNotes(input.changeRequestId);
+    return { result, count: result.length };
+  },
+});
 
 // ─── Tags ─────────────────────────────────────────────────────────────────────
 
@@ -407,7 +396,10 @@ export const upsertWikiTagEndpoint = authenticatedEndpointFactory.build({
   method: "post",
   input: z.object({
     name: z.string().min(1),
-    slug: z.string().min(1).regex(/^[a-z0-9-]+$/),
+    slug: z
+      .string()
+      .min(1)
+      .regex(/^[a-z0-9-]+$/),
   }),
   output: wikiTagSchema,
   handler: async ({ input, ctx: { wiki, user } }) => {
@@ -417,19 +409,18 @@ export const upsertWikiTagEndpoint = authenticatedEndpointFactory.build({
 
 // ─── My change requests ───────────────────────────────────────────────────────
 
-export const getMyWikiChangeRequestsEndpoint =
-  authenticatedEndpointFactory.build({
-    method: "get",
-    input: z.object({}),
-    output: z.object({
-      result: z.array(wikiChangeRequestSchema),
-      count: z.number(),
-    }),
-    handler: async ({ ctx: { wiki, user } }) => {
-      const result = await wiki.getMyChangeRequests(user.id);
-      return { result, count: result.length };
-    },
-  });
+export const getMyWikiChangeRequestsEndpoint = authenticatedEndpointFactory.build({
+  method: "get",
+  input: z.object({}),
+  output: z.object({
+    result: z.array(wikiChangeRequestSchema),
+    count: z.number(),
+  }),
+  handler: async ({ ctx: { wiki, user } }) => {
+    const result = await wiki.getMyChangeRequests(user.id);
+    return { result, count: result.length };
+  },
+});
 
 // ─── Categories (public read) ─────────────────────────────────────────────────
 

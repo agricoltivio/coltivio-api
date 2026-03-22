@@ -14,14 +14,25 @@ Thank you for your interest in contributing! Coltivio is a nonprofit open-source
 yarn start              # start dev server
 yarn test               # run all tests
 npx tsc --noEmit        # typecheck
+yarn lint               # lint and auto-fix unused imports
+yarn format             # auto-format with Prettier
 ```
 
 ## Submitting changes
 
-1. Make sure `npx tsc --noEmit` passes with no errors
-2. Make sure all tests pass with `yarn test`
-3. Write tests for new features or bug fixes
-4. Open a pull request against `main` — don't worry about commit history, we squash merge
+Before opening a PR, make sure all of the following pass locally:
+
+```bash
+npx tsc --noEmit
+npx prettier --check "src/**/*.ts"
+yarn lint
+yarn test
+```
+
+These same checks run automatically in CI on every push and pull request.
+
+1. Write tests for new features or bug fixes
+2. Open a pull request against `main` — don't worry about commit history, we squash merge
 
 ## Code style
 
@@ -29,6 +40,7 @@ npx tsc --noEmit        # typecheck
 - Zod schemas for all API input/output validation
 - All database queries go through the RLS-aware connection (`rlsDb.rls()`)
 - Use Drizzle's parameterized queries — never use `sql.raw()` with user input
+- Unused imports are enforced by ESLint — prefix intentionally unused variables/args with `_`
 
 ## Reporting issues
 

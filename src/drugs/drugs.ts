@@ -2,14 +2,8 @@ import { count, eq } from "drizzle-orm";
 import { RlsDb } from "../db/db";
 import { drugs, drugTreatment, farmIdColumnValue, treatments } from "../db/schema";
 
-export type DrugTreatmentCreateInput = Omit<
-  typeof drugTreatment.$inferInsert,
-  "id" | "drugId"
->;
-export type DrugCreateInput = Omit<
-  typeof drugs.$inferInsert,
-  "id" | "farmId"
-> & {
+export type DrugTreatmentCreateInput = Omit<typeof drugTreatment.$inferInsert, "id" | "drugId">;
+export type DrugCreateInput = Omit<typeof drugs.$inferInsert, "id" | "farmId"> & {
   drugTreatment: DrugTreatmentCreateInput[];
 };
 export type DrugUpdateInput = Partial<Omit<DrugCreateInput, "drugTreatment">> & {
@@ -39,7 +33,7 @@ export function drugsApi(rlsDb: RlsDb) {
             drugTreatmentData.map((dt) => ({
               drugId: drug.id,
               ...dt,
-            })),
+            }))
           );
         }
 
@@ -77,10 +71,7 @@ export function drugsApi(rlsDb: RlsDb) {
       });
     },
 
-    async updateDrug(
-      id: string,
-      data: DrugUpdateInput,
-    ): Promise<DrugWithTreatment> {
+    async updateDrug(id: string, data: DrugUpdateInput): Promise<DrugWithTreatment> {
       return rlsDb.rls(async (tx) => {
         const { drugTreatment: drugTreatmentData, ...drugData } = data;
 
@@ -100,7 +91,7 @@ export function drugsApi(rlsDb: RlsDb) {
               drugTreatmentData.map((dt) => ({
                 drugId: id,
                 ...dt,
-              })),
+              }))
             );
           }
         }
@@ -125,10 +116,7 @@ export function drugsApi(rlsDb: RlsDb) {
 
     async drugInUse(id: string): Promise<boolean> {
       return rlsDb.rls(async (tx) => {
-        const [result] = await tx
-          .select({ count: count() })
-          .from(treatments)
-          .where(eq(treatments.drugId, id));
+        const [result] = await tx.select({ count: count() }).from(treatments).where(eq(treatments.drugId, id));
         return result.count > 0;
       });
     },

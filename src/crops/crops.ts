@@ -1,12 +1,6 @@
 import { count, eq } from "drizzle-orm";
 import { RlsDb } from "../db/db";
-import {
-  farmIdColumnValue,
-  crops,
-  cropFamilies,
-  cropRotations,
-  harvests,
-} from "../db/schema";
+import { farmIdColumnValue, crops, cropFamilies, cropRotations, harvests } from "../db/schema";
 
 export type CropCreateInput = Omit<typeof crops.$inferInsert, "id" | "farmId">;
 export type CropUpdateInput = Partial<CropCreateInput>;
@@ -14,10 +8,7 @@ export type Crop = typeof crops.$inferSelect & {
   family: typeof cropFamilies.$inferSelect | null;
 };
 
-export type CropFamilyCreateInput = Omit<
-  typeof cropFamilies.$inferInsert,
-  "id" | "farmId"
->;
+export type CropFamilyCreateInput = Omit<typeof cropFamilies.$inferInsert, "id" | "farmId">;
 export type CropFamilyUpdateInput = Partial<CropFamilyCreateInput>;
 export type CropFamily = typeof cropFamilies.$inferSelect;
 
@@ -68,17 +59,12 @@ export function cropApi(rlsDb: RlsDb) {
           .select({ count: count() })
           .from(cropRotations)
           .where(eq(cropRotations.cropId, id));
-        const [harvestResult] = await tx
-          .select({ count: count() })
-          .from(harvests)
-          .where(eq(harvests.cropId, id));
+        const [harvestResult] = await tx.select({ count: count() }).from(harvests).where(eq(harvests.cropId, id));
         return cropRotationResult.count > 0 || harvestResult.count > 0;
       });
     },
 
-    async createCropFamily(
-      familyInput: CropFamilyCreateInput,
-    ): Promise<CropFamily> {
+    async createCropFamily(familyInput: CropFamilyCreateInput): Promise<CropFamily> {
       return rlsDb.rls(async (tx) => {
         const [family] = await tx
           .insert(cropFamilies)
@@ -102,16 +88,9 @@ export function cropApi(rlsDb: RlsDb) {
       });
     },
 
-    async updateCropFamily(
-      id: string,
-      data: CropFamilyUpdateInput,
-    ): Promise<CropFamily> {
+    async updateCropFamily(id: string, data: CropFamilyUpdateInput): Promise<CropFamily> {
       return rlsDb.rls(async (tx) => {
-        const [family] = await tx
-          .update(cropFamilies)
-          .set(data)
-          .where(eq(cropFamilies.id, id))
-          .returning();
+        const [family] = await tx.update(cropFamilies).set(data).where(eq(cropFamilies.id, id)).returning();
         return family;
       });
     },
@@ -124,10 +103,7 @@ export function cropApi(rlsDb: RlsDb) {
 
     async cropFamilyInUse(id: string): Promise<boolean> {
       return rlsDb.rls(async (tx) => {
-        const [result] = await tx
-          .select({ count: count() })
-          .from(crops)
-          .where(eq(crops.familyId, id));
+        const [result] = await tx.select({ count: count() }).from(crops).where(eq(crops.familyId, id));
         return result.count > 0;
       });
     },

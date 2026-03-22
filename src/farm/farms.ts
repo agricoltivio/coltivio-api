@@ -25,10 +25,7 @@ export function farmsApi(rlsDb: RlsDb, t: TFunction) {
   return {
     async getFarmById(farmId: string) {
       return rlsDb.rls(async (tx) => {
-        const [farm] = await tx
-          .select(farmSelectColumns)
-          .from(tables.farms)
-          .where(eq(tables.farms.id, farmId));
+        const [farm] = await tx.select(farmSelectColumns).from(tables.farms).where(eq(tables.farms.id, farmId));
         return farm;
       });
     },
@@ -111,14 +108,11 @@ export function farmsApi(rlsDb: RlsDb, t: TFunction) {
             };
           });
 
-          const plots = await tx
-            .insert(tables.plots)
-            .values(plotsToCreate)
-            .returning();
+          const plots = await tx.insert(tables.plots).values(plotsToCreate).returning();
 
           const cropCreateInputs = mapCodesToCrops(
             plots.map((plot) => plot.usage ?? UNKNOWN_CROP_CODE),
-            t,
+            t
           );
 
           const crops = await tx
@@ -127,7 +121,7 @@ export function farmsApi(rlsDb: RlsDb, t: TFunction) {
               cropCreateInputs.map((crop) => ({
                 ...crop,
                 farmId: createdFarm.id,
-              })),
+              }))
             )
             .returning();
 
@@ -137,18 +131,13 @@ export function farmsApi(rlsDb: RlsDb, t: TFunction) {
 
           const cropRotationInputs = plots.map((plot) => ({
             farmId: createdFarm.id,
-            cropId: crops.find((crop) =>
-              crop.usageCodes.includes(plot.usage ?? UNKNOWN_CROP_CODE),
-            )!.id,
+            cropId: crops.find((crop) => crop.usageCodes.includes(plot.usage ?? UNKNOWN_CROP_CODE))!.id,
             fromDate,
             toDate,
             plotId: plot.id,
           }));
 
-          const createdRotations = await tx
-            .insert(tables.cropRotations)
-            .values(cropRotationInputs)
-            .returning();
+          const createdRotations = await tx.insert(tables.cropRotations).values(cropRotationInputs).returning();
 
           // Create yearly recurrences for permanent rotations
           await tx.insert(tables.cropRotationYearlyRecurrences).values(
@@ -156,7 +145,7 @@ export function farmsApi(rlsDb: RlsDb, t: TFunction) {
               farmId: createdFarm.id,
               cropRotationId: rotation.id,
               interval: 1,
-            })),
+            }))
           );
         }
 
@@ -165,10 +154,7 @@ export function farmsApi(rlsDb: RlsDb, t: TFunction) {
     },
     async getFarmUsers(farmId: string): Promise<User[]> {
       return rlsDb.rls(async (tx) => {
-        return tx
-          .select()
-          .from(tables.profiles)
-          .where(eq(tables.profiles.farmId, farmId));
+        return tx.select().from(tables.profiles).where(eq(tables.profiles.farmId, farmId));
       });
     },
     async updateFarm(farmId: string, data: Partial<FarmCreateInput>) {
@@ -178,9 +164,7 @@ export function farmsApi(rlsDb: RlsDb, t: TFunction) {
           .update(tables.farms)
           .set({
             ...rest,
-            location: location
-              ? sql`ST_GeomFromGeoJSON(${JSON.stringify(location)})`
-              : undefined,
+            location: location ? sql`ST_GeomFromGeoJSON(${JSON.stringify(location)})` : undefined,
           })
           .where(eq(tables.farms.id, farmId))
           .returning(farmSelectColumns);
@@ -219,12 +203,7 @@ export function farmsApi(rlsDb: RlsDb, t: TFunction) {
           .where(eq(tables.profiles.id, targetUserId));
       });
     },
-    async changeMemberRole(
-      targetUserId: string,
-      callerId: string,
-      farmId: string,
-      newRole: "owner" | "member",
-    ) {
+    async changeMemberRole(targetUserId: string, callerId: string, farmId: string, newRole: "owner" | "member") {
       return rlsDb.admin.transaction(async (tx) => {
         const farmMembers = await tx.query.profiles.findMany({ where: { farmId } });
 

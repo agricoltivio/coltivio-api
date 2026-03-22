@@ -1,6 +1,7 @@
 import { expect } from "@jest/globals";
 import merge from "lodash/merge";
-import { createTestUser, request } from "./helpers";
+import { createTestUser, getAdminDb, request } from "./helpers";
+import { membershipPayments } from "../db/schema";
 
 // ---------------------------------------------------------------------------
 // Common test data
@@ -31,7 +32,15 @@ const DEFAULT_PLOT = {
   geometry: {
     type: "MultiPolygon" as const,
     coordinates: [
-      [[[8.0, 47.0], [8.1, 47.0], [8.1, 47.1], [8.0, 47.1], [8.0, 47.0]]],
+      [
+        [
+          [8.0, 47.0],
+          [8.1, 47.0],
+          [8.1, 47.1],
+          [8.0, 47.1],
+          [8.0, 47.0],
+        ],
+      ],
     ],
   },
   size: 10000,
@@ -104,127 +113,108 @@ type ApiEntity = Record<string, unknown> & { id: string; farmId: string };
 export async function createUserWithFarm(
   data?: Record<string, unknown>,
   email = "test@test.com",
+  opts: { withActiveMembership?: boolean } = {}
 ) {
   const { jwt, userId } = await createTestUser(email, "password123");
   const farmData = merge({}, DEFAULT_FARM, data);
   const res = await request("POST", "/v1/farm", farmData, jwt);
   const body = (await res.json()) as { data: { id: string } };
-  return { jwt, userId, farmId: body.data.id };
+  const farmId = body.data.id;
+
+  if (opts.withActiveMembership) {
+    const db = getAdminDb();
+    const periodEnd = new Date();
+    periodEnd.setFullYear(periodEnd.getFullYear() + 1);
+    await db.insert(membershipPayments).values({
+      userId,
+      stripePaymentId: `pi_test_util_${Date.now()}`,
+      stripeSubscriptionId: null,
+      amount: 29000,
+      currency: "chf",
+      status: "succeeded",
+      periodEnd,
+    });
+  }
+
+  return { jwt, userId, farmId };
 }
 
-export async function createAnimal(
-  jwt: string,
-  data?: Record<string, unknown>,
-) {
+export async function createAnimal(jwt: string, data?: Record<string, unknown>) {
   const payload = merge({}, DEFAULT_ANIMAL, data);
   const res = await request("POST", "/v1/animals", payload, jwt);
   expect(res.status).toBe(200);
   return ((await res.json()) as { data: ApiEntity }).data;
 }
 
-export async function createHerd(
-  jwt: string,
-  data?: Record<string, unknown>,
-) {
+export async function createHerd(jwt: string, data?: Record<string, unknown>) {
   const payload = merge({}, DEFAULT_HERD, data);
   const res = await request("POST", "/v1/animals/herds", payload, jwt);
   expect(res.status).toBe(200);
   return ((await res.json()) as { data: ApiEntity }).data;
 }
 
-export async function createPlot(
-  jwt: string,
-  data?: Record<string, unknown>,
-) {
+export async function createPlot(jwt: string, data?: Record<string, unknown>) {
   const payload = merge({}, DEFAULT_PLOT, data);
   const res = await request("POST", "/v1/plots", payload, jwt);
   expect(res.status).toBe(200);
   return ((await res.json()) as { data: ApiEntity }).data;
 }
 
-export async function createCrop(
-  jwt: string,
-  data?: Record<string, unknown>,
-) {
+export async function createCrop(jwt: string, data?: Record<string, unknown>) {
   const payload = merge({}, DEFAULT_CROP, data);
   const res = await request("POST", "/v1/crops", payload, jwt);
   expect(res.status).toBe(200);
   return ((await res.json()) as { data: ApiEntity }).data;
 }
 
-export async function createCropFamily(
-  jwt: string,
-  data?: Record<string, unknown>,
-) {
+export async function createCropFamily(jwt: string, data?: Record<string, unknown>) {
   const payload = merge({}, DEFAULT_CROP_FAMILY, data);
   const res = await request("POST", "/v1/crops/families", payload, jwt);
   expect(res.status).toBe(200);
   return ((await res.json()) as { data: ApiEntity }).data;
 }
 
-export async function createDrug(
-  jwt: string,
-  data?: Record<string, unknown>,
-) {
+export async function createDrug(jwt: string, data?: Record<string, unknown>) {
   const payload = merge({}, DEFAULT_DRUG, data);
   const res = await request("POST", "/v1/drugs", payload, jwt);
   expect(res.status).toBe(200);
   return ((await res.json()) as { data: ApiEntity }).data;
 }
 
-export async function createTreatment(
-  jwt: string,
-  animalIds: string[],
-  data?: Record<string, unknown>,
-) {
+export async function createTreatment(jwt: string, animalIds: string[], data?: Record<string, unknown>) {
   const payload = merge({}, DEFAULT_TREATMENT, data, { animalIds });
   const res = await request("POST", "/v1/treatments", payload, jwt);
   expect(res.status).toBe(200);
   return ((await res.json()) as { data: ApiEntity }).data;
 }
 
-export async function createFertilizer(
-  jwt: string,
-  data?: Record<string, unknown>,
-) {
+export async function createFertilizer(jwt: string, data?: Record<string, unknown>) {
   const payload = merge({}, DEFAULT_FERTILIZER, data);
   const res = await request("POST", "/v1/fertilizers", payload, jwt);
   expect(res.status).toBe(200);
   return ((await res.json()) as { data: ApiEntity }).data;
 }
 
-export async function createCropProtectionProduct(
-  jwt: string,
-  data?: Record<string, unknown>,
-) {
+export async function createCropProtectionProduct(jwt: string, data?: Record<string, unknown>) {
   const payload = merge({}, DEFAULT_CROP_PROTECTION_PRODUCT, data);
   const res = await request("POST", "/v1/cropProtectionProducts", payload, jwt);
   expect(res.status).toBe(200);
   return ((await res.json()) as { data: ApiEntity }).data;
 }
 
-export async function createTillage(
-  jwt: string,
-  plotId: string,
-  data?: Record<string, unknown>,
-) {
+export async function createTillage(jwt: string, plotId: string, data?: Record<string, unknown>) {
   const payload = merge(
     {},
     DEFAULT_TILLAGE,
     { plotId, geometry: DEFAULT_PLOT.geometry, size: DEFAULT_PLOT.size },
-    data,
+    data
   );
   const res = await request("POST", "/v1/tillages", payload, jwt);
   expect(res.status).toBe(200);
   return ((await res.json()) as { data: ApiEntity }).data;
 }
 
-export async function createCropRotation(
-  jwt: string,
-  plotId: string,
-  cropId: string,
-  data?: Record<string, unknown>,
-) {
+export async function createCropRotation(jwt: string, plotId: string, cropId: string, data?: Record<string, unknown>) {
   const payload = merge({}, DEFAULT_CROP_ROTATION, { plotId, cropId }, data);
   const res = await request("POST", "/v1/cropRotations", payload, jwt);
   expect(res.status).toBe(200);
@@ -241,7 +231,7 @@ export async function createHarvests(
     kilosPerUnit?: number;
     numberOfUnits?: number;
     conservationMethod?: string;
-  },
+  }
 ) {
   const res = await request(
     "POST",
@@ -261,7 +251,7 @@ export async function createHarvests(
         },
       ],
     },
-    jwt,
+    jwt
   );
   expect(res.status).toBe(200);
   const body = (await res.json()) as {
@@ -280,7 +270,7 @@ export async function createFertilizerApplication(
     amountPerUnit?: number;
     numberOfUnits?: number;
     method?: string;
-  },
+  }
 ) {
   const res = await request(
     "POST",
@@ -300,7 +290,7 @@ export async function createFertilizerApplication(
         },
       ],
     },
-    jwt,
+    jwt
   );
   expect(res.status).toBe(200);
   const body = (await res.json()) as {
@@ -319,7 +309,7 @@ export async function createCropProtectionApplication(
     amountPerUnit?: number;
     numberOfUnits?: number;
     method?: string;
-  },
+  }
 ) {
   const res = await request(
     "POST",
@@ -335,36 +325,22 @@ export async function createCropProtectionApplication(
       numberOfUnits: data?.numberOfUnits ?? 10,
       method: data?.method,
     },
-    jwt,
+    jwt
   );
   expect(res.status).toBe(200);
   const body = (await res.json()) as { data: Record<string, unknown> & { id: string } };
   return body.data;
 }
 
-export async function createContact(
-  jwt: string,
-  data?: Record<string, unknown>,
-) {
-  const payload = merge(
-    {},
-    { firstName: "Hans", lastName: "Muster", labels: [] },
-    data,
-  );
+export async function createContact(jwt: string, data?: Record<string, unknown>) {
+  const payload = merge({}, { firstName: "Hans", lastName: "Muster", labels: [] }, data);
   const res = await request("POST", "/v1/contacts", payload, jwt);
   expect(res.status).toBe(200);
   return ((await res.json()) as { data: ApiEntity }).data;
 }
 
-export async function createProduct(
-  jwt: string,
-  data?: Record<string, unknown>,
-) {
-  const payload = merge(
-    {},
-    { name: "Test Product", category: "meat", unit: "kg", pricePerUnit: 50 },
-    data,
-  );
+export async function createProduct(jwt: string, data?: Record<string, unknown>) {
+  const payload = merge({}, { name: "Test Product", category: "meat", unit: "kg", pricePerUnit: 50 }, data);
   const res = await request("POST", "/v1/products", payload, jwt);
   expect(res.status).toBe(200);
   return ((await res.json()) as { data: ApiEntity }).data;
@@ -374,37 +350,26 @@ export async function createOrder(
   jwt: string,
   contactId: string,
   items: Array<{ productId: string; quantity: number }>,
-  data?: Record<string, unknown>,
+  data?: Record<string, unknown>
 ) {
-  const payload = merge(
-    {},
-    { contactId, orderDate: "2026-03-01", items },
-    data,
-  );
+  const payload = merge({}, { contactId, orderDate: "2026-03-01", items }, data);
   const res = await request("POST", "/v1/orders", payload, jwt);
   expect(res.status).toBe(200);
   return ((await res.json()) as { data: ApiEntity }).data;
 }
 
-export async function createPayment(
-  jwt: string,
-  contactId: string,
-  data?: Record<string, unknown>,
-) {
+export async function createPayment(jwt: string, contactId: string, data?: Record<string, unknown>) {
   const payload = merge(
     {},
     { contactId, date: "2026-03-01", amount: 100, currency: "CHF", method: "bank_transfer" },
-    data,
+    data
   );
   const res = await request("POST", "/v1/payments", payload, jwt);
   expect(res.status).toBe(200);
   return ((await res.json()) as { data: ApiEntity }).data;
 }
 
-export async function createSponsorshipProgram(
-  jwt: string,
-  data?: Record<string, unknown>,
-) {
+export async function createSponsorshipProgram(jwt: string, data?: Record<string, unknown>) {
   const payload = merge({}, { name: "Basic Sponsorship", yearlyCost: 200 }, data);
   const res = await request("POST", "/v1/sponsorshipPrograms", payload, jwt);
   expect(res.status).toBe(200);
@@ -416,13 +381,9 @@ export async function createSponsorship(
   contactId: string,
   animalId: string,
   sponsorshipProgramId: string,
-  data?: Record<string, unknown>,
+  data?: Record<string, unknown>
 ) {
-  const payload = merge(
-    {},
-    { contactId, animalId, sponsorshipProgramId, startDate: "2026-01-01" },
-    data,
-  );
+  const payload = merge({}, { contactId, animalId, sponsorshipProgramId, startDate: "2026-01-01" }, data);
   const res = await request("POST", "/v1/sponsorships", payload, jwt);
   expect(res.status).toBe(200);
   return ((await res.json()) as { data: ApiEntity }).data;
@@ -437,7 +398,7 @@ export async function createOutdoorSchedule(
     type?: string;
     notes?: string;
     recurrence?: Record<string, unknown>;
-  },
+  }
 ) {
   const res = await request(
     "POST",
@@ -449,7 +410,7 @@ export async function createOutdoorSchedule(
       notes: data?.notes,
       recurrence: data?.recurrence,
     },
-    jwt,
+    jwt
   );
   expect(res.status).toBe(200);
   const body = (await res.json()) as { data: Record<string, unknown> & { id: string } };

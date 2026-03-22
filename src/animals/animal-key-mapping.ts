@@ -132,10 +132,7 @@ type CategoryAnimal = {
 };
 
 // First-match lookup against the mapping rules for a given animal at a reference date
-export function mapAnimalToCategory(
-  animal: CategoryAnimal,
-  referenceDate: Date,
-): AnimalCategory | null {
+export function mapAnimalToCategory(animal: CategoryAnimal, referenceDate: Date): AnimalCategory | null {
   const ageDays = differenceInDays(referenceDate, animal.dateOfBirth);
   const rules = animalKeyMapping[animal.type];
 
@@ -153,7 +150,7 @@ export function mapAnimalToCategory(
 export function getAnimalCategoryTransitions(
   animal: CategoryAnimal,
   periodStart: Date,
-  periodEnd: Date,
+  periodEnd: Date
 ): { category: AnimalCategory | null; startDate: Date; endDate: Date }[] {
   const rules = animalKeyMapping[animal.type];
 
@@ -164,10 +161,7 @@ export function getAnimalCategoryTransitions(
 
   for (const rule of rules) {
     // Each minAgeDays and maxAgeDays+1 is a potential transition point
-    for (const days of [
-      rule.minAgeDays,
-      rule.maxAgeDays !== undefined ? rule.maxAgeDays + 1 : undefined,
-    ]) {
+    for (const days of [rule.minAgeDays, rule.maxAgeDays !== undefined ? rule.maxAgeDays + 1 : undefined]) {
       if (days === undefined) continue;
       const thresholdDate = addDays(animal.dateOfBirth, days);
       const t = thresholdDate.getTime();

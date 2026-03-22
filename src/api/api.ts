@@ -6,6 +6,7 @@ import { drugsApi } from "../drugs/drugs";
 import { earTagsApi } from "../ear-tags/ear-tags";
 import { treatmentsApi } from "../treatments/treatments";
 import { ordersApi } from "../orders/orders";
+import { invoiceSettingsApi } from "../orders/invoice-settings";
 import { paymentsApi } from "../payments/payments";
 import { productsApi } from "../products/products";
 import { sponsorshipProgramsApi } from "../sponsorships/sponsorship-programs";
@@ -29,7 +30,12 @@ import { treatmentReportsApi } from "../reports/treatment-reports";
 import { outdoorJournalReportsApi } from "../reports/outdoor-journal-reports";
 import { wikiApi } from "../wiki/wiki";
 import { wikiModerationApi } from "../wiki/wiki-moderation";
+import { forumApi } from "../forum/forum";
+import { forumModerationApi } from "../forum/forum-moderation";
 import { tasksApi } from "../tasks/tasks";
+import { membershipApi } from "../membership/membership";
+import { donationsApi } from "../donations/donations";
+import { handoffApi } from "../auth/handoff";
 
 export function sessionApi(db: RlsDb, t: TFunction, locale: string) {
   return {
@@ -57,11 +63,17 @@ export function sessionApi(db: RlsDb, t: TFunction, locale: string) {
     contacts: contactsApi(db),
     products: productsApi(db),
     orders: ordersApi(db),
+    invoiceSettings: invoiceSettingsApi(db),
     payments: paymentsApi(db),
     sponsorshipPrograms: sponsorshipProgramsApi(db),
     sponsorships: sponsorshipsApi(db),
     wiki: wikiApi(db),
     wikiModeration: wikiModerationApi(db),
+    forum: forumApi(db),
+    forumModeration: forumModerationApi(db),
     tasks: tasksApi(db, locale),
+    membership: membershipApi(db),
+    donations: donationsApi(db),
+    handoff: handoffApi(db),
   };
 }

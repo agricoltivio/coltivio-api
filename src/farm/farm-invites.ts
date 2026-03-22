@@ -41,7 +41,9 @@ export function farmInvitesApi(rlsDb: RlsDb, t: TFunction) {
 
     async acceptInvite(code: string, user: User): Promise<User> {
       return rlsDb.admin.transaction(async (tx) => {
-        const invite = await tx.query.farmInvites.findFirst({ where: { code } });
+        const invite = await tx.query.farmInvites.findFirst({
+          where: { code },
+        });
 
         if (!invite) {
           throw createHttpError(404, "Invite not found");
@@ -84,8 +86,8 @@ export function farmInvitesApi(rlsDb: RlsDb, t: TFunction) {
             and(
               eq(tables.farmInvites.farmId, farmId),
               isNull(tables.farmInvites.usedAt),
-              gt(tables.farmInvites.expiresAt, new Date()),
-            ),
+              gt(tables.farmInvites.expiresAt, new Date())
+            )
           );
       });
     },

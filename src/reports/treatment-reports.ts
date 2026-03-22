@@ -3,24 +3,17 @@ import { TFunction } from "i18next";
 import { AnimalType } from "../animals/animals";
 import { RlsDb } from "../db/db";
 
-export function treatmentReportsApi(
-  rlsDb: RlsDb,
-  t: TFunction,
-  locale: string = "de",
-) {
+export function treatmentReportsApi(rlsDb: RlsDb, t: TFunction, locale: string = "de") {
   return {
     async generateReportBuffer(
       fromDate: Date,
       toDate: Date,
-      animalTypes?: AnimalType[],
+      animalTypes?: AnimalType[]
     ): Promise<{ buffer: Buffer; fileName: string }> {
       return await rlsDb.rls(async (tx) => {
         const treatments = await tx.query.treatments.findMany({
           where: {
-            AND: [
-              { startDate: { gte: fromDate } },
-              { startDate: { lte: toDate } },
-            ],
+            AND: [{ startDate: { gte: fromDate } }, { startDate: { lte: toDate } }],
           },
           with: {
             drug: true,
@@ -75,24 +68,26 @@ export function treatmentReportsApi(
 
             const checkmark = "✓";
 
-            rowsByType.get(animal.type)!.push([
-              treatment.startDate.toLocaleDateString(locale),
-              treatment.endDate.toLocaleDateString(locale),
-              animalLabel,
-              treatment.name,
-              treatment.drug?.name ?? "",
-              dose,
-              treatment.isAntibiotic ? checkmark : "",
-              treatment.criticalAntibiotic ? checkmark : "",
-              treatment.antibiogramAvailable ? checkmark : "",
-              milkDays,
-              meatDays,
-              organsDays,
-              treatment.milkUsableDate?.toLocaleDateString(locale) ?? "",
-              treatment.meatUsableDate?.toLocaleDateString(locale) ?? "",
-              treatment.organsUsableDate?.toLocaleDateString(locale) ?? "",
-              treatment.drugReceivedFrom ?? "",
-            ]);
+            rowsByType
+              .get(animal.type)!
+              .push([
+                treatment.startDate.toLocaleDateString(locale),
+                treatment.endDate.toLocaleDateString(locale),
+                animalLabel,
+                treatment.name,
+                treatment.drug?.name ?? "",
+                dose,
+                treatment.isAntibiotic ? checkmark : "",
+                treatment.criticalAntibiotic ? checkmark : "",
+                treatment.antibiogramAvailable ? checkmark : "",
+                milkDays,
+                meatDays,
+                organsDays,
+                treatment.milkUsableDate?.toLocaleDateString(locale) ?? "",
+                treatment.meatUsableDate?.toLocaleDateString(locale) ?? "",
+                treatment.organsUsableDate?.toLocaleDateString(locale) ?? "",
+                treatment.drugReceivedFrom ?? "",
+              ]);
           }
         }
 
@@ -117,9 +112,7 @@ export function treatmentReportsApi(
         ];
 
         // Process requested types, or all types that have data
-        const typesToProcess = animalTypes && animalTypes.length > 0
-          ? animalTypes
-          : Array.from(rowsByType.keys());
+        const typesToProcess = animalTypes && animalTypes.length > 0 ? animalTypes : Array.from(rowsByType.keys());
 
         let tableIndex = 0;
         for (const type of typesToProcess) {

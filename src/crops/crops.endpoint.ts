@@ -2,7 +2,6 @@ import createHttpError from "http-errors";
 import { z } from "zod";
 import { cropCategorySchema } from "../db/schema";
 import { farmEndpointFactory } from "../endpoint-factory";
-import { fa } from "zod/v4/locales";
 
 export const cropFamilySchema = z.object({
   id: z.string(),

@@ -1,7 +1,7 @@
 import createHttpError from "http-errors";
 import { z } from "zod";
 import { productCategorySchema, productUnitSchema } from "../db/schema";
-import { farmEndpointFactory } from "../endpoint-factory";
+import { membershipEndpointFactory } from "../endpoint-factory";
 
 export const productSchema = z.object({
   id: z.string(),
@@ -25,7 +25,7 @@ const createProductSchema = z.object({
 
 const updateProductSchema = createProductSchema.partial();
 
-export const getProductByIdEndpoint = farmEndpointFactory.build({
+export const getProductByIdEndpoint = membershipEndpointFactory.build({
   method: "get",
   input: z.object({ productId: z.string() }),
   output: productSchema,
@@ -38,7 +38,7 @@ export const getProductByIdEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const getFarmProductsEndpoint = farmEndpointFactory.build({
+export const getFarmProductsEndpoint = membershipEndpointFactory.build({
   method: "get",
   input: z.object({}),
   output: z.object({
@@ -54,7 +54,7 @@ export const getFarmProductsEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const getActiveProductsEndpoint = farmEndpointFactory.build({
+export const getActiveProductsEndpoint = membershipEndpointFactory.build({
   method: "get",
   input: z.object({}),
   output: z.object({
@@ -70,7 +70,7 @@ export const getActiveProductsEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const createProductEndpoint = farmEndpointFactory.build({
+export const createProductEndpoint = membershipEndpointFactory.build({
   method: "post",
   input: createProductSchema,
   output: productSchema,
@@ -79,7 +79,7 @@ export const createProductEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const updateProductEndpoint = farmEndpointFactory.build({
+export const updateProductEndpoint = membershipEndpointFactory.build({
   method: "patch",
   input: updateProductSchema.extend({
     productId: z.string(),
@@ -91,7 +91,7 @@ export const updateProductEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const deleteProductEndpoint = farmEndpointFactory.build({
+export const deleteProductEndpoint = membershipEndpointFactory.build({
   method: "delete",
   input: z.object({ productId: z.string() }),
   output: z.object({}),

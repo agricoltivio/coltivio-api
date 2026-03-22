@@ -6,10 +6,7 @@ import { MultiPolygon } from "../geo/geojson";
 import { Plot } from "../plots/plots";
 
 export type HarvestPreset = typeof tables.harvestPresets.$inferSelect;
-export type HarvestPresetCreateInput = Omit<
-  typeof tables.harvestPresets.$inferInsert,
-  "id" | "farmId"
->;
+export type HarvestPresetCreateInput = Omit<typeof tables.harvestPresets.$inferInsert, "id" | "farmId">;
 export type HarvestPresetUpdateInput = Partial<HarvestPresetCreateInput>;
 
 export type Harvest = Omit<typeof tables.harvests.$inferSelect, "geometry"> & {
@@ -33,9 +30,7 @@ export type HarvestCreateInput = {
 export type HarvestsBatchCreateInput = {
   date: Date;
   cropId: string;
-  conservationMethod?: z.infer<
-    typeof tables.conservationMethodEnumSchema
-  > | null;
+  conservationMethod?: z.infer<typeof tables.conservationMethodEnumSchema> | null;
   kilosPerUnit: number;
   createdBy: string;
   harvestCount?: number | null;
@@ -73,10 +68,7 @@ export interface HarvestSummary {
 
 export function harvestsApi(rlsDb: RlsDb) {
   return {
-    async createHarvests({
-      plots,
-      ...base
-    }: HarvestsBatchCreateInput): Promise<Harvest[]> {
+    async createHarvests({ plots, ...base }: HarvestsBatchCreateInput): Promise<Harvest[]> {
       const result = await rlsDb.rls(async (tx) => {
         const harvests = await tx
           .insert(tables.harvests)
@@ -86,7 +78,7 @@ export function harvestsApi(rlsDb: RlsDb) {
               ...base,
               ...plot,
               geometry: sql<MultiPolygon>`ST_GeomFromGeoJSON(${JSON.stringify(plot.geometry)})`,
-            })),
+            }))
           )
           .returning({
             id: tables.harvests.id,
@@ -109,18 +101,12 @@ export function harvestsApi(rlsDb: RlsDb) {
             crop: true,
             plot: {
               extras: {
-                geometry: (t) =>
-                  sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as(
-                    "geometry",
-                  ),
+                geometry: (t) => sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as("geometry"),
               },
             },
           },
           extras: {
-            geometry: (t) =>
-              sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as(
-                "geometry",
-              ),
+            geometry: (t) => sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as("geometry"),
           },
         });
       });
@@ -133,27 +119,17 @@ export function harvestsApi(rlsDb: RlsDb) {
             crop: true,
             plot: {
               extras: {
-                geometry: (t) =>
-                  sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as(
-                    "geometry",
-                  ),
+                geometry: (t) => sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as("geometry"),
               },
             },
           },
           extras: {
-            geometry: (t) =>
-              sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as(
-                "geometry",
-              ),
+            geometry: (t) => sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as("geometry"),
           },
         });
       });
     },
-    async getHarvestsForFarm(
-      farmId: string,
-      fromDate: Date,
-      toDate: Date,
-    ): Promise<Harvest[]> {
+    async getHarvestsForFarm(farmId: string, fromDate: Date, toDate: Date): Promise<Harvest[]> {
       return rlsDb.rls(async (tx) => {
         return tx.query.harvests.findMany({
           where: {
@@ -164,18 +140,12 @@ export function harvestsApi(rlsDb: RlsDb) {
             crop: true,
             plot: {
               extras: {
-                geometry: (t) =>
-                  sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as(
-                    "geometry",
-                  ),
+                geometry: (t) => sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as("geometry"),
               },
             },
           },
           extras: {
-            geometry: (t) =>
-              sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as(
-                "geometry",
-              ),
+            geometry: (t) => sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as("geometry"),
           },
           orderBy: { date: "desc" },
         });
@@ -189,10 +159,7 @@ export function harvestsApi(rlsDb: RlsDb) {
             crop: true,
           },
           extras: {
-            geometry: (t) =>
-              sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as(
-                "geometry",
-              ),
+            geometry: (t) => sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as("geometry"),
           },
           orderBy: { date: "desc" },
         });
@@ -207,13 +174,7 @@ export function harvestsApi(rlsDb: RlsDb) {
           },
           orderBy: { date: "desc" },
         });
-        return Array.from(
-          new Set(
-            result.map((application) =>
-              application.date.getFullYear().toString(),
-            ),
-          ),
-        );
+        return Array.from(new Set(result.map((application) => application.date.getFullYear().toString())));
       });
     },
     async getHarvestSummaryForFarm(farmId: string): Promise<HarvestSummary> {
@@ -246,9 +207,7 @@ export function harvestsApi(rlsDb: RlsDb) {
         return mapToMonthlySummaries(results);
       });
     },
-    async createHarvestPreset(
-      input: HarvestPresetCreateInput,
-    ): Promise<HarvestPreset> {
+    async createHarvestPreset(input: HarvestPresetCreateInput): Promise<HarvestPreset> {
       return rlsDb.rls(async (tx) => {
         const [preset] = await tx
           .insert(tables.harvestPresets)
@@ -269,10 +228,7 @@ export function harvestsApi(rlsDb: RlsDb) {
         return tx.query.harvestPresets.findFirst({ where: { id } });
       });
     },
-    async updateHarvestPreset(
-      id: string,
-      input: HarvestPresetUpdateInput,
-    ): Promise<HarvestPreset> {
+    async updateHarvestPreset(id: string, input: HarvestPresetUpdateInput): Promise<HarvestPreset> {
       return rlsDb.rls(async (tx) => {
         const [preset] = await tx
           .update(tables.harvestPresets)
@@ -284,16 +240,12 @@ export function harvestsApi(rlsDb: RlsDb) {
     },
     async deleteHarvestPreset(id: string): Promise<void> {
       return rlsDb.rls(async (tx) => {
-        await tx
-          .delete(tables.harvestPresets)
-          .where(eq(tables.harvestPresets.id, id));
+        await tx.delete(tables.harvestPresets).where(eq(tables.harvestPresets.id, id));
       });
     },
   };
 
-  function mapToMonthlySummaries(
-    harvests: Omit<Harvest, "geometry" | "plot">[],
-  ): HarvestSummary {
+  function mapToMonthlySummaries(harvests: Omit<Harvest, "geometry" | "plot">[]): HarvestSummary {
     const monthlyHarvests = harvests.reduce<
       Record<
         string,
@@ -349,14 +301,10 @@ export function harvestsApi(rlsDb: RlsDb) {
         };
       }
 
-      acc[key].producedQuantities[forageKey].totalAmountInKilos +=
+      acc[key].producedQuantities[forageKey].totalAmountInKilos += harvest.numberOfUnits * harvest.kilosPerUnit;
+      acc[key].producedQuantities[forageKey].producedUnits[harvest.unit].totalAmountInKilos +=
         harvest.numberOfUnits * harvest.kilosPerUnit;
-      acc[key].producedQuantities[forageKey].producedUnits[
-        harvest.unit
-      ].totalAmountInKilos += harvest.numberOfUnits * harvest.kilosPerUnit;
-      acc[key].producedQuantities[forageKey].producedUnits[
-        harvest.unit
-      ].totalProducedUnits += harvest.numberOfUnits;
+      acc[key].producedQuantities[forageKey].producedUnits[harvest.unit].totalProducedUnits += harvest.numberOfUnits;
 
       return acc;
     }, {});
@@ -365,9 +313,7 @@ export function harvestsApi(rlsDb: RlsDb) {
       monthlyHarvests: Object.values(monthlyHarvests)
         .map((monthlyHarvest) => ({
           ...monthlyHarvest,
-          producedQuantities: Object.values(
-            monthlyHarvest.producedQuantities,
-          ).map((producedQuantity) => ({
+          producedQuantities: Object.values(monthlyHarvest.producedQuantities).map((producedQuantity) => ({
             ...producedQuantity,
             producedUnits: Object.values(producedQuantity.producedUnits),
           })),

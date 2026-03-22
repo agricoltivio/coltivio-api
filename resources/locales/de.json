@@ -359,6 +359,88 @@
       }
     }
   },
+  "membership_email": {
+    "subtitle": "von AgriColtivio",
+    "product_name": "Mitgliedschaft",
+    "valid_until": "Gültig bis",
+    "payment_method": "Zahlungsmittel",
+    "amount": "Betrag",
+    "contact_question": "Bei Fragen erreichst du uns unter",
+    "contact_newsletter": "Abonniere unseren Newsletter auf",
+    "forum_cta": "Besuche den Treffpunkt und tausche dich mit anderen Mitgliedern und Gleichgesinnten aus.",
+    "new": {
+      "subject": "Willkommen bei AgriColtivio – deine Mitgliedschaft ist aktiv",
+      "subject_trial": "Willkommen bei AgriColtivio – deine Mitgliedschaft ist eingerichtet",
+      "greeting": "Hallo {{name}}",
+      "welcome": "Herzlich willkommen bei AgriColtivio – dem Verein hinter Coltivio. Dein Betrieb hat vollen Zugriff auf alle Funktionen der App und der Web-App.",
+      "features_title": "Deine Vorteile",
+      "app_label": "App",
+      "webapp_label": "Web App",
+      "app_features": [
+        "Aufgaben mit Tier- oder Flächenzuweisung und automatischer Checkliste",
+        "Mehrere Benutzer einladen und gemeinsam planen",
+        "Bilder in Wiki-Einträgen verwenden"
+      ],
+      "webapp_features": [
+        "Alle App-Funktionen im Browser",
+        "Kontakte verwalten",
+        "Bestellungen erfassen und Zahlung verfolgen",
+        "Tierpatenschaften verwalten"
+      ],
+      "receipt_title": "Deine Zahlungsbestätigung",
+      "trial_billing_info": "Deine Testphase läuft bis zum {{date}}. Du wirst erst nach Ablauf der Testphase belastet."
+    },
+    "first_payment": {
+      "subject": "Deine Mitgliedschaft wurde abgerechnet",
+      "greeting": "Hallo {{name}}",
+      "intro": "Deine Mitgliedschaft wurde erfolgreich abgerechnet. Danke, dass du Teil von AgriColtivio bist!",
+      "receipt_title": "Deine Zahlungsbestätigung"
+    },
+    "renewal": {
+      "subject": "Deine Coltivio-Mitgliedschaft wurde erneuert",
+      "greeting": "Hallo {{name}}",
+      "intro": "Schön, dass du noch dabei bist! Deine Mitgliedschaft wurde erfolgreich erneuert — du hast weiterhin vollen Zugriff auf alle Coltivio-Funktionen.",
+      "receipt_title": "Deine Erneuerungsquittung"
+    },
+    "reactivation": {
+      "subject": "Willkommen zurück bei Coltivio",
+      "greeting": "Hallo {{name}}, willkommen zurück!",
+      "intro": "Schön, dass du wieder dabei bist. Deine Mitgliedschaft ist wieder aktiv — du hast vollen Zugriff auf alle Funktionen bis zum {{date}}."
+    },
+    "expiry_reminder": {
+      "subject": "Deine Coltivio-Mitgliedschaft ist abgelaufen",
+      "greeting": "Hallo {{name}}",
+      "intro": "Deine Mitgliedschaft ist am {{date}} abgelaufen. Du hast noch 10 Tage Zugriff auf alle Coltivio-Funktionen — bitte erneuere deine Mitgliedschaft, um den vollen Zugang zu behalten.",
+      "cta": "Mitgliedschaft erneuern"
+    },
+    "payment_failed": {
+      "subject": "Zahlung fehlgeschlagen – bitte Zahlungsmethode aktualisieren",
+      "greeting": "Hallo {{name}}",
+      "intro": "Die automatische Erneuerung deiner Coltivio-Mitgliedschaft ist leider fehlgeschlagen. Du hast noch 10 Tage Zugriff — bitte aktualisiere deine Zahlungsmethode, um eine Unterbrechung zu vermeiden.",
+      "cta": "Zahlungsmethode aktualisieren"
+    },
+    "access_lost": {
+      "subject": "Dein Zugang zu Coltivio wurde unterbrochen",
+      "greeting": "Hallo {{name}}",
+      "intro": "Deine Mitgliedschaft bei Coltivio ist abgelaufen und dein Zugang zu den App-Funktionen wurde vorübergehend deaktiviert. Du kannst deine Mitgliedschaft noch innerhalb von 20 Tagen erneuern, um wieder vollen Zugriff zu erhalten.",
+      "cta": "Mitgliedschaft wiederherstellen"
+    },
+    "membership_ended": {
+      "subject": "Deine Coltivio-Mitgliedschaft ist beendet",
+      "greeting": "Hallo {{name}}",
+      "intro": "Deine Mitgliedschaft bei AgriColtivio ist nun beendet. Wir bedanken uns herzlich für die Zeit, die du Teil unserer Gemeinschaft warst — es war uns eine Freude, dich und deinen Betrieb begleiten zu dürfen. Deine Daten bleiben erhalten und du kannst jederzeit zurückkehren.",
+      "cta": "Jetzt wieder beitreten"
+    }
+  },
+  "donation_email": {
+    "subject": "Danke für deine Spende an AgriColtivio",
+    "greeting": "Hallo {{name}}",
+    "greeting_anonymous": "Hallo",
+    "intro": "Vielen Dank für deine Spende! Du unterstützt damit eine offene und faire Landwirtschaft in der Schweiz.",
+    "receipt_title": "Bestätigung deiner Spende",
+    "product_name": "Spende an Coltivio",
+    "amount": "Betrag"
+  },
   "farm_invite": {
     "subject": "Du wurdest eingeladen, {{farmName}} auf Coltivio beizutreten",
     "body": "Du wurdest eingeladen, <strong>{{farmName}}</strong> auf Coltivio beizutreten.",

@@ -36,30 +36,20 @@ export function earTagsApi(rlsDb: RlsDb) {
         const tags = await tx
           .select()
           .from(earTags)
-          .where(
-            and(
-              eq(earTags.farmId, farmId),
-              notInArray(earTags.id, assignedTagIds),
-            ),
-          );
+          .where(and(eq(earTags.farmId, farmId), notInArray(earTags.id, assignedTagIds)));
         return tags;
       });
     },
 
     // Create a range of ear tag numbers (e.g., from "CH001" to "CH010")
-    async createEarTagRange(
-      fromNumber: string,
-      toNumber: string,
-    ): Promise<EarTag[]> {
+    async createEarTagRange(fromNumber: string, toNumber: string): Promise<EarTag[]> {
       return rlsDb.rls(async (tx) => {
         // Extract prefix and numeric parts from both numbers
         const fromMatch = fromNumber.match(/^([A-Za-z]*)(\d+)$/);
         const toMatch = toNumber.match(/^([A-Za-z]*)(\d+)$/);
 
         if (!fromMatch || !toMatch) {
-          throw new Error(
-            "Invalid ear tag format. Expected format: PREFIX + NUMBER (e.g., CH001)",
-          );
+          throw new Error("Invalid ear tag format. Expected format: PREFIX + NUMBER (e.g., CH001)");
         }
 
         const [, fromPrefix, fromNumStr] = fromMatch;
@@ -73,9 +63,7 @@ export function earTagsApi(rlsDb: RlsDb) {
         const toNum = parseInt(toNumStr, 10);
 
         if (fromNum > toNum) {
-          throw new Error(
-            "Start number must be less than or equal to end number",
-          );
+          throw new Error("Start number must be less than or equal to end number");
         }
 
         const padding = fromNumStr.length;
@@ -92,7 +80,7 @@ export function earTagsApi(rlsDb: RlsDb) {
             tagsToCreate.map((tag) => ({
               ...farmIdColumnValue,
               ...tag,
-            })),
+            }))
           )
           .returning();
 
@@ -104,7 +92,7 @@ export function earTagsApi(rlsDb: RlsDb) {
     async deleteEarTagRange(
       farmId: string,
       fromNumber: string,
-      toNumber: string,
+      toNumber: string
     ): Promise<{ deletedCount: number; skippedAssigned: string[] }> {
       return rlsDb.rls(async (tx) => {
         // Extract prefix and numeric parts from both numbers
@@ -112,9 +100,7 @@ export function earTagsApi(rlsDb: RlsDb) {
         const toMatch = toNumber.match(/^([A-Za-z]*)(\d+)$/);
 
         if (!fromMatch || !toMatch) {
-          throw new Error(
-            "Invalid ear tag format. Expected format: PREFIX + NUMBER (e.g., CH001)",
-          );
+          throw new Error("Invalid ear tag format. Expected format: PREFIX + NUMBER (e.g., CH001)");
         }
 
         const [, fromPrefix, fromNumStr] = fromMatch;
@@ -128,9 +114,7 @@ export function earTagsApi(rlsDb: RlsDb) {
         const toNum = parseInt(toNumStr, 10);
 
         if (fromNum > toNum) {
-          throw new Error(
-            "Start number must be less than or equal to end number",
-          );
+          throw new Error("Start number must be less than or equal to end number");
         }
 
         // Generate all numbers in range
@@ -150,12 +134,7 @@ export function earTagsApi(rlsDb: RlsDb) {
           })
           .from(earTags)
           .leftJoin(animals, eq(animals.earTagId, earTags.id))
-          .where(
-            and(
-              eq(earTags.farmId, farmId),
-              inArray(earTags.number, numbersInRange),
-            ),
-          );
+          .where(and(eq(earTags.farmId, farmId), inArray(earTags.number, numbersInRange)));
 
         // Separate assigned and unassigned tags
         const assignedNumbers: string[] = [];

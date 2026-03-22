@@ -22,29 +22,19 @@ async function cleanupOrphanedWikiImages(): Promise<void> {
     const siblings = await adminDrizzle
       .select({ id: wikiEntryImages.id })
       .from(wikiEntryImages)
-      .where(
-        and(
-          eq(wikiEntryImages.storagePath, orphan.storagePath),
-          ne(wikiEntryImages.id, orphan.id),
-        ),
-      );
+      .where(and(eq(wikiEntryImages.storagePath, orphan.storagePath), ne(wikiEntryImages.id, orphan.id)));
 
     if (siblings.length === 0) {
       // No other row references this path — safe to delete from storage
       const { error } = await wikiStorage.remove([orphan.storagePath]);
       if (error) {
         // Keep the DB row so the next cron run can retry the storage deletion
-        console.error(
-          `[wiki-cron] Failed to delete storage file ${orphan.storagePath}:`,
-          error.message,
-        );
+        console.error(`[wiki-cron] Failed to delete storage file ${orphan.storagePath}:`, error.message);
         continue;
       }
     }
 
-    await adminDrizzle
-      .delete(wikiEntryImages)
-      .where(eq(wikiEntryImages.id, orphan.id));
+    await adminDrizzle.delete(wikiEntryImages).where(eq(wikiEntryImages.id, orphan.id));
   }
 
   if (orphans.length > 0) {

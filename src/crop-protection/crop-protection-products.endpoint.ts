@@ -19,18 +19,16 @@ const createCropProtectionProductSchema = z.object({
   defaultEquipmentId: z.string().optional(),
 });
 
-const updateCropProtectionProductSchema =
-  createCropProtectionProductSchema.partial();
+const updateCropProtectionProductSchema = createCropProtectionProductSchema.partial();
 
 export const getCropProtectionProductByIdEndpoint = farmEndpointFactory.build({
   method: "get",
   input: z.object({ cropProtectionProductId: z.string() }),
   output: cropProtectionProductSchema,
   handler: async ({ input, ctx: { cropProtectionProducts } }) => {
-    const cropProtectionProduct =
-      await cropProtectionProducts.getCropProtectionProductById(
-        input.cropProtectionProductId,
-      );
+    const cropProtectionProduct = await cropProtectionProducts.getCropProtectionProductById(
+      input.cropProtectionProductId
+    );
     if (!cropProtectionProduct) {
       throw createHttpError(404, "CropProtectionProduct not found");
     }
@@ -46,8 +44,7 @@ export const getFarmCropProtectionProductsEndpoint = farmEndpointFactory.build({
     count: z.number(),
   }),
   handler: async ({ ctx: { cropProtectionProducts, farmId } }) => {
-    const result =
-      await cropProtectionProducts.getCropProtectionProductsForFarm(farmId);
+    const result = await cropProtectionProducts.getCropProtectionProductsForFarm(farmId);
     return {
       result,
       count: result.length,
@@ -71,10 +68,7 @@ export const updateCropProtectionProductEndpoint = farmEndpointFactory.build({
   }),
   output: cropProtectionProductSchema,
   handler: async ({ input, ctx: { cropProtectionProducts } }) => {
-    return cropProtectionProducts.updateCropProtectionProduct(
-      input.cropProtectionProductId,
-      input,
-    );
+    return cropProtectionProducts.updateCropProtectionProduct(input.cropProtectionProductId, input);
   },
 });
 
@@ -82,13 +76,8 @@ export const deleteCropProtectionProductEndpoint = farmEndpointFactory.build({
   method: "delete",
   input: z.object({ cropProtectionProductId: z.string() }),
   output: z.object({}),
-  handler: async ({
-    input: { cropProtectionProductId },
-    ctx: { cropProtectionProducts: cropProtectionProduct },
-  }) => {
-    await cropProtectionProduct.deleteCropProtectionProduct(
-      cropProtectionProductId,
-    );
+  handler: async ({ input: { cropProtectionProductId }, ctx: { cropProtectionProducts: cropProtectionProduct } }) => {
+    await cropProtectionProduct.deleteCropProtectionProduct(cropProtectionProductId);
     return {};
   },
 });
@@ -97,13 +86,8 @@ export const cropProtectionProductInUseEndpoint = farmEndpointFactory.build({
   method: "get",
   input: z.object({ cropProtectionProductId: z.string() }),
   output: z.object({ inUse: z.boolean() }),
-  handler: async ({
-    input: { cropProtectionProductId },
-    ctx: { cropProtectionProducts },
-  }) => {
-    const inUse = await cropProtectionProducts.cropProtectionProductInUse(
-      cropProtectionProductId,
-    );
+  handler: async ({ input: { cropProtectionProductId }, ctx: { cropProtectionProducts } }) => {
+    const inUse = await cropProtectionProducts.cropProtectionProductInUse(cropProtectionProductId);
     return { inUse };
   },
 });

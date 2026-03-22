@@ -11,14 +11,12 @@ import { Plot } from "../plots/plots";
 import { CropProtectionProduct } from "./crop-protection-products";
 import { z } from "zod";
 
-export type CropProtectionApplicationPreset =
-  typeof cropProtectionApplicationPresets.$inferSelect;
+export type CropProtectionApplicationPreset = typeof cropProtectionApplicationPresets.$inferSelect;
 export type CropProtectionApplicationPresetCreateInput = Omit<
   typeof cropProtectionApplicationPresets.$inferInsert,
   "id" | "farmId"
 >;
-export type CropProtectionApplicationPresetUpdateInput =
-  Partial<CropProtectionApplicationPresetCreateInput>;
+export type CropProtectionApplicationPresetUpdateInput = Partial<CropProtectionApplicationPresetCreateInput>;
 
 export type CropProtectionUnit = z.infer<typeof cropProtectionUnitSchema>;
 
@@ -44,15 +42,13 @@ export type CropProtectionApplicationBatchCreateInput = {
     numberOfUnits: number;
   }[];
 };
-export type CropProtectionApplicationUpdateInput =
-  Partial<CropProtectionApplicationCreateInput>;
+export type CropProtectionApplicationUpdateInput = Partial<CropProtectionApplicationCreateInput>;
 
-export type CropProtectionApplication =
-  typeof cropProtectionApplications.$inferSelect & {
-    geometry: MultiPolygon;
-    product: CropProtectionProduct;
-    plot: Omit<Plot, "currentCropRotation" | "geometry">;
-  };
+export type CropProtectionApplication = typeof cropProtectionApplications.$inferSelect & {
+  geometry: MultiPolygon;
+  product: CropProtectionProduct;
+  plot: Omit<Plot, "currentCropRotation" | "geometry">;
+};
 
 interface AppliedCropProtection {
   totalAmount: number;
@@ -72,7 +68,7 @@ export interface CropProtectionApplicationSummary {
 export function cropProtectionApplicationsApi(rlsDb: RlsDb) {
   return {
     async createCropProtectionApplication(
-      input: CropProtectionApplicationCreateInput,
+      input: CropProtectionApplicationCreateInput
     ): Promise<CropProtectionApplication> {
       const result = await rlsDb.rls(async (tx) => {
         const [cropProtectionApplication] = await tx
@@ -85,16 +81,13 @@ export function cropProtectionApplicationsApi(rlsDb: RlsDb) {
           .returning();
         return cropProtectionApplication;
       });
-      const cropProtectionApplication =
-        await this.getCropProtectionApplicationById(result.id);
+      const cropProtectionApplication = await this.getCropProtectionApplicationById(result.id);
       return cropProtectionApplication!;
     },
     async createCropProtectionApplications({
       plots,
       ...base
-    }: CropProtectionApplicationBatchCreateInput): Promise<
-      CropProtectionApplication[]
-    > {
+    }: CropProtectionApplicationBatchCreateInput): Promise<CropProtectionApplication[]> {
       const result = await rlsDb.rls(async (tx) => {
         return tx
           .insert(cropProtectionApplications)
@@ -104,17 +97,13 @@ export function cropProtectionApplicationsApi(rlsDb: RlsDb) {
               ...base,
               ...plot,
               geometry: sql<MultiPolygon>`ST_GeomFromGeoJSON(${JSON.stringify(plot.geometry)})`,
-            })),
+            }))
           )
           .returning({ id: cropProtectionApplications.id });
       });
-      return this.getCropProtectionApplicationsByIds(
-        result.map((application) => application.id),
-      )!;
+      return this.getCropProtectionApplicationsByIds(result.map((application) => application.id))!;
     },
-    async getCropProtectionApplicationsByIds(
-      ids: string[],
-    ): Promise<CropProtectionApplication[]> {
+    async getCropProtectionApplicationsByIds(ids: string[]): Promise<CropProtectionApplication[]> {
       return rlsDb.rls(async (tx) => {
         return tx.query.cropProtectionApplications.findMany({
           where: { id: { in: ids } },
@@ -123,17 +112,12 @@ export function cropProtectionApplicationsApi(rlsDb: RlsDb) {
             product: true,
           },
           extras: {
-            geometry: (t) =>
-              sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as(
-                "geometry",
-              ),
+            geometry: (t) => sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as("geometry"),
           },
         });
       });
     },
-    async getCropProtectionApplicationById(
-      id: string,
-    ): Promise<CropProtectionApplication | undefined> {
+    async getCropProtectionApplicationById(id: string): Promise<CropProtectionApplication | undefined> {
       return rlsDb.rls(async (tx) => {
         return tx.query.cropProtectionApplications.findFirst({
           where: { id },
@@ -142,17 +126,12 @@ export function cropProtectionApplicationsApi(rlsDb: RlsDb) {
             product: true,
           },
           extras: {
-            geometry: (t) =>
-              sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as(
-                "geometry",
-              ),
+            geometry: (t) => sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as("geometry"),
           },
         });
       });
     },
-    async getCropProtectionApplicationsForPlot(
-      plotId: string,
-    ): Promise<CropProtectionApplication[]> {
+    async getCropProtectionApplicationsForPlot(plotId: string): Promise<CropProtectionApplication[]> {
       return rlsDb.rls(async (tx) => {
         return tx.query.cropProtectionApplications.findMany({
           where: { plotId },
@@ -161,10 +140,7 @@ export function cropProtectionApplicationsApi(rlsDb: RlsDb) {
             product: true,
           },
           extras: {
-            geometry: (t) =>
-              sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as(
-                "geometry",
-              ),
+            geometry: (t) => sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as("geometry"),
           },
           orderBy: { dateTime: "desc" },
         });
@@ -173,26 +149,20 @@ export function cropProtectionApplicationsApi(rlsDb: RlsDb) {
     async getCropProtectionApplicationsForFarm(
       farmId: string,
       fromDate: Date,
-      toDate: Date,
+      toDate: Date
     ): Promise<CropProtectionApplication[]> {
       return rlsDb.rls(async (tx) => {
         return tx.query.cropProtectionApplications.findMany({
           where: {
             farmId,
-            AND: [
-              { dateTime: { gte: fromDate } },
-              { dateTime: { lte: toDate } },
-            ],
+            AND: [{ dateTime: { gte: fromDate } }, { dateTime: { lte: toDate } }],
           },
           with: {
             plot: true,
             product: true,
           },
           extras: {
-            geometry: (t) =>
-              sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as(
-                "geometry",
-              ),
+            geometry: (t) => sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as("geometry"),
           },
           orderBy: { dateTime: "desc" },
         });
@@ -200,7 +170,7 @@ export function cropProtectionApplicationsApi(rlsDb: RlsDb) {
     },
     async updateCropProtectionApplication(
       id: string,
-      data: CropProtectionApplicationUpdateInput,
+      data: CropProtectionApplicationUpdateInput
     ): Promise<CropProtectionApplication> {
       const result = await rlsDb.rls(async (tx) => {
         const geometry = data.geometry
@@ -214,15 +184,12 @@ export function cropProtectionApplicationsApi(rlsDb: RlsDb) {
           .returning();
         return cropProtectionApplication;
       });
-      const cropProtectionApplication =
-        await this.getCropProtectionApplicationById(result.id);
+      const cropProtectionApplication = await this.getCropProtectionApplicationById(result.id);
       return cropProtectionApplication!;
     },
     async deleteCropProtectionApplication(id: string): Promise<void> {
       return rlsDb.rls(async (tx) => {
-        await tx
-          .delete(cropProtectionApplications)
-          .where(eq(cropProtectionApplications.id, id));
+        await tx.delete(cropProtectionApplications).where(eq(cropProtectionApplications.id, id));
       });
     },
     async getCropProtectionApplicationYears(): Promise<string[]> {
@@ -234,13 +201,7 @@ export function cropProtectionApplicationsApi(rlsDb: RlsDb) {
           orderBy: { dateTime: "asc" },
         });
 
-        return Array.from(
-          new Set(
-            result.map((application) =>
-              application.dateTime.getFullYear().toString(),
-            ),
-          ),
-        );
+        return Array.from(new Set(result.map((application) => application.dateTime.getFullYear().toString())));
       });
     },
     async getCropProtectionApplicationSummaryForFarm(): Promise<CropProtectionApplicationSummary> {
@@ -251,9 +212,7 @@ export function cropProtectionApplicationsApi(rlsDb: RlsDb) {
         return mapToMonthlySummary(result);
       });
     },
-    async getCropProtectionApplicationSummaryForPlot(
-      plotId: string,
-    ): Promise<CropProtectionApplicationSummary> {
+    async getCropProtectionApplicationSummaryForPlot(plotId: string): Promise<CropProtectionApplicationSummary> {
       return rlsDb.rls(async (tx) => {
         const result = await tx.query.cropProtectionApplications.findMany({
           with: { product: true },
@@ -263,7 +222,7 @@ export function cropProtectionApplicationsApi(rlsDb: RlsDb) {
       });
     },
     async createCropProtectionApplicationPreset(
-      input: CropProtectionApplicationPresetCreateInput,
+      input: CropProtectionApplicationPresetCreateInput
     ): Promise<CropProtectionApplicationPreset> {
       return rlsDb.rls(async (tx) => {
         const [preset] = await tx
@@ -273,18 +232,14 @@ export function cropProtectionApplicationsApi(rlsDb: RlsDb) {
         return preset;
       });
     },
-    async getCropProtectionApplicationPresets(): Promise<
-      CropProtectionApplicationPreset[]
-    > {
+    async getCropProtectionApplicationPresets(): Promise<CropProtectionApplicationPreset[]> {
       return rlsDb.rls(async (tx) => {
         return tx.query.cropProtectionApplicationPresets.findMany({
           orderBy: { name: "asc" },
         });
       });
     },
-    async getCropProtectionApplicationPresetById(
-      id: string,
-    ): Promise<CropProtectionApplicationPreset | undefined> {
+    async getCropProtectionApplicationPresetById(id: string): Promise<CropProtectionApplicationPreset | undefined> {
       return rlsDb.rls(async (tx) => {
         return tx.query.cropProtectionApplicationPresets.findFirst({
           where: { id },
@@ -293,7 +248,7 @@ export function cropProtectionApplicationsApi(rlsDb: RlsDb) {
     },
     async updateCropProtectionApplicationPreset(
       id: string,
-      input: CropProtectionApplicationPresetUpdateInput,
+      input: CropProtectionApplicationPresetUpdateInput
     ): Promise<CropProtectionApplicationPreset> {
       return rlsDb.rls(async (tx) => {
         const [preset] = await tx
@@ -306,9 +261,7 @@ export function cropProtectionApplicationsApi(rlsDb: RlsDb) {
     },
     async deleteCropProtectionApplicationPreset(id: string): Promise<void> {
       return rlsDb.rls(async (tx) => {
-        await tx
-          .delete(cropProtectionApplicationPresets)
-          .where(eq(cropProtectionApplicationPresets.id, id));
+        await tx.delete(cropProtectionApplicationPresets).where(eq(cropProtectionApplicationPresets.id, id));
       });
     },
   };
@@ -320,16 +273,13 @@ function mapToMonthlySummary(
     amountPerUnit: number;
     dateTime: Date;
     product: { id: string; name: string; unit: CropProtectionUnit };
-  }[],
+  }[]
 ) {
   const applications = result.reduce<{
     [key: string]: {
       month: number;
       year: number;
-      appliedCropProtections: Record<
-        string,
-        { totalAmount: number; unit: CropProtectionUnit; productName: string }
-      >;
+      appliedCropProtections: Record<string, { totalAmount: number; unit: CropProtectionUnit; productName: string }>;
     };
   }>((acc, application) => {
     const date = application.dateTime;
@@ -357,18 +307,15 @@ function mapToMonthlySummary(
         productName: product.name,
       };
     } else {
-      acc[key].appliedCropProtections[product.id].totalAmount +=
-        application.numberOfUnits * application.amountPerUnit;
+      acc[key].appliedCropProtections[product.id].totalAmount += application.numberOfUnits * application.amountPerUnit;
     }
     return acc;
   }, {});
   return {
-    monthlyApplications: Object.values(applications).map(
-      ({ year, month, appliedCropProtections }) => ({
-        year,
-        month,
-        appliedCropProtections: Object.values(appliedCropProtections),
-      }),
-    ),
+    monthlyApplications: Object.values(applications).map(({ year, month, appliedCropProtections }) => ({
+      year,
+      month,
+      appliedCropProtections: Object.values(appliedCropProtections),
+    })),
   };
 }

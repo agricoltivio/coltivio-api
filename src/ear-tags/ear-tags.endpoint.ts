@@ -57,10 +57,7 @@ export const createEarTagRangeEndpoint = farmEndpointFactory.build({
     count: z.number(),
   }),
   handler: async ({ input, ctx: { earTags } }) => {
-    const result = await earTags.createEarTagRange(
-      input.fromNumber,
-      input.toNumber,
-    );
+    const result = await earTags.createEarTagRange(input.fromNumber, input.toNumber);
     return {
       result,
       count: result.length,

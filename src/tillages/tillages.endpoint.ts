@@ -58,7 +58,7 @@ export const getPlotTillagesEndpoint = farmEndpointFactory.build({
     result: z.array(tillagesResponseSchema),
     count: z.number(),
   }),
-  handler: async ({ input, ctx: { tillages, farmId } }) => {
+  handler: async ({ input, ctx: { tillages } }) => {
     const result = await tillages.getTillagesForPlot(input.plotId);
     return {
       result,

@@ -1,13 +1,8 @@
 import createHttpError from "http-errors";
 import { ez } from "express-zod-api";
 import { z } from "zod";
-import {
-  frequencySchema,
-  taskLinkTypeSchema,
-  taskStatusSchema,
-  weekdaySchema,
-} from "../db/schema";
-import { farmEndpointFactory } from "../endpoint-factory";
+import { frequencySchema, taskLinkTypeSchema, taskStatusSchema, weekdaySchema } from "../db/schema";
+import { membershipEndpointFactory } from "../endpoint-factory";
 
 // ─── Output schemas ───────────────────────────────────────────────────────────
 
@@ -110,7 +105,7 @@ const taskUpdateSchema = z.object({
 
 // ─── Endpoints ────────────────────────────────────────────────────────────────
 
-export const listTasksEndpoint = farmEndpointFactory.build({
+export const listTasksEndpoint = membershipEndpointFactory.build({
   method: "get",
   input: z.object({
     status: taskStatusSchema.optional(),
@@ -131,7 +126,7 @@ export const listTasksEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const createTaskEndpoint = farmEndpointFactory.build({
+export const createTaskEndpoint = membershipEndpointFactory.build({
   method: "post",
   input: taskCreateSchema,
   output: taskWithLinksSchema,
@@ -147,12 +142,12 @@ export const createTaskEndpoint = farmEndpointFactory.build({
         links: input.links,
         checklistItems: input.checklistItems,
       },
-      user.id,
+      user.id
     );
   },
 });
 
-export const getTaskByIdEndpoint = farmEndpointFactory.build({
+export const getTaskByIdEndpoint = membershipEndpointFactory.build({
   method: "get",
   input: z.object({ taskId: z.string() }),
   output: taskWithLinksSchema,
@@ -165,7 +160,7 @@ export const getTaskByIdEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const updateTaskEndpoint = farmEndpointFactory.build({
+export const updateTaskEndpoint = membershipEndpointFactory.build({
   method: "patch",
   input: z.object({ taskId: z.string() }).merge(taskUpdateSchema),
   output: taskWithLinksSchema,
@@ -178,7 +173,7 @@ export const updateTaskEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const deleteTaskEndpoint = farmEndpointFactory.build({
+export const deleteTaskEndpoint = membershipEndpointFactory.build({
   method: "delete",
   input: z.object({ taskId: z.string() }),
   output: z.object({ success: z.boolean() }),
@@ -192,7 +187,7 @@ export const deleteTaskEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const setTaskStatusEndpoint = farmEndpointFactory.build({
+export const setTaskStatusEndpoint = membershipEndpointFactory.build({
   method: "patch",
   input: z.object({
     taskId: z.string(),
@@ -207,16 +202,13 @@ export const setTaskStatusEndpoint = farmEndpointFactory.build({
     if (!existing) {
       throw createHttpError(404, "Task not found");
     }
-    const { task: updated, nextTaskId } = await tasks.setTaskStatus(
-      input.taskId,
-      input.status,
-    );
+    const { task: updated, nextTaskId } = await tasks.setTaskStatus(input.taskId, input.status);
     // Merge updated scalar fields over the enriched existing shape for the response
     return { task: { ...existing, ...updated }, nextTaskId };
   },
 });
 
-export const setChecklistItemDoneEndpoint = farmEndpointFactory.build({
+export const setChecklistItemDoneEndpoint = membershipEndpointFactory.build({
   method: "patch",
   input: z.object({
     taskId: z.string(),

@@ -1,9 +1,6 @@
 import createHttpError from "http-errors";
 import { z } from "zod";
-import {
-  authenticatedEndpointFactory,
-  farmEndpointFactory,
-} from "../endpoint-factory";
+import { authenticatedEndpointFactory, farmEndpointFactory, membershipEndpointFactory } from "../endpoint-factory";
 import { userSchema } from "../user/users.endpoint";
 
 const inviteSchema = z.object({
@@ -25,7 +22,7 @@ export const listFarmInvitesEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const createFarmInviteEndpoint = farmEndpointFactory.build({
+export const createFarmInviteEndpoint = membershipEndpointFactory.build({
   method: "post",
   input: z.object({ email: z.string().email() }),
   output: inviteSchema,

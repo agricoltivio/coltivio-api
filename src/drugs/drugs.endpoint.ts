@@ -1,10 +1,6 @@
 import createHttpError from "http-errors";
 import { z } from "zod";
-import {
-  animalTypeSchema,
-  drugDosePerUnitSchema,
-  drugDoseUnitSchema,
-} from "../db/schema";
+import { animalTypeSchema, drugDosePerUnitSchema, drugDoseUnitSchema } from "../db/schema";
 import { farmEndpointFactory } from "../endpoint-factory";
 
 export const drugTreatmentSchema = z.object({

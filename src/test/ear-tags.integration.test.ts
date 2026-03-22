@@ -12,12 +12,7 @@ describe("Ear Tags", () => {
   it("creates a range of ear tags", async () => {
     const { jwt, farmId } = await createUserWithFarm();
 
-    const res = await request(
-      "POST",
-      "/v1/earTags/range",
-      { fromNumber: "CH100", toNumber: "CH105" },
-      jwt,
-    );
+    const res = await request("POST", "/v1/earTags/range", { fromNumber: "CH100", toNumber: "CH105" }, jwt);
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
       data: { result: Array<{ number: string; farmId: string }>; count: number };
@@ -38,12 +33,7 @@ describe("Ear Tags", () => {
 
   it("lists all ear tags", async () => {
     const { jwt } = await createUserWithFarm();
-    await request(
-      "POST",
-      "/v1/earTags/range",
-      { fromNumber: "CH001", toNumber: "CH003" },
-      jwt,
-    );
+    await request("POST", "/v1/earTags/range", { fromNumber: "CH001", toNumber: "CH003" }, jwt);
 
     const res = await request("GET", "/v1/earTags", undefined, jwt);
     expect(res.status).toBe(200);
@@ -53,12 +43,7 @@ describe("Ear Tags", () => {
 
   it("lists available (unassigned) ear tags", async () => {
     const { jwt } = await createUserWithFarm();
-    await request(
-      "POST",
-      "/v1/earTags/range",
-      { fromNumber: "CH010", toNumber: "CH012" },
-      jwt,
-    );
+    await request("POST", "/v1/earTags/range", { fromNumber: "CH010", toNumber: "CH012" }, jwt);
 
     const res = await request("GET", "/v1/earTags/available", undefined, jwt);
     expect(res.status).toBe(200);
@@ -69,19 +54,9 @@ describe("Ear Tags", () => {
 
   it("deletes a range of ear tags", async () => {
     const { jwt } = await createUserWithFarm();
-    await request(
-      "POST",
-      "/v1/earTags/range",
-      { fromNumber: "CH020", toNumber: "CH025" },
-      jwt,
-    );
+    await request("POST", "/v1/earTags/range", { fromNumber: "CH020", toNumber: "CH025" }, jwt);
 
-    const delRes = await request(
-      "DELETE",
-      "/v1/earTags/range?fromNumber=CH020&toNumber=CH022",
-      undefined,
-      jwt,
-    );
+    const delRes = await request("DELETE", "/v1/earTags/range?fromNumber=CH020&toNumber=CH022", undefined, jwt);
     expect(delRes.status).toBe(200);
     const delBody = (await delRes.json()) as {
       data: { deletedCount: number; skippedAssigned: string[] };

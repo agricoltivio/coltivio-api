@@ -1,14 +1,8 @@
-import { describe, test, expect } from "@jest/globals";
+import { describe, expect, test } from "@jest/globals";
 import { addDays } from "date-fns";
-import {
-  expandOutdoorSchedule,
-  buildOutdoorJournal,
-  OutdoorJournalEntry,
-} from "./outdoor-journal";
 import { getAnimalCategoryTransitions } from "./animal-key-mapping";
 import type {
   Animal,
-  AnimalCategory,
   AnimalSex,
   AnimalType,
   CustomOutdoorJournalCategory,
@@ -16,6 +10,8 @@ import type {
   HerdMembership,
   OutdoorScheduleWithRecurrence,
 } from "./animals";
+import { hasScheduleOverlap } from "./animals";
+import { buildOutdoorJournal, expandOutdoorSchedule } from "./outdoor-journal";
 
 // --- Helpers ---
 
@@ -75,7 +71,7 @@ function makeSchedule(overrides: {
 function makeRecurrence(
   overrides: Partial<NonNullable<OutdoorScheduleWithRecurrence["recurrence"]>> & {
     frequency: "weekly" | "monthly" | "yearly";
-  },
+  }
 ): NonNullable<OutdoorScheduleWithRecurrence["recurrence"]> {
   return {
     id: nextId(),
@@ -97,7 +93,7 @@ type AnimalWithCustomCategories = Animal & {
 function makeMembership(
   animal: AnimalWithCustomCategories,
   fromDate: Date,
-  toDate?: Date | null,
+  toDate?: Date | null
 ): HerdMembership & { animal: AnimalWithCustomCategories } {
   return {
     id: nextId(),
@@ -117,7 +113,7 @@ type TestHerd = Herd & {
 
 function makeHerd(
   memberships: (HerdMembership & { animal: AnimalWithCustomCategories })[],
-  schedules: OutdoorScheduleWithRecurrence[],
+  schedules: OutdoorScheduleWithRecurrence[]
 ): TestHerd {
   return {
     id: "herd-1",
@@ -137,9 +133,7 @@ describe("expandOutdoorSchedule", () => {
       endDate: d("2025-03-31"),
     });
     const ranges = expandOutdoorSchedule(schedule, d("2025-01-01"), d("2025-12-31"));
-    expect(ranges).toEqual([
-      { startDate: d("2025-03-01"), endDate: d("2025-03-31") },
-    ]);
+    expect(ranges).toEqual([{ startDate: d("2025-03-01"), endDate: d("2025-03-31") }]);
   });
 
   test("no recurrence: clamps to query window", () => {
@@ -148,9 +142,7 @@ describe("expandOutdoorSchedule", () => {
       endDate: d("2025-04-15"),
     });
     const ranges = expandOutdoorSchedule(schedule, d("2025-03-01"), d("2025-03-31"));
-    expect(ranges).toEqual([
-      { startDate: d("2025-03-01"), endDate: d("2025-03-31") },
-    ]);
+    expect(ranges).toEqual([{ startDate: d("2025-03-01"), endDate: d("2025-03-31") }]);
   });
 
   test("no recurrence: returns empty when outside query window", () => {
@@ -168,9 +160,7 @@ describe("expandOutdoorSchedule", () => {
       endDate: null,
     });
     const ranges = expandOutdoorSchedule(schedule, d("2025-01-01"), d("2025-12-31"));
-    expect(ranges).toEqual([
-      { startDate: d("2025-05-10"), endDate: d("2025-12-31") },
-    ]);
+    expect(ranges).toEqual([{ startDate: d("2025-05-10"), endDate: d("2025-12-31") }]);
   });
 
   test("no recurrence: open-ended schedule clamps to query window", () => {
@@ -179,9 +169,7 @@ describe("expandOutdoorSchedule", () => {
       endDate: null,
     });
     const ranges = expandOutdoorSchedule(schedule, d("2025-04-01"), d("2025-06-30"));
-    expect(ranges).toEqual([
-      { startDate: d("2025-04-01"), endDate: d("2025-06-30") },
-    ]);
+    expect(ranges).toEqual([{ startDate: d("2025-04-01"), endDate: d("2025-06-30") }]);
   });
 
   test("yearly recurrence: generates occurrences across years", () => {
@@ -281,7 +269,10 @@ describe("expandOutdoorSchedule", () => {
     const schedule = makeSchedule({
       startDate: d("2025-01-06"),
       endDate: d("2025-01-06"),
-      recurrence: makeRecurrence({ frequency: "weekly", byWeekday: ["MO", "WE"] }),
+      recurrence: makeRecurrence({
+        frequency: "weekly",
+        byWeekday: ["MO", "WE"],
+      }),
     });
     const ranges = expandOutdoorSchedule(schedule, d("2025-01-06"), d("2025-01-19"));
     // Week 1: MO=6, WE=8; Week 2: MO=13, WE=15
@@ -320,14 +311,8 @@ describe("getAnimalCategoryTransitions", () => {
       usage: "other" as const,
       dateOfBirth: d("2025-01-01"),
     };
-    const transitions = getAnimalCategoryTransitions(
-      animal,
-      d("2025-06-01"),
-      d("2025-08-01"),
-    );
-    expect(transitions).toEqual([
-      { category: "D3", startDate: d("2025-06-01"), endDate: d("2025-08-01") },
-    ]);
+    const transitions = getAnimalCategoryTransitions(animal, d("2025-06-01"), d("2025-08-01"));
+    expect(transitions).toEqual([{ category: "D3", startDate: d("2025-06-01"), endDate: d("2025-08-01") }]);
   });
 
   test("female sheep transitions from D3 to D1 at 365 days", () => {
@@ -339,11 +324,7 @@ describe("getAnimalCategoryTransitions", () => {
       dateOfBirth: d("2024-01-01"),
     };
     const transitionDate = addDays(d("2024-01-01"), 365); // 2024-12-31
-    const transitions = getAnimalCategoryTransitions(
-      animal,
-      d("2024-12-01"),
-      d("2025-02-01"),
-    );
+    const transitions = getAnimalCategoryTransitions(animal, d("2024-12-01"), d("2025-02-01"));
     expect(transitions).toHaveLength(2);
     expect(transitions[0].category).toBe("D3");
     expect(transitions[0].startDate).toEqual(d("2024-12-01"));
@@ -361,11 +342,7 @@ describe("getAnimalCategoryTransitions", () => {
       dateOfBirth: d("2024-06-01"),
     };
     // 365 days from 2024-06-01 = 2025-06-01
-    const transitions = getAnimalCategoryTransitions(
-      animal,
-      d("2025-05-01"),
-      d("2025-07-01"),
-    );
+    const transitions = getAnimalCategoryTransitions(animal, d("2025-05-01"), d("2025-07-01"));
     expect(transitions).toHaveLength(2);
     expect(transitions[0].category).toBe("D3");
     expect(transitions[1].category).toBe("D2");
@@ -380,11 +357,7 @@ describe("getAnimalCategoryTransitions", () => {
       dateOfBirth: d("2024-01-01"),
     };
     // 366 days from 2024-01-01 = 2025-01-02
-    const transitions = getAnimalCategoryTransitions(
-      animal,
-      d("2024-12-01"),
-      d("2025-02-01"),
-    );
+    const transitions = getAnimalCategoryTransitions(animal, d("2024-12-01"), d("2025-02-01"));
     expect(transitions).toHaveLength(2);
     expect(transitions[0].category).toBe("A8");
     expect(transitions[1].category).toBe("A7");
@@ -400,11 +373,7 @@ describe("getAnimalCategoryTransitions", () => {
       dateOfBirth: d("2023-01-01"),
     };
     // 730 days from 2023-01-01 = 2024-12-31
-    const transitions = getAnimalCategoryTransitions(
-      animal,
-      d("2024-12-01"),
-      d("2025-02-01"),
-    );
+    const transitions = getAnimalCategoryTransitions(animal, d("2024-12-01"), d("2025-02-01"));
     expect(transitions).toHaveLength(2);
     expect(transitions[0].category).toBe("A7");
     expect(transitions[1].category).toBe("A6");
@@ -417,11 +386,7 @@ describe("getAnimalCategoryTransitions", () => {
       usage: "other" as const,
       dateOfBirth: d("2020-01-01"),
     };
-    const transitions = getAnimalCategoryTransitions(
-      animal,
-      d("2025-06-01"),
-      d("2025-08-01"),
-    );
+    const transitions = getAnimalCategoryTransitions(animal, d("2025-06-01"), d("2025-08-01"));
     // A1 requires milking, A2 requires 366+ days (but lower priority than A3?)
     // Actually looking at the rules: A1 (milking+366d), A2 (female+366d), A3 (female+365d)
     // A2 matches first (366 days, female, no milking requirement beyond A1)
@@ -436,11 +401,7 @@ describe("getAnimalCategoryTransitions", () => {
       usage: "milk" as const,
       dateOfBirth: d("2020-01-01"),
     };
-    const transitions = getAnimalCategoryTransitions(
-      animal,
-      d("2025-06-01"),
-      d("2025-08-01"),
-    );
+    const transitions = getAnimalCategoryTransitions(animal, d("2025-06-01"), d("2025-08-01"));
     expect(transitions).toHaveLength(1);
     expect(transitions[0].category).toBe("A1");
   });
@@ -454,11 +415,7 @@ describe("getAnimalCategoryTransitions", () => {
     };
     // 900 days from 2022-06-01 = 2024-11-17
     const transitionDate = addDays(d("2022-06-01"), 900);
-    const transitions = getAnimalCategoryTransitions(
-      animal,
-      d("2024-10-01"),
-      d("2025-01-01"),
-    );
+    const transitions = getAnimalCategoryTransitions(animal, d("2024-10-01"), d("2025-01-01"));
     expect(transitions).toHaveLength(2);
     expect(transitions[0].category).toBe("B3");
     expect(transitions[1].category).toBe("B1");
@@ -473,11 +430,7 @@ describe("getAnimalCategoryTransitions", () => {
       usage: "other" as const,
       dateOfBirth: d("2024-01-01"),
     };
-    const transitions = getAnimalCategoryTransitions(
-      animal,
-      d("2025-01-01"),
-      d("2025-06-01"),
-    );
+    const transitions = getAnimalCategoryTransitions(animal, d("2025-01-01"), d("2025-06-01"));
     expect(transitions).toHaveLength(1);
     expect(transitions[0].category).toBeNull();
   });
@@ -494,7 +447,7 @@ describe("buildOutdoorJournal", () => {
     });
     const herd = makeHerd(
       [makeMembership(animal, d("2024-01-01"))],
-      [makeSchedule({ startDate: d("2025-05-01"), endDate: d("2025-05-31") })],
+      [makeSchedule({ startDate: d("2025-05-01"), endDate: d("2025-05-31") })]
     );
     const result = buildOutdoorJournal([herd], d("2025-01-01"), d("2025-12-31"));
     expect(result.uncategorizedAnimals).toHaveLength(0);
@@ -514,7 +467,7 @@ describe("buildOutdoorJournal", () => {
     });
     const herd = makeHerd(
       [makeMembership(animal, d("2024-07-01"))],
-      [makeSchedule({ startDate: d("2025-05-01"), endDate: d("2025-09-30") })],
+      [makeSchedule({ startDate: d("2025-05-01"), endDate: d("2025-09-30") })]
     );
     const result = buildOutdoorJournal([herd], d("2025-01-01"), d("2025-12-31"));
     expect(result.uncategorizedAnimals).toHaveLength(0);
@@ -541,7 +494,7 @@ describe("buildOutdoorJournal", () => {
     });
     const herd = makeHerd(
       [makeMembership(animal, d("2024-01-01"))],
-      [makeSchedule({ startDate: d("2025-05-01"), endDate: d("2025-05-31") })],
+      [makeSchedule({ startDate: d("2025-05-01"), endDate: d("2025-05-31") })]
     );
     const result = buildOutdoorJournal([herd], d("2025-01-01"), d("2025-12-31"));
     expect(result.entries).toHaveLength(0);
@@ -556,7 +509,7 @@ describe("buildOutdoorJournal", () => {
     // Membership ends before schedule ends
     const herd = makeHerd(
       [makeMembership(animal, d("2024-01-01"), d("2025-05-15"))],
-      [makeSchedule({ startDate: d("2025-05-01"), endDate: d("2025-05-31") })],
+      [makeSchedule({ startDate: d("2025-05-01"), endDate: d("2025-05-31") })]
     );
     const result = buildOutdoorJournal([herd], d("2025-01-01"), d("2025-12-31"));
     expect(result.entries).toHaveLength(1);
@@ -571,7 +524,7 @@ describe("buildOutdoorJournal", () => {
     });
     const herd = makeHerd(
       [makeMembership(animal, d("2024-01-01"))],
-      [makeSchedule({ startDate: d("2025-05-01"), endDate: d("2025-05-31") })],
+      [makeSchedule({ startDate: d("2025-05-01"), endDate: d("2025-05-31") })]
     );
     const result = buildOutdoorJournal([herd], d("2025-01-01"), d("2025-12-31"));
     expect(result.entries).toHaveLength(0);
@@ -593,11 +546,8 @@ describe("buildOutdoorJournal", () => {
       dateOfBirth: d("2020-06-01"),
     });
     const herd = makeHerd(
-      [
-        makeMembership(animal1, d("2024-01-01")),
-        makeMembership(animal2, d("2024-01-01")),
-      ],
-      [makeSchedule({ startDate: d("2025-05-01"), endDate: d("2025-05-31") })],
+      [makeMembership(animal1, d("2024-01-01")), makeMembership(animal2, d("2024-01-01"))],
+      [makeSchedule({ startDate: d("2025-05-01"), endDate: d("2025-05-31") })]
     );
     const result = buildOutdoorJournal([herd], d("2025-01-01"), d("2025-12-31"));
     expect(result.entries).toHaveLength(1);
@@ -617,11 +567,8 @@ describe("buildOutdoorJournal", () => {
       dateOfBirth: d("2020-01-01"), // D2
     });
     const herd = makeHerd(
-      [
-        makeMembership(femaleSheep, d("2024-01-01")),
-        makeMembership(maleSheep, d("2024-01-01")),
-      ],
-      [makeSchedule({ startDate: d("2025-05-01"), endDate: d("2025-05-31") })],
+      [makeMembership(femaleSheep, d("2024-01-01")), makeMembership(maleSheep, d("2024-01-01"))],
+      [makeSchedule({ startDate: d("2025-05-01"), endDate: d("2025-05-31") })]
     );
     const result = buildOutdoorJournal([herd], d("2025-01-01"), d("2025-12-31"));
     const categories = result.entries.map((e) => e.category).sort();
@@ -645,7 +592,7 @@ describe("buildOutdoorJournal", () => {
           endDate: d("2025-09-29"),
           recurrence: makeRecurrence({ frequency: "weekly" }),
         }),
-      ],
+      ]
     );
     const result = buildOutdoorJournal([herd], d("2025-09-01"), d("2025-10-31"));
 
@@ -669,12 +616,17 @@ describe("buildOutdoorJournal", () => {
     });
     const herd1 = makeHerd(
       [makeMembership(animal1, d("2024-01-01"))],
-      [makeSchedule({ startDate: d("2025-05-01"), endDate: d("2025-05-31") })],
+      [makeSchedule({ startDate: d("2025-05-01"), endDate: d("2025-05-31") })]
     );
     const herd2: TestHerd = {
       ...makeHerd(
         [makeMembership(animal2, d("2024-01-01"))],
-        [makeSchedule({ startDate: d("2025-05-01"), endDate: d("2025-05-31") })],
+        [
+          makeSchedule({
+            startDate: d("2025-05-01"),
+            endDate: d("2025-05-31"),
+          }),
+        ]
       ),
       id: "herd-2",
     };
@@ -702,7 +654,7 @@ describe("buildOutdoorJournal", () => {
     ];
     const herd = makeHerd(
       [makeMembership(animal, d("2024-01-01"))],
-      [makeSchedule({ startDate: d("2025-05-01"), endDate: d("2025-05-31") })],
+      [makeSchedule({ startDate: d("2025-05-01"), endDate: d("2025-05-31") })]
     );
     const result = buildOutdoorJournal([herd], d("2025-01-01"), d("2025-12-31"));
     expect(result.uncategorizedAnimals).toHaveLength(0);
@@ -730,7 +682,7 @@ describe("buildOutdoorJournal", () => {
     ];
     const herd = makeHerd(
       [makeMembership(animal, d("2024-01-01"))],
-      [makeSchedule({ startDate: d("2025-05-01"), endDate: d("2025-05-31") })],
+      [makeSchedule({ startDate: d("2025-05-01"), endDate: d("2025-05-31") })]
     );
     const result = buildOutdoorJournal([herd], d("2025-01-01"), d("2025-12-31"));
     expect(result.uncategorizedAnimals).toHaveLength(0);
@@ -758,7 +710,7 @@ describe("buildOutdoorJournal", () => {
     ];
     const herd = makeHerd(
       [makeMembership(animal, d("2024-01-01"))],
-      [makeSchedule({ startDate: d("2025-05-01"), endDate: d("2025-05-31") })],
+      [makeSchedule({ startDate: d("2025-05-01"), endDate: d("2025-05-31") })]
     );
     const result = buildOutdoorJournal([herd], d("2025-01-01"), d("2025-12-31"));
     // Has a categorized fragment from the custom category
@@ -787,7 +739,7 @@ describe("buildOutdoorJournal", () => {
     ];
     const herd = makeHerd(
       [makeMembership(animal, d("2024-01-01"))],
-      [makeSchedule({ startDate: d("2025-05-01"), endDate: d("2025-05-31") })],
+      [makeSchedule({ startDate: d("2025-05-01"), endDate: d("2025-05-31") })]
     );
     const result = buildOutdoorJournal([herd], d("2025-01-01"), d("2025-12-31"));
     expect(result.uncategorizedAnimals).toHaveLength(0);
@@ -803,7 +755,7 @@ describe("buildOutdoorJournal", () => {
     });
     const herd = makeHerd(
       [makeMembership(animal, d("2024-01-01"))],
-      [makeSchedule({ startDate: d("2025-05-01"), endDate: null })],
+      [makeSchedule({ startDate: d("2025-05-01"), endDate: null })]
     );
     const result = buildOutdoorJournal([herd], d("2025-01-01"), d("2025-12-31"));
     expect(result.uncategorizedAnimals).toHaveLength(0);
@@ -826,14 +778,179 @@ describe("buildOutdoorJournal", () => {
       dateOfBirth: d("2020-01-01"), // D1
     });
     const herd = makeHerd(
-      [
-        makeMembership(goat, d("2024-01-01")),
-        makeMembership(sheep, d("2024-01-01")),
-      ],
-      [makeSchedule({ startDate: d("2025-05-01"), endDate: d("2025-05-31") })],
+      [makeMembership(goat, d("2024-01-01")), makeMembership(sheep, d("2024-01-01"))],
+      [makeSchedule({ startDate: d("2025-05-01"), endDate: d("2025-05-31") })]
     );
     const result = buildOutdoorJournal([herd], d("2025-01-01"), d("2025-12-31"));
     expect(result.entries[0].category).toBe("C1");
     expect(result.entries[1].category).toBe("D1");
+  });
+});
+
+// --- hasScheduleOverlap ---
+// New API: takes OutdoorScheduleWithRecurrence[] and checks all pairs.
+
+function sched(startDate: string, endDate: string | null, recurrence?: { interval: number; until?: string } | null) {
+  return makeSchedule({
+    startDate: d(startDate),
+    endDate: endDate ? d(endDate) : null,
+    recurrence: recurrence
+      ? makeRecurrence({
+          frequency: "yearly",
+          interval: recurrence.interval,
+          until: recurrence.until,
+        })
+      : undefined,
+  });
+}
+
+describe("hasScheduleOverlap", () => {
+  // ---------------------------------------------------------------------------
+  // Non-recurring
+  // ---------------------------------------------------------------------------
+
+  test("non-recurring: clear overlap (May–Aug vs Jul–Sep)", () => {
+    expect(hasScheduleOverlap([sched("2025-05-01", "2025-08-31"), sched("2025-07-01", "2025-09-30")])).toBe(true);
+  });
+
+  test("non-recurring: adjacent months do not overlap (May–Jun vs Jul–Sep)", () => {
+    expect(hasScheduleOverlap([sched("2025-05-01", "2025-06-30"), sched("2025-07-01", "2025-09-30")])).toBe(false);
+  });
+
+  test("non-recurring: year-crossing range overlaps a range in the spanned second year", () => {
+    expect(hasScheduleOverlap([sched("2025-11-01", "2026-03-31"), sched("2026-02-01", "2026-04-30")])).toBe(true);
+  });
+
+  test("non-recurring: adjacent year-crossing ranges do not overlap (Nov–Dec vs Jan–Mar next year)", () => {
+    expect(hasScheduleOverlap([sched("2025-11-01", "2025-12-31"), sched("2026-01-01", "2026-03-31")])).toBe(false);
+  });
+
+  test("non-recurring: single schedule never overlaps itself", () => {
+    expect(hasScheduleOverlap([sched("2025-05-01", "2025-08-31")])).toBe(false);
+  });
+
+  test("non-recurring: identical single-day schedules overlap", () => {
+    expect(hasScheduleOverlap([sched("2025-06-15", "2025-06-15"), sched("2025-06-15", "2025-06-15")])).toBe(true);
+  });
+
+  // ---------------------------------------------------------------------------
+  // Recurring (yearly)
+  // ---------------------------------------------------------------------------
+
+  test("recurring: both annual, overlapping day windows → overlap", () => {
+    expect(
+      hasScheduleOverlap([
+        sched("2025-05-01", "2025-08-31", { interval: 1 }),
+        sched("2025-07-01", "2025-09-30", { interval: 1 }),
+      ])
+    ).toBe(true);
+  });
+
+  test("recurring: both annual, non-overlapping day windows → no overlap", () => {
+    expect(
+      hasScheduleOverlap([
+        sched("2025-05-01", "2025-08-31", { interval: 1 }),
+        sched("2025-09-01", "2025-11-30", { interval: 1 }),
+      ])
+    ).toBe(false);
+  });
+
+  test("recurring: year-crossing annual (Nov–Mar) overlaps annual Jan–Feb", () => {
+    expect(
+      hasScheduleOverlap([
+        sched("2025-11-01", "2026-03-31", { interval: 1 }),
+        sched("2026-01-01", "2026-02-28", { interval: 1 }),
+      ])
+    ).toBe(true);
+  });
+
+  test("recurring: year-crossing annual (Nov–Mar) does NOT overlap annual Apr–Oct", () => {
+    expect(
+      hasScheduleOverlap([
+        sched("2025-11-01", "2026-03-31", { interval: 1 }),
+        sched("2025-04-01", "2025-10-31", { interval: 1 }),
+      ])
+    ).toBe(false);
+  });
+
+  test("recurring: annual Nov–Dec does NOT overlap annual Jan–Feb", () => {
+    expect(
+      hasScheduleOverlap([
+        sched("2025-11-01", "2025-12-31", { interval: 1 }),
+        sched("2026-01-01", "2026-02-28", { interval: 1 }),
+      ])
+    ).toBe(false);
+  });
+
+  test("recurring: biennial alternating years → no overlap", () => {
+    expect(
+      hasScheduleOverlap([
+        sched("2025-06-01", "2025-08-31", { interval: 2 }),
+        sched("2026-06-01", "2026-08-31", { interval: 2 }),
+      ])
+    ).toBe(false);
+  });
+
+  test("recurring: biennial same start year, overlapping day windows → overlap", () => {
+    expect(
+      hasScheduleOverlap([
+        sched("2025-06-01", "2025-07-31", { interval: 2 }),
+        sched("2025-07-01", "2025-08-31", { interval: 2 }),
+      ])
+    ).toBe(true);
+  });
+
+  test("recurring: annual with until before second schedule's start year → no overlap", () => {
+    expect(
+      hasScheduleOverlap([
+        sched("2020-06-01", "2020-08-31", { interval: 1, until: "2022-12-31" }),
+        sched("2025-06-01", "2025-08-31", { interval: 1 }),
+      ])
+    ).toBe(false);
+  });
+
+  // ---------------------------------------------------------------------------
+  // Mixed: one recurring, one non-recurring
+  // ---------------------------------------------------------------------------
+
+  test("mixed: recurring annual May–Aug vs one-time May 2025 → overlap", () => {
+    expect(
+      hasScheduleOverlap([sched("2024-05-01", "2024-08-31", { interval: 1 }), sched("2025-05-15", "2025-07-15")])
+    ).toBe(true);
+  });
+
+  test("mixed: recurring annual May–Aug starting 2027 vs one-time May 2025 → no overlap", () => {
+    expect(
+      hasScheduleOverlap([sched("2027-05-01", "2027-08-31", { interval: 1 }), sched("2025-05-15", "2025-07-15")])
+    ).toBe(false);
+  });
+
+  test("mixed: year-crossing annual (Nov–Mar) vs one-time Feb in shared year → overlap", () => {
+    expect(
+      hasScheduleOverlap([sched("2025-11-01", "2026-03-31", { interval: 1 }), sched("2026-02-01", "2026-02-28")])
+    ).toBe(true);
+  });
+
+  test("mixed: year-crossing biennial — occurrence spanning into next year overlaps non-recurring in that year", () => {
+    // Biennial Nov 2022 – Mar 2023; non-recurring Jan 2023 falls in that occurrence.
+    expect(
+      hasScheduleOverlap([sched("2022-11-15", "2023-03-15", { interval: 2 }), sched("2023-01-10", "2023-02-28")])
+    ).toBe(true);
+  });
+
+  test("mixed: year-crossing biennial — non-recurring before first occurrence → no overlap", () => {
+    expect(
+      hasScheduleOverlap([sched("2022-11-15", "2023-03-15", { interval: 2 }), sched("2021-01-10", "2021-02-28")])
+    ).toBe(false);
+  });
+
+  test("three schedules: third overlaps second but not first", () => {
+    expect(
+      hasScheduleOverlap([
+        sched("2025-01-01", "2025-03-31"),
+        sched("2025-06-01", "2025-08-31"),
+        sched("2025-07-01", "2025-09-30"),
+      ])
+    ).toBe(true);
   });
 });

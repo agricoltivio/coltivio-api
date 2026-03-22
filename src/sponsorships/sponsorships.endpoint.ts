@@ -4,7 +4,7 @@ import { z } from "zod";
 import { animalSchema } from "../animals/animals.endpoint";
 import { contactSchema } from "../contacts/contacts.endpoint";
 import { preferredCommunicationSchema } from "../db/schema";
-import { farmEndpointFactory } from "../endpoint-factory";
+import { membershipEndpointFactory } from "../endpoint-factory";
 import { paymentSchema } from "../payments/payments.endpoint";
 import { sponsorshipProgramSchema } from "./sponsorship-programs.endpoint";
 
@@ -47,14 +47,12 @@ const createSponsorshipSchema = z.object({
 
 const updateSponsorshipSchema = createSponsorshipSchema.partial();
 
-export const getSponsorshipByIdEndpoint = farmEndpointFactory.build({
+export const getSponsorshipByIdEndpoint = membershipEndpointFactory.build({
   method: "get",
   input: z.object({ sponsorshipId: z.string() }),
   output: sponsorshipWithRelationsSchema,
   handler: async ({ input, ctx: { sponsorships } }) => {
-    const sponsorship = await sponsorships.getSponsorshipById(
-      input.sponsorshipId,
-    );
+    const sponsorship = await sponsorships.getSponsorshipById(input.sponsorshipId);
     if (!sponsorship) {
       throw createHttpError(404, "Sponsorship not found");
     }
@@ -66,7 +64,7 @@ const sponsorshipWithPaidFlagSchema = sponsorshipWithRelationsSchema.extend({
   paidThisYear: z.boolean(),
 });
 
-export const getFarmSponsorshipsEndpoint = farmEndpointFactory.build({
+export const getFarmSponsorshipsEndpoint = membershipEndpointFactory.build({
   method: "get",
   input: z.object({ onlyActive: z.boolean().optional().default(true) }),
   output: z.object({
@@ -74,17 +72,13 @@ export const getFarmSponsorshipsEndpoint = farmEndpointFactory.build({
     count: z.number(),
   }),
   handler: async ({ input, ctx: { sponsorships, farmId } }) => {
-    const rawResult = await sponsorships.getSponsorshipsForFarm(
-      farmId,
-      input.onlyActive,
-    );
+    const rawResult = await sponsorships.getSponsorshipsForFarm(farmId, input.onlyActive);
     const currentYear = new Date().getFullYear();
     const result = rawResult.map((sponsorship) => {
       const paidThisYear =
         sponsorship.payments
           .filter((p) => new Date(p.date).getFullYear() === currentYear)
-          .reduce((sum, p) => sum + p.amount, 0) >=
-        sponsorship.sponsorshipProgram.yearlyCost;
+          .reduce((sum, p) => sum + p.amount, 0) >= sponsorship.sponsorshipProgram.yearlyCost;
       return { ...sponsorship, paidThisYear };
     });
     return {
@@ -94,7 +88,7 @@ export const getFarmSponsorshipsEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const getContactSponsorshipsEndpoint = farmEndpointFactory.build({
+export const getContactSponsorshipsEndpoint = membershipEndpointFactory.build({
   method: "get",
   input: z.object({
     contactId: z.string(),
@@ -105,10 +99,7 @@ export const getContactSponsorshipsEndpoint = farmEndpointFactory.build({
     count: z.number(),
   }),
   handler: async ({ input, ctx: { sponsorships } }) => {
-    const result = await sponsorships.getSponsorshipsForContact(
-      input.contactId,
-      input.onlyActive,
-    );
+    const result = await sponsorships.getSponsorshipsForContact(input.contactId, input.onlyActive);
     return {
       result,
       count: result.length,
@@ -116,7 +107,7 @@ export const getContactSponsorshipsEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const getAnimalSponsorshipsEndpoint = farmEndpointFactory.build({
+export const getAnimalSponsorshipsEndpoint = membershipEndpointFactory.build({
   method: "get",
   input: z.object({
     animalId: z.string(),
@@ -127,10 +118,7 @@ export const getAnimalSponsorshipsEndpoint = farmEndpointFactory.build({
     count: z.number(),
   }),
   handler: async ({ input, ctx: { sponsorships } }) => {
-    const result = await sponsorships.getSponsorshipsForAnimal(
-      input.animalId,
-      input.onlyActive,
-    );
+    const result = await sponsorships.getSponsorshipsForAnimal(input.animalId, input.onlyActive);
     return {
       result,
       count: result.length,
@@ -138,7 +126,7 @@ export const getAnimalSponsorshipsEndpoint = farmEndpointFactory.build({
   },
 });
 
-// export const getSponsorshipPaymentsEndpoint = farmEndpointFactory.build({
+// export const getSponsorshipPaymentsEndpoint = membershipEndpointFactory.build({
 //   method: "get",
 //   input: z.object({ sponsorshipId: z.string() }),
 //   output: z.object({
@@ -156,7 +144,7 @@ export const getAnimalSponsorshipsEndpoint = farmEndpointFactory.build({
 //   },
 // });
 
-export const createSponsorshipEndpoint = farmEndpointFactory.build({
+export const createSponsorshipEndpoint = membershipEndpointFactory.build({
   method: "post",
   input: createSponsorshipSchema,
   output: sponsorshipSchema,
@@ -165,7 +153,7 @@ export const createSponsorshipEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const updateSponsorshipEndpoint = farmEndpointFactory.build({
+export const updateSponsorshipEndpoint = membershipEndpointFactory.build({
   method: "patch",
   input: updateSponsorshipSchema.extend({
     sponsorshipId: z.string(),
@@ -177,7 +165,7 @@ export const updateSponsorshipEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const deleteSponsorshipEndpoint = farmEndpointFactory.build({
+export const deleteSponsorshipEndpoint = membershipEndpointFactory.build({
   method: "delete",
   input: z.object({ sponsorshipId: z.string() }),
   output: z.object({}),

@@ -13,11 +13,7 @@ export const downloadOutdoorJournalReport = farmEndpointFactory.build({
     fileName: z.string(),
   }),
   handler: async ({ input, ctx }) => {
-    const { buffer, fileName } =
-      await ctx.outdoorJournalReports.generateReportBuffer(
-        input.fromDate,
-        input.toDate,
-      );
+    const { buffer, fileName } = await ctx.outdoorJournalReports.generateReportBuffer(input.fromDate, input.toDate);
     return { base64: buffer.toString("base64"), fileName };
   },
 });
