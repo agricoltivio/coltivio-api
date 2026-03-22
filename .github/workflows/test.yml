@@ -25,9 +25,9 @@ jobs:
 
       - run: npx tsc --noEmit
 
-      - run: prettier --check "src/**/*.ts"
+      - run: npx prettier --check "src/**/*.ts"
 
-      - run: eslint src
+      - run: npx eslint src
 
       - run: yarn test
         env:
