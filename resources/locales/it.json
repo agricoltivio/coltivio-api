@@ -430,6 +430,13 @@
       "greeting": "Ciao {{name}}",
       "intro": "La tua iscrizione ad AgriColtivio è ora terminata. Ti ringraziamo sinceramente per il tempo che hai fatto parte della nostra comunità — è stato un piacere accompagnare te e la tua azienda. I tuoi dati sono conservati e puoi tornare in qualsiasi momento.",
       "cta": "Iscriviti di nuovo"
+    },
+    "cancellation": {
+      "subject": "La tua iscrizione a Coltivio è stata annullata",
+      "greeting": "Ciao {{name}}",
+      "intro": "Abbiamo ricevuto la tua disdetta. La tua iscrizione rimane attiva fino al {{date}} — fino ad allora hai ancora pieno accesso a tutte le funzioni.",
+      "reactivate_hint": "Se cambi idea, puoi riattivare la tua iscrizione in qualsiasi momento nelle impostazioni.",
+      "cta": "Riattiva l'iscrizione"
     }
   },
   "donation_email": {

@@ -1,5 +1,5 @@
 import Stripe from "stripe";
-import { eq } from "drizzle-orm";
+import { eq, and, or, gt, inArray } from "drizzle-orm";
 import createHttpError from "http-errors";
 import { RlsDb } from "../db/db";
 import { getStripe } from "../stripe/stripe";
@@ -16,6 +16,7 @@ import {
   sendRenewalEmail,
   sendFirstPaymentEmail,
   sendPaymentFailedEmail,
+  sendCancellationEmail,
 } from "./membership.email";
 
 export type MembershipStatus = {
@@ -23,6 +24,7 @@ export type MembershipStatus = {
   cancelAtPeriodEnd: boolean;
   autoRenewing: boolean;
   trialEnd: Date | null;
+  cancelledByUser: boolean;
 };
 
 export type FarmMembershipStatus = "none" | "trial" | "active";
@@ -90,14 +92,22 @@ export function membershipApi(db: RlsDb) {
       });
       if (activeTrial) return true;
 
-      const active = await db.admin.query.membershipPayments.findFirst({
-        where: {
-          userId: { in: userIds },
-          status: "succeeded",
-          periodEnd: { gt: new Date(now.getTime() - GRACE_PERIOD_MS) },
-        },
-      });
-      return active !== undefined;
+      // Cancelled users lose grace period — their access ends at periodEnd
+      const active = await db.admin
+        .select({ id: membershipPayments.id })
+        .from(membershipPayments)
+        .where(
+          and(
+            inArray(membershipPayments.userId, userIds),
+            eq(membershipPayments.status, "succeeded"),
+            or(
+              and(eq(membershipPayments.cancelledByUser, false), gt(membershipPayments.periodEnd, new Date(now.getTime() - GRACE_PERIOD_MS))),
+              and(eq(membershipPayments.cancelledByUser, true), gt(membershipPayments.periodEnd, now))
+            )
+          )
+        )
+        .limit(1);
+      return active.length > 0;
     },
 
     async getFarmMembershipStatus(farmId: string): Promise<FarmMembershipStatus> {
@@ -122,14 +132,21 @@ export function membershipApi(db: RlsDb) {
       if (userIds.length === 0) return false;
 
       const now = new Date();
-      const active = await db.admin.query.membershipPayments.findFirst({
-        where: {
-          userId: { in: userIds },
-          status: "succeeded",
-          periodEnd: { gt: new Date(now.getTime() - GRACE_PERIOD_MS) },
-        },
-      });
-      return active !== undefined;
+      const active = await db.admin
+        .select({ id: membershipPayments.id })
+        .from(membershipPayments)
+        .where(
+          and(
+            inArray(membershipPayments.userId, userIds),
+            eq(membershipPayments.status, "succeeded"),
+            or(
+              and(eq(membershipPayments.cancelledByUser, false), gt(membershipPayments.periodEnd, new Date(now.getTime() - GRACE_PERIOD_MS))),
+              and(eq(membershipPayments.cancelledByUser, true), gt(membershipPayments.periodEnd, now))
+            )
+          )
+        )
+        .limit(1);
+      return active.length > 0;
     },
 
     // User-scoped active check (trial OR paid). Used for forum which is not farm-scoped.
@@ -140,19 +157,41 @@ export function membershipApi(db: RlsDb) {
       });
       if (activeTrial) return true;
 
-      const active = await db.admin.query.membershipPayments.findFirst({
-        where: { userId, status: "succeeded", periodEnd: { gt: new Date(now.getTime() - GRACE_PERIOD_MS) } },
-      });
-      return active !== undefined;
+      const active = await db.admin
+        .select({ id: membershipPayments.id })
+        .from(membershipPayments)
+        .where(
+          and(
+            eq(membershipPayments.userId, userId),
+            eq(membershipPayments.status, "succeeded"),
+            or(
+              and(eq(membershipPayments.cancelledByUser, false), gt(membershipPayments.periodEnd, new Date(now.getTime() - GRACE_PERIOD_MS))),
+              and(eq(membershipPayments.cancelledByUser, true), gt(membershipPayments.periodEnd, now))
+            )
+          )
+        )
+        .limit(1);
+      return active.length > 0;
     },
 
     // User-scoped paid-only check (excludes trial). Used for forum write operations.
     async isPaidUser(userId: string): Promise<boolean> {
       const now = new Date();
-      const active = await db.admin.query.membershipPayments.findFirst({
-        where: { userId, status: "succeeded", periodEnd: { gt: new Date(now.getTime() - GRACE_PERIOD_MS) } },
-      });
-      return active !== undefined;
+      const active = await db.admin
+        .select({ id: membershipPayments.id })
+        .from(membershipPayments)
+        .where(
+          and(
+            eq(membershipPayments.userId, userId),
+            eq(membershipPayments.status, "succeeded"),
+            or(
+              and(eq(membershipPayments.cancelledByUser, false), gt(membershipPayments.periodEnd, new Date(now.getTime() - GRACE_PERIOD_MS))),
+              and(eq(membershipPayments.cancelledByUser, true), gt(membershipPayments.periodEnd, now))
+            )
+          )
+        )
+        .limit(1);
+      return active.length > 0;
     },
 
     async startTrial(userId: string): Promise<{ trialEnd: Date }> {
@@ -288,7 +327,30 @@ export function membershipApi(db: RlsDb) {
         where: { userId },
       });
 
-      if (!subscription) throw new Error("No active subscription found for this user");
+      if (!subscription) {
+        // One-time payment user — just clear the cancelled flag, no Stripe interaction needed
+        const latestPayment = await db.admin.query.membershipPayments.findFirst({
+          where: { userId, status: "succeeded" },
+          orderBy: { periodEnd: "desc" },
+        });
+        if (latestPayment) {
+          await db.admin
+            .update(membershipPayments)
+            .set({ cancelledByUser: false })
+            .where(eq(membershipPayments.id, latestPayment.id));
+
+          const profile = await db.admin.query.profiles.findFirst({ where: { id: userId } });
+          if (profile) {
+            await sendReactivationEmail({
+              email: profile.email,
+              fullName: profile.fullName,
+              locale: profile.locale,
+              periodEnd: latestPayment.periodEnd,
+            });
+          }
+        }
+        return { cancelAtPeriodEnd: false };
+      }
 
       await getStripe().subscriptions.update(subscription.stripeSubscriptionId, {
         cancel_at_period_end: false,
@@ -298,6 +360,27 @@ export function membershipApi(db: RlsDb) {
         .update(userSubscriptions)
         .set({ cancelAtPeriodEnd: false })
         .where(eq(userSubscriptions.userId, userId));
+
+      const latestPayment = await db.admin.query.membershipPayments.findFirst({
+        where: { userId, status: "succeeded" },
+        orderBy: { periodEnd: "desc" },
+      });
+      if (latestPayment) {
+        await db.admin
+          .update(membershipPayments)
+          .set({ cancelledByUser: false })
+          .where(eq(membershipPayments.id, latestPayment.id));
+
+        const profile = await db.admin.query.profiles.findFirst({ where: { id: userId } });
+        if (profile) {
+          await sendReactivationEmail({
+            email: profile.email,
+            fullName: profile.fullName,
+            locale: profile.locale,
+            periodEnd: latestPayment.periodEnd,
+          });
+        }
+      }
 
       return { cancelAtPeriodEnd: false };
     },
@@ -320,6 +403,7 @@ export function membershipApi(db: RlsDb) {
         cancelAtPeriodEnd: subscription?.cancelAtPeriodEnd ?? false,
         autoRenewing: subscription !== undefined,
         trialEnd: trial?.endsAt ?? null,
+        cancelledByUser: latestPayment?.cancelledByUser ?? false,
       };
     },
 
@@ -328,16 +412,38 @@ export function membershipApi(db: RlsDb) {
         where: { userId },
       });
 
-      if (!subscription) throw new Error("No active subscription found for this user");
+      if (subscription) {
+        await getStripe().subscriptions.update(subscription.stripeSubscriptionId, {
+          cancel_at_period_end: true,
+        });
+        await db.admin
+          .update(userSubscriptions)
+          .set({ cancelAtPeriodEnd: true })
+          .where(eq(userSubscriptions.userId, userId));
+      }
 
-      await getStripe().subscriptions.update(subscription.stripeSubscriptionId, {
-        cancel_at_period_end: true,
+      // Mark the latest succeeded payment so the expiry cron skips this user
+      const latestPayment = await db.admin.query.membershipPayments.findFirst({
+        where: { userId, status: "succeeded" },
+        orderBy: { periodEnd: "desc" },
       });
+      if (latestPayment) {
+        await db.admin
+          .update(membershipPayments)
+          .set({ cancelledByUser: true })
+          .where(and(eq(membershipPayments.id, latestPayment.id)));
 
-      await db.admin
-        .update(userSubscriptions)
-        .set({ cancelAtPeriodEnd: true })
-        .where(eq(userSubscriptions.userId, userId));
+        const profile = await db.admin.query.profiles.findFirst({ where: { id: userId } });
+        if (profile) {
+          await sendCancellationEmail({
+            email: profile.email,
+            fullName: profile.fullName,
+            locale: profile.locale,
+            periodEnd: latestPayment.periodEnd,
+            reactivateUrl: `${process.env.APP_URL ?? "https://app.coltivio.ch"}/membership`,
+          });
+        }
+      }
 
       return { cancelAtPeriodEnd: true };
     },

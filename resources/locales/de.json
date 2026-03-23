@@ -430,6 +430,13 @@
       "greeting": "Hallo {{name}}",
       "intro": "Deine Mitgliedschaft bei AgriColtivio ist nun beendet. Wir bedanken uns herzlich für die Zeit, die du Teil unserer Gemeinschaft warst — es war uns eine Freude, dich und deinen Betrieb begleiten zu dürfen. Deine Daten bleiben erhalten und du kannst jederzeit zurückkehren.",
       "cta": "Jetzt wieder beitreten"
+    },
+    "cancellation": {
+      "subject": "Deine Coltivio-Mitgliedschaft wurde gekündigt",
+      "greeting": "Hallo {{name}}",
+      "intro": "Wir haben deine Kündigung erhalten. Deine Mitgliedschaft bleibt bis zum {{date}} aktiv — bis dahin hast du weiterhin vollen Zugriff auf alle Funktionen.",
+      "reactivate_hint": "Wenn du es dir anders überlegst, kannst du deine Mitgliedschaft jederzeit in den Einstellungen wieder aktivieren.",
+      "cta": "Mitgliedschaft reaktivieren"
     }
   },
   "donation_email": {

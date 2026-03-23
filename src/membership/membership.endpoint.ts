@@ -23,6 +23,7 @@ export const membershipStatusSchema = z.object({
   cancelAtPeriodEnd: z.boolean(),
   autoRenewing: z.boolean(),
   trialEnd: z.date().nullable(),
+  cancelledByUser: z.boolean(),
 });
 
 const checkoutUrlInput = z.object({

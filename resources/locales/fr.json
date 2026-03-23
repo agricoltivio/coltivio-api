@@ -430,6 +430,13 @@
       "greeting": "Bonjour {{name}}",
       "intro": "Votre adhésion chez AgriColtivio est maintenant terminée. Nous vous remercions sincèrement pour le temps que vous avez fait partie de notre communauté — ce fut un plaisir de vous accompagner, vous et votre exploitation. Vos données sont conservées et vous pouvez revenir à tout moment.",
       "cta": "Rejoindre à nouveau"
+    },
+    "cancellation": {
+      "subject": "Votre adhésion Coltivio a été résiliée",
+      "greeting": "Bonjour {{name}}",
+      "intro": "Nous avons bien reçu votre résiliation. Votre adhésion reste active jusqu'au {{date}} — vous bénéficiez encore d'un accès complet à toutes les fonctionnalités jusqu'à cette date.",
+      "reactivate_hint": "Si vous changez d'avis, vous pouvez réactiver votre adhésion à tout moment dans les paramètres.",
+      "cta": "Réactiver l'adhésion"
     }
   },
   "donation_email": {

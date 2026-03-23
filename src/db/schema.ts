@@ -265,6 +265,7 @@ export const membershipPayments = pgTable.withRLS(
     cardBrand: text(),
     cardExpMonth: integer(),
     cardExpYear: integer(),
+    cancelledByUser: boolean().notNull().default(false),
     createdAt: timestamp({ mode: "date" }).defaultNow().notNull(),
   },
   (table) => [

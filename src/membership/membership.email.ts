@@ -350,6 +350,46 @@ export async function sendMembershipEndedEmail(params: ExpiryEmailParams): Promi
   });
 }
 
+export type CancellationEmailParams = {
+  email: string;
+  fullName: string | null;
+  locale: string;
+  periodEnd: Date;
+  reactivateUrl: string;
+};
+
+export async function sendCancellationEmail(params: CancellationEmailParams): Promise<void> {
+  const { email, fullName, locale, periodEnd, reactivateUrl } = params;
+  const t = i18next.getFixedT(locale);
+  const name = fullName ?? email;
+
+  const html = baseLayout(
+    t("membership_email.subtitle"),
+    `
+    <h1 style="margin:0 0 16px;font-size:24px;font-weight:700;color:#111827;">${t("membership_email.cancellation.greeting", { name })}</h1>
+    <p style="margin:0 0 16px;font-size:15px;color:#4b5563;line-height:1.6;">${t("membership_email.cancellation.intro", { date: formatDate(periodEnd, locale) })}</p>
+    <p style="margin:0 0 24px;font-size:14px;color:#6b7280;line-height:1.6;">${t("membership_email.cancellation.reactivate_hint")}</p>
+    ${ctaButton(reactivateUrl, t("membership_email.cancellation.cta"))}
+  `
+  );
+
+  await txEmailApi.sendTransacEmail({
+    to: [{ email, name: fullName ?? undefined }],
+    sender: SENDER,
+    subject: t("membership_email.cancellation.subject"),
+    htmlContent: html,
+    textContent: [
+      t("membership_email.cancellation.greeting", { name }),
+      "",
+      t("membership_email.cancellation.intro", { date: formatDate(periodEnd, locale) }),
+      "",
+      t("membership_email.cancellation.reactivate_hint"),
+      "",
+      reactivateUrl,
+    ].join("\n"),
+  });
+}
+
 export async function sendReactivationEmail(params: ReactivationEmailParams): Promise<void> {
   const { email, fullName, locale, periodEnd } = params;
   const t = i18next.getFixedT(locale);

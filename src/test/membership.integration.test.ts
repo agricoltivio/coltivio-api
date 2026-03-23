@@ -13,6 +13,7 @@ import { getAdminDb, cleanDb, createTestUser } from "./helpers";
 import { createUserWithFarm } from "./test-utils";
 import { membershipApi } from "../membership/membership";
 import { runExpiryNotifications } from "../membership/membership-expiry-cron";
+import { eq } from "drizzle-orm";
 import { membershipPayments, userSubscriptions, membershipExpiryNotifications, userTrials } from "../db/schema";
 import * as brevo from "../brevo/brevo";
 import { getStripe } from "../stripe/stripe";
@@ -1211,5 +1212,321 @@ describe("full timeline — three cron stages in one pass", () => {
     expect(recipients).toContain("m1@test.com");
     expect(recipients).toContain("m2@test.com");
     expect(recipients).toContain("m3@test.com");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// N0. Grace period suppressed for cancelledByUser
+// ---------------------------------------------------------------------------
+describe("grace period: cancelled users lose it", () => {
+  it("isActive — cancelled payment 5 days ago (would be in grace) = false", async () => {
+    const { farmId, userId } = await createUserWithFarm({}, "n0a@test.com");
+    await insertPayment(userId, daysAgo(5));
+    const db = getAdminDb();
+    await db.update(membershipPayments).set({ cancelledByUser: true }).where(eq(membershipPayments.userId, userId));
+    const api = membershipApi(adminOnlyDb);
+    expect(await api.isActive(farmId)).toBe(false);
+  });
+
+  it("isActive — cancelled payment still in period (periodEnd tomorrow) = true", async () => {
+    const { farmId, userId } = await createUserWithFarm({}, "n0b@test.com");
+    await insertPayment(userId, daysFromNow(1));
+    const db = getAdminDb();
+    await db.update(membershipPayments).set({ cancelledByUser: true }).where(eq(membershipPayments.userId, userId));
+    const api = membershipApi(adminOnlyDb);
+    expect(await api.isActive(farmId)).toBe(true);
+  });
+
+  it("isActive — non-cancelled payment 5 days ago (in grace) = true", async () => {
+    const { farmId, userId } = await createUserWithFarm({}, "n0c@test.com");
+    await insertPayment(userId, daysAgo(5));
+    const api = membershipApi(adminOnlyDb);
+    expect(await api.isActive(farmId)).toBe(true);
+  });
+
+  it("isPaidMember — cancelled payment 5 days ago = false", async () => {
+    const { farmId, userId } = await createUserWithFarm({}, "n0d@test.com");
+    await insertPayment(userId, daysAgo(5));
+    const db = getAdminDb();
+    await db.update(membershipPayments).set({ cancelledByUser: true }).where(eq(membershipPayments.userId, userId));
+    const api = membershipApi(adminOnlyDb);
+    expect(await api.isPaidMember(farmId)).toBe(false);
+  });
+
+  it("isActiveUser — cancelled payment 5 days ago = false", async () => {
+    const { userId } = await createTestUser("n0e@test.com", "password123");
+    await insertPayment(userId, daysAgo(5));
+    const db = getAdminDb();
+    await db.update(membershipPayments).set({ cancelledByUser: true }).where(eq(membershipPayments.userId, userId));
+    const api = membershipApi(adminOnlyDb);
+    expect(await api.isActiveUser(userId)).toBe(false);
+  });
+
+  it("isPaidUser — cancelled payment 5 days ago = false", async () => {
+    const { userId } = await createTestUser("n0f@test.com", "password123");
+    await insertPayment(userId, daysAgo(5));
+    const db = getAdminDb();
+    await db.update(membershipPayments).set({ cancelledByUser: true }).where(eq(membershipPayments.userId, userId));
+    const api = membershipApi(adminOnlyDb);
+    expect(await api.isPaidUser(userId)).toBe(false);
+  });
+
+  it("isActiveUser — cancelled but active trial = true (trial unaffected)", async () => {
+    const { userId } = await createTestUser("n0g@test.com", "password123");
+    await insertPayment(userId, daysAgo(5));
+    const db = getAdminDb();
+    await db.update(membershipPayments).set({ cancelledByUser: true }).where(eq(membershipPayments.userId, userId));
+    await db.insert(userTrials).values({ userId, endsAt: daysFromNow(15) });
+    const api = membershipApi(adminOnlyDb);
+    expect(await api.isActiveUser(userId)).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// N. cancelSubscription — cancelledByUser flag
+// ---------------------------------------------------------------------------
+describe("cancelSubscription", () => {
+  it("subscription user — sets cancelledByUser on latest payment", async () => {
+    const { userId } = await createTestUser("n1@test.com", "password123");
+    await insertPayment(userId, daysFromNow(30), { stripeSubscriptionId: "sub_n1" });
+    await insertSubscription(userId, "sub_n1");
+    const api = membershipApi(adminOnlyDb);
+    mockGetStripe.mockReturnValue(buildStripeMock({}));
+
+    await api.cancelSubscription(userId);
+
+    const db = getAdminDb();
+    const payment = await db.query.membershipPayments.findFirst({ where: { userId, status: "succeeded" } });
+    expect(payment!.cancelledByUser).toBe(true);
+  });
+
+  it("one-time payment user — sets cancelledByUser on latest payment", async () => {
+    const { userId } = await createTestUser("n2@test.com", "password123");
+    await insertPayment(userId, daysFromNow(30));
+    const api = membershipApi(adminOnlyDb);
+    mockGetStripe.mockReturnValue(buildStripeMock({}));
+
+    await api.cancelSubscription(userId);
+
+    const db = getAdminDb();
+    const payment = await db.query.membershipPayments.findFirst({ where: { userId, status: "succeeded" } });
+    expect(payment!.cancelledByUser).toBe(true);
+  });
+
+  it("subscription user — sets cancelledByUser on latest of multiple payments", async () => {
+    const { userId } = await createTestUser("n3@test.com", "password123");
+    await insertPayment(userId, daysAgo(370), { stripeSubscriptionId: "sub_n3" });
+    await insertPayment(userId, daysFromNow(30), { stripeSubscriptionId: "sub_n3" });
+    await insertSubscription(userId, "sub_n3");
+    const api = membershipApi(adminOnlyDb);
+    mockGetStripe.mockReturnValue(buildStripeMock({}));
+
+    await api.cancelSubscription(userId);
+
+    const db = getAdminDb();
+    const payments = await db.query.membershipPayments.findMany({ where: { userId, status: "succeeded" } });
+    const latest = payments.sort((a, b) => b.periodEnd.getTime() - a.periodEnd.getTime())[0]!;
+    expect(latest.cancelledByUser).toBe(true);
+    // older payment should be untouched
+    const older = payments.sort((a, b) => a.periodEnd.getTime() - b.periodEnd.getTime())[0]!;
+    expect(older.cancelledByUser).toBe(false);
+  });
+
+  it("sends cancellation email to subscription user", async () => {
+    const { userId } = await createTestUser("n_email1@test.com", "password123");
+    await insertPayment(userId, daysFromNow(30), { stripeSubscriptionId: "sub_nemail1" });
+    await insertSubscription(userId, "sub_nemail1");
+    const api = membershipApi(adminOnlyDb);
+    mockGetStripe.mockReturnValue(buildStripeMock({}));
+
+    await api.cancelSubscription(userId);
+
+    expect(emailSpy).toHaveBeenCalledTimes(1);
+    expect(emailSpy.mock.calls[0]?.[0]?.to?.[0]?.email).toBe("n_email1@test.com");
+  });
+
+  it("sends cancellation email to one-time payment user", async () => {
+    const { userId } = await createTestUser("n_email2@test.com", "password123");
+    await insertPayment(userId, daysFromNow(30));
+    const api = membershipApi(adminOnlyDb);
+    mockGetStripe.mockReturnValue(buildStripeMock({}));
+
+    await api.cancelSubscription(userId);
+
+    expect(emailSpy).toHaveBeenCalledTimes(1);
+    expect(emailSpy.mock.calls[0]?.[0]?.to?.[0]?.email).toBe("n_email2@test.com");
+  });
+
+  it("no succeeded payment — no error", async () => {
+    const { userId } = await createTestUser("n4@test.com", "password123");
+    const api = membershipApi(adminOnlyDb);
+    mockGetStripe.mockReturnValue(buildStripeMock({}));
+
+    await expect(api.cancelSubscription(userId)).resolves.toEqual({ cancelAtPeriodEnd: true });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// O. reactivateSubscription — clears cancelledByUser flag
+// ---------------------------------------------------------------------------
+describe("reactivateSubscription", () => {
+  it("sends reactivation email to subscription user", async () => {
+    const { userId } = await createTestUser("o_email1@test.com", "password123");
+    await insertSubscription(userId, "sub_oemail1");
+    await insertPayment(userId, daysFromNow(30), { stripeSubscriptionId: "sub_oemail1" });
+    const api = membershipApi(adminOnlyDb);
+    mockGetStripe.mockReturnValue(buildStripeMock({}));
+
+    await api.reactivateSubscription(userId);
+
+    expect(emailSpy).toHaveBeenCalledTimes(1);
+    expect(emailSpy.mock.calls[0]?.[0]?.to?.[0]?.email).toBe("o_email1@test.com");
+  });
+
+  it("sends reactivation email to one-time payment user", async () => {
+    const { userId } = await createTestUser("o_email2@test.com", "password123");
+    await insertPayment(userId, daysFromNow(30));
+    const api = membershipApi(adminOnlyDb);
+    mockGetStripe.mockReturnValue(buildStripeMock({}));
+
+    await api.reactivateSubscription(userId);
+
+    expect(emailSpy).toHaveBeenCalledTimes(1);
+    expect(emailSpy.mock.calls[0]?.[0]?.to?.[0]?.email).toBe("o_email2@test.com");
+  });
+
+  it("one-time payment user — clears cancelledByUser without Stripe call", async () => {
+    const { userId } = await createTestUser("o0@test.com", "password123");
+    await insertPayment(userId, daysFromNow(30)); // no subscription
+    const db = getAdminDb();
+    await db.update(membershipPayments).set({ cancelledByUser: true }).where(eq(membershipPayments.userId, userId));
+    const stripeMock = buildStripeMock({});
+    mockGetStripe.mockReturnValue(stripeMock);
+    const api = membershipApi(adminOnlyDb);
+
+    const result = await api.reactivateSubscription(userId);
+
+    expect(result).toEqual({ cancelAtPeriodEnd: false });
+    const payment = await db.query.membershipPayments.findFirst({ where: { userId, status: "succeeded" } });
+    expect(payment!.cancelledByUser).toBe(false);
+    // Stripe subscriptions.update should NOT have been called
+    expect(jest.mocked(stripeMock.subscriptions.update)).not.toHaveBeenCalled();
+  });
+
+  it("clears cancelledByUser on latest payment", async () => {
+    const { userId } = await createTestUser("o1@test.com", "password123");
+    const db = getAdminDb();
+    await insertSubscription(userId, "sub_o1");
+    await insertPayment(userId, daysFromNow(30), { stripeSubscriptionId: "sub_o1" });
+    // simulate a prior cancel
+    await db.update(membershipPayments).set({ cancelledByUser: true }).where(eq(membershipPayments.userId, userId));
+    const api = membershipApi(adminOnlyDb);
+    mockGetStripe.mockReturnValue(buildStripeMock({}));
+
+    await api.reactivateSubscription(userId);
+
+    const payment = await db.query.membershipPayments.findFirst({ where: { userId, status: "succeeded" } });
+    expect(payment!.cancelledByUser).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P. getStatus — exposes cancelledByUser
+// ---------------------------------------------------------------------------
+describe("getStatus — cancelledByUser", () => {
+  it("defaults to false when no payment exists", async () => {
+    const { userId } = await createTestUser("p1@test.com", "password123");
+    const api = membershipApi(adminOnlyDb);
+    const status = await api.getStatus(userId);
+    expect(status.cancelledByUser).toBe(false);
+  });
+
+  it("returns false when payment exists and user has not cancelled", async () => {
+    const { userId } = await createTestUser("p2@test.com", "password123");
+    await insertPayment(userId, daysFromNow(30));
+    const api = membershipApi(adminOnlyDb);
+    const status = await api.getStatus(userId);
+    expect(status.cancelledByUser).toBe(false);
+  });
+
+  it("returns true after cancelSubscription", async () => {
+    const { userId } = await createTestUser("p3@test.com", "password123");
+    await insertPayment(userId, daysFromNow(30));
+    const api = membershipApi(adminOnlyDb);
+    mockGetStripe.mockReturnValue(buildStripeMock({}));
+
+    await api.cancelSubscription(userId);
+
+    const status = await api.getStatus(userId);
+    expect(status.cancelledByUser).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Q. Cron: cancelledByUser skips all three passes
+// ---------------------------------------------------------------------------
+describe("cron: cancelledByUser suppresses expiry emails", () => {
+  it("expiry_reminder pass — skips user with cancelledByUser=true", async () => {
+    const { userId } = await createTestUser("q1@test.com", "password123");
+    await insertPayment(userId, daysAgo(1));
+    const db = getAdminDb();
+    await db.update(membershipPayments).set({ cancelledByUser: true }).where(eq(membershipPayments.userId, userId));
+
+    await runExpiryNotifications();
+
+    expect(emailSpy).not.toHaveBeenCalled();
+    const notification = await db.query.membershipExpiryNotifications.findFirst({ where: { userId } });
+    expect(notification).toBeUndefined();
+  });
+
+  it("access_lost pass — skips user with cancelledByUser=true", async () => {
+    const { userId } = await createTestUser("q2@test.com", "password123");
+    await insertPayment(userId, daysAgo(15));
+    const db = getAdminDb();
+    await db.update(membershipPayments).set({ cancelledByUser: true }).where(eq(membershipPayments.userId, userId));
+
+    await runExpiryNotifications();
+
+    expect(emailSpy).not.toHaveBeenCalled();
+  });
+
+  it("membership_ended pass — skips user with cancelledByUser=true", async () => {
+    const { userId } = await createTestUser("q3@test.com", "password123");
+    await insertPayment(userId, daysAgo(35));
+    const db = getAdminDb();
+    await db.update(membershipPayments).set({ cancelledByUser: true }).where(eq(membershipPayments.userId, userId));
+
+    await runExpiryNotifications();
+
+    expect(emailSpy).not.toHaveBeenCalled();
+  });
+
+  it("user without cancelledByUser still receives email (regression)", async () => {
+    const { userId: uCancelled } = await createTestUser("q4a@test.com", "password123");
+    const { userId: uActive } = await createTestUser("q4b@test.com", "password123");
+    await insertPayment(uCancelled, daysAgo(1));
+    await insertPayment(uActive, daysAgo(1));
+    const db = getAdminDb();
+    await db
+      .update(membershipPayments)
+      .set({ cancelledByUser: true })
+      .where(eq(membershipPayments.userId, uCancelled));
+
+    await runExpiryNotifications();
+
+    expect(emailSpy).toHaveBeenCalledTimes(1);
+    expect(emailSpy.mock.calls[0]?.[0]?.to?.[0]?.email).toBe("q4b@test.com");
+  });
+
+  it("cancelled then reactivated (cancelledByUser=false) → email sent again", async () => {
+    const { userId } = await createTestUser("q5@test.com", "password123");
+    await insertPayment(userId, daysAgo(1));
+    const db = getAdminDb();
+    // simulate cancel then reactivate
+    await db.update(membershipPayments).set({ cancelledByUser: false }).where(eq(membershipPayments.userId, userId));
+
+    await runExpiryNotifications();
+
+    expect(emailSpy).toHaveBeenCalledTimes(1);
   });
 });

@@ -45,6 +45,13 @@ async function runExpiryReminderPass(now: Date): Promise<void> {
   for (const candidate of candidates) {
     // max() aggregate loses Drizzle's column decoder — coerce back to Date
     const periodEnd = new Date(candidate.periodEnd);
+
+    const latestPayment = await adminDrizzle.query.membershipPayments.findFirst({
+      where: { userId: candidate.userId, status: "succeeded" },
+      orderBy: { periodEnd: "desc" },
+    });
+    if (latestPayment?.cancelledByUser) continue;
+
     // Skip if payment_failed or expiry_reminder was already sent for this period
     const existing = await adminDrizzle.query.membershipExpiryNotifications.findFirst({
       where: {
@@ -94,6 +101,13 @@ async function runAccessLostPass(now: Date): Promise<void> {
 
   for (const candidate of candidates) {
     const periodEnd = new Date(candidate.periodEnd);
+
+    const latestPayment = await adminDrizzle.query.membershipPayments.findFirst({
+      where: { userId: candidate.userId, status: "succeeded" },
+      orderBy: { periodEnd: "desc" },
+    });
+    if (latestPayment?.cancelledByUser) continue;
+
     const existing = await adminDrizzle.query.membershipExpiryNotifications.findFirst({
       where: { userId: candidate.userId, periodEndDate: { eq: periodEnd }, type: "access_lost" },
     });
@@ -132,6 +146,13 @@ async function runMembershipEndedPass(now: Date): Promise<void> {
 
   for (const candidate of candidates) {
     const periodEnd = new Date(candidate.periodEnd);
+
+    const latestPayment = await adminDrizzle.query.membershipPayments.findFirst({
+      where: { userId: candidate.userId, status: "succeeded" },
+      orderBy: { periodEnd: "desc" },
+    });
+    if (latestPayment?.cancelledByUser) continue;
+
     const existing = await adminDrizzle.query.membershipExpiryNotifications.findFirst({
       where: { userId: candidate.userId, periodEndDate: { eq: periodEnd }, type: "membership_ended" },
     });
