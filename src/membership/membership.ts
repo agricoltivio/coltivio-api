@@ -101,7 +101,10 @@ export function membershipApi(db: RlsDb) {
             inArray(membershipPayments.userId, userIds),
             eq(membershipPayments.status, "succeeded"),
             or(
-              and(eq(membershipPayments.cancelledByUser, false), gt(membershipPayments.periodEnd, new Date(now.getTime() - GRACE_PERIOD_MS))),
+              and(
+                eq(membershipPayments.cancelledByUser, false),
+                gt(membershipPayments.periodEnd, new Date(now.getTime() - GRACE_PERIOD_MS))
+              ),
               and(eq(membershipPayments.cancelledByUser, true), gt(membershipPayments.periodEnd, now))
             )
           )
@@ -140,7 +143,10 @@ export function membershipApi(db: RlsDb) {
             inArray(membershipPayments.userId, userIds),
             eq(membershipPayments.status, "succeeded"),
             or(
-              and(eq(membershipPayments.cancelledByUser, false), gt(membershipPayments.periodEnd, new Date(now.getTime() - GRACE_PERIOD_MS))),
+              and(
+                eq(membershipPayments.cancelledByUser, false),
+                gt(membershipPayments.periodEnd, new Date(now.getTime() - GRACE_PERIOD_MS))
+              ),
               and(eq(membershipPayments.cancelledByUser, true), gt(membershipPayments.periodEnd, now))
             )
           )
@@ -165,7 +171,10 @@ export function membershipApi(db: RlsDb) {
             eq(membershipPayments.userId, userId),
             eq(membershipPayments.status, "succeeded"),
             or(
-              and(eq(membershipPayments.cancelledByUser, false), gt(membershipPayments.periodEnd, new Date(now.getTime() - GRACE_PERIOD_MS))),
+              and(
+                eq(membershipPayments.cancelledByUser, false),
+                gt(membershipPayments.periodEnd, new Date(now.getTime() - GRACE_PERIOD_MS))
+              ),
               and(eq(membershipPayments.cancelledByUser, true), gt(membershipPayments.periodEnd, now))
             )
           )
@@ -185,7 +194,10 @@ export function membershipApi(db: RlsDb) {
             eq(membershipPayments.userId, userId),
             eq(membershipPayments.status, "succeeded"),
             or(
-              and(eq(membershipPayments.cancelledByUser, false), gt(membershipPayments.periodEnd, new Date(now.getTime() - GRACE_PERIOD_MS))),
+              and(
+                eq(membershipPayments.cancelledByUser, false),
+                gt(membershipPayments.periodEnd, new Date(now.getTime() - GRACE_PERIOD_MS))
+              ),
               and(eq(membershipPayments.cancelledByUser, true), gt(membershipPayments.periodEnd, now))
             )
           )

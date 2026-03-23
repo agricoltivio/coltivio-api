@@ -1507,10 +1507,7 @@ describe("cron: cancelledByUser suppresses expiry emails", () => {
     await insertPayment(uCancelled, daysAgo(1));
     await insertPayment(uActive, daysAgo(1));
     const db = getAdminDb();
-    await db
-      .update(membershipPayments)
-      .set({ cancelledByUser: true })
-      .where(eq(membershipPayments.userId, uCancelled));
+    await db.update(membershipPayments).set({ cancelledByUser: true }).where(eq(membershipPayments.userId, uCancelled));
 
     await runExpiryNotifications();
 
