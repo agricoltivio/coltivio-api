@@ -149,103 +149,57 @@ export type DateRangeWithRecurrence = {
   recurrence?: { interval: number; until: Date | null } | null;
 };
 
-const MS_PER_DAY = 86400000;
-
-function getDayOfYear(date: Date): number {
-  const start = new Date(date.getFullYear(), 0, 0);
-  const diff = date.getTime() - start.getTime();
-  return Math.floor(diff / MS_PER_DAY);
-}
-
-// Year-crossing ranges (fromDay > toDay, e.g. Nov–Mar) are split into two
-// sub-ranges so we don't produce false positives against non-overlapping windows.
-function dayRangesOverlap(aFromDay: number, aToDay: number, bFromDay: number, bToDay: number): boolean {
-  const aRanges: [number, number][] =
-    aFromDay <= aToDay
-      ? [[aFromDay, aToDay]]
-      : [
-          [aFromDay, 366],
-          [1, aToDay],
-        ];
-  const bRanges: [number, number][] =
-    bFromDay <= bToDay
-      ? [[bFromDay, bToDay]]
-      : [
-          [bFromDay, 366],
-          [1, bToDay],
-        ];
-  return aRanges.some(([af, at]) => bRanges.some(([bf, bt]) => af <= bt && at >= bf));
-}
-
-// Enumerate all years a recurring rotation occurs in, within a bounded range
-// yearSpan accounts for year-crossing occurrences (e.g. Nov–Mar has yearSpan=1)
-// so each slot covers year through year+yearSpan in the set.
-function getOccurrenceYears(
-  startYear: number,
-  interval: number,
-  untilYear: number | null,
-  rangeStart: number,
-  rangeEnd: number,
-  yearSpan: number
-): Set<number> {
-  const years = new Set<number>();
-  const effectiveEnd = untilYear !== null ? Math.min(untilYear, rangeEnd) : rangeEnd;
-  for (let year = startYear; year <= effectiveEnd; year += interval) {
-    for (let span = 0; span <= yearSpan; span++) {
-      if (year + span >= rangeStart) years.add(year + span);
-    }
+// Expand a recurring range into concrete [fromDate, toDate] occurrences within the query window.
+// For non-recurring ranges, returns the single occurrence if it overlaps the window.
+function expandOccurrences(range: DateRangeWithRecurrence, queryFrom: Date, queryTo: Date): [Date, Date][] {
+  if (!range.recurrence) {
+    return [[range.fromDate, range.toDate]];
   }
-  return years;
+
+  const { interval, until } = range.recurrence;
+  const durationMs = range.toDate.getTime() - range.fromDate.getTime();
+  const occurrences: [Date, Date][] = [];
+  let current = range.fromDate;
+  let iter = 0;
+
+  while (iter < 1000) {
+    if (until && current > until) break;
+    if (current > queryTo) break;
+    const end = new Date(current.getTime() + durationMs);
+    // Include only if this occurrence actually overlaps the query window
+    if (end >= queryFrom) {
+      occurrences.push([current, end]);
+    }
+    current = addYears(current, interval);
+    iter++;
+  }
+
+  return occurrences;
 }
 
 // Check if two date ranges overlap considering yearly recurrences.
-// For recurrences: check day-of-year overlap AND that they share a common occurrence year.
+// Expands both into concrete occurrences and compares timestamps directly —
+// avoids false positives from the day-of-year approach with year-spanning ranges.
 function rangesOverlap(a: DateRangeWithRecurrence, b: DateRangeWithRecurrence): boolean {
-  const aHasRecurrence = !!a.recurrence;
-  const bHasRecurrence = !!b.recurrence;
-
-  if (!aHasRecurrence && !bHasRecurrence) {
+  if (!a.recurrence && !b.recurrence) {
     return a.fromDate <= b.toDate && b.fromDate <= a.toDate;
   }
 
-  // At least one has recurrence — check day-of-year overlap
-  const aFromDay = getDayOfYear(a.fromDate);
-  const aToDay = getDayOfYear(a.toDate);
-  const bFromDay = getDayOfYear(b.fromDate);
-  const bToDay = getDayOfYear(b.toDate);
-
-  if (!dayRangesOverlap(aFromDay, aToDay, bFromDay, bToDay)) {
-    return false;
-  }
-
-  // Check if they share a common occurrence year.
-  // yearSpan covers year-crossing ranges (e.g. Nov–Mar → yearSpan=1) so the
-  // second calendar year each occurrence occupies is included in the set.
-  const aStartYear = a.fromDate.getFullYear();
-  const bStartYear = b.fromDate.getFullYear();
-  const aYearSpan = a.toDate.getFullYear() - a.fromDate.getFullYear();
-  const bYearSpan = b.toDate.getFullYear() - b.fromDate.getFullYear();
-  const aInterval = a.recurrence?.interval ?? 1;
-  const bInterval = b.recurrence?.interval ?? 1;
+  // Derive a bounded expansion window from the actual dates
+  const rangeStart = new Date(Math.min(a.fromDate.getFullYear(), b.fromDate.getFullYear()), 0, 1);
   const aUntilYear = a.recurrence?.until?.getFullYear() ?? null;
   const bUntilYear = b.recurrence?.until?.getFullYear() ?? null;
+  const maxUntilYear = Math.max(
+    aUntilYear ?? a.fromDate.getFullYear() + 100,
+    bUntilYear ?? b.fromDate.getFullYear() + 100
+  );
+  const rangeEndYear = Math.min(maxUntilYear, rangeStart.getFullYear() + 200);
+  const rangeEnd = new Date(rangeEndYear + 1, 0, 1);
 
-  // Derive a bounded range from the actual dates (deterministic, no dependency on current time)
-  const rangeStart = Math.min(aStartYear, bStartYear);
-  const maxUntil = Math.max(aUntilYear ?? aStartYear + 100, bUntilYear ?? bStartYear + 100);
-  const rangeEnd = Math.min(maxUntil, rangeStart + 200);
+  const aOccurrences = expandOccurrences(a, rangeStart, rangeEnd);
+  const bOccurrences = expandOccurrences(b, rangeStart, rangeEnd);
 
-  const aYears = aHasRecurrence
-    ? getOccurrenceYears(aStartYear, aInterval, aUntilYear, rangeStart, rangeEnd, aYearSpan)
-    : new Set(Array.from({ length: aYearSpan + 1 }, (_, i) => aStartYear + i));
-  const bYears = bHasRecurrence
-    ? getOccurrenceYears(bStartYear, bInterval, bUntilYear, rangeStart, rangeEnd, bYearSpan)
-    : new Set(Array.from({ length: bYearSpan + 1 }, (_, i) => bStartYear + i));
-
-  for (const year of aYears) {
-    if (bYears.has(year)) return true;
-  }
-  return false;
+  return aOccurrences.some(([af, at]) => bOccurrences.some(([bf, bt]) => af <= bt && at >= bf));
 }
 
 // Check for overlapping rotations - pure function taking date ranges

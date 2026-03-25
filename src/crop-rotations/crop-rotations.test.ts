@@ -200,11 +200,9 @@ describe("checkRotationOverlaps - yearly recurrence", () => {
   });
 
   test("year-crossing: biennial Nov–Mar starting 2022 does NOT overlap non-recurring Jan 2024", () => {
-    // 2022 occurrence spans 2022–2023. Next occurrence is 2024 (spans 2024–2025).
-    // Jan 2024 falls in the day range of 2024 occurrence → overlap.
-    // Actually 2024 IS an occurrence year for interval=2 starting 2022 (2022,2024,2026).
-    // This should overlap.
-    expectOverlap(range("2022-11-15", "2023-03-15", { interval: 2 }), range("2024-01-10", "2024-02-28"));
+    // 2022 occurrence: Nov 15 2022 – Mar 15 2023. Next: Nov 15 2024 – Mar 15 2025.
+    // Non-recurring Jan 10–Feb 28 2024 falls between those two occurrences → no overlap.
+    expectNoOverlap(range("2022-11-15", "2023-03-15", { interval: 2 }), range("2024-01-10", "2024-02-28"));
   });
 
   test("year-crossing: biennial Nov–Mar starting 2022 does NOT overlap non-recurring Jan 2025", () => {
