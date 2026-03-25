@@ -235,15 +235,9 @@ export function membershipApi(db: RlsDb) {
       cancelUrl: string
     ): Promise<{ url: string }> {
       const priceId = process.env.STRIPE_MEMBERSHIP_PRICE_ID_YEARLY;
-      const productId = process.env.STRIPE_MEMBERSHIP_PRODUCT_ID;
       if (!priceId) throw new Error("STRIPE_MEMBERSHIP_PRICE_ID_YEARLY env var not set");
-      if (!productId) throw new Error("STRIPE_MEMBERSHIP_PRODUCT_ID env var not set");
 
-      const [price, customerId] = await Promise.all([
-        getStripe().prices.retrieve(priceId),
-        getOrCreateStripeCustomer(userId),
-      ]);
-      if (price.unit_amount == null) throw new Error(`Price ${priceId} has no unit_amount`);
+      const customerId = await getOrCreateStripeCustomer(userId);
 
       // If an active trial exists, delay billing until it ends
       const now = new Date();
@@ -257,12 +251,7 @@ export function membershipApi(db: RlsDb) {
         payment_method_types: ["card"],
         line_items: [
           {
-            price_data: {
-              currency: price.currency,
-              unit_amount: price.unit_amount,
-              product: productId,
-              recurring: { interval: "year" },
-            },
+            price: priceId,
             quantity: 1,
           },
         ],
@@ -285,15 +274,9 @@ export function membershipApi(db: RlsDb) {
       cancelUrl: string
     ): Promise<{ url: string }> {
       const priceId = process.env.STRIPE_MEMBERSHIP_PRICE_ID_MANUAL;
-      const productId = process.env.STRIPE_MEMBERSHIP_PRODUCT_ID;
       if (!priceId) throw new Error("STRIPE_MEMBERSHIP_PRICE_ID_MANUAL env var not set");
-      if (!productId) throw new Error("STRIPE_MEMBERSHIP_PRODUCT_ID env var not set");
 
-      const [price, customerId] = await Promise.all([
-        getStripe().prices.retrieve(priceId),
-        getOrCreateStripeCustomer(userId),
-      ]);
-      if (price.unit_amount == null) throw new Error(`Price ${priceId} has no unit_amount`);
+      const customerId = await getOrCreateStripeCustomer(userId);
 
       const session = await getStripe().checkout.sessions.create({
         customer: customerId,
@@ -301,11 +284,7 @@ export function membershipApi(db: RlsDb) {
         payment_method_types: ["card", "twint"],
         line_items: [
           {
-            price_data: {
-              currency: price.currency,
-              unit_amount: price.unit_amount,
-              product: productId,
-            },
+            price: priceId,
             quantity: 1,
           },
         ],
