@@ -87,11 +87,15 @@ export function wikiModerationApi(db: RlsDb) {
 
     // List all pending change requests with full entry context for review
     async getReviewQueue(): Promise<WikiModerationChangeRequest[]> {
-      return db.admin.query.wikiChangeRequests.findMany({
+      const results = await db.admin.query.wikiChangeRequests.findMany({
         where: { status: "under_review" },
         with: reviewQueueWith,
         orderBy: (cr, { asc }) => [asc(cr.createdAt)],
       });
+      return results.map((cr) => ({
+        ...cr,
+        entry: cr.entry ? { ...cr.entry, activeChangeRequest: null } : null,
+      }));
     },
 
     // Approve a change request:
@@ -195,6 +199,11 @@ export function wikiModerationApi(db: RlsDb) {
           await tx.update(wikiEntries).set({ updatedAt: new Date() }).where(eq(wikiEntries.id, changeRequest.entryId));
         }
 
+        // Mark the source private entry as published when a new_entry CR is approved
+        if (changeRequest.type === "new_entry" && changeRequest.entryId) {
+          await tx.update(wikiEntries).set({ status: "published" }).where(eq(wikiEntries.id, changeRequest.entryId));
+        }
+
         await tx
           .update(wikiChangeRequests)
           .set({ status: "approved", resolvedAt: new Date() })
@@ -212,10 +221,16 @@ export function wikiModerationApi(db: RlsDb) {
         throw new Error("Change request not found or already resolved");
       }
 
-      await db.admin
-        .update(wikiChangeRequests)
-        .set({ status: "rejected", resolvedAt: new Date() })
-        .where(eq(wikiChangeRequests.id, changeRequestId));
+      await db.admin.transaction(async (tx) => {
+        await tx
+          .update(wikiChangeRequests)
+          .set({ status: "rejected", resolvedAt: new Date() })
+          .where(eq(wikiChangeRequests.id, changeRequestId));
+
+        if (changeRequest.entryId) {
+          await tx.update(wikiEntries).set({ status: "draft" }).where(eq(wikiEntries.id, changeRequest.entryId));
+        }
+      });
     },
 
     // Move a CR back to draft so the submitter can revise and resubmit.
@@ -229,18 +244,26 @@ export function wikiModerationApi(db: RlsDb) {
         throw new Error("Change request not found or not under review");
       }
 
-      await db.admin
-        .update(wikiChangeRequests)
-        .set({ status: "draft" })
-        .where(eq(wikiChangeRequests.id, changeRequestId));
+      await db.admin.transaction(async (tx) => {
+        await tx
+          .update(wikiChangeRequests)
+          .set({ status: "changes_requested" })
+          .where(eq(wikiChangeRequests.id, changeRequestId));
+
+        if (changeRequest.entryId) {
+          await tx.update(wikiEntries).set({ status: "draft" }).where(eq(wikiEntries.id, changeRequest.entryId));
+        }
+      });
     },
 
     // Get a single change request with full entry context for the moderation UI
     async getChangeRequestById(id: string): Promise<WikiModerationChangeRequest | undefined> {
-      return db.admin.query.wikiChangeRequests.findFirst({
+      const result = await db.admin.query.wikiChangeRequests.findFirst({
         where: { id },
         with: reviewQueueWith,
       });
+      if (!result) return undefined;
+      return { ...result, entry: result.entry ? { ...result.entry, activeChangeRequest: null } : null };
     },
   };
 }

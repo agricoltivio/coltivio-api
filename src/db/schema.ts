@@ -1468,6 +1468,7 @@ export const wikiChangeRequestStatus = pgEnum("wiki_change_request_status", [
   "under_review", // frozen; moderator is reviewing
   "approved",
   "rejected",
+  "changes_requested", // moderator asked for revisions; submitter must update and resubmit
 ]);
 
 export const wikiLocale = pgEnum("wiki_locale", ["de", "en", "it", "fr"]);
@@ -1718,7 +1719,13 @@ export const wikiChangeRequests = pgTable.withRLS(
       as: "permissive",
       to: authenticatedRole,
       for: "update",
-      using: and(eq(table.submittedBy, selectAuthUid), eq(table.status, sql`'draft'::wiki_change_request_status`)),
+      using: and(
+        eq(table.submittedBy, selectAuthUid),
+        or(
+          eq(table.status, sql`'draft'::wiki_change_request_status`),
+          eq(table.status, sql`'changes_requested'::wiki_change_request_status`)
+        )
+      ),
       withCheck: eq(table.submittedBy, selectAuthUid),
     }),
   ]

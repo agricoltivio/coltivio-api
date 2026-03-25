@@ -48,21 +48,6 @@ export const wikiImageSchema = z.object({
   createdAt: z.string().or(z.date()),
 });
 
-export const wikiEntrySchema = z.object({
-  id: z.string(),
-  status: wikiEntryStatusSchema,
-  visibility: wikiVisibilitySchema,
-  createdBy: z.string(),
-  farmId: z.string().nullable(),
-  categoryId: z.string(),
-  category: wikiCategorySchema,
-  createdAt: z.string().or(z.date()),
-  updatedAt: z.string().or(z.date()),
-  translations: z.array(wikiTranslationSchema),
-  images: z.array(wikiImageSchema),
-  tags: z.array(wikiEntryTagSchema),
-});
-
 export const wikiChangeRequestSchema = z.object({
   id: z.string(),
   entryId: z.string().nullable(),
@@ -82,6 +67,22 @@ export const wikiChangeRequestSchema = z.object({
       body: z.string(),
     })
   ),
+});
+
+export const wikiEntrySchema = z.object({
+  id: z.string(),
+  status: wikiEntryStatusSchema,
+  visibility: wikiVisibilitySchema,
+  createdBy: z.string(),
+  farmId: z.string().nullable(),
+  categoryId: z.string(),
+  category: wikiCategorySchema,
+  createdAt: z.string().or(z.date()),
+  updatedAt: z.string().or(z.date()),
+  translations: z.array(wikiTranslationSchema),
+  images: z.array(wikiImageSchema),
+  tags: z.array(wikiEntryTagSchema),
+  activeChangeRequest: wikiChangeRequestSchema.nullable(),
 });
 
 // ─── Input schemas ───────────────────────────────────────────────────────────
@@ -294,10 +295,7 @@ export const requestWikiImageSignedUrlEndpoint = authenticatedEndpointFactory.bu
     signedUrl: z.string(),
     path: z.string(),
   }),
-  handler: async ({ input, ctx: { wiki, user, membership } }) => {
-    if (!user.farmId) throw createHttpError(403, "Active membership required");
-    const active = await membership.isActive(user.farmId);
-    if (!active) throw createHttpError(403, "Active membership required");
+  handler: async ({ input, ctx: { wiki, user } }) => {
     return wiki.requestSignedImageUrl(input.entryId, user.id, input.filename);
   },
 });
@@ -314,10 +312,7 @@ export const registerWikiImageEndpoint = authenticatedEndpointFactory.build({
     id: z.string(),
     publicUrl: z.string(),
   }),
-  handler: async ({ input, ctx: { wiki, user, membership } }) => {
-    if (!user.farmId) throw createHttpError(403, "Active membership required");
-    const active = await membership.isActive(user.farmId);
-    if (!active) throw createHttpError(403, "Active membership required");
+  handler: async ({ input, ctx: { wiki, user } }) => {
     return wiki.registerImage(input.entryId, input.storagePath, user.id);
   },
 });
@@ -371,7 +366,12 @@ export const getWikiChangeRequestNotesEndpoint = authenticatedEndpointFactory.bu
     result: z.array(wikiChangeRequestNoteSchema),
     count: z.number(),
   }),
-  handler: async ({ input, ctx: { wiki } }) => {
+  handler: async ({ input, ctx: { wiki, wikiModeration, user } }) => {
+    const cr = await wiki.getChangeRequestById(input.changeRequestId);
+    if (!cr) throw createHttpError(404, "Change request not found");
+    const isMod = await wikiModeration.isModerator(user.id);
+    if (cr.submittedBy !== user.id && !isMod)
+      throw createHttpError(403, "Not authorized to view notes on this change request");
     const result = await wiki.getChangeRequestNotes(input.changeRequestId);
     return { result, count: result.length };
   },

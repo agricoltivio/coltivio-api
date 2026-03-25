@@ -67,13 +67,14 @@ export type WikiEntryWithRelations = WikiEntry & {
   translations: WikiEntryTranslation[];
   images: WikiEntryImage[];
   tags: WikiEntryTagWithTag[];
+  activeChangeRequest: WikiChangeRequestWithRelations | null;
 };
 
 export type WikiChangeRequestWithRelations = WikiChangeRequest & {
   translations: WikiChangeRequestTranslation[];
 };
 
-// Shared query `with` shape for wiki entries
+// Shared query `with` shape for wiki entries (no changeRequests — added per-query where needed)
 const entryWithRelations = {
   category: { with: { translations: true } },
   translations: true,
@@ -125,38 +126,57 @@ export function wikiApi(db: RlsDb) {
           with: entryWithRelations,
         });
 
+        const mapped = entries.map((e) => ({ ...e, activeChangeRequest: null }));
+
         // Client-side search filter on title/body (v1 — full-text via tsvector can be added later)
         if (params.search) {
           const lowerSearch = params.search.toLowerCase();
-          return entries.filter((entry) =>
+          return mapped.filter((entry) =>
             entry.translations.some(
               (t) => t.title.toLowerCase().includes(lowerSearch) || t.body.toLowerCase().includes(lowerSearch)
             )
           );
         }
 
-        return entries;
+        return mapped;
       });
     },
 
     // Get entries belonging to the authenticated user (all statuses, RLS enforces ownership)
     async getMyEntries(userId: string): Promise<WikiEntryWithRelations[]> {
       return db.rls(async (tx) => {
-        return tx.query.wikiEntries.findMany({
+        const entries = await tx.query.wikiEntries.findMany({
           where: { createdBy: userId },
-          with: entryWithRelations,
+          with: {
+            ...entryWithRelations,
+            changeRequests: {
+              where: { status: { in: ["draft", "under_review", "changes_requested"] } },
+              with: { translations: true },
+              limit: 1,
+            },
+          },
           orderBy: (entry, { desc }) => [desc(entry.updatedAt)],
         });
+        return entries.map((e) => ({ ...e, activeChangeRequest: e.changeRequests[0] ?? null }));
       });
     },
 
     // Get any entry by id (RLS ensures the requester has access)
     async getById(id: string): Promise<WikiEntryWithRelations | undefined> {
       return db.rls(async (tx) => {
-        return tx.query.wikiEntries.findFirst({
+        const entry = await tx.query.wikiEntries.findFirst({
           where: { id },
-          with: entryWithRelations,
+          with: {
+            ...entryWithRelations,
+            changeRequests: {
+              where: { status: { in: ["draft", "under_review", "changes_requested"] } },
+              with: { translations: true },
+              limit: 1,
+            },
+          },
         });
+        if (!entry) return undefined;
+        return { ...entry, activeChangeRequest: entry.changeRequests[0] ?? null };
       });
     },
 
@@ -194,7 +214,7 @@ export function wikiApi(db: RlsDb) {
           where: { id: entryId },
           with: entryWithRelations,
         });
-        return created!;
+        return { ...created!, activeChangeRequest: null };
       });
     },
 
@@ -250,7 +270,7 @@ export function wikiApi(db: RlsDb) {
           where: { id: entryId },
           with: entryWithRelations,
         });
-        return updated!;
+        return { ...updated!, activeChangeRequest: null };
       });
     },
 
@@ -281,7 +301,7 @@ export function wikiApi(db: RlsDb) {
 
         // Prevent duplicate submissions while an active CR exists for this entry
         const existing = await tx.query.wikiChangeRequests.findFirst({
-          where: { entryId, status: { in: ["draft", "under_review"] } },
+          where: { entryId, status: { in: ["draft", "under_review", "changes_requested"] } },
         });
         if (existing)
           throw new Error(
@@ -299,6 +319,8 @@ export function wikiApi(db: RlsDb) {
             proposedFarmId: entry.farmId,
           })
           .returning();
+
+        await tx.update(wikiEntries).set({ status: "under_review" }).where(eq(wikiEntries.id, entryId));
 
         // Snapshot translations from the private entry
         await tx.insert(wikiChangeRequestTranslations).values(
@@ -510,7 +532,7 @@ export function wikiApi(db: RlsDb) {
     ): Promise<WikiChangeRequestWithRelations> {
       return db.rls(async (tx) => {
         const cr = await tx.query.wikiChangeRequests.findFirst({
-          where: { id: changeRequestId, submittedBy, status: "draft" },
+          where: { id: changeRequestId, submittedBy, status: { in: ["draft", "changes_requested"] } },
           with: { translations: true },
         });
         if (!cr) throw new Error("Draft change request not found");
@@ -521,6 +543,11 @@ export function wikiApi(db: RlsDb) {
           .set({ status: "under_review" })
           .where(eq(wikiChangeRequests.id, changeRequestId));
 
+        // Keep entry status in sync
+        if (cr.entryId) {
+          await tx.update(wikiEntries).set({ status: "under_review" }).where(eq(wikiEntries.id, cr.entryId));
+        }
+
         const updated = await tx.query.wikiChangeRequests.findFirst({
           where: { id: changeRequestId },
           with: { translations: true },
@@ -529,13 +556,11 @@ export function wikiApi(db: RlsDb) {
       });
     },
 
-    // Fetch a change request by ID (RLS-scoped — caller must have access)
+    // Fetch a change request by ID — authorization is enforced by the calling endpoint
     async getChangeRequestById(changeRequestId: string): Promise<WikiChangeRequestWithRelations | undefined> {
-      return db.rls(async (tx) => {
-        return tx.query.wikiChangeRequests.findFirst({
-          where: { id: changeRequestId },
-          with: { translations: true },
-        });
+      return db.admin.query.wikiChangeRequests.findFirst({
+        where: { id: changeRequestId },
+        with: { translations: true },
       });
     },
 
@@ -554,11 +579,9 @@ export function wikiApi(db: RlsDb) {
 
     // Get all notes for a change request (visible to submitter via RLS)
     async getChangeRequestNotes(changeRequestId: string): Promise<WikiChangeRequestNote[]> {
-      return db.rls(async (tx) => {
-        return tx.query.wikiChangeRequestNotes.findMany({
-          where: { changeRequestId },
-          orderBy: (n, { asc }) => [asc(n.createdAt)],
-        });
+      return db.admin.query.wikiChangeRequestNotes.findMany({
+        where: { changeRequestId },
+        orderBy: (n, { asc }) => [asc(n.createdAt)],
       });
     },
 
