@@ -229,7 +229,9 @@ import {
 } from "./orders/orders.endpoint";
 import {
   getInvoiceSettingsEndpoint,
-  upsertInvoiceSettingsEndpoint,
+  createInvoiceSettingsEndpoint,
+  updateInvoiceSettingsEndpoint,
+  deleteInvoiceSettingsEndpoint,
   uploadLogoEndpoint,
   deleteLogoEndpoint,
 } from "./orders/invoice-settings.endpoint";
@@ -745,8 +747,11 @@ export const routing: Routing = {
         post: createOrderEndpoint,
       },
       invoiceSettings: {
-        "": { get: getInvoiceSettingsEndpoint, put: upsertInvoiceSettingsEndpoint },
-        logo: { put: uploadLogoEndpoint, delete: deleteLogoEndpoint },
+        "": { get: getInvoiceSettingsEndpoint, post: createInvoiceSettingsEndpoint },
+        ":id": {
+          "": { put: updateInvoiceSettingsEndpoint, delete: deleteInvoiceSettingsEndpoint },
+          logo: { put: uploadLogoEndpoint, delete: deleteLogoEndpoint },
+        },
       },
       invoices: { post: downloadInvoicesBatchEndpoint },
       byId: {

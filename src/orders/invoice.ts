@@ -144,9 +144,10 @@ export function buildInvoiceChildren(
   t: TFunction
 ): (Paragraph | Table)[] {
   const contact = order.contact;
-  const orderDate = formatDate(order.orderDate);
   const shippingDate = order.shippingDate ? formatDate(order.shippingDate) : "—";
-  const introText = (settings.introText ?? "").replace(/\{\{firstName\}\}/g, contact.firstName);
+  const introText = (settings.introText ?? "")
+    .replace(/\{\{firstName\}\}/g, contact.firstName)
+    .replace(/\{\{lastName\}\}/g, contact.lastName);
 
   const senderLines = [settings.senderName, settings.street, `${settings.zip} ${settings.city}`.trim()].filter(Boolean);
 
@@ -156,7 +157,7 @@ export function buildInvoiceChildren(
     `${contact.zip ?? ""} ${contact.city ?? ""}`.trim(),
   ].filter(Boolean);
 
-  const metaRightLines: string[] = [`Datum: ${orderDate}`, `Lieferdatum: ${shippingDate}`];
+  const metaRightLines: string[] = [`Lieferdatum: ${shippingDate}`];
   if (settings.email) metaRightLines.push(`E-Mail: ${settings.email}`);
   if (settings.phone) metaRightLines.push(`Tel: ${settings.phone}`);
 
@@ -414,6 +415,7 @@ export function invoicesApi(db: RlsDb, t: TFunction) {
     async downloadInvoice(
       orderId: string,
       farmId: string,
+      settingsId: string,
       token: SupabaseToken
     ): Promise<{ base64: string; fileName: string }> {
       const order = await db.rls((tx) =>
@@ -423,7 +425,7 @@ export function invoicesApi(db: RlsDb, t: TFunction) {
         })
       );
       if (!order) throw new Error("Order not found");
-      const invoiceSettings = await settings.getForFarm(farmId);
+      const invoiceSettings = await settings.getById(settingsId);
       if (!invoiceSettings) throw new Error("Invoice settings not configured");
       const invoiceNumber = await deriveInvoiceNumber(order as OrderWithRelations, farmId, token);
       const buffer = await generateInvoiceDocx(order as OrderWithRelations, invoiceSettings, invoiceNumber, t);
@@ -436,10 +438,11 @@ export function invoicesApi(db: RlsDb, t: TFunction) {
     async downloadInvoicesBatch(
       orderIds: string[],
       farmId: string,
+      settingsId: string,
       token: SupabaseToken,
       mode: "single" | "zip"
     ): Promise<{ base64: string; fileName: string }> {
-      const invoiceSettings = await settings.getForFarm(farmId);
+      const invoiceSettings = await settings.getById(settingsId);
       if (!invoiceSettings) throw new Error("Invoice settings not configured");
       const date = new Date().toISOString().slice(0, 10);
 

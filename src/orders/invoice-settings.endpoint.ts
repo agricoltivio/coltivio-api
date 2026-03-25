@@ -1,10 +1,12 @@
 import { z } from "zod";
+import createHttpError from "http-errors";
 import { membershipEndpointFactory } from "../endpoint-factory";
 import { InvoiceSettings } from "./invoice-settings";
 
 export const invoiceSettingsSchema = z.object({
   id: z.string(),
   farmId: z.string(),
+  name: z.string(),
   senderName: z.string(),
   street: z.string(),
   zip: z.string(),
@@ -21,7 +23,8 @@ export const invoiceSettingsSchema = z.object({
   updatedAt: z.date(),
 });
 
-const invoiceSettingsInputSchema = z.object({
+const invoiceSettingsCreateSchema = z.object({
+  name: z.string(),
   senderName: z.string().optional(),
   street: z.string().optional(),
   zip: z.string().optional(),
@@ -36,6 +39,8 @@ const invoiceSettingsInputSchema = z.object({
   closingText: z.string().nullable().optional(),
 });
 
+const invoiceSettingsUpdateSchema = invoiceSettingsCreateSchema.partial();
+
 type InvoiceSettingsResponse = Omit<InvoiceSettings, "logoData" | "logoMimeType"> & { hasLogo: boolean };
 
 function toSettingsResponse(row: InvoiceSettings): InvoiceSettingsResponse {
@@ -46,45 +51,69 @@ function toSettingsResponse(row: InvoiceSettings): InvoiceSettingsResponse {
 export const getInvoiceSettingsEndpoint = membershipEndpointFactory.build({
   method: "get",
   input: z.object({}),
-  output: z.object({ result: invoiceSettingsSchema.nullable() }),
-  handler: async ({ ctx: { farmId, invoiceSettings } }): Promise<{ result: InvoiceSettingsResponse | null }> => {
-    const result = await invoiceSettings.getForFarm(farmId);
-    return { result: result ? toSettingsResponse(result) : null };
+  output: z.object({ result: z.array(invoiceSettingsSchema) }),
+  handler: async ({ ctx: { farmId, invoiceSettings } }) => {
+    const rows = await invoiceSettings.listForFarm(farmId);
+    return { result: rows.map(toSettingsResponse) };
   },
 });
 
-export const upsertInvoiceSettingsEndpoint = membershipEndpointFactory.build({
-  method: "put",
-  input: invoiceSettingsInputSchema,
+export const createInvoiceSettingsEndpoint = membershipEndpointFactory.build({
+  method: "post",
+  input: invoiceSettingsCreateSchema,
   output: invoiceSettingsSchema,
   handler: async ({ input, ctx: { farmId, invoiceSettings } }): Promise<InvoiceSettingsResponse> => {
-    const row = await invoiceSettings.upsert(farmId, input);
+    const row = await invoiceSettings.create(farmId, input);
     return toSettingsResponse(row);
+  },
+});
+
+export const updateInvoiceSettingsEndpoint = membershipEndpointFactory.build({
+  method: "put",
+  input: z.object({ id: z.string(), ...invoiceSettingsUpdateSchema.shape }),
+  output: invoiceSettingsSchema,
+  handler: async ({ input, ctx: { invoiceSettings } }): Promise<InvoiceSettingsResponse> => {
+    const { id, ...rest } = input;
+    const row = await invoiceSettings.update(id, rest);
+    if (!row) throw createHttpError(404, "Invoice settings not found");
+    return toSettingsResponse(row);
+  },
+});
+
+export const deleteInvoiceSettingsEndpoint = membershipEndpointFactory.build({
+  method: "delete",
+  input: z.object({ id: z.string() }),
+  output: z.object({ success: z.boolean() }),
+  handler: async ({ input, ctx: { invoiceSettings } }) => {
+    await invoiceSettings.delete(input.id);
+    return { success: true };
   },
 });
 
 export const uploadLogoEndpoint = membershipEndpointFactory.build({
   method: "put",
   input: z.object({
+    id: z.string(),
     base64: z.string(),
     mimeType: z.enum(["jpg", "png"]),
   }),
   output: invoiceSettingsSchema,
-  handler: async ({ input, ctx: { farmId, invoiceSettings } }): Promise<InvoiceSettingsResponse> => {
+  handler: async ({ input, ctx: { invoiceSettings } }): Promise<InvoiceSettingsResponse> => {
     // Strip data URI prefix if present (e.g. "data:image/png;base64,...")
     const raw = input.base64.replace(/^data:[^;]+;base64,/, "");
     const buffer = Buffer.from(raw, "base64");
-    const row = await invoiceSettings.upsertLogo(farmId, buffer, input.mimeType);
+    const row = await invoiceSettings.upsertLogo(input.id, buffer, input.mimeType);
+    if (!row) throw createHttpError(404, "Invoice settings not found");
     return toSettingsResponse(row);
   },
 });
 
 export const deleteLogoEndpoint = membershipEndpointFactory.build({
   method: "delete",
-  input: z.object({}),
+  input: z.object({ id: z.string() }),
   output: z.object({ success: z.boolean() }),
-  handler: async ({ ctx: { farmId, invoiceSettings } }) => {
-    await invoiceSettings.deleteLogo(farmId);
+  handler: async ({ input, ctx: { invoiceSettings } }) => {
+    await invoiceSettings.deleteLogo(input.id);
     return { success: true };
   },
 });

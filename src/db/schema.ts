@@ -173,8 +173,8 @@ export const invoiceSettings = pgTable.withRLS(
     id: uuid().primaryKey().defaultRandom(),
     farmId: uuid()
       .notNull()
-      .unique()
       .references(() => farms.id, { onDelete: "cascade" }),
+    name: text().notNull().default(""),
     senderName: text().notNull().default(""),
     street: text().notNull().default(""),
     zip: text().notNull().default(""),
@@ -192,6 +192,7 @@ export const invoiceSettings = pgTable.withRLS(
     updatedAt: timestamp({ mode: "date" }).defaultNow().notNull(),
   },
   (table) => [
+    unique("invoice_settings_farm_name_unique").on(table.farmId, table.name),
     pgPolicy("only farm members", {
       as: "permissive",
       to: authenticatedRole,
