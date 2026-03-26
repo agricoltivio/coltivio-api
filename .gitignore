@@ -140,6 +140,3 @@ __generated__
 # Supabase scratch queries
 supabase/snippets/
 
-# Claude Capsule Kit (generated at runtime)
-.claude/**
-CLAUDE.md
