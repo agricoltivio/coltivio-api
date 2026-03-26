@@ -893,10 +893,9 @@ describe("startTrial", () => {
 describe("createSubscriptionCheckout", () => {
   beforeEach(() => {
     process.env.STRIPE_MEMBERSHIP_PRICE_ID_YEARLY = "price_yearly_test";
-    process.env.STRIPE_MEMBERSHIP_PRODUCT_ID = "prod_test";
   });
 
-  it("returns checkout url and calls Stripe with price_data + recurring", async () => {
+  it("returns checkout url and calls Stripe with price id directly", async () => {
     const { userId } = await createTestUser("i1@test.com", "password123");
     const stripeMock = buildStripeMock({ checkoutSessionUrl: "https://checkout.stripe.com/sub" });
     mockGetStripe.mockReturnValue(stripeMock);
@@ -910,10 +909,8 @@ describe("createSubscriptionCheckout", () => {
     const args = createCall.mock.calls[0]?.[0] as Record<string, unknown>;
     expect(args.mode).toBe("subscription");
     expect(args.locale).toBe("de");
-    const lineItem = (args.line_items as { price_data: Record<string, unknown> }[])[0];
-    expect(lineItem.price_data.product).toBe("prod_test");
-    expect(lineItem.price_data.unit_amount).toBe(29000);
-    expect(lineItem.price_data.recurring).toEqual({ interval: "year" });
+    const lineItem = (args.line_items as { price: string }[])[0];
+    expect(lineItem.price).toBe("price_yearly_test");
   });
 
   it("applies trial_end when active trial exists", async () => {
@@ -951,10 +948,9 @@ describe("createSubscriptionCheckout", () => {
 describe("createManualCheckout", () => {
   beforeEach(() => {
     process.env.STRIPE_MEMBERSHIP_PRICE_ID_MANUAL = "price_manual_test";
-    process.env.STRIPE_MEMBERSHIP_PRODUCT_ID = "prod_test";
   });
 
-  it("returns checkout url and calls Stripe with price_data (no recurring)", async () => {
+  it("returns checkout url and calls Stripe with price id directly", async () => {
     const { userId } = await createTestUser("i4@test.com", "password123");
     const stripeMock = buildStripeMock({ checkoutSessionUrl: "https://checkout.stripe.com/manual" });
     mockGetStripe.mockReturnValue(stripeMock);
@@ -968,10 +964,8 @@ describe("createManualCheckout", () => {
     const args = createCall.mock.calls[0]?.[0] as Record<string, unknown>;
     expect(args.mode).toBe("payment");
     expect(args.locale).toBe("fr");
-    const lineItem = (args.line_items as { price_data: Record<string, unknown> }[])[0];
-    expect(lineItem.price_data.product).toBe("prod_test");
-    expect(lineItem.price_data.unit_amount).toBe(29000);
-    expect(lineItem.price_data.recurring).toBeUndefined();
+    const lineItem = (args.line_items as { price: string }[])[0];
+    expect(lineItem.price).toBe("price_manual_test");
   });
 
   it("throws when STRIPE_MEMBERSHIP_PRICE_ID_MANUAL is not set", async () => {
