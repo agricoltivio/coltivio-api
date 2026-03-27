@@ -23,6 +23,16 @@ import {
   setCustomOutdoorJournalCategoriesEndpoint,
 } from "./animals/animals.endpoint";
 import {
+  createAnimalJournalEntryEndpoint,
+  deleteAnimalJournalEntryEndpoint,
+  deleteAnimalJournalImageEndpoint,
+  getAnimalJournalEntryEndpoint,
+  listAnimalJournalEntriesEndpoint,
+  registerAnimalJournalImageEndpoint,
+  requestAnimalJournalImageSignedUrlEndpoint,
+  updateAnimalJournalEntryEndpoint,
+} from "./animals/animal-journal.endpoint";
+import {
   createContactEndpoint,
   deleteContactEndpoint,
   getContactByIdEndpoint,
@@ -160,6 +170,16 @@ import {
   syncMissingLocalIdsEndpoint,
   updatePlotEndpoint,
 } from "./plots/plots.endpoint";
+import {
+  createPlotJournalEntryEndpoint,
+  deletePlotJournalEntryEndpoint,
+  deletePlotJournalImageEndpoint,
+  getPlotJournalEntryEndpoint,
+  listPlotJournalEntriesEndpoint,
+  registerPlotJournalImageEndpoint,
+  requestPlotJournalImageSignedUrlEndpoint,
+  updatePlotJournalEntryEndpoint,
+} from "./plots/plot-journal.endpoint";
 import {
   createCropRotationEndpoint,
   createCropRotationsByCropEndpoint,
@@ -415,6 +435,23 @@ export const routing: Routing = {
           harvests: getHarvestsForPlotEndpoint,
           harvestSummary: getHarvestSummaryForPlotEndpoint,
           split: splitPlotEndpoint,
+          journal: { "": { get: listPlotJournalEntriesEndpoint, post: createPlotJournalEntryEndpoint } },
+        },
+      },
+      journal: {
+        byId: {
+          ":entryId": {
+            "": {
+              get: getPlotJournalEntryEndpoint,
+              patch: updatePlotJournalEntryEndpoint,
+              delete: deletePlotJournalEntryEndpoint,
+            },
+          },
+        },
+        images: {
+          signedUrl: { post: requestPlotJournalImageSignedUrlEndpoint },
+          "": { post: registerPlotJournalImageEndpoint },
+          byId: { ":imageId": { delete: deletePlotJournalImageEndpoint } },
         },
       },
       merge: mergePlotsEndpoint,
@@ -661,6 +698,23 @@ export const routing: Routing = {
           children: getAnimalChildrenEndpoint,
           sponsorships: getAnimalSponsorshipsEndpoint,
           customOutdoorJournalCategories: setCustomOutdoorJournalCategoriesEndpoint,
+          journal: { "": { get: listAnimalJournalEntriesEndpoint, post: createAnimalJournalEntryEndpoint } },
+        },
+      },
+      journal: {
+        byId: {
+          ":entryId": {
+            "": {
+              get: getAnimalJournalEntryEndpoint,
+              patch: updateAnimalJournalEntryEndpoint,
+              delete: deleteAnimalJournalEntryEndpoint,
+            },
+          },
+        },
+        images: {
+          signedUrl: { post: requestAnimalJournalImageSignedUrlEndpoint },
+          "": { post: registerAnimalJournalImageEndpoint },
+          byId: { ":imageId": { delete: deleteAnimalJournalImageEndpoint } },
         },
       },
       outdoorJournal: getOutdoorJournalEndpoint,
