@@ -7,6 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Always use `yarn` for package installation, never `npm install`.
 - After adding or modifying code: run `yarn format`, `yarn lint`, and `npx tsc --noEmit`.
 - Always add integration tests for new endpoints/features and ensure they pass before finishing.
+- Never run `yarn db:migrate` or `yarn db:generate` — the user always handles migrations manually.
 
 ## Commands
 

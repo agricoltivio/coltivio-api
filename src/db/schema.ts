@@ -2118,6 +2118,119 @@ export const farmInvites = pgTable.withRLS(
   ]
 );
 
+export const plotJournalEntries = pgTable.withRLS(
+  "plot_journal_entries",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    plotId: uuid()
+      .notNull()
+      .references(() => plots.id, { onDelete: "cascade" }),
+    farmId: uuid()
+      .notNull()
+      .references(() => farms.id, { onDelete: "cascade" }),
+    title: text().notNull(),
+    date: date({ mode: "date" }).notNull(),
+    content: text(),
+    createdBy: uuid().references(() => profiles.id, { onDelete: "set null" }),
+    createdAt: timestamp().notNull().defaultNow(),
+    updatedAt: timestamp().notNull().defaultNow(),
+  },
+  (table) => [
+    index("plot_journal_entries_plot_id_idx").on(table.plotId),
+    pgPolicy("only farm members", {
+      as: "permissive",
+      to: authenticatedRole,
+      using: eq(table.farmId, currentFarmId),
+      withCheck: eq(table.farmId, currentFarmId),
+    }),
+  ]
+);
+
+export const plotJournalImages = pgTable.withRLS(
+  "plot_journal_images",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    // No FK to plotJournalEntries — pre-upload flow, same rationale as animalJournalImages
+    journalEntryId: uuid().notNull(),
+    storagePath: text().notNull(),
+    createdAt: timestamp().notNull().defaultNow(),
+  },
+  (table) => [
+    index("plot_journal_images_entry_id_idx").on(table.journalEntryId),
+    pgPolicy("only farm members via journal entry", {
+      as: "permissive",
+      to: authenticatedRole,
+      using: sql`EXISTS (
+        SELECT 1 FROM ${plotJournalEntries} e
+        WHERE e.id = ${table.journalEntryId}
+        AND e.farm_id = (SELECT farm_id())
+      )`,
+      withCheck: sql`EXISTS (
+        SELECT 1 FROM ${plotJournalEntries} e
+        WHERE e.id = ${table.journalEntryId}
+        AND e.farm_id = (SELECT farm_id())
+      )`,
+    }),
+  ]
+);
+
+export const animalJournalEntries = pgTable.withRLS(
+  "animal_journal_entries",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    animalId: uuid()
+      .notNull()
+      .references(() => animals.id, { onDelete: "cascade" }),
+    farmId: uuid()
+      .notNull()
+      .references(() => farms.id, { onDelete: "cascade" }),
+    title: text().notNull(),
+    date: date({ mode: "date" }).notNull(),
+    content: text(),
+    createdBy: uuid().references(() => profiles.id, { onDelete: "set null" }),
+    createdAt: timestamp().notNull().defaultNow(),
+    updatedAt: timestamp().notNull().defaultNow(),
+  },
+  (table) => [
+    index("animal_journal_entries_animal_id_idx").on(table.animalId),
+    pgPolicy("only farm members", {
+      as: "permissive",
+      to: authenticatedRole,
+      using: eq(table.farmId, currentFarmId),
+      withCheck: eq(table.farmId, currentFarmId),
+    }),
+  ]
+);
+
+export const animalJournalImages = pgTable.withRLS(
+  "animal_journal_images",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    // No FK to animalJournalEntries — images may be uploaded before the entry is created
+    // (pre-generated UUID flow). Orphaned images can be cleaned up by a cron job.
+    journalEntryId: uuid().notNull(),
+    storagePath: text().notNull(),
+    createdAt: timestamp().notNull().defaultNow(),
+  },
+  (table) => [
+    index("animal_journal_images_entry_id_idx").on(table.journalEntryId),
+    pgPolicy("only farm members via journal entry", {
+      as: "permissive",
+      to: authenticatedRole,
+      using: sql`EXISTS (
+        SELECT 1 FROM ${animalJournalEntries} e
+        WHERE e.id = ${table.journalEntryId}
+        AND e.farm_id = (SELECT farm_id())
+      )`,
+      withCheck: sql`EXISTS (
+        SELECT 1 FROM ${animalJournalEntries} e
+        WHERE e.id = ${table.journalEntryId}
+        AND e.farm_id = (SELECT farm_id())
+      )`,
+    }),
+  ]
+);
+
 // Schema object for defineRelations (contains all tables)
 const tables = {
   federalFarmPlots,
@@ -2179,6 +2292,10 @@ const tables = {
   taskLinks,
   taskChecklistItems,
   farmInvites,
+  plotJournalEntries,
+  plotJournalImages,
+  animalJournalEntries,
+  animalJournalImages,
   userSubscriptions,
   userTrials,
   membershipPayments,
@@ -2363,6 +2480,7 @@ export const relations = defineRelations(tables, (r) => ({
     tillages: r.many.tillages(),
     cropProtectionApplications: r.many.cropProtectionApplications(),
     fertilizerApplications: r.many.fertilizerApplications(),
+    journalEntries: r.many.plotJournalEntries(),
   },
   harvestPresets: {
     farm: r.one.farms({
@@ -2575,6 +2693,7 @@ export const relations = defineRelations(tables, (r) => ({
     }),
     herdMemberships: r.many.herdMemberships(),
     customOutdoorJournalCategories: r.many.customOutdoorJournalCategories(),
+    journalEntries: r.many.animalJournalEntries(),
   },
   customOutdoorJournalCategories: {
     farm: r.one.farms({
@@ -2845,6 +2964,46 @@ export const relations = defineRelations(tables, (r) => ({
     task: r.one.tasks({
       from: r.taskChecklistItems.taskId,
       to: r.tasks.id,
+      optional: false,
+    }),
+  },
+  plotJournalEntries: {
+    plot: r.one.plots({
+      from: r.plotJournalEntries.plotId,
+      to: r.plots.id,
+      optional: false,
+    }),
+    farm: r.one.farms({
+      from: r.plotJournalEntries.farmId,
+      to: r.farms.id,
+      optional: false,
+    }),
+    images: r.many.plotJournalImages(),
+  },
+  plotJournalImages: {
+    journalEntry: r.one.plotJournalEntries({
+      from: r.plotJournalImages.journalEntryId,
+      to: r.plotJournalEntries.id,
+      optional: false,
+    }),
+  },
+  animalJournalEntries: {
+    animal: r.one.animals({
+      from: r.animalJournalEntries.animalId,
+      to: r.animals.id,
+      optional: false,
+    }),
+    farm: r.one.farms({
+      from: r.animalJournalEntries.farmId,
+      to: r.farms.id,
+      optional: false,
+    }),
+    images: r.many.animalJournalImages(),
+  },
+  animalJournalImages: {
+    journalEntry: r.one.animalJournalEntries({
+      from: r.animalJournalImages.journalEntryId,
+      to: r.animalJournalEntries.id,
       optional: false,
     }),
   },

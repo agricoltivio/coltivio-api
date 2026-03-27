@@ -9,8 +9,13 @@ export const supabase = createClient(process.env.SUPABASE_API_URL!, process.env.
 });
 
 export const WIKI_IMAGES_BUCKET = "wiki-images";
-
 export const wikiStorage = supabase.storage.from(WIKI_IMAGES_BUCKET);
+
+export const ANIMAL_JOURNAL_IMAGES_BUCKET = "animal-journal-images";
+export const animalJournalStorage = supabase.storage.from(ANIMAL_JOURNAL_IMAGES_BUCKET);
+
+export const PLOT_JOURNAL_IMAGES_BUCKET = "plot-journal-images";
+export const plotJournalStorage = supabase.storage.from(PLOT_JOURNAL_IMAGES_BUCKET);
 
 export type SupabaseToken = {
   iss?: string;
