@@ -2,6 +2,7 @@ import { animalsApi } from "../animals/animals";
 import { dashboardApi } from "../dashboard/dashboard";
 import { contactsApi } from "../contacts/contacts";
 import { cropRotationsApi } from "../crop-rotations/crop-rotations";
+import { cropRotationDraftPlansApi } from "../crop-rotations/crop-rotation-draft-plans";
 import { drugsApi } from "../drugs/drugs";
 import { earTagsApi } from "../ear-tags/ear-tags";
 import { treatmentsApi } from "../treatments/treatments";
@@ -48,6 +49,7 @@ export function sessionApi(db: RlsDb, t: TFunction, locale: string) {
     federalParcelLayer: federalPlotsLayerApi(db),
     crops: cropApi(db),
     cropRotations: cropRotationsApi(db),
+    cropRotationDraftPlans: cropRotationDraftPlansApi(db),
     harvests: harvestsApi(db),
     fertilizerApplications: fertilizerApplicationsApi(db),
     fertilizers: fertilizersApi(db),

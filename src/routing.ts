@@ -174,6 +174,14 @@ import {
   planCropRotationsEndpoint,
 } from "./crop-rotations/crop-rotations.endpoint";
 import {
+  applyDraftPlanEndpoint,
+  createDraftPlanEndpoint,
+  deleteDraftPlanEndpoint,
+  getDraftPlanByIdEndpoint,
+  listDraftPlansEndpoint,
+  updateDraftPlanEndpoint,
+} from "./crop-rotations/crop-rotation-draft-plans.endpoint";
+import {
   createTillageEndpoint,
   createTillagesEndpoint,
   deleteTillageEndpoint,
@@ -536,6 +544,22 @@ export const routing: Routing = {
         },
       },
       years: getCropRotationYearsEndpoint,
+      draftPlans: {
+        "": {
+          get: listDraftPlansEndpoint,
+          post: createDraftPlanEndpoint,
+        },
+        byId: {
+          ":draftPlanId": {
+            "": {
+              get: getDraftPlanByIdEndpoint,
+              patch: updateDraftPlanEndpoint,
+              delete: deleteDraftPlanEndpoint,
+            },
+            apply: { post: applyDraftPlanEndpoint },
+          },
+        },
+      },
     },
     harvests: {
       "": {
