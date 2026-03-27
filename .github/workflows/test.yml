@@ -23,12 +23,16 @@ jobs:
 
       - run: yarn install --frozen-lockfile
 
-      - run: npx tsc --noEmit
+      - name: Typecheck
+        run: npx tsc --noEmit
 
-      - run: npx prettier --check "src/**/*.ts"
+      - name: Format
+        run: npx prettier --check "src/**/*.ts"
 
-      - run: npx eslint src
+      - name: Lint
+        run: npx eslint src
 
-      - run: yarn test
+      - name: Tests
+        run: yarn test
         env:
           CI: true
