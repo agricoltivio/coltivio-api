@@ -121,10 +121,12 @@ export const getCropRotationsForFarmEndpoint = farmEndpointFactory.build({
   input: z.object({
     fromDate: ez.dateIn().optional(),
     toDate: ez.dateIn().optional(),
+    expand: booleanQueryParam(true),
+    withRecurrences: booleanQueryParam(false),
   }),
   output: z.object({
     result: z.array(
-      cropRotationSchema.extend({
+      cropRotationWithRecurrenceSchema.extend({
         plot: z.object({ name: z.string() }),
       })
     ),
@@ -132,7 +134,10 @@ export const getCropRotationsForFarmEndpoint = farmEndpointFactory.build({
   }),
   handler: async ({ input, ctx: { cropRotations } }) => {
     const { from, to } = ensureDateRange(input.fromDate, input.toDate);
-    const result = await cropRotations.getCropRotationsForFarm(from, to);
+    const result = await cropRotations.getCropRotationsForFarm(from, to, {
+      expand: input.expand,
+      withRecurrences: input.withRecurrences,
+    });
     return {
       result,
       count: result.length,
@@ -184,7 +189,6 @@ export const planCropRotationsEndpoint = farmEndpointFactory.build({
         plotId: z.string(),
         rotations: z.array(
           z.object({
-            id: z.string().optional(),
             cropId: z.string(),
             sowingDate: ez.dateIn().optional(),
             fromDate: ez.dateIn(),
@@ -200,11 +204,15 @@ export const planCropRotationsEndpoint = farmEndpointFactory.build({
     count: z.number(),
   }),
   handler: async ({ input, ctx: { cropRotations } }) => {
-    const result = await cropRotations.planCropRotations(input);
-    return {
-      result,
-      count: result.length,
-    };
+    try {
+      const result = await cropRotations.planCropRotations(input);
+      return { result, count: result.length };
+    } catch (err) {
+      if (err instanceof Error && err.message.includes("Overlapping")) {
+        throw createHttpError(409, err.message);
+      }
+      throw err;
+    }
   },
 });
 

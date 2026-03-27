@@ -421,6 +421,83 @@ export const cropRotationYearlyRecurrences = pgTable.withRLS(
   ]
 );
 
+export const cropRotationDraftPlans = pgTable.withRLS(
+  "crop_rotation_draft_plans",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    farmId: uuid()
+      .notNull()
+      .references(() => farms.id, { onDelete: "cascade" }),
+    name: text().notNull(),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp({ withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdateFn(() => new Date()),
+  },
+  (table) => [
+    pgPolicy("only farm members", {
+      as: "permissive",
+      to: authenticatedRole,
+      using: eq(table.farmId, currentFarmId),
+      withCheck: eq(table.farmId, currentFarmId),
+    }),
+  ]
+);
+
+export const cropRotationDraftPlanPlots = pgTable.withRLS(
+  "crop_rotation_draft_plan_plots",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    farmId: uuid()
+      .notNull()
+      .references(() => farms.id, { onDelete: "cascade" }),
+    draftPlanId: uuid()
+      .notNull()
+      .references(() => cropRotationDraftPlans.id, { onDelete: "cascade" }),
+    plotId: uuid()
+      .notNull()
+      .references(() => plots.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    pgPolicy("only farm members", {
+      as: "permissive",
+      to: authenticatedRole,
+      using: eq(table.farmId, currentFarmId),
+      withCheck: eq(table.farmId, currentFarmId),
+    }),
+  ]
+);
+
+export const cropRotationDraftPlanEntries = pgTable.withRLS(
+  "crop_rotation_draft_plan_entries",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    farmId: uuid()
+      .notNull()
+      .references(() => farms.id, { onDelete: "cascade" }),
+    draftPlanPlotId: uuid()
+      .notNull()
+      .references(() => cropRotationDraftPlanPlots.id, { onDelete: "cascade" }),
+    cropId: uuid()
+      .notNull()
+      .references(() => crops.id),
+    sowingDate: date({ mode: "date" }),
+    fromDate: date({ mode: "date" }).notNull(),
+    toDate: date({ mode: "date" }).notNull(),
+    recurrenceInterval: integer(),
+    recurrenceUntil: date({ mode: "date" }),
+  },
+  (table) => [
+    pgPolicy("only farm members", {
+      as: "permissive",
+      to: authenticatedRole,
+      using: eq(table.farmId, currentFarmId),
+      withCheck: eq(table.farmId, currentFarmId),
+    }),
+  ]
+);
+
 export const tillageReason = pgEnum("tillage_reason", [
   "weed_control",
   // "pest_control",
@@ -2049,6 +2126,9 @@ const tables = {
   parcels,
   cropRotations,
   cropRotationRecurrences: cropRotationYearlyRecurrences,
+  cropRotationDraftPlans,
+  cropRotationDraftPlanPlots,
+  cropRotationDraftPlanEntries,
   tillagePresets,
   tillages,
   cropProtectionProducts,
@@ -2208,6 +2288,34 @@ export const relations = defineRelations(tables, (r) => ({
     cropRotation: r.one.cropRotations({
       from: r.cropRotationRecurrences.cropRotationId,
       to: r.cropRotations.id,
+      optional: false,
+    }),
+  },
+  cropRotationDraftPlans: {
+    plots: r.many.cropRotationDraftPlanPlots(),
+  },
+  cropRotationDraftPlanPlots: {
+    draftPlan: r.one.cropRotationDraftPlans({
+      from: r.cropRotationDraftPlanPlots.draftPlanId,
+      to: r.cropRotationDraftPlans.id,
+      optional: false,
+    }),
+    plot: r.one.plots({
+      from: r.cropRotationDraftPlanPlots.plotId,
+      to: r.plots.id,
+      optional: false,
+    }),
+    entries: r.many.cropRotationDraftPlanEntries(),
+  },
+  cropRotationDraftPlanEntries: {
+    draftPlanPlot: r.one.cropRotationDraftPlanPlots({
+      from: r.cropRotationDraftPlanEntries.draftPlanPlotId,
+      to: r.cropRotationDraftPlanPlots.id,
+      optional: false,
+    }),
+    crop: r.one.crops({
+      from: r.cropRotationDraftPlanEntries.cropId,
+      to: r.crops.id,
       optional: false,
     }),
   },
