@@ -1,7 +1,7 @@
 import { ez } from "express-zod-api";
 import createHttpError from "http-errors";
 import { z } from "zod";
-import { farmEndpointFactory } from "../endpoint-factory";
+import { membershipEndpointFactory } from "../endpoint-factory";
 import { cropRotationSchema, cropRotationWithRecurrenceSchema } from "./crop-rotations.endpoint";
 
 const draftPlanSchema = z.object({
@@ -36,7 +36,7 @@ const draftPlanWithPlotsSchema = draftPlanSchema.extend({
   ),
 });
 
-export const createDraftPlanEndpoint = farmEndpointFactory.build({
+export const createDraftPlanEndpoint = membershipEndpointFactory.build({
   method: "post",
   input: z.object({
     name: z.string(),
@@ -48,7 +48,7 @@ export const createDraftPlanEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const listDraftPlansEndpoint = farmEndpointFactory.build({
+export const listDraftPlansEndpoint = membershipEndpointFactory.build({
   method: "get",
   input: z.object({}),
   output: z.object({
@@ -61,7 +61,7 @@ export const listDraftPlansEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const getDraftPlanByIdEndpoint = farmEndpointFactory.build({
+export const getDraftPlanByIdEndpoint = membershipEndpointFactory.build({
   method: "get",
   input: z.object({ draftPlanId: z.string() }),
   output: draftPlanWithPlotsSchema,
@@ -72,7 +72,7 @@ export const getDraftPlanByIdEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const updateDraftPlanEndpoint = farmEndpointFactory.build({
+export const updateDraftPlanEndpoint = membershipEndpointFactory.build({
   method: "patch",
   input: z.object({
     draftPlanId: z.string(),
@@ -85,7 +85,7 @@ export const updateDraftPlanEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const deleteDraftPlanEndpoint = farmEndpointFactory.build({
+export const deleteDraftPlanEndpoint = membershipEndpointFactory.build({
   method: "delete",
   input: z.object({ draftPlanId: z.string() }),
   output: z.object({}),
@@ -95,7 +95,7 @@ export const deleteDraftPlanEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const applyDraftPlanEndpoint = farmEndpointFactory.build({
+export const applyDraftPlanEndpoint = membershipEndpointFactory.build({
   method: "post",
   input: z.object({ draftPlanId: z.string() }),
   output: z.object({

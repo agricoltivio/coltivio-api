@@ -26,7 +26,7 @@ describe("Plot Journal — entry CRUD", () => {
   beforeEach(cleanDb);
 
   it("creates a journal entry for a plot", async () => {
-    const { jwt, farmId } = await createUserWithFarm();
+    const { jwt, farmId } = await createUserWithFarm({}, "test@test.com", { withActiveMembership: true });
     const plot = await createPlot(jwt);
 
     const res = await request(
@@ -51,7 +51,7 @@ describe("Plot Journal — entry CRUD", () => {
   });
 
   it("creates an entry without content", async () => {
-    const { jwt } = await createUserWithFarm();
+    const { jwt } = await createUserWithFarm({}, "test@test.com", { withActiveMembership: true });
     const plot = await createPlot(jwt);
 
     const res = await request(
@@ -66,7 +66,7 @@ describe("Plot Journal — entry CRUD", () => {
   });
 
   it("lists journal entries for a plot, newest date first", async () => {
-    const { jwt } = await createUserWithFarm();
+    const { jwt } = await createUserWithFarm({}, "test@test.com", { withActiveMembership: true });
     const plot = await createPlot(jwt);
 
     await createJournalEntry(jwt, plot.id, { date: "2024-01-01", title: "Old entry" });
@@ -81,7 +81,7 @@ describe("Plot Journal — entry CRUD", () => {
   });
 
   it("gets a single journal entry by id", async () => {
-    const { jwt } = await createUserWithFarm();
+    const { jwt } = await createUserWithFarm({}, "test@test.com", { withActiveMembership: true });
     const plot = await createPlot(jwt);
     const entry = await createJournalEntry(jwt, plot.id);
 
@@ -93,7 +93,7 @@ describe("Plot Journal — entry CRUD", () => {
   });
 
   it("updates title, date, and content", async () => {
-    const { jwt } = await createUserWithFarm();
+    const { jwt } = await createUserWithFarm({}, "test@test.com", { withActiveMembership: true });
     const plot = await createPlot(jwt);
     const entry = await createJournalEntry(jwt, plot.id);
 
@@ -110,7 +110,7 @@ describe("Plot Journal — entry CRUD", () => {
   });
 
   it("deletes a journal entry", async () => {
-    const { jwt } = await createUserWithFarm();
+    const { jwt } = await createUserWithFarm({}, "test@test.com", { withActiveMembership: true });
     const plot = await createPlot(jwt);
     const entry = await createJournalEntry(jwt, plot.id);
 
@@ -125,7 +125,7 @@ describe("Plot Journal — entry CRUD", () => {
   });
 
   it("returns 404 for non-existent plot on create", async () => {
-    const { jwt } = await createUserWithFarm();
+    const { jwt } = await createUserWithFarm({}, "test@test.com", { withActiveMembership: true });
 
     const res = await request(
       "POST",
@@ -137,7 +137,7 @@ describe("Plot Journal — entry CRUD", () => {
   });
 
   it("requires authentication", async () => {
-    const { jwt } = await createUserWithFarm();
+    const { jwt } = await createUserWithFarm({}, "test@test.com", { withActiveMembership: true });
     const plot = await createPlot(jwt);
 
     const res = await request("GET", `/v1/plots/byId/${plot.id}/journal`);
@@ -149,8 +149,8 @@ describe("Plot Journal — farm isolation", () => {
   beforeEach(cleanDb);
 
   it("farm A cannot read farm B journal entries", async () => {
-    const { jwt: jwtA } = await createUserWithFarm({}, "a@test.com");
-    const { jwt: jwtB } = await createUserWithFarm({}, "b@test.com");
+    const { jwt: jwtA } = await createUserWithFarm({}, "a@test.com", { withActiveMembership: true });
+    const { jwt: jwtB } = await createUserWithFarm({}, "b@test.com", { withActiveMembership: true });
 
     const plotA = await createPlot(jwtA);
     const entry = await createJournalEntry(jwtA, plotA.id);
@@ -160,8 +160,8 @@ describe("Plot Journal — farm isolation", () => {
   });
 
   it("farm A cannot update farm B journal entries", async () => {
-    const { jwt: jwtA } = await createUserWithFarm({}, "a@test.com");
-    const { jwt: jwtB } = await createUserWithFarm({}, "b@test.com");
+    const { jwt: jwtA } = await createUserWithFarm({}, "a@test.com", { withActiveMembership: true });
+    const { jwt: jwtB } = await createUserWithFarm({}, "b@test.com", { withActiveMembership: true });
 
     const plotA = await createPlot(jwtA);
     const entry = await createJournalEntry(jwtA, plotA.id);
@@ -171,8 +171,8 @@ describe("Plot Journal — farm isolation", () => {
   });
 
   it("farm A cannot delete farm B journal entries", async () => {
-    const { jwt: jwtA } = await createUserWithFarm({}, "a@test.com");
-    const { jwt: jwtB } = await createUserWithFarm({}, "b@test.com");
+    const { jwt: jwtA } = await createUserWithFarm({}, "a@test.com", { withActiveMembership: true });
+    const { jwt: jwtB } = await createUserWithFarm({}, "b@test.com", { withActiveMembership: true });
 
     const plotA = await createPlot(jwtA);
     const entry = await createJournalEntry(jwtA, plotA.id);
@@ -188,8 +188,8 @@ describe("Plot Journal — farm isolation", () => {
   });
 
   it("farm B cannot list farm A plot journal", async () => {
-    const { jwt: jwtA } = await createUserWithFarm({}, "a@test.com");
-    const { jwt: jwtB } = await createUserWithFarm({}, "b@test.com");
+    const { jwt: jwtA } = await createUserWithFarm({}, "a@test.com", { withActiveMembership: true });
+    const { jwt: jwtB } = await createUserWithFarm({}, "b@test.com", { withActiveMembership: true });
 
     const plotA = await createPlot(jwtA);
     await createJournalEntry(jwtA, plotA.id);
@@ -201,8 +201,8 @@ describe("Plot Journal — farm isolation", () => {
   });
 
   it("farm A cannot create journal entry for farm B plot", async () => {
-    const { jwt: jwtA } = await createUserWithFarm({}, "a@test.com");
-    const { jwt: jwtB } = await createUserWithFarm({}, "b@test.com");
+    const { jwt: jwtA } = await createUserWithFarm({}, "a@test.com", { withActiveMembership: true });
+    const { jwt: jwtB } = await createUserWithFarm({}, "b@test.com", { withActiveMembership: true });
 
     const plotB = await createPlot(jwtB);
 
@@ -220,7 +220,7 @@ describe("Plot Journal — image registration", () => {
   beforeEach(cleanDb);
 
   it("rejects registerImage with path not scoped to the journal entry", async () => {
-    const { jwt } = await createUserWithFarm();
+    const { jwt } = await createUserWithFarm({}, "test@test.com", { withActiveMembership: true });
     const plot = await createPlot(jwt);
     const entry = await createJournalEntry(jwt, plot.id);
 
@@ -234,7 +234,7 @@ describe("Plot Journal — image registration", () => {
   });
 
   it("deletes an image record", async () => {
-    const { jwt } = await createUserWithFarm();
+    const { jwt } = await createUserWithFarm({}, "test@test.com", { withActiveMembership: true });
     const plot = await createPlot(jwt);
     const entry = await createJournalEntry(jwt, plot.id);
 
@@ -252,7 +252,7 @@ describe("Plot Journal — image registration", () => {
   });
 
   it("deleted entry cascades image DB records", async () => {
-    const { jwt } = await createUserWithFarm();
+    const { jwt } = await createUserWithFarm({}, "test@test.com", { withActiveMembership: true });
     const plot = await createPlot(jwt);
     const entry = await createJournalEntry(jwt, plot.id);
 

@@ -45,7 +45,7 @@ describe("Draft Crop Rotation Plans", () => {
   beforeEach(cleanDb);
 
   it("creates a draft plan with no plots", async () => {
-    const { jwt, farmId } = await createUserWithFarm();
+    const { jwt, farmId } = await createUserWithFarm({}, "test@test.com", { withActiveMembership: true });
 
     const plan = await createDraftPlan(jwt, "Season 2026");
 
@@ -59,7 +59,7 @@ describe("Draft Crop Rotation Plans", () => {
   });
 
   it("creates a draft plan with plots and rotations", async () => {
-    const { jwt } = await createUserWithFarm();
+    const { jwt } = await createUserWithFarm({}, "test@test.com", { withActiveMembership: true });
     const plot = await createPlot(jwt, { name: "North Field" });
     const crop = await createCrop(jwt, { name: "Winter Wheat" });
 
@@ -79,7 +79,7 @@ describe("Draft Crop Rotation Plans", () => {
   });
 
   it("creates a draft plan plot with a rotation with recurrence", async () => {
-    const { jwt } = await createUserWithFarm();
+    const { jwt } = await createUserWithFarm({}, "test@test.com", { withActiveMembership: true });
     const plot = await createPlot(jwt);
     const crop = await createCrop(jwt);
 
@@ -104,7 +104,7 @@ describe("Draft Crop Rotation Plans", () => {
   });
 
   it("creates a draft plan with a plot that has no rotations (in-scope but empty)", async () => {
-    const { jwt } = await createUserWithFarm();
+    const { jwt } = await createUserWithFarm({}, "test@test.com", { withActiveMembership: true });
     const plot = await createPlot(jwt);
 
     const plan = await createDraftPlan(jwt, "Empty Plot Plan", [{ plotId: plot.id, rotations: [] }]);
@@ -115,7 +115,7 @@ describe("Draft Crop Rotation Plans", () => {
   });
 
   it("lists draft plans without plots", async () => {
-    const { jwt } = await createUserWithFarm();
+    const { jwt } = await createUserWithFarm({}, "test@test.com", { withActiveMembership: true });
     await createDraftPlan(jwt, "Plan 1");
     await createDraftPlan(jwt, "Plan 2");
 
@@ -127,7 +127,7 @@ describe("Draft Crop Rotation Plans", () => {
   });
 
   it("gets a draft plan by id with plots", async () => {
-    const { jwt } = await createUserWithFarm();
+    const { jwt } = await createUserWithFarm({}, "test@test.com", { withActiveMembership: true });
     const plot = await createPlot(jwt);
     const crop = await createCrop(jwt);
     const created = await createDraftPlan(jwt, "Detailed Plan", [
@@ -143,7 +143,7 @@ describe("Draft Crop Rotation Plans", () => {
   });
 
   it("returns 404 for unknown draft plan id", async () => {
-    const { jwt } = await createUserWithFarm();
+    const { jwt } = await createUserWithFarm({}, "test@test.com", { withActiveMembership: true });
     const res = await request(
       "GET",
       "/v1/cropRotations/draftPlans/byId/00000000-0000-0000-0000-000000000000",
@@ -154,7 +154,7 @@ describe("Draft Crop Rotation Plans", () => {
   });
 
   it("updates the plan name only", async () => {
-    const { jwt } = await createUserWithFarm();
+    const { jwt } = await createUserWithFarm({}, "test@test.com", { withActiveMembership: true });
     const plan = await createDraftPlan(jwt, "Original Name");
 
     const res = await request("PATCH", `/v1/cropRotations/draftPlans/byId/${plan.id}`, { name: "New Name" }, jwt);
@@ -164,7 +164,7 @@ describe("Draft Crop Rotation Plans", () => {
   });
 
   it("replaces all plots when updating with plots", async () => {
-    const { jwt } = await createUserWithFarm();
+    const { jwt } = await createUserWithFarm({}, "test@test.com", { withActiveMembership: true });
     const plot1 = await createPlot(jwt, { name: "Plot 1" });
     const plot2 = await createPlot(jwt, { name: "Plot 2" });
     const crop = await createCrop(jwt);
@@ -205,7 +205,7 @@ describe("Draft Crop Rotation Plans", () => {
   });
 
   it("deletes a draft plan and cascades plots and entries", async () => {
-    const { jwt } = await createUserWithFarm();
+    const { jwt } = await createUserWithFarm({}, "test@test.com", { withActiveMembership: true });
     const plot = await createPlot(jwt);
     const crop = await createCrop(jwt);
     const plan = await createDraftPlan(jwt, "To Delete", [
@@ -223,7 +223,7 @@ describe("Draft Crop Rotation Plans", () => {
   });
 
   it("applies a draft plan and creates real crop rotations", async () => {
-    const { jwt } = await createUserWithFarm();
+    const { jwt } = await createUserWithFarm({}, "test@test.com", { withActiveMembership: true });
     const plot1 = await createPlot(jwt, { name: "P1" });
     const plot2 = await createPlot(jwt, { name: "P2" });
     const crop = await createCrop(jwt, { name: "Rye" });
@@ -248,7 +248,7 @@ describe("Draft Crop Rotation Plans", () => {
   });
 
   it("apply replaces existing rotations for the affected plot", async () => {
-    const { jwt } = await createUserWithFarm();
+    const { jwt } = await createUserWithFarm({}, "test@test.com", { withActiveMembership: true });
     const plot = await createPlot(jwt);
     const crop = await createCrop(jwt);
 
@@ -269,7 +269,7 @@ describe("Draft Crop Rotation Plans", () => {
   });
 
   it("apply with empty rotations for a plot clears that plot's rotations", async () => {
-    const { jwt } = await createUserWithFarm();
+    const { jwt } = await createUserWithFarm({}, "test@test.com", { withActiveMembership: true });
     const plot = await createPlot(jwt);
     const crop = await createCrop(jwt);
 
@@ -287,7 +287,7 @@ describe("Draft Crop Rotation Plans", () => {
   });
 
   it("apply only touches plots included — leaves other plots untouched", async () => {
-    const { jwt } = await createUserWithFarm();
+    const { jwt } = await createUserWithFarm({}, "test@test.com", { withActiveMembership: true });
     const plotA = await createPlot(jwt, { name: "Plot A" });
     const plotB = await createPlot(jwt, { name: "Plot B" });
     const crop = await createCrop(jwt);
@@ -315,8 +315,8 @@ describe("Draft Crop Rotation Plans", () => {
   });
 
   it("does not expose draft plans from another farm", async () => {
-    const { jwt: jwt1 } = await createUserWithFarm({}, "farm1@test.com");
-    const { jwt: jwt2 } = await createUserWithFarm({}, "farm2@test.com");
+    const { jwt: jwt1 } = await createUserWithFarm({}, "farm1@test.com", { withActiveMembership: true });
+    const { jwt: jwt2 } = await createUserWithFarm({}, "farm2@test.com", { withActiveMembership: true });
 
     await createDraftPlan(jwt1, "Farm 1 Plan");
 

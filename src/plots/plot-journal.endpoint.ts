@@ -1,6 +1,6 @@
 import { ez } from "express-zod-api";
 import { z } from "zod";
-import { farmEndpointFactory } from "../endpoint-factory";
+import { membershipEndpointFactory } from "../endpoint-factory";
 
 const journalImageSchema = z.object({
   id: z.string(),
@@ -26,7 +26,7 @@ const journalEntryWithImagesSchema = journalEntrySchema.extend({
   images: z.array(journalImageSchema),
 });
 
-export const listPlotJournalEntriesEndpoint = farmEndpointFactory.build({
+export const listPlotJournalEntriesEndpoint = membershipEndpointFactory.build({
   method: "get",
   input: z.object({ plotId: z.string() }),
   output: z.object({ entries: z.array(journalEntryWithImagesSchema) }),
@@ -36,7 +36,7 @@ export const listPlotJournalEntriesEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const createPlotJournalEntryEndpoint = farmEndpointFactory.build({
+export const createPlotJournalEntryEndpoint = membershipEndpointFactory.build({
   method: "post",
   input: z.object({
     plotId: z.string(),
@@ -51,7 +51,7 @@ export const createPlotJournalEntryEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const getPlotJournalEntryEndpoint = farmEndpointFactory.build({
+export const getPlotJournalEntryEndpoint = membershipEndpointFactory.build({
   method: "get",
   input: z.object({ entryId: z.string() }),
   output: journalEntryWithImagesSchema,
@@ -60,7 +60,7 @@ export const getPlotJournalEntryEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const updatePlotJournalEntryEndpoint = farmEndpointFactory.build({
+export const updatePlotJournalEntryEndpoint = membershipEndpointFactory.build({
   method: "patch",
   input: z.object({
     entryId: z.string(),
@@ -75,7 +75,7 @@ export const updatePlotJournalEntryEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const deletePlotJournalEntryEndpoint = farmEndpointFactory.build({
+export const deletePlotJournalEntryEndpoint = membershipEndpointFactory.build({
   method: "delete",
   input: z.object({ entryId: z.string() }),
   output: z.object({}),
@@ -85,7 +85,7 @@ export const deletePlotJournalEntryEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const requestPlotJournalImageSignedUrlEndpoint = farmEndpointFactory.build({
+export const requestPlotJournalImageSignedUrlEndpoint = membershipEndpointFactory.build({
   method: "post",
   input: z.object({
     journalEntryId: z.string(),
@@ -100,7 +100,7 @@ export const requestPlotJournalImageSignedUrlEndpoint = farmEndpointFactory.buil
   },
 });
 
-export const registerPlotJournalImageEndpoint = farmEndpointFactory.build({
+export const registerPlotJournalImageEndpoint = membershipEndpointFactory.build({
   method: "post",
   input: z.object({
     journalEntryId: z.string(),
@@ -112,7 +112,7 @@ export const registerPlotJournalImageEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const deletePlotJournalImageEndpoint = farmEndpointFactory.build({
+export const deletePlotJournalImageEndpoint = membershipEndpointFactory.build({
   method: "delete",
   input: z.object({ imageId: z.string() }),
   output: z.object({}),

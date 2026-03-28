@@ -26,7 +26,7 @@ describe("Animal Journal — entry CRUD", () => {
   beforeEach(cleanDb);
 
   it("creates a journal entry for an animal", async () => {
-    const { jwt, farmId } = await createUserWithFarm();
+    const { jwt, farmId } = await createUserWithFarm({}, "test@test.com", { withActiveMembership: true });
     const animal = await createAnimal(jwt);
 
     const res = await request(
@@ -52,7 +52,7 @@ describe("Animal Journal — entry CRUD", () => {
   });
 
   it("creates an entry without content", async () => {
-    const { jwt } = await createUserWithFarm();
+    const { jwt } = await createUserWithFarm({}, "test@test.com", { withActiveMembership: true });
     const animal = await createAnimal(jwt);
 
     const res = await request(
@@ -67,7 +67,7 @@ describe("Animal Journal — entry CRUD", () => {
   });
 
   it("lists journal entries for an animal, newest date first", async () => {
-    const { jwt } = await createUserWithFarm();
+    const { jwt } = await createUserWithFarm({}, "test@test.com", { withActiveMembership: true });
     const animal = await createAnimal(jwt);
 
     await createJournalEntry(jwt, animal.id, { date: "2024-01-01", title: "Old entry" });
@@ -82,7 +82,7 @@ describe("Animal Journal — entry CRUD", () => {
   });
 
   it("gets a single journal entry by id", async () => {
-    const { jwt } = await createUserWithFarm();
+    const { jwt } = await createUserWithFarm({}, "test@test.com", { withActiveMembership: true });
     const animal = await createAnimal(jwt);
     const entry = await createJournalEntry(jwt, animal.id);
 
@@ -94,7 +94,7 @@ describe("Animal Journal — entry CRUD", () => {
   });
 
   it("updates title, date, and content", async () => {
-    const { jwt } = await createUserWithFarm();
+    const { jwt } = await createUserWithFarm({}, "test@test.com", { withActiveMembership: true });
     const animal = await createAnimal(jwt);
     const entry = await createJournalEntry(jwt, animal.id);
 
@@ -111,7 +111,7 @@ describe("Animal Journal — entry CRUD", () => {
   });
 
   it("deletes a journal entry", async () => {
-    const { jwt } = await createUserWithFarm();
+    const { jwt } = await createUserWithFarm({}, "test@test.com", { withActiveMembership: true });
     const animal = await createAnimal(jwt);
     const entry = await createJournalEntry(jwt, animal.id);
 
@@ -126,7 +126,7 @@ describe("Animal Journal — entry CRUD", () => {
   });
 
   it("returns 404 for non-existent animal on create", async () => {
-    const { jwt } = await createUserWithFarm();
+    const { jwt } = await createUserWithFarm({}, "test@test.com", { withActiveMembership: true });
 
     const res = await request(
       "POST",
@@ -138,7 +138,7 @@ describe("Animal Journal — entry CRUD", () => {
   });
 
   it("requires authentication", async () => {
-    const { jwt } = await createUserWithFarm();
+    const { jwt } = await createUserWithFarm({}, "test@test.com", { withActiveMembership: true });
     const animal = await createAnimal(jwt);
 
     const res = await request("GET", `/v1/animals/byId/${animal.id}/journal`);
@@ -150,8 +150,8 @@ describe("Animal Journal — farm isolation", () => {
   beforeEach(cleanDb);
 
   it("farm A cannot read farm B journal entries", async () => {
-    const { jwt: jwtA } = await createUserWithFarm({}, "a@test.com");
-    const { jwt: jwtB } = await createUserWithFarm({}, "b@test.com");
+    const { jwt: jwtA } = await createUserWithFarm({}, "a@test.com", { withActiveMembership: true });
+    const { jwt: jwtB } = await createUserWithFarm({}, "b@test.com", { withActiveMembership: true });
 
     const animalA = await createAnimal(jwtA);
     const entry = await createJournalEntry(jwtA, animalA.id);
@@ -162,8 +162,8 @@ describe("Animal Journal — farm isolation", () => {
   });
 
   it("farm A cannot update farm B journal entries", async () => {
-    const { jwt: jwtA } = await createUserWithFarm({}, "a@test.com");
-    const { jwt: jwtB } = await createUserWithFarm({}, "b@test.com");
+    const { jwt: jwtA } = await createUserWithFarm({}, "a@test.com", { withActiveMembership: true });
+    const { jwt: jwtB } = await createUserWithFarm({}, "b@test.com", { withActiveMembership: true });
 
     const animalA = await createAnimal(jwtA);
     const entry = await createJournalEntry(jwtA, animalA.id);
@@ -173,8 +173,8 @@ describe("Animal Journal — farm isolation", () => {
   });
 
   it("farm A cannot delete farm B journal entries", async () => {
-    const { jwt: jwtA } = await createUserWithFarm({}, "a@test.com");
-    const { jwt: jwtB } = await createUserWithFarm({}, "b@test.com");
+    const { jwt: jwtA } = await createUserWithFarm({}, "a@test.com", { withActiveMembership: true });
+    const { jwt: jwtB } = await createUserWithFarm({}, "b@test.com", { withActiveMembership: true });
 
     const animalA = await createAnimal(jwtA);
     const entry = await createJournalEntry(jwtA, animalA.id);
@@ -191,8 +191,8 @@ describe("Animal Journal — farm isolation", () => {
   });
 
   it("farm B cannot list farm A's animal journal", async () => {
-    const { jwt: jwtA } = await createUserWithFarm({}, "a@test.com");
-    const { jwt: jwtB } = await createUserWithFarm({}, "b@test.com");
+    const { jwt: jwtA } = await createUserWithFarm({}, "a@test.com", { withActiveMembership: true });
+    const { jwt: jwtB } = await createUserWithFarm({}, "b@test.com", { withActiveMembership: true });
 
     const animalA = await createAnimal(jwtA);
     await createJournalEntry(jwtA, animalA.id);
@@ -205,8 +205,8 @@ describe("Animal Journal — farm isolation", () => {
   });
 
   it("farm A cannot create journal entry for farm B animal", async () => {
-    const { jwt: jwtA } = await createUserWithFarm({}, "a@test.com");
-    const { jwt: jwtB } = await createUserWithFarm({}, "b@test.com");
+    const { jwt: jwtA } = await createUserWithFarm({}, "a@test.com", { withActiveMembership: true });
+    const { jwt: jwtB } = await createUserWithFarm({}, "b@test.com", { withActiveMembership: true });
 
     const animalB = await createAnimal(jwtB);
 
@@ -224,7 +224,7 @@ describe("Animal Journal — image registration", () => {
   beforeEach(cleanDb);
 
   it("rejects registerImage with path not scoped to the journal entry", async () => {
-    const { jwt } = await createUserWithFarm();
+    const { jwt } = await createUserWithFarm({}, "test@test.com", { withActiveMembership: true });
     const animal = await createAnimal(jwt);
     const entry = await createJournalEntry(jwt, animal.id);
 
@@ -238,7 +238,7 @@ describe("Animal Journal — image registration", () => {
   });
 
   it("deletes an image record", async () => {
-    const { jwt } = await createUserWithFarm();
+    const { jwt } = await createUserWithFarm({}, "test@test.com", { withActiveMembership: true });
     const animal = await createAnimal(jwt);
     const entry = await createJournalEntry(jwt, animal.id);
 
@@ -258,7 +258,7 @@ describe("Animal Journal — image registration", () => {
   });
 
   it("deleted entry cascades image DB records", async () => {
-    const { jwt } = await createUserWithFarm();
+    const { jwt } = await createUserWithFarm({}, "test@test.com", { withActiveMembership: true });
     const animal = await createAnimal(jwt);
     const entry = await createJournalEntry(jwt, animal.id);
 
