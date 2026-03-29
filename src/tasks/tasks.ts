@@ -71,6 +71,7 @@ export type TaskUpdateInput = {
   labels?: string[];
   assigneeId?: string;
   dueDate?: Date;
+  pinned?: boolean;
   recurrence?: TaskRecurrenceInput | null;
   links?: TaskLinkInput[];
   checklistItems?: TaskChecklistItemInput[];
@@ -259,12 +260,15 @@ export function tasksApi(rlsDb: RlsDb, locale: string) {
           },
         });
 
-        return rows.map((row) => ({
+        const mapped = rows.map((row) => ({
           ...row,
           assignee: row.assignee
             ? { id: row.assignee.id, email: row.assignee.email, fullName: row.assignee.fullName }
             : null,
         }));
+        // Pinned tasks always appear first
+        mapped.sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
+        return mapped;
       });
     },
 
@@ -358,6 +362,7 @@ export function tasksApi(rlsDb: RlsDb, locale: string) {
         if (input.labels !== undefined) updateFields.labels = input.labels;
         if (input.assigneeId !== undefined) updateFields.assigneeId = input.assigneeId;
         if (input.dueDate !== undefined) updateFields.dueDate = input.dueDate;
+        if (input.pinned !== undefined) updateFields.pinned = input.pinned;
 
         if (Object.keys(updateFields).length > 0) {
           await tx.update(tasks).set(updateFields).where(eq(tasks.id, id));

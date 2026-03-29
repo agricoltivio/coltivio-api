@@ -2001,6 +2001,7 @@ export const tasks = pgTable.withRLS(
     description: text(),
     labels: text().array().notNull().default([]),
     status: taskStatus().notNull().default("todo"),
+    pinned: boolean().notNull().default(false),
     assigneeId: uuid().references(() => profiles.id, { onDelete: "set null" }),
     dueDate: date({ mode: "date" }),
     createdAt: timestamp().notNull().defaultNow(),

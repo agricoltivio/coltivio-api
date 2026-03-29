@@ -8,6 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - After adding or modifying code: run `yarn format`, `yarn lint`, and `npx tsc --noEmit`.
 - Always add integration tests for new endpoints/features and ensure they pass before finishing.
 - Never run `yarn db:migrate` or `yarn db:generate` — the user always handles migrations manually.
+- Always keep REST API backwards compatibility. New fields must be optional or have defaults. If a change could break existing clients, double-check and ask before proceeding.
 
 ## Commands
 
