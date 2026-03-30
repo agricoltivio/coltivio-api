@@ -2080,6 +2080,7 @@ export const taskChecklistItems = pgTable.withRLS(
       .notNull()
       .references(() => tasks.id, { onDelete: "cascade" }),
     name: text().notNull(),
+    position: integer().notNull().default(0),
     dueDate: date({ mode: "date" }),
     done: boolean().notNull().default(false),
     createdAt: timestamp().notNull().defaultNow(),

@@ -255,13 +255,14 @@ export function tasksApi(rlsDb: RlsDb, locale: string) {
           where: matchingIds ? { id: { in: matchingIds } } : undefined,
           with: {
             recurrence: true,
-            checklistItems: true,
+            checklistItems: { orderBy: (fields, { asc }) => asc(fields.position) },
             assignee: true,
           },
         });
 
         const mapped = rows.map((row) => ({
           ...row,
+
           assignee: row.assignee
             ? { id: row.assignee.id, email: row.assignee.email, fullName: row.assignee.fullName }
             : null,
@@ -279,7 +280,7 @@ export function tasksApi(rlsDb: RlsDb, locale: string) {
           with: {
             recurrence: true,
             links: true,
-            checklistItems: true,
+            checklistItems: { orderBy: (fields, { asc }) => asc(fields.position) },
             assignee: true,
           },
         });
@@ -290,6 +291,7 @@ export function tasksApi(rlsDb: RlsDb, locale: string) {
 
         return {
           ...row,
+
           links: resolvedLinks,
           assignee: row.assignee
             ? { id: row.assignee.id, email: row.assignee.email, fullName: row.assignee.fullName }
@@ -330,10 +332,11 @@ export function tasksApi(rlsDb: RlsDb, locale: string) {
 
         if (input.checklistItems && input.checklistItems.length > 0) {
           await tx.insert(taskChecklistItems).values(
-            input.checklistItems.map((item) => ({
+            input.checklistItems.map((item, index) => ({
               ...farmIdColumnValue,
               taskId: task.id,
               name: item.name,
+              position: index,
               dueDate: item.dueDate,
             }))
           );
@@ -341,11 +344,17 @@ export function tasksApi(rlsDb: RlsDb, locale: string) {
 
         const created = await tx.query.tasks.findFirst({
           where: { id: task.id },
-          with: { recurrence: true, links: true, checklistItems: true, assignee: true },
+          with: {
+            recurrence: true,
+            links: true,
+            checklistItems: { orderBy: (fields, { asc }) => asc(fields.position) },
+            assignee: true,
+          },
         });
         const resolvedLinks = await resolveLinks(created!.links, tx, locale);
         return {
           ...created!,
+
           links: resolvedLinks,
           assignee: created!.assignee
             ? { id: created!.assignee.id, email: created!.assignee.email, fullName: created!.assignee.fullName }
@@ -392,10 +401,11 @@ export function tasksApi(rlsDb: RlsDb, locale: string) {
           await tx.delete(taskChecklistItems).where(eq(taskChecklistItems.taskId, id));
           if (input.checklistItems.length > 0) {
             await tx.insert(taskChecklistItems).values(
-              input.checklistItems.map((item) => ({
+              input.checklistItems.map((item, index) => ({
                 ...farmIdColumnValue,
                 taskId: id,
                 name: item.name,
+                position: index,
                 dueDate: item.dueDate,
               }))
             );
@@ -404,11 +414,17 @@ export function tasksApi(rlsDb: RlsDb, locale: string) {
 
         const updated = await tx.query.tasks.findFirst({
           where: { id },
-          with: { recurrence: true, links: true, checklistItems: true, assignee: true },
+          with: {
+            recurrence: true,
+            links: true,
+            checklistItems: { orderBy: (fields, { asc }) => asc(fields.position) },
+            assignee: true,
+          },
         });
         const resolvedLinks = await resolveLinks(updated!.links, tx, locale);
         return {
           ...updated!,
+
           links: resolvedLinks,
           assignee: updated!.assignee
             ? { id: updated!.assignee.id, email: updated!.assignee.email, fullName: updated!.assignee.fullName }
@@ -494,6 +510,7 @@ export function tasksApi(rlsDb: RlsDb, locale: string) {
               ...farmIdColumnValue,
               taskId: nextTask.id,
               name: item.name,
+              position: item.position,
               dueDate: item.dueDate,
               // done resets to false (default)
             }))

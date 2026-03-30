@@ -29,6 +29,7 @@ export const taskChecklistItemSchema = z.object({
   id: z.string(),
   taskId: z.string(),
   name: z.string(),
+  position: z.number(),
   dueDate: z.string().or(z.date()).nullable(),
   done: z.boolean(),
   createdAt: z.string().or(z.date()),
