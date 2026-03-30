@@ -1,4 +1,4 @@
-import { and, arrayContains, eq } from "drizzle-orm";
+import { and, arrayContains, eq, inArray } from "drizzle-orm";
 import { RlsDb } from "../db/db";
 import { farmIdColumnValue, taskChecklistItems, taskLinks, taskRecurrences, tasks } from "../db/schema";
 
@@ -48,7 +48,9 @@ export type TaskLinkInput = {
 };
 
 export type TaskChecklistItemInput = {
+  id?: string;
   name: string;
+  done?: boolean;
   dueDate?: Date;
 };
 
@@ -398,17 +400,40 @@ export function tasksApi(rlsDb: RlsDb, locale: string) {
         }
 
         if (input.checklistItems !== undefined) {
-          await tx.delete(taskChecklistItems).where(eq(taskChecklistItems.taskId, id));
-          if (input.checklistItems.length > 0) {
-            await tx.insert(taskChecklistItems).values(
-              input.checklistItems.map((item, index) => ({
+          const existing = await tx.query.taskChecklistItems.findMany({ where: { taskId: id } });
+          const incomingIds = new Set(input.checklistItems.filter((i) => i.id).map((i) => i.id!));
+
+          // Delete items that were removed from the list
+          const toDelete = existing.filter((e) => !incomingIds.has(e.id)).map((e) => e.id);
+          if (toDelete.length > 0) {
+            await tx
+              .delete(taskChecklistItems)
+              .where(and(eq(taskChecklistItems.taskId, id), inArray(taskChecklistItems.id, toDelete)));
+          }
+
+          for (const [index, item] of input.checklistItems.entries()) {
+            if (item.id) {
+              // Update existing item — preserve done unless explicitly provided
+              await tx
+                .update(taskChecklistItems)
+                .set({
+                  name: item.name,
+                  position: index,
+                  dueDate: item.dueDate,
+                  ...(item.done !== undefined ? { done: item.done } : {}),
+                })
+                .where(eq(taskChecklistItems.id, item.id));
+            } else {
+              // Insert new item
+              await tx.insert(taskChecklistItems).values({
                 ...farmIdColumnValue,
                 taskId: id,
                 name: item.name,
                 position: index,
                 dueDate: item.dueDate,
-              }))
-            );
+                done: item.done ?? false,
+              });
+            }
           }
         }
 

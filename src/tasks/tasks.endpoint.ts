@@ -79,7 +79,9 @@ const taskLinkInputSchema = z.object({
 });
 
 const taskChecklistItemInputSchema = z.object({
+  id: z.string().optional(),
   name: z.string().min(1),
+  done: z.boolean().optional(),
   dueDate: ez.dateIn().optional(),
 });
 
