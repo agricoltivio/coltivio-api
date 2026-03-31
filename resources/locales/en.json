@@ -1,4 +1,12 @@
 {
+  "animal_import": {
+    "error_name_required": "Name is required",
+    "error_sex_required": "Sex is required",
+    "error_sex_unknown": "Unknown sex value: {{value}}",
+    "error_dob_required": "Date of birth is required",
+    "error_dob_invalid": "Invalid date format",
+    "error_ear_tag_assigned": "Ear tag {{number}} is already assigned to another animal"
+  },
   "field_calendar_report": {
     "mail_subject": "Field Calendar",
     "file_name": "Field Calendar {{fromDate}} - {{toDate}}",

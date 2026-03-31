@@ -1,4 +1,12 @@
 {
+  "animal_import": {
+    "error_name_required": "Il nome è obbligatorio",
+    "error_sex_required": "Il sesso è obbligatorio",
+    "error_sex_unknown": "Valore del sesso sconosciuto: {{value}}",
+    "error_dob_required": "La data di nascita è obbligatoria",
+    "error_dob_invalid": "Formato data non valido",
+    "error_ear_tag_assigned": "Il marchio auricolare {{number}} è già assegnato a un altro animale"
+  },
   "field_calendar_report": {
     "mail_subject": "Calendario dei campi",
     "file_name": "Calendario dei campi {{fromDate}} - {{toDate}}",

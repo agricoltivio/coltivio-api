@@ -1,4 +1,12 @@
 {
+  "animal_import": {
+    "error_name_required": "Le nom est obligatoire",
+    "error_sex_required": "Le sexe est obligatoire",
+    "error_sex_unknown": "Valeur de sexe inconnue: {{value}}",
+    "error_dob_required": "La date de naissance est obligatoire",
+    "error_dob_invalid": "Format de date invalide",
+    "error_ear_tag_assigned": "La boucle auriculaire {{number}} est déjà attribuée à un autre animal"
+  },
   "field_calendar_report": {
     "mail_subject": "Calendrier des champs",
     "file_name": "Calendrier des champs {{fromDate}} - {{toDate}}",

@@ -1,4 +1,12 @@
 {
+  "animal_import": {
+    "error_name_required": "Name ist erforderlich",
+    "error_sex_required": "Geschlecht ist erforderlich",
+    "error_sex_unknown": "Unbekannter Geschlechtswert: {{value}}",
+    "error_dob_required": "Geburtsdatum ist erforderlich",
+    "error_dob_invalid": "Ungültiges Datumsformat",
+    "error_ear_tag_assigned": "Ohrmarke {{number}} ist bereits einem anderen Tier zugewiesen"
+  },
   "field_calendar_report": {
     "mail_subject": "Feldkalender",
     "file_name": "Feldkalender {{fromDate}} - {{toDate}}",

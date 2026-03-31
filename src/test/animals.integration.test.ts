@@ -1,4 +1,6 @@
 import { describe, it, expect, beforeEach } from "@jest/globals";
+import ExcelJS from "exceljs";
+import { eq } from "drizzle-orm";
 
 import { cleanDb, getAdminDb, request } from "./helpers";
 import * as schema from "../db/schema";
@@ -1285,5 +1287,301 @@ describe("Animals input validation", () => {
     const db = getAdminDb();
     const dbAnimals = await db.query.animals.findMany({});
     expect(dbAnimals).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Import preview + commit (two-phase import)
+// ---------------------------------------------------------------------------
+
+// Builds an in-memory xlsx buffer with the standard German header row and the
+// given data rows. Each row is [earTag, name, sex, dateOfBirth, usage].
+async function buildExcelBuffer(rows: [string, string, string, string, string?][]) {
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet("Tiere");
+  sheet.addRow(["Ohrmarkennummer", "Tiername", "Geschlecht", "Geburtsdatum", "Nutzungsart"]);
+  for (const row of rows) {
+    sheet.addRow(row);
+  }
+  return Buffer.from(await workbook.xlsx.writeBuffer());
+}
+
+// Sends a multipart/form-data POST with an xlsx file attached. Returns the
+// raw Response so callers can inspect status and body.
+async function uploadExcel(path: string, buffer: Buffer, fields: Record<string, string>, jwt: string) {
+  const baseUrl = process.env.SERVER_URL!;
+  const formData = new FormData();
+  formData.append(
+    "file",
+    new Blob([buffer as unknown as ArrayBuffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    }),
+    "animals.xlsx"
+  );
+  for (const [key, value] of Object.entries(fields)) {
+    formData.append(key, value);
+  }
+  return fetch(`${baseUrl}${path}`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${jwt}` },
+    body: formData,
+  });
+}
+
+describe("Animal import — preview + commit", () => {
+  beforeEach(cleanDb);
+
+  it("preview returns all rows with parsed fields, no DB writes", async () => {
+    const { jwt } = await createUserWithFarm();
+    const buffer = await buildExcelBuffer([
+      ["CH1234", "Rosa", "weiblich", "2021-06-15", "milch"],
+      ["CH5678", "Bruno", "bock", "2020-03-01"],
+    ]);
+
+    const res = await uploadExcel("/v1/animals/import/preview", buffer, { skipHeaderRow: "true" }, jwt);
+    expect(res.status).toBe(200);
+
+    const body = (await res.json()) as { data: { rows: unknown[] } };
+    const rows = body.data.rows as Array<{
+      rowNumber: number;
+      earTagNumber: string | null;
+      earTagId: string | null;
+      earTagAssigned: boolean;
+      name: string | null;
+      sex: string | null;
+      dateOfBirth: string | null;
+      usage: string | null;
+      parseErrors: string[];
+    }>;
+    expect(rows).toHaveLength(2);
+
+    const rosa = rows[0];
+    expect(rosa.name).toBe("Rosa");
+    expect(rosa.sex).toBe("female");
+    expect(rosa.usage).toBe("milk");
+    expect(rosa.earTagNumber).toBe("CH1234");
+    expect(rosa.earTagId).toBeNull(); // no existing ear tag in DB
+    expect(rosa.earTagAssigned).toBe(false);
+    expect(rosa.parseErrors).toHaveLength(0);
+
+    const bruno = rows[1];
+    expect(bruno.name).toBe("Bruno");
+    expect(bruno.sex).toBe("male");
+    expect(bruno.usage).toBe("other"); // no usage column value → default
+    expect(bruno.parseErrors).toHaveLength(0);
+
+    // No animals created
+    const db = getAdminDb();
+    expect(await db.query.animals.findMany({})).toHaveLength(0);
+  });
+
+  it("preview populates parseErrors for invalid rows", async () => {
+    const { jwt } = await createUserWithFarm();
+    const buffer = await buildExcelBuffer([
+      ["", "", "", ""], // name + sex + dob missing
+      ["CH1", "Bella", "komisch", "2020-01-01"], // unknown sex
+    ]);
+
+    const res = await uploadExcel("/v1/animals/import/preview", buffer, { skipHeaderRow: "true" }, jwt);
+    expect(res.status).toBe(200);
+
+    const body = (await res.json()) as { data: { rows: unknown[] } };
+    const rows = body.data.rows as Array<{ parseErrors: string[] }>;
+    expect(rows[0].parseErrors).toHaveLength(3); // name + sex + dob all missing
+    expect(rows[1].parseErrors).toHaveLength(1);
+    expect(rows[1].parseErrors[0]).toMatch(/komisch/);
+  });
+
+  it("preview marks earTagAssigned=true when ear tag belongs to another animal", async () => {
+    const { jwt } = await createUserWithFarm();
+    // Create an animal that already holds ear tag CH999
+    const existing = await createAnimal(jwt, { name: "Taken" });
+    const db = getAdminDb();
+    const [earTag] = await db.insert(schema.earTags).values({ farmId: existing.farmId, number: "CH999" }).returning();
+    await db.update(schema.animals).set({ earTagId: earTag.id }).where(eq(schema.animals.id, existing.id));
+
+    const buffer = await buildExcelBuffer([["CH999", "New", "weiblich", "2022-01-01"]]);
+    const res = await uploadExcel("/v1/animals/import/preview", buffer, { skipHeaderRow: "true" }, jwt);
+    expect(res.status).toBe(200);
+
+    const body = (await res.json()) as {
+      data: { rows: Array<{ earTagAssigned: boolean; assignedToAnimalId: string | null }> };
+    };
+    expect(body.data.rows[0].earTagAssigned).toBe(true);
+    expect(body.data.rows[0].assignedToAnimalId).toBe(existing.id);
+  });
+
+  it("commit creates new animals and returns correct counts", async () => {
+    const { jwt } = await createUserWithFarm();
+    const res = await request(
+      "POST",
+      "/v1/animals/import/commit",
+      {
+        type: "goat",
+        rows: [
+          { name: "Rosa", sex: "female", dateOfBirth: "2021-06-15", usage: "milk", earTagNumber: "CH100" },
+          { name: "Bruno", sex: "male", dateOfBirth: "2020-03-01", usage: "other" },
+        ],
+      },
+      jwt
+    );
+    expect(res.status).toBe(200);
+
+    const body = (await res.json()) as { data: { created: number; merged: number } };
+    expect(body.data.created).toBe(2);
+    expect(body.data.merged).toBe(0);
+
+    // Verify DB
+    const db = getAdminDb();
+    const animals = await db.query.animals.findMany({ with: { earTag: true } });
+    expect(animals).toHaveLength(2);
+    const rosa = animals.find((a) => a.name === "Rosa")!;
+    expect(rosa.sex).toBe("female");
+    expect(rosa.type).toBe("goat");
+    expect(rosa.earTag?.number).toBe("CH100");
+    const bruno = animals.find((a) => a.name === "Bruno")!;
+    expect(bruno.earTag).toBeNull();
+  });
+
+  it("commit merges into existing animal, overwrites imported fields only", async () => {
+    const { jwt } = await createUserWithFarm();
+    const existing = await createAnimal(jwt, {
+      name: "OldName",
+      type: "cow",
+      sex: "female",
+      dateOfBirth: "2018-01-01",
+      usage: "milk",
+    });
+
+    const res = await request(
+      "POST",
+      "/v1/animals/import/commit",
+      {
+        type: "cow",
+        rows: [
+          {
+            name: "UpdatedName",
+            sex: "female",
+            dateOfBirth: "2019-05-10",
+            usage: "other",
+            earTagNumber: "CH200",
+            mergeAnimalId: existing.id,
+          },
+        ],
+      },
+      jwt
+    );
+    expect(res.status).toBe(200);
+
+    const body = (await res.json()) as { data: { created: number; merged: number } };
+    expect(body.data.created).toBe(0);
+    expect(body.data.merged).toBe(1);
+
+    // Imported fields were overwritten
+    const db = getAdminDb();
+    const updated = await db.query.animals.findFirst({
+      where: { id: existing.id },
+      with: { earTag: true },
+    });
+    expect(updated!.name).toBe("UpdatedName");
+    expect(updated!.usage).toBe("other");
+    expect(updated!.earTag?.number).toBe("CH200");
+    // type was NOT in the imported fields — still the original (cow)
+    expect(updated!.type).toBe("cow");
+
+    // No new animal was created
+    expect(await db.query.animals.findMany({})).toHaveLength(1);
+  });
+
+  it("commit skips create row when ear tag is already assigned, still creates others", async () => {
+    const { jwt } = await createUserWithFarm();
+    // Assign CH300 to an existing animal
+    const existing = await createAnimal(jwt, { name: "Holder" });
+    const db = getAdminDb();
+    const [earTag] = await db.insert(schema.earTags).values({ farmId: existing.farmId, number: "CH300" }).returning();
+    await db.update(schema.animals).set({ earTagId: earTag.id }).where(eq(schema.animals.id, existing.id));
+
+    const res = await request(
+      "POST",
+      "/v1/animals/import/commit",
+      {
+        type: "goat",
+        rows: [
+          // This row should be skipped — CH300 already taken
+          { name: "Conflict", sex: "female", dateOfBirth: "2021-01-01", usage: "other", earTagNumber: "CH300" },
+          // This row should succeed
+          { name: "Clean", sex: "male", dateOfBirth: "2021-01-01", usage: "other" },
+        ],
+      },
+      jwt
+    );
+    expect(res.status).toBe(200);
+
+    const body = (await res.json()) as {
+      data: { created: number; merged: number; skipped: Array<{ index: number; reason: string }> };
+    };
+    expect(body.data.created).toBe(1); // only "Clean" created
+    expect(body.data.merged).toBe(0);
+    expect(body.data.skipped).toHaveLength(1);
+    expect(body.data.skipped[0].index).toBe(0);
+    expect(body.data.skipped[0].reason).toMatch(/CH300/);
+
+    const allAnimals = await db.query.animals.findMany({});
+    expect(allAnimals).toHaveLength(2); // Holder + Clean (Conflict was skipped)
+    expect(allAnimals.find((a) => a.name === "Conflict")).toBeUndefined();
+  });
+
+  it("full two-phase flow: preview then commit", async () => {
+    const { jwt } = await createUserWithFarm();
+    const buffer = await buildExcelBuffer([["CH400", "Liesel", "weiblich", "2022-09-01", "milch"]]);
+
+    // Phase 1: preview
+    const previewRes = await uploadExcel("/v1/animals/import/preview", buffer, { skipHeaderRow: "true" }, jwt);
+    expect(previewRes.status).toBe(200);
+    const previewBody = (await previewRes.json()) as {
+      data: {
+        rows: Array<{
+          earTagNumber: string | null;
+          earTagId: string | null;
+          name: string | null;
+          sex: string | null;
+          dateOfBirth: string | null;
+          usage: string | null;
+          parseErrors: string[];
+        }>;
+      };
+    };
+    const [row] = previewBody.data.rows;
+    expect(row.parseErrors).toHaveLength(0);
+    expect(row.name).toBe("Liesel");
+
+    // Phase 2: commit (user may have edited the row before submitting)
+    const commitRes = await request(
+      "POST",
+      "/v1/animals/import/commit",
+      {
+        type: "goat",
+        rows: [
+          {
+            earTagNumber: row.earTagNumber,
+            earTagId: row.earTagId,
+            name: "Liesel (edited)",
+            sex: row.sex,
+            dateOfBirth: row.dateOfBirth,
+            usage: row.usage,
+          },
+        ],
+      },
+      jwt
+    );
+    expect(commitRes.status).toBe(200);
+
+    const commitBody = (await commitRes.json()) as { data: { created: number; merged: number } };
+    expect(commitBody.data.created).toBe(1);
+
+    const db = getAdminDb();
+    const animal = await db.query.animals.findFirst({ with: { earTag: true } });
+    expect(animal!.name).toBe("Liesel (edited)");
+    expect(animal!.earTag?.number).toBe("CH400");
   });
 });

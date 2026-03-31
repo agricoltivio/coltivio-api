@@ -338,6 +338,64 @@ export const importAnimalsFromExcelEndpoint = farmEndpointFactory.build({
   },
 });
 
+const parsedImportRowSchema = z.object({
+  rowNumber: z.number(),
+  earTagNumber: z.string().nullable(),
+  earTagId: z.string().nullable(),
+  earTagAssigned: z.boolean(),
+  assignedToAnimalId: z.string().nullable(),
+  name: z.string().nullable(),
+  sex: animalSexSchema.nullable(),
+  dateOfBirth: ez.dateOut().nullable(),
+  usage: animalUsageSchema.nullable(),
+  parseErrors: z.array(z.string()),
+});
+
+export const previewAnimalImportEndpoint = farmEndpointFactory.build({
+  method: "post",
+  input: z.object({
+    file: ez.upload(),
+    skipHeaderRow: z
+      .string()
+      .optional()
+      .transform((val) => val !== "false")
+      .default(true),
+  }),
+  output: z.object({
+    rows: z.array(parsedImportRowSchema),
+  }),
+  handler: async ({ input, ctx: { animals, farmId, preferredLanguage } }) => {
+    const rows = await animals.parseImportPreview(input.file.data, input.skipHeaderRow, farmId, preferredLanguage);
+    return { rows };
+  },
+});
+
+const commitImportRowSchema = z.object({
+  earTagNumber: z.string().nullable().optional(),
+  earTagId: z.string().nullable().optional(),
+  name: z.string(),
+  sex: animalSexSchema,
+  dateOfBirth: ez.dateIn(),
+  usage: animalUsageSchema,
+  mergeAnimalId: z.string().nullable().optional(),
+});
+
+export const commitAnimalImportEndpoint = farmEndpointFactory.build({
+  method: "post",
+  input: z.object({
+    type: animalTypeSchema,
+    rows: z.array(commitImportRowSchema),
+  }),
+  output: z.object({
+    created: z.number(),
+    merged: z.number(),
+    skipped: z.array(z.object({ index: z.number(), reason: z.string() })),
+  }),
+  handler: async ({ input, ctx: { animals, farmId } }) => {
+    return animals.commitImport(input.rows, input.type, farmId);
+  },
+});
+
 // --- Outdoor Journal ---
 
 const outdoorJournalEntrySchema = z.object({

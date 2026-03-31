@@ -15,6 +15,8 @@ import {
   getHerdOutdoorSchedulesEndpoint,
   getOutdoorScheduleByIdEndpoint,
   importAnimalsFromExcelEndpoint,
+  previewAnimalImportEndpoint,
+  commitAnimalImportEndpoint,
   updateAnimalEndpoint,
   updateHerdEndpoint,
   updateOutdoorScheduleEndpoint,
@@ -687,7 +689,11 @@ export const routing: Routing = {
         delete: deleteAnimalsEndpoint,
       },
       batch: batchUpdateAnimalsEndpoint,
-      import: importAnimalsFromExcelEndpoint,
+      import: {
+        "": importAnimalsFromExcelEndpoint,
+        preview: previewAnimalImportEndpoint,
+        commit: commitAnimalImportEndpoint,
+      },
       byId: {
         ":animalId": {
           "": {

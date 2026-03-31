@@ -1,6 +1,7 @@
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import ExcelJS from "exceljs";
 import createHttpError from "http-errors";
+import { TFunction } from "i18next";
 import { RlsDb } from "../db/db";
 import * as tables from "../db/schema";
 import { EarTag } from "../ear-tags/ear-tags";
@@ -156,6 +157,35 @@ export type CustomOutdoorJournalCategory = typeof tables.customOutdoorJournalCat
 export type Animal = typeof tables.animals.$inferSelect & {
   earTag: EarTag | null;
 };
+
+export type ParsedImportRow = {
+  rowNumber: number;
+  earTagNumber: string | null;
+  earTagId: string | null; // non-null if an existing unassigned ear tag was found in DB
+  earTagAssigned: boolean; // true if the ear tag is already assigned to a different animal
+  assignedToAnimalId: string | null; // the animal that currently holds this ear tag (if earTagAssigned)
+  name: string | null;
+  sex: "male" | "female" | null;
+  dateOfBirth: Date | null;
+  usage: AnimalUsage | null;
+  parseErrors: string[]; // empty means the row is importable as-is
+};
+
+export type CommitImportRow = {
+  earTagNumber?: string | null;
+  earTagId?: string | null;
+  name: string;
+  sex: "male" | "female";
+  dateOfBirth: Date;
+  usage: AnimalUsage;
+  mergeAnimalId?: string | null; // if set, update existing animal instead of creating a new one
+};
+
+export type CommitImportResult = {
+  created: number;
+  merged: number;
+  skipped: Array<{ index: number; reason: string }>; // 0-based index into the input rows array
+};
 export type AnimalWithRelations = Animal & {
   mother: Animal | null;
   father: Animal | null;
@@ -166,7 +196,7 @@ export type AnimalWithRelations = Animal & {
   customOutdoorJournalCategories: CustomOutdoorJournalCategory[];
 };
 
-export function animalsApi(rlsDb: RlsDb) {
+export function animalsApi(rlsDb: RlsDb, t: TFunction) {
   return {
     async createAnimal(animalInput: AnimalCreateInput): Promise<Animal> {
       const result = await rlsDb.rls(async (tx) => {
@@ -1004,6 +1034,259 @@ export function animalsApi(rlsDb: RlsDb) {
           skipped: skippedRows.length,
         },
       };
+    },
+
+    // Parse an Excel file and return all rows (valid + invalid) without writing to the DB.
+    // The frontend uses this to show a preview, let the user edit/remove rows, and optionally
+    // assign a mergeAnimalId before calling commitImport.
+    async parseImportPreview(
+      fileBuffer: Buffer,
+      skipHeaderRow: boolean,
+      farmId: string,
+      locale: string = "de"
+    ): Promise<ParsedImportRow[]> {
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(fileBuffer as unknown as ExcelJS.Buffer);
+      const worksheet = workbook.worksheets[0];
+      if (!worksheet) {
+        throw new Error("Excel file has no worksheets");
+      }
+
+      const headerMap = HEADER_MAP[locale] ?? HEADER_MAP["de"];
+      const columnIndex: Record<string, number> = {};
+
+      if (!skipHeaderRow) {
+        throw createHttpError(400, "A header row is required for import.");
+      }
+
+      const headerRow = worksheet.getRow(1);
+      headerRow.eachCell((cell, colNumber) => {
+        const headerText = cell.text?.trim().toLowerCase();
+        if (headerText) {
+          const field = headerMap[headerText];
+          if (field) {
+            columnIndex[field] = colNumber;
+          }
+        }
+      });
+
+      const requiredColumns = ["earTag", "name", "sex", "dateOfBirth"] as const;
+      const missingColumns = requiredColumns.filter((col) => !columnIndex[col]);
+      if (missingColumns.length > 0) {
+        const knownHeaders = Object.keys(headerMap).join(", ");
+        throw createHttpError(
+          400,
+          `Missing required columns: ${missingColumns.join(", ")}. Known header names: ${knownHeaders}`
+        );
+      }
+
+      // Fetch all existing ear tags for this farm to check assignment status
+      const existingEarTags = await rlsDb.rls(async (tx) => {
+        return tx.query.earTags.findMany({
+          where: { farmId },
+          with: { animal: true },
+        });
+      });
+      const earTagByNumber = new Map(existingEarTags.map((tag) => [tag.number.toLowerCase(), tag]));
+
+      const rows: ParsedImportRow[] = [];
+
+      worksheet.eachRow((row, rowNumber) => {
+        if (skipHeaderRow && rowNumber === 1) return;
+
+        const earTagNumber = row.getCell(columnIndex["earTag"]).text?.trim() || null;
+        const name = row.getCell(columnIndex["name"]).text?.trim() || null;
+        const sexValue = row.getCell(columnIndex["sex"]).text?.trim().toLowerCase() || null;
+        const dobCell = row.getCell(columnIndex["dateOfBirth"]);
+        const usageValue = columnIndex["usage"]
+          ? row.getCell(columnIndex["usage"]).text?.trim().toLowerCase() || null
+          : null;
+
+        const parseErrors: string[] = [];
+
+        if (!name) parseErrors.push(t("animal_import.error_name_required"));
+
+        let sex: "male" | "female" | null = null;
+        if (!sexValue) {
+          parseErrors.push(t("animal_import.error_sex_required"));
+        } else {
+          sex = SEX_MAP[sexValue] ?? null;
+          if (!sex) parseErrors.push(t("animal_import.error_sex_unknown", { value: sexValue }));
+        }
+
+        // Default usage to "other" when column is absent or value unrecognized
+        const usage: AnimalUsage = usageValue ? (USAGE_MAP[usageValue] ?? "other") : "other";
+
+        let dateOfBirth: Date | null = null;
+        if (!dobCell.value) {
+          parseErrors.push(t("animal_import.error_dob_required"));
+        } else if (dobCell.value instanceof Date) {
+          dateOfBirth = dobCell.value;
+        } else if (typeof dobCell.value === "string") {
+          const parsed = new Date(dobCell.value);
+          if (isNaN(parsed.getTime())) {
+            parseErrors.push(t("animal_import.error_dob_invalid"));
+          } else {
+            dateOfBirth = parsed;
+          }
+        } else if (typeof dobCell.value === "number") {
+          dateOfBirth = new Date(Math.round((dobCell.value - 25569) * 86400 * 1000));
+        } else {
+          parseErrors.push(t("animal_import.error_dob_invalid"));
+        }
+
+        // Look up ear tag in DB — populate earTagId / earTagAssigned / assignedToAnimalId for the frontend
+        let earTagId: string | null = null;
+        let earTagAssigned = false;
+        let assignedToAnimalId: string | null = null;
+        if (earTagNumber) {
+          const existingTag = earTagByNumber.get(earTagNumber.toLowerCase());
+          if (existingTag) {
+            if (existingTag.animal) {
+              earTagAssigned = true;
+              assignedToAnimalId = existingTag.animal.id;
+            } else {
+              earTagId = existingTag.id;
+            }
+          }
+        }
+
+        rows.push({
+          rowNumber,
+          earTagNumber,
+          earTagId,
+          earTagAssigned,
+          assignedToAnimalId,
+          name,
+          sex,
+          dateOfBirth,
+          usage,
+          parseErrors,
+        });
+      });
+
+      return rows;
+    },
+
+    // Commit a (possibly user-modified) set of parsed rows to the DB. Each row either creates
+    // a new animal or merges into an existing one (overwriting only the imported fields).
+    async commitImport(rows: CommitImportRow[], type: AnimalType, farmId: string): Promise<CommitImportResult> {
+      // Fetch all farm ear tags once — used for both create and merge paths
+      const existingEarTags = await rlsDb.rls(async (tx) => {
+        return tx.query.earTags.findMany({
+          where: { farmId },
+          with: { animal: true },
+        });
+      });
+      // Mutable map keyed by lowercase number so we can add newly created tags
+      const earTagByNumber = new Map(
+        existingEarTags.map((tag) => [tag.number.toLowerCase(), tag as (typeof existingEarTags)[0]])
+      );
+
+      const skipped: CommitImportResult["skipped"] = [];
+
+      // --- Create path (rows without mergeAnimalId) ---
+      const createRows = rows.flatMap((r, i) => (!r.mergeAnimalId ? [{ row: r, index: i }] : []));
+
+      // Determine which ear tag numbers need to be created
+      const earTagsToCreate = new Set<string>();
+      const validCreateRows: Array<{ row: CommitImportRow; index: number }> = [];
+      for (const { row, index } of createRows) {
+        if (row.earTagNumber && !row.earTagId) {
+          const existing = earTagByNumber.get(row.earTagNumber.toLowerCase());
+          if (existing?.animal) {
+            skipped.push({ index, reason: t("animal_import.error_ear_tag_assigned", { number: row.earTagNumber }) });
+            continue;
+          }
+          if (!existing) earTagsToCreate.add(row.earTagNumber);
+        }
+        validCreateRows.push({ row, index });
+      }
+
+      // Batch create missing ear tags and populate the map
+      if (earTagsToCreate.size > 0) {
+        const newEarTags = await rlsDb.rls(async (tx) => {
+          return tx
+            .insert(tables.earTags)
+            .values(Array.from(earTagsToCreate).map((number) => ({ ...tables.farmIdColumnValue, number })))
+            .returning();
+        });
+        for (const tag of newEarTags) {
+          earTagByNumber.set(tag.number.toLowerCase(), { ...tag, animal: null });
+        }
+      }
+
+      let created = 0;
+      if (validCreateRows.length > 0) {
+        const animalsToInsert = validCreateRows.map(({ row }) => {
+          // Prefer explicit earTagId from frontend, then look up by number
+          const resolvedEarTagId = row.earTagId ?? earTagByNumber.get(row.earTagNumber?.toLowerCase() ?? "")?.id;
+          return {
+            ...tables.farmIdColumnValue,
+            name: row.name,
+            type,
+            sex: row.sex,
+            dateOfBirth: row.dateOfBirth,
+            usage: row.usage,
+            earTagId: resolvedEarTagId,
+            registered: true,
+          };
+        });
+
+        const result = await rlsDb.rls(async (tx) => {
+          return tx.insert(tables.animals).values(animalsToInsert).returning({ id: tables.animals.id });
+        });
+        created = result.length;
+      }
+
+      // --- Merge path (rows with mergeAnimalId) ---
+      const mergeRows = rows.flatMap((r, i) => (r.mergeAnimalId ? [{ row: r, index: i }] : []));
+      let merged = 0;
+
+      for (const { row, index } of mergeRows) {
+        const animalId = row.mergeAnimalId!;
+
+        // Resolve the ear tag to assign (if any)
+        let resolvedEarTagId: string | undefined;
+        if (row.earTagId) {
+          resolvedEarTagId = row.earTagId;
+        } else if (row.earTagNumber) {
+          const existing = earTagByNumber.get(row.earTagNumber.toLowerCase());
+          if (existing) {
+            if (existing.animal && existing.animal.id !== animalId) {
+              skipped.push({ index, reason: t("animal_import.error_ear_tag_assigned", { number: row.earTagNumber }) });
+              continue;
+            }
+            resolvedEarTagId = existing.id;
+          } else {
+            // Create the ear tag on the fly
+            const [newTag] = await rlsDb.rls(async (tx) => {
+              return tx
+                .insert(tables.earTags)
+                .values({ ...tables.farmIdColumnValue, number: row.earTagNumber! })
+                .returning();
+            });
+            resolvedEarTagId = newTag.id;
+            earTagByNumber.set(row.earTagNumber.toLowerCase(), { ...newTag, animal: null });
+          }
+        }
+
+        await rlsDb.rls(async (tx) => {
+          await tx
+            .update(tables.animals)
+            .set({
+              name: row.name,
+              sex: row.sex,
+              dateOfBirth: row.dateOfBirth,
+              usage: row.usage,
+              ...(resolvedEarTagId !== undefined ? { earTagId: resolvedEarTagId } : {}),
+            })
+            .where(eq(tables.animals.id, animalId));
+        });
+        merged++;
+      }
+
+      return { created, merged, skipped };
     },
   };
 }

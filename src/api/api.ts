@@ -61,7 +61,7 @@ export function sessionApi(db: RlsDb, t: TFunction, locale: string) {
     fieldCalendarReports: fieldCalendarReportsApi(db, t, locale),
     treatmentReports: treatmentReportsApi(db, t, locale),
     outdoorJournalReports: outdoorJournalReportsApi(db, t, locale),
-    animals: animalsApi(db),
+    animals: animalsApi(db, t),
     animalJournal: animalJournalApi(db),
     plotJournal: plotJournalApi(db),
     earTags: earTagsApi(db),
