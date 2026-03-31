@@ -17,6 +17,7 @@ import {
   importAnimalsFromExcelEndpoint,
   previewAnimalImportEndpoint,
   commitAnimalImportEndpoint,
+  getFamilyTreeEndpoint,
   updateAnimalEndpoint,
   updateHerdEndpoint,
   updateOutdoorScheduleEndpoint,
@@ -689,6 +690,7 @@ export const routing: Routing = {
         delete: deleteAnimalsEndpoint,
       },
       batch: batchUpdateAnimalsEndpoint,
+      familyTree: getFamilyTreeEndpoint,
       import: {
         "": importAnimalsFromExcelEndpoint,
         preview: previewAnimalImportEndpoint,

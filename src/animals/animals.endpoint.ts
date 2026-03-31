@@ -304,6 +304,33 @@ export const getAnimalChildrenEndpoint = farmEndpointFactory.build({
   },
 });
 
+const familyTreeNodeSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  earTagNumber: z.string().nullable(),
+  dateOfBirth: ez.dateOut(),
+  dateOfDeath: ez.dateOut().nullable(),
+  sex: animalSexSchema,
+});
+
+const familyTreeEdgeSchema = z.object({
+  parentId: z.string(),
+  childId: z.string(),
+  relation: z.enum(["mother", "father"]),
+});
+
+export const getFamilyTreeEndpoint = farmEndpointFactory.build({
+  method: "get",
+  input: z.object({ type: animalTypeSchema }),
+  output: z.object({
+    nodes: z.array(familyTreeNodeSchema),
+    edges: z.array(familyTreeEdgeSchema),
+  }),
+  handler: async ({ input, ctx: { animals, farmId } }) => {
+    return animals.getFamilyTree(farmId, input.type);
+  },
+});
+
 const skippedRowSchema = z.object({
   row: z.number(),
   earTagNumber: z.string().nullable(),

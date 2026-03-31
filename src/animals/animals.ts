@@ -186,6 +186,26 @@ export type CommitImportResult = {
   merged: number;
   skipped: Array<{ index: number; reason: string }>; // 0-based index into the input rows array
 };
+export type FamilyTreeNode = {
+  id: string;
+  name: string;
+  earTagNumber: string | null;
+  dateOfBirth: Date;
+  dateOfDeath: Date | null;
+  sex: "male" | "female";
+};
+
+export type FamilyTreeEdge = {
+  parentId: string;
+  childId: string;
+  relation: "mother" | "father";
+};
+
+export type FamilyTreeResult = {
+  nodes: FamilyTreeNode[];
+  edges: FamilyTreeEdge[];
+};
+
 export type AnimalWithRelations = Animal & {
   mother: Animal | null;
   father: Animal | null;
@@ -300,6 +320,38 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
           },
         });
       });
+    },
+
+    async getFamilyTree(farmId: string, type: AnimalType): Promise<FamilyTreeResult> {
+      const allAnimals = await rlsDb.rls(async (tx) => {
+        return tx.query.animals.findMany({
+          where: { farmId, type },
+          with: { earTag: true },
+        });
+      });
+
+      const animalIds = new Set(allAnimals.map((a) => a.id));
+
+      const nodes: FamilyTreeNode[] = allAnimals.map((a) => ({
+        id: a.id,
+        name: a.name,
+        earTagNumber: a.earTag?.number ?? null,
+        dateOfBirth: a.dateOfBirth,
+        dateOfDeath: a.dateOfDeath ?? null,
+        sex: a.sex,
+      }));
+
+      const edges: FamilyTreeEdge[] = [];
+      for (const a of allAnimals) {
+        if (a.motherId && animalIds.has(a.motherId)) {
+          edges.push({ parentId: a.motherId, childId: a.id, relation: "mother" });
+        }
+        if (a.fatherId && animalIds.has(a.fatherId)) {
+          edges.push({ parentId: a.fatherId, childId: a.id, relation: "father" });
+        }
+      }
+
+      return { nodes, edges };
     },
 
     async updateAnimals(data: Array<AnimalUpdateInput & { id: string }>): Promise<Animal[]> {
@@ -872,7 +924,8 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
           ? row.getCell(columnIndex["usage"]).text?.trim().toLowerCase() || null
           : null;
 
-        if (!name) {
+        const resolvedName = name ?? earTagNumber;
+        if (!resolvedName) {
           skippedRows.push({
             row: rowNumber,
             earTagNumber,
@@ -970,7 +1023,7 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
         }
 
         validAnimals.push({
-          name,
+          name: resolvedName,
           type,
           sex,
           usage,
@@ -1104,7 +1157,8 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
 
         const parseErrors: string[] = [];
 
-        if (!name) parseErrors.push(t("animal_import.error_name_required"));
+        const resolvedName = name ?? earTagNumber;
+        if (!resolvedName) parseErrors.push(t("animal_import.error_name_required"));
 
         let sex: "male" | "female" | null = null;
         if (!sexValue) {
@@ -1157,7 +1211,7 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
           earTagId,
           earTagAssigned,
           assignedToAnimalId,
-          name,
+          name: resolvedName,
           sex,
           dateOfBirth,
           usage,
