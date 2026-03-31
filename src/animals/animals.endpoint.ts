@@ -375,6 +375,10 @@ const parsedImportRowSchema = z.object({
   sex: animalSexSchema.nullable(),
   dateOfBirth: ez.dateOut().nullable(),
   usage: animalUsageSchema.nullable(),
+  dateOfDeath: ez.dateOut().nullable(),
+  deathReason: deathReasonSchema.nullable(),
+  motherEarTagNumber: z.string().nullable(),
+  fatherEarTagNumber: z.string().nullable(),
   parseErrors: z.array(z.string()),
 });
 
@@ -404,6 +408,10 @@ const commitImportRowSchema = z.object({
   sex: animalSexSchema,
   dateOfBirth: ez.dateIn(),
   usage: animalUsageSchema,
+  dateOfDeath: ez.dateIn().nullable().optional(),
+  deathReason: deathReasonSchema.nullable().optional(),
+  motherEarTagNumber: z.string().nullable().optional(),
+  fatherEarTagNumber: z.string().nullable().optional(),
   mergeAnimalId: z.string().nullable().optional(),
 });
 

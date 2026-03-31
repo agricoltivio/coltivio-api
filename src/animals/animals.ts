@@ -16,8 +16,9 @@ const _milkAndMeatUsableExtra = sql<boolean>`NOT EXISTS (
   AND (${tables.treatments.milkUsableDate} > NOW() OR ${tables.treatments.meatUsableDate} > NOW())
 )`.as("milk_and_meat_usable");
 
-// German sex value mapping for Excel imports
+// Sex value mapping (all locales combined — values are lowercased before lookup)
 const SEX_MAP: Record<string, "male" | "female"> = {
+  // German
   weiblich: "female",
   w: "female",
   geiss: "female",
@@ -25,16 +26,32 @@ const SEX_MAP: Record<string, "male" | "female"> = {
   männlich: "male",
   m: "male",
   bock: "male",
+  // Italian
+  femmina: "female",
+  maschio: "male",
+  // French
+  femelle: "female",
+  mâle: "male",
 };
 
 type AnimalUsage = (typeof tables.animalUsage.enumValues)[number];
 
-// German usage value mapping for Excel imports
+// Usage value mapping (all locales combined — values are lowercased before lookup)
 const USAGE_MAP: Record<string, AnimalUsage> = {
+  // German
   milch: "milk",
   milk: "milk",
   andere: "other",
   other: "other",
+  "nicht definiert": "other",
+  // Italian
+  latte: "milk",
+  "non definito": "other",
+  altro: "other",
+  // French
+  lait: "milk",
+  "non défini": "other",
+  autre: "other",
 };
 
 // Header name to logical field mapping, keyed by locale
@@ -45,8 +62,43 @@ const HEADER_MAP: Record<string, Record<string, string>> = {
     geschlecht: "sex",
     geburtsdatum: "dateOfBirth",
     nutzungsart: "usage",
+    todesdatum: "dateOfDeath",
+    "ohrmarkennummer (mutter)": "motherEarTag",
+    "ohrmarkennummer (vater)": "fatherEarTag",
+  },
+  it: {
+    "numero di marca auricolare": "earTag",
+    nome: "name",
+    sesso: "sex",
+    "data di nascita": "dateOfBirth",
+    "tipo d'utilizzo": "usage",
+    "data del decesso": "dateOfDeath",
+    "numero di marca auricolare (madre)": "motherEarTag",
+    "numero di marca auricolare (padre)": "fatherEarTag",
+  },
+  fr: {
+    "numéro de marque auriculaire": "earTag",
+    nom: "name",
+    sexe: "sex",
+    "date de naissance": "dateOfBirth",
+    "type d'utilisation": "usage",
+    "date de mort": "dateOfDeath",
+    "numéro de marque auriculaire (mère)": "motherEarTag",
+    "numéro de marque auriculaire (père)": "fatherEarTag",
   },
 };
+
+// Parses a date string — supports ISO (YYYY-MM-DD) and DD.MM.YYYY (used in Italian/Swiss TVD exports)
+function parseDateString(value: string): Date | null {
+  const dotFormat = value.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+  if (dotFormat) {
+    const [, day, month, year] = dotFormat;
+    const d = new Date(`${year}-${month}-${day}`);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  const d = new Date(value);
+  return isNaN(d.getTime()) ? null : d;
+}
 
 export type SkippedRow = {
   row: number;
@@ -168,6 +220,10 @@ export type ParsedImportRow = {
   sex: "male" | "female" | null;
   dateOfBirth: Date | null;
   usage: AnimalUsage | null;
+  dateOfDeath: Date | null;
+  deathReason: AnimalDeathReason | null; // preset to "died" when dateOfDeath is present
+  motherEarTagNumber: string | null;
+  fatherEarTagNumber: string | null;
   parseErrors: string[]; // empty means the row is importable as-is
 };
 
@@ -178,6 +234,10 @@ export type CommitImportRow = {
   sex: "male" | "female";
   dateOfBirth: Date;
   usage: AnimalUsage;
+  dateOfDeath?: Date | null;
+  deathReason?: AnimalDeathReason | null;
+  motherEarTagNumber?: string | null;
+  fatherEarTagNumber?: string | null;
   mergeAnimalId?: string | null; // if set, update existing animal instead of creating a new one
 };
 
@@ -969,8 +1029,8 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
           if (dobCell.value instanceof Date) {
             dateOfBirth = dobCell.value;
           } else if (typeof dobCell.value === "string") {
-            const parsed = new Date(dobCell.value);
-            if (isNaN(parsed.getTime())) {
+            const parsed = parseDateString(dobCell.value);
+            if (!parsed) {
               skippedRows.push({
                 row: rowNumber,
                 earTagNumber,
@@ -1154,6 +1214,13 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
         const usageValue = columnIndex["usage"]
           ? row.getCell(columnIndex["usage"]).text?.trim().toLowerCase() || null
           : null;
+        const dodCell = columnIndex["dateOfDeath"] ? row.getCell(columnIndex["dateOfDeath"]) : null;
+        const motherEarTagNumber = columnIndex["motherEarTag"]
+          ? row.getCell(columnIndex["motherEarTag"]).text?.trim() || null
+          : null;
+        const fatherEarTagNumber = columnIndex["fatherEarTag"]
+          ? row.getCell(columnIndex["fatherEarTag"]).text?.trim() || null
+          : null;
 
         const parseErrors: string[] = [];
 
@@ -1177,8 +1244,8 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
         } else if (dobCell.value instanceof Date) {
           dateOfBirth = dobCell.value;
         } else if (typeof dobCell.value === "string") {
-          const parsed = new Date(dobCell.value);
-          if (isNaN(parsed.getTime())) {
+          const parsed = parseDateString(dobCell.value);
+          if (!parsed) {
             parseErrors.push(t("animal_import.error_dob_invalid"));
           } else {
             dateOfBirth = parsed;
@@ -1187,6 +1254,18 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
           dateOfBirth = new Date(Math.round((dobCell.value - 25569) * 86400 * 1000));
         } else {
           parseErrors.push(t("animal_import.error_dob_invalid"));
+        }
+
+        // Parse optional date of death — same logic as dateOfBirth but no error if absent
+        let dateOfDeath: Date | null = null;
+        if (dodCell?.value) {
+          if (dodCell.value instanceof Date) {
+            dateOfDeath = dodCell.value;
+          } else if (typeof dodCell.value === "string") {
+            dateOfDeath = parseDateString(dodCell.value);
+          } else if (typeof dodCell.value === "number") {
+            dateOfDeath = new Date(Math.round((dodCell.value - 25569) * 86400 * 1000));
+          }
         }
 
         // Look up ear tag in DB — populate earTagId / earTagAssigned / assignedToAnimalId for the frontend
@@ -1215,6 +1294,10 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
           sex,
           dateOfBirth,
           usage,
+          dateOfDeath,
+          deathReason: dateOfDeath ? "died" : null,
+          motherEarTagNumber,
+          fatherEarTagNumber,
           parseErrors,
         });
       });
@@ -1270,6 +1353,9 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
         }
       }
 
+      // Maps earTagNumber (lowercase) → newly created/merged animalId for parent resolution
+      const importedEarTagToAnimalId = new Map<string, string>();
+
       let created = 0;
       if (validCreateRows.length > 0) {
         const animalsToInsert = validCreateRows.map(({ row }) => {
@@ -1284,6 +1370,7 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
             usage: row.usage,
             earTagId: resolvedEarTagId,
             registered: true,
+            ...(row.dateOfDeath ? { dateOfDeath: row.dateOfDeath, deathReason: row.deathReason ?? "died" } : {}),
           };
         });
 
@@ -1291,6 +1378,12 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
           return tx.insert(tables.animals).values(animalsToInsert).returning({ id: tables.animals.id });
         });
         created = result.length;
+
+        // Map earTagNumber → created animalId for parent resolution below
+        result.forEach(({ id }, i) => {
+          const earTagNumber = validCreateRows[i].row.earTagNumber;
+          if (earTagNumber) importedEarTagToAnimalId.set(earTagNumber.toLowerCase(), id);
+        });
       }
 
       // --- Merge path (rows with mergeAnimalId) ---
@@ -1334,10 +1427,47 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
               dateOfBirth: row.dateOfBirth,
               usage: row.usage,
               ...(resolvedEarTagId !== undefined ? { earTagId: resolvedEarTagId } : {}),
+              ...(row.dateOfDeath ? { dateOfDeath: row.dateOfDeath, deathReason: row.deathReason ?? "died" } : {}),
             })
             .where(eq(tables.animals.id, animalId));
         });
+
+        // Track for parent resolution
+        if (row.earTagNumber) importedEarTagToAnimalId.set(row.earTagNumber.toLowerCase(), animalId);
+
         merged++;
+      }
+
+      // --- Parent resolution (mother/father) ---
+      // Resolve an ear tag number to an animal ID: check existing DB animals first, then this import batch
+      const resolveParentId = (earTagNumber: string): string | undefined => {
+        const tag = earTagByNumber.get(earTagNumber.toLowerCase());
+        if (tag?.animal?.id) return tag.animal.id;
+        return importedEarTagToAnimalId.get(earTagNumber.toLowerCase());
+      };
+
+      for (const row of rows) {
+        if (!row.motherEarTagNumber && !row.fatherEarTagNumber) continue;
+
+        // Determine this row's animalId (created or merged)
+        const animalId =
+          row.mergeAnimalId ??
+          (row.earTagNumber ? importedEarTagToAnimalId.get(row.earTagNumber.toLowerCase()) : undefined);
+        if (!animalId) continue;
+
+        const motherId = row.motherEarTagNumber ? resolveParentId(row.motherEarTagNumber) : undefined;
+        const fatherId = row.fatherEarTagNumber ? resolveParentId(row.fatherEarTagNumber) : undefined;
+        if (!motherId && !fatherId) continue;
+
+        await rlsDb.rls(async (tx) => {
+          await tx
+            .update(tables.animals)
+            .set({
+              ...(motherId ? { motherId } : {}),
+              ...(fatherId ? { fatherId } : {}),
+            })
+            .where(eq(tables.animals.id, animalId));
+        });
       }
 
       return { created, merged, skipped };

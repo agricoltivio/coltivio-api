@@ -1531,6 +1531,56 @@ describe("Animal import — preview + commit", () => {
     expect(allAnimals.find((a) => a.name === "Conflict")).toBeUndefined();
   });
 
+  it("preview parses dateOfDeath, motherEarTagNumber, fatherEarTagNumber when columns are present", async () => {
+    const { jwt } = await createUserWithFarm();
+    // Build excel with the extra TVD columns
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet("Tiere");
+    sheet.addRow([
+      "Ohrmarkennummer",
+      "Tiername",
+      "Geschlecht",
+      "Geburtsdatum",
+      "Nutzungsart",
+      "Todesdatum",
+      "Ohrmarkennummer (Mutter)",
+      "Ohrmarkennummer (Vater)",
+    ]);
+    sheet.addRow(["CH500", "Zora", "weiblich", "2019-04-10", "milch", "2023-11-01", "CH501", "CH502"]);
+    sheet.addRow(["CH501", "Mama", "weiblich", "2016-01-01", "", "", "", ""]); // no death, no parents
+    const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
+
+    const res = await uploadExcel("/v1/animals/import/preview", buffer, { skipHeaderRow: "true" }, jwt);
+    expect(res.status).toBe(200);
+
+    const body = (await res.json()) as {
+      data: {
+        rows: Array<{
+          earTagNumber: string | null;
+          name: string | null;
+          dateOfDeath: string | null;
+          motherEarTagNumber: string | null;
+          fatherEarTagNumber: string | null;
+          parseErrors: string[];
+        }>;
+      };
+    };
+    const rows = body.data.rows;
+    expect(rows).toHaveLength(2);
+
+    const zora = rows[0];
+    expect(zora.name).toBe("Zora");
+    expect(zora.dateOfDeath).toMatch(/^2023-11-01/);
+    expect(zora.motherEarTagNumber).toBe("CH501");
+    expect(zora.fatherEarTagNumber).toBe("CH502");
+    expect(zora.parseErrors).toHaveLength(0);
+
+    const mama = rows[1];
+    expect(mama.dateOfDeath).toBeNull();
+    expect(mama.motherEarTagNumber).toBeNull();
+    expect(mama.fatherEarTagNumber).toBeNull();
+  });
+
   it("full two-phase flow: preview then commit", async () => {
     const { jwt } = await createUserWithFarm();
     const buffer = await buildExcelBuffer([["CH400", "Liesel", "weiblich", "2022-09-01", "milch"]]);
@@ -1583,5 +1633,163 @@ describe("Animal import — preview + commit", () => {
     const animal = await db.query.animals.findFirst({ with: { earTag: true } });
     expect(animal!.name).toBe("Liesel (edited)");
     expect(animal!.earTag?.number).toBe("CH400");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Animal import — dateOfDeath and parent resolution
+// ---------------------------------------------------------------------------
+describe("Animal import — dateOfDeath and parent resolution", () => {
+  beforeEach(cleanDb);
+
+  it("commit sets dateOfDeath and deathReason=died on create", async () => {
+    const { jwt } = await createUserWithFarm();
+    const res = await request(
+      "POST",
+      "/v1/animals/import/commit",
+      {
+        type: "goat",
+        rows: [{ name: "Dead", sex: "female", dateOfBirth: "2019-01-01", usage: "other", dateOfDeath: "2023-06-15" }],
+      },
+      jwt
+    );
+    expect(res.status).toBe(200);
+
+    const db = getAdminDb();
+    const animal = await db.query.animals.findFirst({ where: { name: "Dead" } });
+    expect(animal!.dateOfDeath).toEqual(new Date("2023-06-15"));
+    expect(animal!.deathReason).toBe("died");
+  });
+
+  it("commit sets dateOfDeath and deathReason=died on merge", async () => {
+    const { jwt } = await createUserWithFarm();
+    const existing = await createAnimal(jwt, { name: "Alive", dateOfBirth: "2019-01-01" });
+
+    const res = await request(
+      "POST",
+      "/v1/animals/import/commit",
+      {
+        type: "goat",
+        rows: [
+          {
+            name: "Alive",
+            sex: "female",
+            dateOfBirth: "2019-01-01",
+            usage: "other",
+            dateOfDeath: "2024-02-20",
+            mergeAnimalId: existing.id,
+          },
+        ],
+      },
+      jwt
+    );
+    expect(res.status).toBe(200);
+
+    const db = getAdminDb();
+    const updated = await db.query.animals.findFirst({ where: { id: existing.id } });
+    expect(updated!.dateOfDeath).toEqual(new Date("2024-02-20"));
+    expect(updated!.deathReason).toBe("died");
+  });
+
+  it("commit resolves mother from existing DB animal by ear tag", async () => {
+    const { jwt, farmId } = await createUserWithFarm();
+    // Create mother animal in DB with an ear tag
+    const db = getAdminDb();
+    const [motherTag] = await db.insert(schema.earTags).values({ farmId, number: "MOM001" }).returning();
+    const [mother] = await db
+      .insert(schema.animals)
+      .values({
+        farmId,
+        name: "Mama",
+        type: "goat",
+        sex: "female",
+        dateOfBirth: new Date("2015-01-01"),
+        usage: "other",
+        earTagId: motherTag.id,
+        registered: true,
+      })
+      .returning();
+
+    const res = await request(
+      "POST",
+      "/v1/animals/import/commit",
+      {
+        type: "goat",
+        rows: [
+          {
+            name: "Offspring",
+            sex: "female",
+            dateOfBirth: "2022-05-01",
+            usage: "other",
+            earTagNumber: "OFF001",
+            motherEarTagNumber: "MOM001",
+          },
+        ],
+      },
+      jwt
+    );
+    expect(res.status).toBe(200);
+
+    const offspring = await db.query.animals.findFirst({ where: { name: "Offspring" } });
+    expect(offspring!.motherId).toBe(mother.id);
+    expect(offspring!.fatherId).toBeNull();
+  });
+
+  it("commit resolves mother from another animal created in the same import batch", async () => {
+    const { jwt } = await createUserWithFarm();
+    const res = await request(
+      "POST",
+      "/v1/animals/import/commit",
+      {
+        type: "goat",
+        rows: [
+          // Mother is in the same batch
+          { name: "BatchMom", sex: "female", dateOfBirth: "2015-03-01", usage: "other", earTagNumber: "BMOM" },
+          {
+            name: "BatchKid",
+            sex: "female",
+            dateOfBirth: "2022-07-01",
+            usage: "other",
+            earTagNumber: "BKID",
+            motherEarTagNumber: "BMOM",
+          },
+        ],
+      },
+      jwt
+    );
+    expect(res.status).toBe(200);
+
+    const db = getAdminDb();
+    const mom = await db.query.animals.findFirst({ where: { name: "BatchMom" } });
+    const kid = await db.query.animals.findFirst({ where: { name: "BatchKid" } });
+    expect(kid!.motherId).toBe(mom!.id);
+  });
+
+  it("commit silently skips parent assignment when ear tag cannot be resolved", async () => {
+    const { jwt } = await createUserWithFarm();
+    const res = await request(
+      "POST",
+      "/v1/animals/import/commit",
+      {
+        type: "goat",
+        rows: [
+          {
+            name: "Orphan",
+            sex: "female",
+            dateOfBirth: "2022-01-01",
+            usage: "other",
+            motherEarTagNumber: "NONEXISTENT",
+          },
+        ],
+      },
+      jwt
+    );
+    expect(res.status).toBe(200);
+
+    const db = getAdminDb();
+    const animal = await db.query.animals.findFirst({ where: { name: "Orphan" } });
+    // Animal was still created, just no parent set
+    expect(animal).toBeDefined();
+    expect(animal!.motherId).toBeNull();
   });
 });
