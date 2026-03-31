@@ -106,5 +106,49 @@ describe("Orders", () => {
       expect(items).toHaveLength(1);
       expect(items[0].quantity).toBe(3);
     });
+
+    it("uses overridden unitPrice when provided on create", async () => {
+      const { jwt } = await createUserWithFarm({}, undefined, { withActiveMembership: true });
+      const contact = await createContact(jwt);
+      const product = await createProduct(jwt, { pricePerUnit: 50 });
+
+      const order = await createOrder(jwt, contact.id, [{ productId: product.id, quantity: 2, unitPrice: 10 }]);
+
+      const res = await request("GET", `/v1/orders/byId/${order.id}`, undefined, jwt);
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { data: { items: Array<{ unitPrice: number }> } };
+      expect(body.data.items[0].unitPrice).toBe(10);
+    });
+
+    it("falls back to product price when unitPrice not provided on create", async () => {
+      const { jwt } = await createUserWithFarm({}, undefined, { withActiveMembership: true });
+      const contact = await createContact(jwt);
+      const product = await createProduct(jwt, { pricePerUnit: 50 });
+
+      const order = await createOrder(jwt, contact.id, [{ productId: product.id, quantity: 1 }]);
+
+      const res = await request("GET", `/v1/orders/byId/${order.id}`, undefined, jwt);
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { data: { items: Array<{ unitPrice: number }> } };
+      expect(body.data.items[0].unitPrice).toBe(50);
+    });
+
+    it("uses overridden unitPrice when adding an item via addOrderItem", async () => {
+      const { jwt } = await createUserWithFarm({}, undefined, { withActiveMembership: true });
+      const contact = await createContact(jwt);
+      const product = await createProduct(jwt, { pricePerUnit: 80 });
+      const order = await createOrder(jwt, contact.id, [{ productId: product.id, quantity: 1 }]);
+
+      // Add a second item with a custom price
+      const addRes = await request(
+        "POST",
+        `/v1/orders/byId/${order.id}/items`,
+        { productId: product.id, quantity: 3, unitPrice: 20 },
+        jwt
+      );
+      expect(addRes.status).toBe(200);
+      const body = (await addRes.json()) as { data: { unitPrice: number } };
+      expect(body.data.unitPrice).toBe(20);
+    });
   });
 });

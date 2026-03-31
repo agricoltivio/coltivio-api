@@ -18,6 +18,7 @@ export type OrderItem = typeof orderItems.$inferSelect;
 export type OrderItemInput = {
   productId: string;
   quantity: number;
+  unitPrice?: number; // overrides the product's pricePerUnit when provided
 };
 
 export type OrderItemWithProduct = OrderItem & {
@@ -56,13 +57,13 @@ export function ordersApi(rlsDb: RlsDb) {
             throw new Error(`Product not found: ${item.productId}`);
           }
 
-          // Create order item with price snapshot
+          // Create order item with price snapshot — caller can override the default product price
           await tx.insert(orderItems).values({
             ...farmIdColumnValue,
             orderId: order.id,
             productId: item.productId,
             quantity: item.quantity,
-            unitPrice: product.pricePerUnit,
+            unitPrice: item.unitPrice ?? product.pricePerUnit,
           });
         }
 
@@ -193,7 +194,7 @@ export function ordersApi(rlsDb: RlsDb) {
             orderId,
             productId: item.productId,
             quantity: item.quantity,
-            unitPrice: product.pricePerUnit,
+            unitPrice: item.unitPrice ?? product.pricePerUnit,
           })
           .returning();
 

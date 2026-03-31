@@ -53,6 +53,7 @@ const orderWithContactSchema = orderSchema.extend({
 const orderItemInputSchema = z.object({
   productId: z.string(),
   quantity: z.number().positive(),
+  unitPrice: z.number().nonnegative().optional(),
 });
 
 export const getOrderByIdEndpoint = membershipEndpointFactory.build({
@@ -189,6 +190,7 @@ export const addOrderItemEndpoint = membershipEndpointFactory.build({
     orderId: z.string(),
     productId: z.string(),
     quantity: z.number().positive(),
+    unitPrice: z.number().nonnegative().optional(),
   }),
   output: orderItemWithProductSchema,
   handler: async ({ input, ctx: { orders } }) => {

@@ -349,7 +349,7 @@ export async function createProduct(jwt: string, data?: Record<string, unknown>)
 export async function createOrder(
   jwt: string,
   contactId: string,
-  items: Array<{ productId: string; quantity: number }>,
+  items: Array<{ productId: string; quantity: number; unitPrice?: number }>,
   data?: Record<string, unknown>
 ) {
   const payload = merge({}, { contactId, orderDate: "2026-03-01", items }, data);
