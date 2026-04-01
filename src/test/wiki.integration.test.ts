@@ -77,11 +77,11 @@ describe("Wiki — entry lifecycle", () => {
     expect(body.data.status).toBe("under_review");
     expect(body.data.type).toBe("new_entry");
 
-    // Entry itself must also reflect under_review immediately
+    // Private entry stays draft — status is not synced to the CR
     const getRes = await request("GET", `/v1/wiki/byId/${entry.id}`, undefined, jwt);
     expect(getRes.status).toBe(200);
     const getBody = (await getRes.json()) as { data: { status: string } };
-    expect(getBody.data.status).toBe("under_review");
+    expect(getBody.data.status).toBe("draft");
   });
 
   it("blocks submitting an entry without translations", async () => {
@@ -105,7 +105,7 @@ describe("Wiki — entry lifecycle", () => {
     expect(res.status).toBe(500);
   });
 
-  it("moderator approves new_entry CR — source entry becomes published", async () => {
+  it("moderator approves new_entry CR — source entry stays draft, CR becomes approved", async () => {
     const { jwt: userJwt } = await createTestUser("user@test.com", "password123");
     const { jwt: modJwt, userId: modId } = await createTestUser("mod@test.com", "password123");
     await seedModerator(modId);
@@ -121,7 +121,7 @@ describe("Wiki — entry lifecycle", () => {
 
     const db = getAdminDb();
     const dbEntry = await db.query.wikiEntries.findFirst({ where: { id: entry.id } });
-    expect(dbEntry!.status).toBe("published");
+    expect(dbEntry!.status).toBe("draft"); // private entry always stays draft
 
     const dbCr = await db.query.wikiChangeRequests.findFirst({ where: { id: cr.id } });
     expect(dbCr!.status).toBe("approved");
@@ -192,7 +192,7 @@ describe("Wiki — entry lifecycle", () => {
 
     const db = getAdminDb();
     const dbEntry = await db.query.wikiEntries.findFirst({ where: { id: entry.id } });
-    expect(dbEntry!.status).toBe("under_review");
+    expect(dbEntry!.status).toBe("draft"); // private entry always stays draft
   });
 
   it("non-moderator cannot approve a CR", async () => {

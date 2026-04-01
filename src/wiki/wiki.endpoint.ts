@@ -350,6 +350,9 @@ export const addWikiChangeRequestNoteEndpoint = authenticatedEndpointFactory.bui
     const cr = await wiki.getChangeRequestById(input.changeRequestId);
     if (!cr) throw createHttpError(404, "Change request not found");
 
+    if (cr.status === "approved" || cr.status === "rejected")
+      throw createHttpError(400, "Cannot add notes to a resolved change request");
+
     // Only the submitter or a moderator may add notes
     const isMod = await wikiModeration.isModerator(user.id);
     if (cr.submittedBy !== user.id && !isMod)

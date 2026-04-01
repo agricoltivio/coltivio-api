@@ -199,11 +199,6 @@ export function wikiModerationApi(db: RlsDb) {
           await tx.update(wikiEntries).set({ updatedAt: new Date() }).where(eq(wikiEntries.id, changeRequest.entryId));
         }
 
-        // Mark the source private entry as published when a new_entry CR is approved
-        if (changeRequest.type === "new_entry" && changeRequest.entryId) {
-          await tx.update(wikiEntries).set({ status: "published" }).where(eq(wikiEntries.id, changeRequest.entryId));
-        }
-
         await tx
           .update(wikiChangeRequests)
           .set({ status: "approved", resolvedAt: new Date() })
@@ -226,10 +221,6 @@ export function wikiModerationApi(db: RlsDb) {
           .update(wikiChangeRequests)
           .set({ status: "rejected", resolvedAt: new Date() })
           .where(eq(wikiChangeRequests.id, changeRequestId));
-
-        if (changeRequest.entryId) {
-          await tx.update(wikiEntries).set({ status: "draft" }).where(eq(wikiEntries.id, changeRequest.entryId));
-        }
       });
     },
 
@@ -249,10 +240,6 @@ export function wikiModerationApi(db: RlsDb) {
           .update(wikiChangeRequests)
           .set({ status: "changes_requested" })
           .where(eq(wikiChangeRequests.id, changeRequestId));
-
-        if (changeRequest.entryId) {
-          await tx.update(wikiEntries).set({ status: "draft" }).where(eq(wikiEntries.id, changeRequest.entryId));
-        }
       });
     },
 

@@ -320,8 +320,6 @@ export function wikiApi(db: RlsDb) {
           })
           .returning();
 
-        await tx.update(wikiEntries).set({ status: "under_review" }).where(eq(wikiEntries.id, entryId));
-
         // Snapshot translations from the private entry
         await tx.insert(wikiChangeRequestTranslations).values(
           entry.translations.map((t) => ({
@@ -491,7 +489,7 @@ export function wikiApi(db: RlsDb) {
     ): Promise<WikiChangeRequestWithRelations> {
       return db.rls(async (tx) => {
         const cr = await tx.query.wikiChangeRequests.findFirst({
-          where: { id: changeRequestId, submittedBy, status: "draft" },
+          where: { id: changeRequestId, submittedBy, status: { in: ["draft", "changes_requested"] } },
         });
         if (!cr) throw new Error("Draft change request not found");
 
@@ -542,11 +540,6 @@ export function wikiApi(db: RlsDb) {
           .update(wikiChangeRequests)
           .set({ status: "under_review" })
           .where(eq(wikiChangeRequests.id, changeRequestId));
-
-        // Keep entry status in sync
-        if (cr.entryId) {
-          await tx.update(wikiEntries).set({ status: "under_review" }).where(eq(wikiEntries.id, cr.entryId));
-        }
 
         const updated = await tx.query.wikiChangeRequests.findFirst({
           where: { id: changeRequestId },
