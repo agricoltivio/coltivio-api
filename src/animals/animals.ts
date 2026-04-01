@@ -580,18 +580,30 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
           // Update denormalized herdId on animals
           await tx.update(tables.animals).set({ herdId: herd.id }).where(inArray(tables.animals.id, animalIds));
 
-          // Close any active memberships and create new ones
+          // Close any active memberships and create new ones.
+          // If schedules are provided and the earliest startDate is in the past, backdate membership
+          // to that date so the outdoor journal reflects the full schedule history.
           const today = new Date();
+          const earliestScheduleStart =
+            outdoorSchedules && outdoorSchedules.length > 0
+              ? outdoorSchedules.reduce(
+                  (earliest, s) => (s.startDate < earliest ? s.startDate : earliest),
+                  outdoorSchedules[0].startDate
+                )
+              : null;
+          const membershipFromDate =
+            earliestScheduleStart && earliestScheduleStart < today ? earliestScheduleStart : today;
+
           for (const animalId of animalIds) {
             await tx
               .update(tables.herdMemberships)
-              .set({ toDate: today })
+              .set({ toDate: membershipFromDate })
               .where(and(eq(tables.herdMemberships.animalId, animalId), isNull(tables.herdMemberships.toDate)));
             await tx.insert(tables.herdMemberships).values({
               ...tables.farmIdColumnValue,
               animalId,
               herdId: herd.id,
-              fromDate: today,
+              fromDate: membershipFromDate,
             });
           }
         }
