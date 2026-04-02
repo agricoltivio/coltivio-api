@@ -26,11 +26,11 @@ export function fieldCalendarReportsApi(rlsDb: RlsDb, t: TFunction, locale: stri
         const plots = await tx.query.plots.findMany({
           with: {
             cropRotations: {
-              orderBy: { fromDate: "desc" },
-              with: { crop: true },
-              where: {
-                AND: [{ fromDate: { gte: fromDate } }, { fromDate: { lte: toDate } }],
-              },
+              orderBy: { fromDate: "asc" },
+              with: { crop: true, recurrence: true },
+              // Fetch all rotations whose base starts before the range end;
+              // expansion logic handles filtering overlapping occurrences
+              where: { fromDate: { lte: toDate } },
             },
             tillages: {
               orderBy: { date: "desc" },
@@ -63,29 +63,198 @@ export function fieldCalendarReportsApi(rlsDb: RlsDb, t: TFunction, locale: stri
         });
 
         const workbook = new ExcelJS.Workbook();
+
+        // ── Shared timeline helpers ────────────────────────────────────────────
+        // Build ordered list of { year, month } covering fromDate..toDate
+        const timelineMonths: { year: number; month: number }[] = [];
+        {
+          let cur = new Date(fromDate.getFullYear(), fromDate.getMonth(), 1);
+          const rangeEnd = new Date(toDate.getFullYear(), toDate.getMonth(), 1);
+          while (cur <= rangeEnd) {
+            timelineMonths.push({ year: cur.getFullYear(), month: cur.getMonth() });
+            cur = new Date(cur.getFullYear(), cur.getMonth() + 1, 1);
+          }
+        }
+
+        // Pastel color palette — one color per cropId, assigned in encounter order
+        const CROP_COLORS = [
+          "FFB7D7E8",
+          "FFFFD6A5",
+          "FFCAFFBF",
+          "FFFFADAD",
+          "FFE2CFFF",
+          "FFFFFFB3",
+          "FFBDE0FF",
+          "FFFFC6FF",
+          "FFDDE5B6",
+          "FFB5EAD7",
+          "FFFFCCF9",
+          "FFCCE5FF",
+        ];
+        const cropColorMap = new Map<string, string>();
+        let cropColorIndex = 0;
+        const getCropColor = (cropId: string): string => {
+          if (!cropColorMap.has(cropId)) {
+            cropColorMap.set(cropId, CROP_COLORS[cropColorIndex % CROP_COLORS.length]);
+            cropColorIndex++;
+          }
+          return cropColorMap.get(cropId)!;
+        };
+
+        // Format date as DD.MM without year
+        const fmtDate = (d: Date) => d.toLocaleDateString(locale, { day: "2-digit", month: "2-digit" });
+
+        const PLOT_COL = 1;
+        const MONTH_START_COL = 2;
+
+        // Write year + month header rows onto a sheet starting at startRow
+        const writeTimelineHeaders = (sheet: ExcelJS.Worksheet, startRow: number) => {
+          const yearRow = startRow;
+          const monthRow = startRow + 1;
+
+          // Year headers — merge consecutive months of the same year
+          let yearGroupStart = 0;
+          for (let i = 0; i <= timelineMonths.length; i++) {
+            const isNewYear =
+              i === timelineMonths.length || timelineMonths[i].year !== timelineMonths[yearGroupStart].year;
+            if (isNewYear) {
+              const startCol = MONTH_START_COL + yearGroupStart;
+              const endCol = MONTH_START_COL + i - 1;
+              if (startCol < endCol) sheet.mergeCells(yearRow, startCol, yearRow, endCol);
+              const yearCell = sheet.getCell(yearRow, startCol);
+              yearCell.value = timelineMonths[yearGroupStart].year;
+              yearCell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+              yearCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF2F5496" } };
+              yearCell.alignment = { horizontal: "center", vertical: "middle" };
+              yearGroupStart = i;
+            }
+          }
+
+          // Plot label cell
+          const plotLabelCell = sheet.getCell(monthRow, PLOT_COL);
+          plotLabelCell.value = t("plots.plot");
+          plotLabelCell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+          plotLabelCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF4472C4" } };
+
+          // Month name cells
+          for (let i = 0; i < timelineMonths.length; i++) {
+            const monthDate = new Date(timelineMonths[i].year, timelineMonths[i].month, 1);
+            const monthCell = sheet.getCell(monthRow, MONTH_START_COL + i);
+            monthCell.value = monthDate.toLocaleDateString(locale, { month: "short" });
+            monthCell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+            monthCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF4472C4" } };
+            monthCell.alignment = { horizontal: "center", vertical: "middle" };
+            sheet.getColumn(MONTH_START_COL + i).width = 12;
+          }
+          sheet.getColumn(PLOT_COL).width = 22;
+        };
+
+        const ROW_BORDER: Partial<ExcelJS.Border> = { style: "medium", color: { argb: "FF505050" } };
+        const COL_BORDER: Partial<ExcelJS.Border> = { style: "thin", color: { argb: "FF808080" } };
+
+        // Expand a crop rotation (with optional yearly recurrence) into concrete fromDate/toDate
+        // pairs that overlap [rangeFrom, rangeTo]
+        const expandCropRotation = (
+          rotation: (typeof plots)[0]["cropRotations"][0],
+          rangeFrom: Date,
+          rangeTo: Date
+        ): { fromDate: Date; toDate: Date }[] => {
+          const base = rotation.fromDate;
+          const durationMs = rotation.toDate.getTime() - base.getTime();
+          const rec = rotation.recurrence;
+          const results: { fromDate: Date; toDate: Date }[] = [];
+
+          let n = 0;
+          while (true) {
+            // Advance by interval years (n=0 is the base occurrence)
+            const occFrom = new Date(
+              base.getFullYear() + (rec ? rec.interval * n : 0),
+              base.getMonth(),
+              base.getDate()
+            );
+            const occTo = new Date(occFrom.getTime() + durationMs);
+
+            if (occFrom > rangeTo) break;
+            if (rec?.until && occFrom > rec.until) break;
+
+            if (occTo >= rangeFrom) {
+              results.push({ fromDate: occFrom, toDate: occTo });
+            }
+
+            if (!rec) break; // no recurrence, only one occurrence
+            n++;
+          }
+          return results;
+        };
+
+        // Write rotation bars for one plot's rotations on a single sheet row.
+        // Fills each month cell individually (no merging) so column borders remain visible.
+        // Dark bottom border separates rows; light gray right border separates columns.
+        const writeRotationBars = (
+          sheet: ExcelJS.Worksheet,
+          row: number,
+          rotations: (typeof plots)[0]["cropRotations"]
+        ) => {
+          // Collect all expanded occurrences mapped to month indices
+          type Occurrence = { monthIdx: number; label: string | null; cropId: string };
+          const monthFill: Occurrence[] = [];
+
+          for (const rotation of rotations) {
+            const occurrences = expandCropRotation(rotation, fromDate, toDate);
+            for (const occ of occurrences) {
+              let isFirstCell = true;
+              for (let i = 0; i < timelineMonths.length; i++) {
+                const { year, month } = timelineMonths[i];
+                const firstDay = new Date(year, month, 1);
+                const lastDay = new Date(year, month + 1, 0);
+                if (occ.fromDate <= lastDay && occ.toDate >= firstDay) {
+                  monthFill.push({
+                    monthIdx: i,
+                    // Label only on the first cell of the bar
+                    label: isFirstCell
+                      ? `${rotation.crop.name}  ${fmtDate(occ.fromDate)} – ${fmtDate(occ.toDate)}`
+                      : null,
+                    cropId: rotation.cropId,
+                  });
+                  isFirstCell = false;
+                }
+              }
+            }
+          }
+
+          const filledIndices = new Set(monthFill.map((f) => f.monthIdx));
+
+          // Style all month cells — filled or empty
+          for (let i = 0; i < timelineMonths.length; i++) {
+            const col = MONTH_START_COL + i;
+            const cell = sheet.getCell(row, col);
+            cell.border = {
+              bottom: ROW_BORDER,
+              right: COL_BORDER,
+              left: i === 0 ? COL_BORDER : undefined,
+            };
+            if (!filledIndices.has(i)) continue;
+            const fill = monthFill.find((f) => f.monthIdx === i)!;
+            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: getCropColor(fill.cropId) } };
+            if (fill.label) {
+              cell.value = fill.label;
+              cell.alignment = { vertical: "middle", wrapText: false };
+            }
+          }
+        };
+        // ── End shared helpers ─────────────────────────────────────────────────
+
         generateMainSheet();
+        if (cropRotations) generateRotationTimelineSheet();
         generatePerPlotSheet();
 
         function generateMainSheet() {
-          const cropRotationRows: any[][] = [];
           const tillageRows: any[][] = [];
           const fertilizerApplicationRows: any[][] = [];
           const cropProtectionApplicationRows: any[][] = [];
           const harvestRows: any[][] = [];
 
           for (const plot of plots) {
-            if (cropRotations) {
-              plot.cropRotations.forEach((cropRotation) => {
-                cropRotationRows.push([
-                  plot.name,
-                  plot.usage,
-                  cropRotation.fromDate.toLocaleDateString(locale),
-                  cropRotation.toDate?.toLocaleDateString(locale) ?? "",
-                  cropRotation.crop.name,
-                ]);
-              });
-            }
-
             if (tillages) {
               plot.tillages.forEach((tillage) => {
                 tillageRows.push([
@@ -174,31 +343,6 @@ export function fieldCalendarReportsApi(rlsDb: RlsDb, t: TFunction, locale: stri
           mainTitle.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF2F5496" } };
           mainTitle.alignment = { vertical: "middle" };
           rowIndex += 3;
-
-          if (cropRotations && cropRotationRows.length > 0) {
-            // crop rotations table
-            sheet.mergeCells(`A${rowIndex}:J${rowIndex}`);
-            sheet.getCell(`A${rowIndex}`).value = t("crop_rotations.crop_rotation");
-            sheet.getCell(`A${rowIndex}`).font = { bold: true, size: 14, color: { argb: "FFFFFFFF" } };
-            sheet.getCell(`A${rowIndex}`).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF4472C4" } };
-            rowIndex += 2;
-
-            sheet.addTable({
-              name: "main_crop_rotations",
-              ref: `A${rowIndex}`,
-              headerRow: true,
-              style: { showRowStripes: true },
-              columns: [
-                { name: t("plots.plot") },
-                { name: t("plots.usage") },
-                { name: t("common.from") },
-                { name: t("common.to") },
-                { name: t("crops.crop") },
-              ],
-              rows: cropRotationRows,
-            });
-            rowIndex += cropRotationRows.length + 3;
-          }
 
           if (tillages && tillageRows.length > 0) {
             //tillages table
@@ -378,6 +522,37 @@ export function fieldCalendarReportsApi(rlsDb: RlsDb, t: TFunction, locale: stri
             sheet.getCell(`B${rowIndex}`).value = plot.cropRotations[0]?.crop.name;
             rowIndex += 2;
 
+            // Crop rotation table: one row per expanded occurrence, columns crop / from / to
+            if (cropRotations && plot.cropRotations.length > 0) {
+              const rotationTableRows = plot.cropRotations.flatMap((rotation) =>
+                expandCropRotation(rotation, fromDate, toDate).map((occ) => [
+                  rotation.crop.name,
+                  occ.fromDate.toLocaleDateString(locale),
+                  occ.toDate.toLocaleDateString(locale),
+                ])
+              );
+              if (rotationTableRows.length > 0) {
+                sheet.mergeCells(`A${rowIndex}:C${rowIndex}`);
+                sheet.getCell(`A${rowIndex}`).value = t("crop_rotations.crop_rotation");
+                sheet.getCell(`A${rowIndex}`).font = { bold: true, size: 12, color: { argb: "FFFFFFFF" } };
+                sheet.getCell(`A${rowIndex}`).fill = {
+                  type: "pattern",
+                  pattern: "solid",
+                  fgColor: { argb: "FF4472C4" },
+                };
+                rowIndex++;
+                sheet.addTable({
+                  name: `rotations_${name}_${plotIndex}`.replace(/[^a-zA-Z0-9_]/g, "_"),
+                  ref: `A${rowIndex}`,
+                  headerRow: true,
+                  style: { showRowStripes: true },
+                  columns: [{ name: t("crops.crop") }, { name: t("common.from") }, { name: t("common.to") }],
+                  rows: rotationTableRows,
+                });
+                rowIndex += rotationTableRows.length + 3;
+              }
+            }
+
             const addSection = <T>(
               title: string,
               headers: Array<{ key: keyof T; value: string }>,
@@ -408,23 +583,6 @@ export function fieldCalendarReportsApi(rlsDb: RlsDb, t: TFunction, locale: stri
                 rowIndex += tableRows.length + 3;
               }
             };
-            if (cropRotations) {
-              addSection(
-                t("crop_rotations.crop_rotation"),
-                [
-                  { key: "fromDate", value: t("common.from") },
-                  { key: "toDate", value: t("common.to") },
-                  { key: "crop", value: t("crops.crop") },
-                ],
-                plot.cropRotations.map((cropRotation) => ({
-                  fromDate: cropRotation.fromDate.toLocaleDateString(locale),
-                  toDate: cropRotation.toDate?.toLocaleDateString(locale),
-                  crop: cropRotation.crop.name,
-                })),
-                plotIndex
-              );
-            }
-
             if (tillages) {
               addSection(
                 t("tillages.tillage"),
@@ -569,6 +727,24 @@ export function fieldCalendarReportsApi(rlsDb: RlsDb, t: TFunction, locale: stri
               );
             }
             plotIndex++;
+          }
+        }
+
+        function generateRotationTimelineSheet() {
+          if (timelineMonths.length === 0) return;
+          const sheet = workbook.addWorksheet(t("crop_rotations.crop_rotation"));
+          writeTimelineHeaders(sheet, 1);
+          let rowIndex = 3;
+          for (const plot of plots) {
+            if (plot.cropRotations.length === 0) continue;
+            const nameCell = sheet.getCell(rowIndex, PLOT_COL);
+            nameCell.value = plot.name;
+            nameCell.font = { bold: true };
+            nameCell.alignment = { vertical: "middle" };
+            nameCell.border = { bottom: ROW_BORDER };
+            writeRotationBars(sheet, rowIndex, plot.cropRotations);
+            sheet.getRow(rowIndex).height = 36;
+            rowIndex++;
           }
         }
 
