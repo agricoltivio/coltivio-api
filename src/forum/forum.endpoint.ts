@@ -1,7 +1,7 @@
 import createHttpError from "http-errors";
 import { z } from "zod";
 import { forumThreadStatusSchema, forumThreadTypeSchema } from "../db/schema";
-import { userMembershipEndpointFactory, userPaidMembershipEndpointFactory } from "../endpoint-factory";
+import { authenticatedEndpointFactory } from "../endpoint-factory";
 
 // ─── Shared output schemas ────────────────────────────────────────────────────
 
@@ -36,7 +36,7 @@ export const forumReplySchema = z.object({
 
 // ─── List threads ─────────────────────────────────────────────────────────────
 
-export const listForumThreadsEndpoint = userMembershipEndpointFactory.build({
+export const listForumThreadsEndpoint = authenticatedEndpointFactory.build({
   method: "get",
   input: z.object({
     type: forumThreadTypeSchema.optional(),
@@ -63,7 +63,7 @@ export const listForumThreadsEndpoint = userMembershipEndpointFactory.build({
 
 // ─── Create thread ────────────────────────────────────────────────────────────
 
-export const createForumThreadEndpoint = userPaidMembershipEndpointFactory.build({
+export const createForumThreadEndpoint = authenticatedEndpointFactory.build({
   method: "post",
   input: z.object({
     title: z.string().min(1),
@@ -82,7 +82,7 @@ export const createForumThreadEndpoint = userPaidMembershipEndpointFactory.build
 
 // ─── Get thread by ID ─────────────────────────────────────────────────────────
 
-export const getForumThreadByIdEndpoint = userMembershipEndpointFactory.build({
+export const getForumThreadByIdEndpoint = authenticatedEndpointFactory.build({
   method: "get",
   input: z.object({ threadId: z.string() }),
   output: forumThreadSchema,
@@ -95,7 +95,7 @@ export const getForumThreadByIdEndpoint = userMembershipEndpointFactory.build({
 
 // ─── Update thread ────────────────────────────────────────────────────────────
 
-export const updateForumThreadEndpoint = userPaidMembershipEndpointFactory.build({
+export const updateForumThreadEndpoint = authenticatedEndpointFactory.build({
   method: "patch",
   input: z.object({
     threadId: z.string(),
@@ -115,7 +115,7 @@ export const updateForumThreadEndpoint = userPaidMembershipEndpointFactory.build
 
 // ─── Delete thread (owner or moderator) ──────────────────────────────────────
 
-export const deleteForumThreadEndpoint = userPaidMembershipEndpointFactory.build({
+export const deleteForumThreadEndpoint = authenticatedEndpointFactory.build({
   method: "delete",
   input: z.object({ threadId: z.string() }),
   output: z.object({}),
@@ -133,7 +133,7 @@ export const deleteForumThreadEndpoint = userPaidMembershipEndpointFactory.build
 
 // ─── List replies ─────────────────────────────────────────────────────────────
 
-export const listForumRepliesEndpoint = userMembershipEndpointFactory.build({
+export const listForumRepliesEndpoint = authenticatedEndpointFactory.build({
   method: "get",
   input: z.object({ threadId: z.string() }),
   output: z.object({
@@ -148,7 +148,7 @@ export const listForumRepliesEndpoint = userMembershipEndpointFactory.build({
 
 // ─── Add reply ────────────────────────────────────────────────────────────────
 
-export const addForumReplyEndpoint = userPaidMembershipEndpointFactory.build({
+export const addForumReplyEndpoint = authenticatedEndpointFactory.build({
   method: "post",
   input: z.object({
     threadId: z.string(),
@@ -166,7 +166,7 @@ export const addForumReplyEndpoint = userPaidMembershipEndpointFactory.build({
 
 // ─── Update reply ─────────────────────────────────────────────────────────────
 
-export const updateForumReplyEndpoint = userPaidMembershipEndpointFactory.build({
+export const updateForumReplyEndpoint = authenticatedEndpointFactory.build({
   method: "patch",
   input: z.object({
     replyId: z.string(),
@@ -180,7 +180,7 @@ export const updateForumReplyEndpoint = userPaidMembershipEndpointFactory.build(
 
 // ─── Delete reply (owner or moderator) ───────────────────────────────────────
 
-export const deleteForumReplyEndpoint = userPaidMembershipEndpointFactory.build({
+export const deleteForumReplyEndpoint = authenticatedEndpointFactory.build({
   method: "delete",
   input: z.object({ replyId: z.string() }),
   output: z.object({}),
