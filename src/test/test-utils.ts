@@ -158,12 +158,7 @@ export async function createFarmMember(
   const role = opts.role ?? "member";
   const { jwt, userId } = await createTestUser(email, "password123");
 
-  const inviteRes = await request(
-    "POST",
-    "/v1/farm/invites",
-    { email, role, permissions: opts.permissions },
-    ownerJwt
-  );
+  const inviteRes = await request("POST", "/v1/farm/invites", { email, role, permissions: opts.permissions }, ownerJwt);
   expect(inviteRes.status).toBe(200);
 
   // Get the invite code from the DB — not returned by the API

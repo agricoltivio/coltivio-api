@@ -164,7 +164,12 @@ describe("Read access enforcement", () => {
     const { jwt: ownerJwt } = await createUserWithFarm({}, undefined, { withActiveMembership: true });
     const { jwt: memberJwt, userId: memberId } = await createFarmMember(ownerJwt, "member@test.com");
 
-    await request("PUT", `/v1/farm/members/byId/${memberId}/permissions/byFeature/animals`, { access: "read" }, ownerJwt);
+    await request(
+      "PUT",
+      `/v1/farm/members/byId/${memberId}/permissions/byFeature/animals`,
+      { access: "read" },
+      ownerJwt
+    );
 
     const readRes = await request("GET", "/v1/animals", undefined, memberJwt);
     expect(readRes.status).toBe(200);
@@ -190,10 +195,20 @@ describe("Read access enforcement", () => {
     const { jwt: ownerJwt } = await createUserWithFarm({}, undefined, { withActiveMembership: true });
     const { jwt: memberJwt, userId: memberId } = await createFarmMember(ownerJwt, "member@test.com");
 
-    await request("PUT", `/v1/farm/members/byId/${memberId}/permissions/byFeature/animals`, { access: "read" }, ownerJwt);
+    await request(
+      "PUT",
+      `/v1/farm/members/byId/${memberId}/permissions/byFeature/animals`,
+      { access: "read" },
+      ownerJwt
+    );
     expect((await request("GET", "/v1/animals", undefined, memberJwt)).status).toBe(200);
 
-    await request("PUT", `/v1/farm/members/byId/${memberId}/permissions/byFeature/animals`, { access: "none" }, ownerJwt);
+    await request(
+      "PUT",
+      `/v1/farm/members/byId/${memberId}/permissions/byFeature/animals`,
+      { access: "none" },
+      ownerJwt
+    );
     expect((await request("GET", "/v1/animals", undefined, memberJwt)).status).toBe(403);
   });
 });

@@ -11,11 +11,9 @@ describe("Farm CRUD", () => {
   beforeEach(cleanDb);
 
   it("creates a farm and retrieves it", async () => {
-    const { jwt, farmId } = await createUserWithFarm(
-      { name: "Sunshine Farm", address: "42 Alpine Rd" },
-      undefined,
-      { withActiveMembership: true }
-    );
+    const { jwt, farmId } = await createUserWithFarm({ name: "Sunshine Farm", address: "42 Alpine Rd" }, undefined, {
+      withActiveMembership: true,
+    });
 
     // Verify DB
     const db = getAdminDb();
@@ -227,7 +225,9 @@ describe("Owner-only actions", () => {
   beforeEach(cleanDb);
 
   it("member cannot update farm settings", async () => {
-    const { jwt: ownerJwt } = await createUserWithFarm({ name: "Owner Farm" }, undefined, { withActiveMembership: true });
+    const { jwt: ownerJwt } = await createUserWithFarm({ name: "Owner Farm" }, undefined, {
+      withActiveMembership: true,
+    });
     const { jwt: memberJwt } = await createFarmMember(ownerJwt, "member@test.com");
 
     const res = await request("PATCH", "/v1/farm", { name: "Hacked" }, memberJwt);

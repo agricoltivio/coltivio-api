@@ -661,12 +661,7 @@ describe("Membership gating", () => {
   it("user without membership cannot write via permissionMembershipEndpoint", async () => {
     const { jwt } = await createUserWithFarmNoMembership("nomem2@test.com");
     // POST /v1/contacts uses permissionMembershipEndpoint("contacts", "write")
-    const res = await request(
-      "POST",
-      "/v1/contacts",
-      { firstName: "Hans", lastName: "Muster", labels: [] },
-      jwt
-    );
+    const res = await request("POST", "/v1/contacts", { firstName: "Hans", lastName: "Muster", labels: [] }, jwt);
     expect(res.status).toBe(403);
   });
 
