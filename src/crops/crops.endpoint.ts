@@ -1,7 +1,10 @@
 import createHttpError from "http-errors";
 import { z } from "zod";
 import { cropCategorySchema } from "../db/schema";
-import { farmEndpointFactory } from "../endpoint-factory";
+import { permissionFarmEndpoint } from "../endpoint-factory";
+
+const cropsRead = permissionFarmEndpoint("field_calendar", "read");
+const cropsWrite = permissionFarmEndpoint("field_calendar", "write");
 
 export const cropFamilySchema = z.object({
   id: z.string(),
@@ -39,7 +42,7 @@ const updateCropSchema = createCropSchema.partial().extend({
   familyId: z.string().optional().nullable(),
 });
 
-export const getCropByIdEndpoint = farmEndpointFactory.build({
+export const getCropByIdEndpoint = cropsRead.build({
   method: "get",
   input: z.object({ cropId: z.string() }),
   output: cropSchema,
@@ -52,7 +55,7 @@ export const getCropByIdEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const getFarmCropsEndpoint = farmEndpointFactory.build({
+export const getFarmCropsEndpoint = cropsRead.build({
   method: "get",
   input: z.object({}),
   output: z.object({
@@ -68,7 +71,7 @@ export const getFarmCropsEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const createCropEndpoint = farmEndpointFactory.build({
+export const createCropEndpoint = cropsWrite.build({
   method: "post",
   input: createCropSchema,
   output: cropSchema,
@@ -77,7 +80,7 @@ export const createCropEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const updateCropEndpoint = farmEndpointFactory.build({
+export const updateCropEndpoint = cropsWrite.build({
   method: "patch",
   input: updateCropSchema.extend({
     cropId: z.string(),
@@ -88,7 +91,7 @@ export const updateCropEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const deleteCropEndpoint = farmEndpointFactory.build({
+export const deleteCropEndpoint = cropsWrite.build({
   method: "delete",
   input: z.object({ cropId: z.string() }),
   output: z.object({}),
@@ -98,7 +101,7 @@ export const deleteCropEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const cropInUseEndpoint = farmEndpointFactory.build({
+export const cropInUseEndpoint = cropsRead.build({
   method: "get",
   input: z.object({ cropId: z.string() }),
   output: z.object({ inUse: z.boolean() }),
@@ -117,7 +120,7 @@ const createCropFamilySchema = z.object({
 
 const updateCropFamilySchema = createCropFamilySchema.partial();
 
-export const getCropFamilyByIdEndpoint = farmEndpointFactory.build({
+export const getCropFamilyByIdEndpoint = cropsRead.build({
   method: "get",
   input: z.object({ familyId: z.string() }),
   output: cropFamilySchema,
@@ -130,7 +133,7 @@ export const getCropFamilyByIdEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const getFarmCropFamiliesEndpoint = farmEndpointFactory.build({
+export const getFarmCropFamiliesEndpoint = cropsRead.build({
   method: "get",
   input: z.object({}),
   output: z.object({
@@ -146,7 +149,7 @@ export const getFarmCropFamiliesEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const createCropFamilyEndpoint = farmEndpointFactory.build({
+export const createCropFamilyEndpoint = cropsWrite.build({
   method: "post",
   input: createCropFamilySchema,
   output: cropFamilySchema,
@@ -155,7 +158,7 @@ export const createCropFamilyEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const updateCropFamilyEndpoint = farmEndpointFactory.build({
+export const updateCropFamilyEndpoint = cropsWrite.build({
   method: "patch",
   input: updateCropFamilySchema.extend({
     familyId: z.string(),
@@ -166,7 +169,7 @@ export const updateCropFamilyEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const deleteCropFamilyEndpoint = farmEndpointFactory.build({
+export const deleteCropFamilyEndpoint = cropsWrite.build({
   method: "delete",
   input: z.object({ familyId: z.string() }),
   output: z.object({}),
@@ -176,7 +179,7 @@ export const deleteCropFamilyEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const cropFamilyInUseEndpoint = farmEndpointFactory.build({
+export const cropFamilyInUseEndpoint = cropsRead.build({
   method: "get",
   input: z.object({ familyId: z.string() }),
   output: z.object({ inUse: z.boolean() }),

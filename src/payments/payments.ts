@@ -78,6 +78,12 @@ export function paymentsApi(rlsDb: RlsDb) {
       });
     },
 
+    async getPaymentsForSponsorship(sponsorshipId: string): Promise<Payment[]> {
+      return rlsDb.rls(async (tx) => {
+        return tx.select().from(payments).where(eq(payments.sponsorshipId, sponsorshipId));
+      });
+    },
+
     async deletePayment(id: string): Promise<void> {
       return rlsDb.rls(async (tx) => {
         await tx.delete(payments).where(eq(payments.id, id));

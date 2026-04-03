@@ -1,8 +1,10 @@
 import { z } from "zod";
-import { farmEndpointFactory } from "../endpoint-factory";
+import { permissionFarmEndpoint } from "../endpoint-factory";
 import { ez } from "express-zod-api";
 
-export const downloadOutdoorJournalReport = farmEndpointFactory.build({
+const animalsRead = permissionFarmEndpoint("animals", "read");
+
+export const downloadOutdoorJournalReport = animalsRead.build({
   method: "post",
   input: z.object({
     fromDate: ez.dateIn(),

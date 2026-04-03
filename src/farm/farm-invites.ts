@@ -4,8 +4,11 @@ import { and, eq, gt, isNull, sql } from "drizzle-orm";
 import { TFunction } from "i18next";
 import { RlsDb } from "../db/db";
 import * as tables from "../db/schema";
+import { FarmPermissionFeature } from "../db/schema";
 import { User } from "../user/users";
 import { sendFarmInviteEmail } from "./farm-invites.email";
+
+export type InvitePermission = { feature: FarmPermissionFeature; access: "none" | "read" | "write" };
 
 const INVITE_TTL_DAYS = 7;
 
@@ -13,7 +16,13 @@ export type FarmInvite = typeof tables.farmInvites.$inferSelect;
 
 export function farmInvitesApi(rlsDb: RlsDb, t: TFunction) {
   return {
-    async createInvite(farmId: string, email: string, createdBy: string): Promise<FarmInvite> {
+    async createInvite(
+      farmId: string,
+      email: string,
+      createdBy: string,
+      role: "owner" | "member" = "member",
+      permissions: InvitePermission[] = []
+    ): Promise<FarmInvite> {
       return rlsDb.rls(async (tx) => {
         // Reject if a profile with that email already belongs to this farm
         const existingMember = await tx.query.profiles.findFirst({
@@ -28,8 +37,14 @@ export function farmInvitesApi(rlsDb: RlsDb, t: TFunction) {
 
         const [invite] = await tx
           .insert(tables.farmInvites)
-          .values({ farmId, email, code, createdBy, expiresAt })
+          .values({ farmId, email, code, role, createdBy, expiresAt })
           .returning();
+
+        if (permissions.length > 0) {
+          await tx
+            .insert(tables.farmInvitePermissions)
+            .values(permissions.map((p) => ({ inviteId: invite.id, feature: p.feature, access: p.access })));
+        }
 
         // Fetch farm name for the email
         const farm = await tx.query.farms.findFirst({ where: { id: farmId } });
@@ -43,6 +58,7 @@ export function farmInvitesApi(rlsDb: RlsDb, t: TFunction) {
       return rlsDb.admin.transaction(async (tx) => {
         const invite = await tx.query.farmInvites.findFirst({
           where: { code },
+          with: { permissions: true },
         });
 
         if (!invite) {
@@ -61,10 +77,10 @@ export function farmInvitesApi(rlsDb: RlsDb, t: TFunction) {
           throw createHttpError(409, "You already belong to a farm");
         }
 
-        // Assign user to the farm as member and mark invite as used
+        // Assign user to the farm with the role specified on the invite
         const [updatedProfile] = await tx
           .update(tables.profiles)
-          .set({ farmId: invite.farmId, farmRole: "member" })
+          .set({ farmId: invite.farmId, farmRole: invite.role })
           .where(eq(tables.profiles.id, user.id))
           .returning();
 
@@ -72,6 +88,21 @@ export function farmInvitesApi(rlsDb: RlsDb, t: TFunction) {
           .update(tables.farmInvites)
           .set({ usedAt: sql`now()` })
           .where(eq(tables.farmInvites.id, invite.id));
+
+        // Initialize permissions for all features. Use the invite's explicit grants where
+        // provided; everything else defaults to "none" (deny by default).
+        const grantMap = new Map(
+          invite.permissions.map((p) => [p.feature as FarmPermissionFeature, p.access as "none" | "read" | "write"])
+        );
+        const allFeatures = tables.farmPermissionFeatureEnum.enumValues;
+        await tx.insert(tables.farmMemberPermissions).values(
+          allFeatures.map((feature) => ({
+            userId: user.id,
+            farmId: invite.farmId,
+            feature,
+            access: (grantMap.get(feature) ?? "none") as "none" | "read" | "write",
+          }))
+        );
 
         return updatedProfile;
       });

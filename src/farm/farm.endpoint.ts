@@ -69,6 +69,9 @@ export const updateFarmEndpoint = farmEndpointFactory.build({
   input: updateFarmSchema,
   output: farmSchema,
   handler: async ({ input, ctx }) => {
+    if (ctx.user.farmRole !== "owner") {
+      throw createHttpError(403, "Only farm owners can update farm settings");
+    }
     const [farm, status] = await Promise.all([
       ctx.farms.updateFarm(ctx.farmId, input),
       ctx.membership.getFarmMembershipStatus(ctx.farmId),

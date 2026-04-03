@@ -1,18 +1,19 @@
-import createHttpError from "http-errors";
 import { z } from "zod";
-import { authenticatedEndpointFactory, farmEndpointFactory, membershipEndpointFactory } from "../endpoint-factory";
+import { authenticatedEndpointFactory, ownerOnlyEndpointFactory } from "../endpoint-factory";
+import { farmPermissionFeatureSchema } from "../db/schema";
 import { userSchema } from "../user/users.endpoint";
 
 const inviteSchema = z.object({
   id: z.string(),
   farmId: z.string(),
   email: z.string(),
+  role: z.enum(["owner", "member"]),
   createdBy: z.string().nullable(),
   expiresAt: z.string().or(z.date()),
   usedAt: z.string().or(z.date()).nullable(),
 });
 
-export const listFarmInvitesEndpoint = farmEndpointFactory.build({
+export const listFarmInvitesEndpoint = ownerOnlyEndpointFactory.build({
   method: "get",
   input: z.object({}),
   output: z.object({ result: z.array(inviteSchema), count: z.number() }),
@@ -22,26 +23,30 @@ export const listFarmInvitesEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const createFarmInviteEndpoint = membershipEndpointFactory.build({
+const invitePermissionSchema = z.object({
+  feature: farmPermissionFeatureSchema,
+  access: z.enum(["none", "read", "write"]),
+});
+
+export const createFarmInviteEndpoint = ownerOnlyEndpointFactory.build({
   method: "post",
-  input: z.object({ email: z.string().email() }),
+  input: z.object({
+    email: z.string().email(),
+    role: z.enum(["owner", "member"]).default("member"),
+    // Per-feature access to grant on acceptance. Unlisted features default to "none".
+    permissions: z.array(invitePermissionSchema).optional(),
+  }),
   output: inviteSchema,
   handler: async ({ input, ctx }) => {
-    if (ctx.user.farmRole !== "owner") {
-      throw createHttpError(403, "Only farm owners can manage invites");
-    }
-    return ctx.farmInvites.createInvite(ctx.farmId, input.email, ctx.user.id);
+    return ctx.farmInvites.createInvite(ctx.farmId, input.email, ctx.user.id, input.role, input.permissions ?? []);
   },
 });
 
-export const revokeFarmInviteEndpoint = farmEndpointFactory.build({
+export const revokeFarmInviteEndpoint = ownerOnlyEndpointFactory.build({
   method: "delete",
   input: z.object({ inviteId: z.string() }),
   output: z.object({}),
   handler: async ({ input, ctx }) => {
-    if (ctx.user.farmRole !== "owner") {
-      throw createHttpError(403, "Only farm owners can manage invites");
-    }
     await ctx.farmInvites.revokeInvite(input.inviteId);
     return {};
   },

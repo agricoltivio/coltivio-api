@@ -4,7 +4,10 @@ import { z } from "zod";
 import { cropSchema } from "../crops/crops.endpoint";
 import { ensureDateRange } from "../date-utils";
 import * as tables from "../db/schema";
-import { farmEndpointFactory } from "../endpoint-factory";
+import { permissionFarmEndpoint } from "../endpoint-factory";
+
+const harvestsRead = permissionFarmEndpoint("field_calendar", "read");
+const harvestsWrite = permissionFarmEndpoint("field_calendar", "write");
 
 const plotMinimalSchema = z.object({
   id: z.string(),
@@ -31,7 +34,7 @@ const harvestSchema = z.object({
   createdBy: z.string().nullable(),
 });
 
-export const getHarvestsForFarmEndpoint = farmEndpointFactory.build({
+export const getHarvestsForFarmEndpoint = harvestsRead.build({
   method: "get",
   input: z.object({
     fromDate: ez.dateIn().optional(),
@@ -48,7 +51,7 @@ export const getHarvestsForFarmEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const getHarvestsForPlotEndpoint = farmEndpointFactory.build({
+export const getHarvestsForPlotEndpoint = harvestsRead.build({
   method: "get",
   input: z.object({ plotId: z.string() }),
   output: z.object({
@@ -84,7 +87,7 @@ const harvestSummaryResponseSchema = z.object({
   ),
 });
 
-export const getHarvestSummaryForFarmEndpoint = farmEndpointFactory.build({
+export const getHarvestSummaryForFarmEndpoint = harvestsRead.build({
   method: "get",
   input: z.object({}),
   output: harvestSummaryResponseSchema,
@@ -94,7 +97,7 @@ export const getHarvestSummaryForFarmEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const getHarvestSummaryForPlotEndpoint = farmEndpointFactory.build({
+export const getHarvestSummaryForPlotEndpoint = harvestsRead.build({
   method: "get",
   input: z.object({ plotId: z.string() }),
   output: harvestSummaryResponseSchema,
@@ -104,7 +107,7 @@ export const getHarvestSummaryForPlotEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const getHarvestByIdEndpoint = farmEndpointFactory.build({
+export const getHarvestByIdEndpoint = harvestsRead.build({
   method: "get",
   input: z.object({ harvestId: z.string() }),
   output: harvestSchema,
@@ -135,7 +138,7 @@ const createHarvestsSchema = z.object({
     .array(),
 });
 
-export const createHarvestsEndpoint = farmEndpointFactory.build({
+export const createHarvestsEndpoint = harvestsWrite.build({
   method: "post",
   input: createHarvestsSchema,
   output: z.object({
@@ -154,7 +157,7 @@ export const createHarvestsEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const deleteHarvestEndpoint = farmEndpointFactory.build({
+export const deleteHarvestEndpoint = harvestsWrite.build({
   method: "delete",
   input: z.object({ harvestId: z.string() }),
   output: z.object({}),
@@ -164,7 +167,7 @@ export const deleteHarvestEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const getHarvestYearsEndpoint = farmEndpointFactory.build({
+export const getHarvestYearsEndpoint = harvestsRead.build({
   method: "get",
   input: z.object({}),
   output: z.object({
@@ -186,7 +189,7 @@ const harvestPresetSchema = z.object({
   conservationMethod: tables.conservationMethodEnumSchema.nullable(),
 });
 
-export const getHarvestPresetsEndpoint = farmEndpointFactory.build({
+export const getHarvestPresetsEndpoint = harvestsRead.build({
   method: "get",
   input: z.object({}),
   output: z.object({
@@ -199,7 +202,7 @@ export const getHarvestPresetsEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const getHarvestPresetByIdEndpoint = farmEndpointFactory.build({
+export const getHarvestPresetByIdEndpoint = harvestsRead.build({
   method: "get",
   input: z.object({ presetId: z.string() }),
   output: harvestPresetSchema,
@@ -212,7 +215,7 @@ export const getHarvestPresetByIdEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const createHarvestPresetEndpoint = farmEndpointFactory.build({
+export const createHarvestPresetEndpoint = harvestsWrite.build({
   method: "post",
   input: z.object({
     name: z.string(),
@@ -226,7 +229,7 @@ export const createHarvestPresetEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const updateHarvestPresetEndpoint = farmEndpointFactory.build({
+export const updateHarvestPresetEndpoint = harvestsWrite.build({
   method: "patch",
   input: z.object({
     presetId: z.string(),
@@ -241,7 +244,7 @@ export const updateHarvestPresetEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const deleteHarvestPresetEndpoint = farmEndpointFactory.build({
+export const deleteHarvestPresetEndpoint = harvestsWrite.build({
   method: "delete",
   input: z.object({ presetId: z.string() }),
   output: z.object({}),

@@ -2,6 +2,9 @@ import { expect } from "@jest/globals";
 import merge from "lodash/merge";
 import { createTestUser, getAdminDb, request } from "./helpers";
 import { membershipPayments } from "../db/schema";
+import type { FarmPermissionFeature } from "../db/schema";
+
+export type InvitePermission = { feature: FarmPermissionFeature; access: "none" | "read" | "write" };
 
 // ---------------------------------------------------------------------------
 // Common test data
@@ -110,6 +113,21 @@ export const TEST_GEOMETRY = DEFAULT_PLOT.geometry;
 
 type ApiEntity = Record<string, unknown> & { id: string; farmId: string };
 
+async function insertActiveMembership(userId: string) {
+  const db = getAdminDb();
+  const periodEnd = new Date();
+  periodEnd.setFullYear(periodEnd.getFullYear() + 1);
+  await db.insert(membershipPayments).values({
+    userId,
+    stripePaymentId: `pi_test_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+    stripeSubscriptionId: null,
+    amount: 29000,
+    currency: "chf",
+    status: "succeeded",
+    periodEnd,
+  });
+}
+
 export async function createUserWithFarm(
   data?: Record<string, unknown>,
   email = "test@test.com",
@@ -121,22 +139,59 @@ export async function createUserWithFarm(
   const body = (await res.json()) as { data: { id: string } };
   const farmId = body.data.id;
 
-  if (opts.withActiveMembership) {
-    const db = getAdminDb();
-    const periodEnd = new Date();
-    periodEnd.setFullYear(periodEnd.getFullYear() + 1);
-    await db.insert(membershipPayments).values({
-      userId,
-      stripePaymentId: `pi_test_util_${Date.now()}`,
-      stripeSubscriptionId: null,
-      amount: 29000,
-      currency: "chf",
-      status: "succeeded",
-      periodEnd,
-    });
+  if (opts.withActiveMembership === true) {
+    await insertActiveMembership(userId);
   }
 
   return { jwt, userId, farmId };
+}
+
+/**
+ * Creates a second user, has the owner invite them, and accepts the invite.
+ * The member gets an active membership by default (needed for write endpoints).
+ */
+export async function createFarmMember(
+  ownerJwt: string,
+  email: string,
+  opts: { role?: "owner" | "member"; withActiveMembership?: boolean; permissions?: InvitePermission[] } = {}
+) {
+  const role = opts.role ?? "member";
+  const { jwt, userId } = await createTestUser(email, "password123");
+
+  const inviteRes = await request(
+    "POST",
+    "/v1/farm/invites",
+    { email, role, permissions: opts.permissions },
+    ownerJwt
+  );
+  expect(inviteRes.status).toBe(200);
+
+  // Get the invite code from the DB — not returned by the API
+  const db = getAdminDb();
+  const invite = await db.query.farmInvites.findFirst({ where: { email } });
+  expect(invite).toBeDefined();
+
+  const acceptRes = await request("POST", "/v1/farm/invites/accept", { code: invite!.code }, jwt);
+  expect(acceptRes.status).toBe(200);
+
+  if (opts.withActiveMembership === true) {
+    await insertActiveMembership(userId);
+  }
+
+  return { jwt, userId };
+}
+
+/**
+ * Grants a farm member write access to a specific feature. Must be called with the owner's JWT.
+ */
+export async function grantMemberWriteAccess(ownerJwt: string, userId: string, feature: FarmPermissionFeature) {
+  const res = await request(
+    "PUT",
+    `/v1/farm/members/byId/${userId}/permissions/byFeature/${feature}`,
+    { access: "write" },
+    ownerJwt
+  );
+  expect(res.status).toBe(200);
 }
 
 export async function createAnimal(jwt: string, data?: Record<string, unknown>) {

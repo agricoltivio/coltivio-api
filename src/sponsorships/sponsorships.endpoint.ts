@@ -4,8 +4,12 @@ import { z } from "zod";
 import { animalSchema } from "../animals/animals.endpoint";
 import { contactSchema } from "../contacts/contacts.endpoint";
 import { preferredCommunicationSchema } from "../db/schema";
-import { membershipEndpointFactory } from "../endpoint-factory";
-import { paymentSchema } from "../payments/payments.endpoint";
+import { permissionMembershipEndpoint } from "../endpoint-factory";
+
+const sponsorshipsRead = permissionMembershipEndpoint("commerce", "read");
+const sponsorshipsWrite = permissionMembershipEndpoint("commerce", "write");
+import { paymentSchema } from "../payments/payment-schema";
+import { paymentMethodSchema } from "../db/schema";
 import { sponsorshipProgramSchema } from "./sponsorship-programs.endpoint";
 
 export const sponsorshipSchema = z.object({
@@ -47,7 +51,7 @@ const createSponsorshipSchema = z.object({
 
 const updateSponsorshipSchema = createSponsorshipSchema.partial();
 
-export const getSponsorshipByIdEndpoint = membershipEndpointFactory.build({
+export const getSponsorshipByIdEndpoint = sponsorshipsRead.build({
   method: "get",
   input: z.object({ sponsorshipId: z.string() }),
   output: sponsorshipWithRelationsSchema,
@@ -64,7 +68,7 @@ const sponsorshipWithPaidFlagSchema = sponsorshipWithRelationsSchema.extend({
   paidThisYear: z.boolean(),
 });
 
-export const getFarmSponsorshipsEndpoint = membershipEndpointFactory.build({
+export const getFarmSponsorshipsEndpoint = sponsorshipsRead.build({
   method: "get",
   input: z.object({ onlyActive: z.boolean().optional().default(true) }),
   output: z.object({
@@ -88,7 +92,7 @@ export const getFarmSponsorshipsEndpoint = membershipEndpointFactory.build({
   },
 });
 
-export const getContactSponsorshipsEndpoint = membershipEndpointFactory.build({
+export const getContactSponsorshipsEndpoint = sponsorshipsRead.build({
   method: "get",
   input: z.object({
     contactId: z.string(),
@@ -107,7 +111,7 @@ export const getContactSponsorshipsEndpoint = membershipEndpointFactory.build({
   },
 });
 
-export const getAnimalSponsorshipsEndpoint = membershipEndpointFactory.build({
+export const getAnimalSponsorshipsEndpoint = sponsorshipsRead.build({
   method: "get",
   input: z.object({
     animalId: z.string(),
@@ -126,7 +130,7 @@ export const getAnimalSponsorshipsEndpoint = membershipEndpointFactory.build({
   },
 });
 
-// export const getSponsorshipPaymentsEndpoint = membershipEndpointFactory.build({
+// export const getSponsorshipPaymentsEndpoint = sponsorshipsRead.build({
 //   method: "get",
 //   input: z.object({ sponsorshipId: z.string() }),
 //   output: z.object({
@@ -144,7 +148,7 @@ export const getAnimalSponsorshipsEndpoint = membershipEndpointFactory.build({
 //   },
 // });
 
-export const createSponsorshipEndpoint = membershipEndpointFactory.build({
+export const createSponsorshipEndpoint = sponsorshipsWrite.build({
   method: "post",
   input: createSponsorshipSchema,
   output: sponsorshipSchema,
@@ -153,7 +157,7 @@ export const createSponsorshipEndpoint = membershipEndpointFactory.build({
   },
 });
 
-export const updateSponsorshipEndpoint = membershipEndpointFactory.build({
+export const updateSponsorshipEndpoint = sponsorshipsWrite.build({
   method: "patch",
   input: updateSponsorshipSchema.extend({
     sponsorshipId: z.string(),
@@ -165,12 +169,63 @@ export const updateSponsorshipEndpoint = membershipEndpointFactory.build({
   },
 });
 
-export const deleteSponsorshipEndpoint = membershipEndpointFactory.build({
+export const deleteSponsorshipEndpoint = sponsorshipsWrite.build({
   method: "delete",
   input: z.object({ sponsorshipId: z.string() }),
   output: z.object({}),
   handler: async ({ input: { sponsorshipId }, ctx: { sponsorships } }) => {
     await sponsorships.deleteSponsorship(sponsorshipId);
+    return {};
+  },
+});
+
+const sponsorshipPaymentInputSchema = z.object({
+  date: ez.dateIn(),
+  amount: z.number().positive(),
+  currency: z.string().default("CHF"),
+  method: paymentMethodSchema,
+  notes: z.string().optional(),
+});
+
+export const createSponsorshipPaymentEndpoint = sponsorshipsWrite.build({
+  method: "post",
+  input: sponsorshipPaymentInputSchema.extend({ sponsorshipId: z.string() }),
+  output: paymentSchema,
+  handler: async ({ input, ctx: { sponsorships, payments } }) => {
+    const sponsorship = await sponsorships.getSponsorshipById(input.sponsorshipId);
+    if (!sponsorship) throw createHttpError(404, "Sponsorship not found");
+    const { sponsorshipId, ...paymentData } = input;
+    return payments.createPayment({ ...paymentData, sponsorshipId, contactId: sponsorship.contactId, orderId: null });
+  },
+});
+
+export const getSponsorshipPaymentEndpoint = sponsorshipsRead.build({
+  method: "get",
+  input: z.object({ sponsorshipId: z.string(), paymentId: z.string() }),
+  output: paymentSchema,
+  handler: async ({ input, ctx: { payments } }) => {
+    const payment = await payments.getPaymentById(input.paymentId);
+    if (!payment || payment.sponsorshipId !== input.sponsorshipId) throw createHttpError(404, "Payment not found");
+    return payment;
+  },
+});
+
+export const updateSponsorshipPaymentEndpoint = sponsorshipsWrite.build({
+  method: "patch",
+  input: sponsorshipPaymentInputSchema.partial().extend({ sponsorshipId: z.string(), paymentId: z.string() }),
+  output: paymentSchema,
+  handler: async ({ input, ctx: { payments } }) => {
+    const { paymentId, sponsorshipId: _sponsorshipId, ...data } = input;
+    return payments.updatePayment(paymentId, data);
+  },
+});
+
+export const deleteSponsorshipPaymentEndpoint = sponsorshipsWrite.build({
+  method: "delete",
+  input: z.object({ sponsorshipId: z.string(), paymentId: z.string() }),
+  output: z.object({}),
+  handler: async ({ input, ctx: { payments } }) => {
+    await payments.deletePayment(input.paymentId);
     return {};
   },
 });

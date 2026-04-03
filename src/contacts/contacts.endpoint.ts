@@ -1,8 +1,11 @@
 import createHttpError from "http-errors";
 import { z } from "zod";
 import { preferredCommunicationSchema } from "../db/schema";
-import { membershipEndpointFactory } from "../endpoint-factory";
-import { paymentSchema } from "../payments/payments.endpoint";
+import { permissionMembershipEndpoint } from "../endpoint-factory";
+
+const contactsRead = permissionMembershipEndpoint("commerce", "read");
+const contactsWrite = permissionMembershipEndpoint("commerce", "write");
+import { paymentSchema } from "../payments/payment-schema";
 import { sponsorshipWithRelationsSchema } from "../sponsorships/sponsorships.endpoint";
 import { orderSchema } from "../orders/orders.endpoint";
 import { animalSchema } from "../animals/animals.endpoint";
@@ -51,7 +54,7 @@ const createContactSchema = z.object({
 
 const updateContactSchema = createContactSchema.partial();
 
-export const getContactByIdEndpoint = membershipEndpointFactory.build({
+export const getContactByIdEndpoint = contactsRead.build({
   method: "get",
   input: z.object({ contactId: z.string() }),
   output: contactWithRelationsSchema,
@@ -64,7 +67,7 @@ export const getContactByIdEndpoint = membershipEndpointFactory.build({
   },
 });
 
-export const getFarmContactsEndpoint = membershipEndpointFactory.build({
+export const getFarmContactsEndpoint = contactsRead.build({
   method: "get",
   input: z.object({}),
   output: z.object({
@@ -80,7 +83,7 @@ export const getFarmContactsEndpoint = membershipEndpointFactory.build({
   },
 });
 
-export const createContactEndpoint = membershipEndpointFactory.build({
+export const createContactEndpoint = contactsWrite.build({
   method: "post",
   input: createContactSchema,
   output: contactSchema,
@@ -90,7 +93,7 @@ export const createContactEndpoint = membershipEndpointFactory.build({
   },
 });
 
-export const updateContactEndpoint = membershipEndpointFactory.build({
+export const updateContactEndpoint = contactsWrite.build({
   method: "patch",
   input: updateContactSchema.extend({
     contactId: z.string(),
@@ -102,7 +105,7 @@ export const updateContactEndpoint = membershipEndpointFactory.build({
   },
 });
 
-export const deleteContactEndpoint = membershipEndpointFactory.build({
+export const deleteContactEndpoint = contactsWrite.build({
   method: "delete",
   input: z.object({ contactId: z.string() }),
   output: z.object({}),

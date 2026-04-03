@@ -1,6 +1,9 @@
 import { ez } from "express-zod-api";
 import { z } from "zod";
-import { membershipEndpointFactory } from "../endpoint-factory";
+import { permissionMembershipEndpoint } from "../endpoint-factory";
+
+const animalsRead = permissionMembershipEndpoint("animals", "read");
+const animalsWrite = permissionMembershipEndpoint("animals", "write");
 
 const journalImageSchema = z.object({
   id: z.string(),
@@ -26,7 +29,7 @@ const journalEntryWithImagesSchema = journalEntrySchema.extend({
   images: z.array(journalImageSchema),
 });
 
-export const listAnimalJournalEntriesEndpoint = membershipEndpointFactory.build({
+export const listAnimalJournalEntriesEndpoint = animalsRead.build({
   method: "get",
   input: z.object({ animalId: z.string() }),
   output: z.object({ entries: z.array(journalEntryWithImagesSchema) }),
@@ -36,7 +39,7 @@ export const listAnimalJournalEntriesEndpoint = membershipEndpointFactory.build(
   },
 });
 
-export const createAnimalJournalEntryEndpoint = membershipEndpointFactory.build({
+export const createAnimalJournalEntryEndpoint = animalsWrite.build({
   method: "post",
   input: z.object({
     animalId: z.string(),
@@ -51,7 +54,7 @@ export const createAnimalJournalEntryEndpoint = membershipEndpointFactory.build(
   },
 });
 
-export const getAnimalJournalEntryEndpoint = membershipEndpointFactory.build({
+export const getAnimalJournalEntryEndpoint = animalsRead.build({
   method: "get",
   input: z.object({ entryId: z.string() }),
   output: journalEntryWithImagesSchema,
@@ -60,7 +63,7 @@ export const getAnimalJournalEntryEndpoint = membershipEndpointFactory.build({
   },
 });
 
-export const updateAnimalJournalEntryEndpoint = membershipEndpointFactory.build({
+export const updateAnimalJournalEntryEndpoint = animalsWrite.build({
   method: "patch",
   input: z.object({
     entryId: z.string(),
@@ -75,7 +78,7 @@ export const updateAnimalJournalEntryEndpoint = membershipEndpointFactory.build(
   },
 });
 
-export const deleteAnimalJournalEntryEndpoint = membershipEndpointFactory.build({
+export const deleteAnimalJournalEntryEndpoint = animalsWrite.build({
   method: "delete",
   input: z.object({ entryId: z.string() }),
   output: z.object({}),
@@ -85,7 +88,7 @@ export const deleteAnimalJournalEntryEndpoint = membershipEndpointFactory.build(
   },
 });
 
-export const requestAnimalJournalImageSignedUrlEndpoint = membershipEndpointFactory.build({
+export const requestAnimalJournalImageSignedUrlEndpoint = animalsWrite.build({
   method: "post",
   input: z.object({
     journalEntryId: z.string(),
@@ -100,7 +103,7 @@ export const requestAnimalJournalImageSignedUrlEndpoint = membershipEndpointFact
   },
 });
 
-export const registerAnimalJournalImageEndpoint = membershipEndpointFactory.build({
+export const registerAnimalJournalImageEndpoint = animalsWrite.build({
   method: "post",
   input: z.object({
     journalEntryId: z.string(),
@@ -112,7 +115,7 @@ export const registerAnimalJournalImageEndpoint = membershipEndpointFactory.buil
   },
 });
 
-export const deleteAnimalJournalImageEndpoint = membershipEndpointFactory.build({
+export const deleteAnimalJournalImageEndpoint = animalsWrite.build({
   method: "delete",
   input: z.object({ imageId: z.string() }),
   output: z.object({}),

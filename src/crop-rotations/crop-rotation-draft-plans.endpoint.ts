@@ -1,7 +1,10 @@
 import { ez } from "express-zod-api";
 import createHttpError from "http-errors";
 import { z } from "zod";
-import { membershipEndpointFactory } from "../endpoint-factory";
+import { permissionMembershipEndpoint } from "../endpoint-factory";
+
+const cropRotationsRead = permissionMembershipEndpoint("field_calendar", "read");
+const cropRotationsWrite = permissionMembershipEndpoint("field_calendar", "write");
 import { cropRotationSchema, cropRotationWithRecurrenceSchema } from "./crop-rotations.endpoint";
 
 const draftPlanSchema = z.object({
@@ -36,7 +39,7 @@ const draftPlanWithPlotsSchema = draftPlanSchema.extend({
   ),
 });
 
-export const createDraftPlanEndpoint = membershipEndpointFactory.build({
+export const createDraftPlanEndpoint = cropRotationsWrite.build({
   method: "post",
   input: z.object({
     name: z.string(),
@@ -48,7 +51,7 @@ export const createDraftPlanEndpoint = membershipEndpointFactory.build({
   },
 });
 
-export const listDraftPlansEndpoint = membershipEndpointFactory.build({
+export const listDraftPlansEndpoint = cropRotationsRead.build({
   method: "get",
   input: z.object({}),
   output: z.object({
@@ -61,7 +64,7 @@ export const listDraftPlansEndpoint = membershipEndpointFactory.build({
   },
 });
 
-export const getDraftPlanByIdEndpoint = membershipEndpointFactory.build({
+export const getDraftPlanByIdEndpoint = cropRotationsRead.build({
   method: "get",
   input: z.object({ draftPlanId: z.string() }),
   output: draftPlanWithPlotsSchema,
@@ -72,7 +75,7 @@ export const getDraftPlanByIdEndpoint = membershipEndpointFactory.build({
   },
 });
 
-export const updateDraftPlanEndpoint = membershipEndpointFactory.build({
+export const updateDraftPlanEndpoint = cropRotationsWrite.build({
   method: "patch",
   input: z.object({
     draftPlanId: z.string(),
@@ -85,7 +88,7 @@ export const updateDraftPlanEndpoint = membershipEndpointFactory.build({
   },
 });
 
-export const deleteDraftPlanEndpoint = membershipEndpointFactory.build({
+export const deleteDraftPlanEndpoint = cropRotationsWrite.build({
   method: "delete",
   input: z.object({ draftPlanId: z.string() }),
   output: z.object({}),
@@ -95,7 +98,7 @@ export const deleteDraftPlanEndpoint = membershipEndpointFactory.build({
   },
 });
 
-export const applyDraftPlanEndpoint = membershipEndpointFactory.build({
+export const applyDraftPlanEndpoint = cropRotationsWrite.build({
   method: "post",
   input: z.object({ draftPlanId: z.string() }),
   output: z.object({

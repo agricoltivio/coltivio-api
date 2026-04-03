@@ -1,7 +1,10 @@
 import createHttpError from "http-errors";
 import { z } from "zod";
 import { cropProtectionUnitSchema } from "../db/schema";
-import { farmEndpointFactory } from "../endpoint-factory";
+import { permissionFarmEndpoint } from "../endpoint-factory";
+
+const cropProtectionRead = permissionFarmEndpoint("field_calendar", "read");
+const cropProtectionWrite = permissionFarmEndpoint("field_calendar", "write");
 
 // API Schemas - decoupled from database schema for stable API contract
 export const cropProtectionProductSchema = z.object({
@@ -21,7 +24,7 @@ const createCropProtectionProductSchema = z.object({
 
 const updateCropProtectionProductSchema = createCropProtectionProductSchema.partial();
 
-export const getCropProtectionProductByIdEndpoint = farmEndpointFactory.build({
+export const getCropProtectionProductByIdEndpoint = cropProtectionRead.build({
   method: "get",
   input: z.object({ cropProtectionProductId: z.string() }),
   output: cropProtectionProductSchema,
@@ -36,7 +39,7 @@ export const getCropProtectionProductByIdEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const getFarmCropProtectionProductsEndpoint = farmEndpointFactory.build({
+export const getFarmCropProtectionProductsEndpoint = cropProtectionRead.build({
   method: "get",
   input: z.object({}),
   output: z.object({
@@ -52,7 +55,7 @@ export const getFarmCropProtectionProductsEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const createCropProtectionProductEndpoint = farmEndpointFactory.build({
+export const createCropProtectionProductEndpoint = cropProtectionWrite.build({
   method: "post",
   input: createCropProtectionProductSchema,
   output: cropProtectionProductSchema,
@@ -61,7 +64,7 @@ export const createCropProtectionProductEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const updateCropProtectionProductEndpoint = farmEndpointFactory.build({
+export const updateCropProtectionProductEndpoint = cropProtectionWrite.build({
   method: "patch",
   input: updateCropProtectionProductSchema.extend({
     cropProtectionProductId: z.string(),
@@ -72,7 +75,7 @@ export const updateCropProtectionProductEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const deleteCropProtectionProductEndpoint = farmEndpointFactory.build({
+export const deleteCropProtectionProductEndpoint = cropProtectionWrite.build({
   method: "delete",
   input: z.object({ cropProtectionProductId: z.string() }),
   output: z.object({}),
@@ -82,7 +85,7 @@ export const deleteCropProtectionProductEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const cropProtectionProductInUseEndpoint = farmEndpointFactory.build({
+export const cropProtectionProductInUseEndpoint = cropProtectionRead.build({
   method: "get",
   input: z.object({ cropProtectionProductId: z.string() }),
   output: z.object({ inUse: z.boolean() }),

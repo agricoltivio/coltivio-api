@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach } from "@jest/globals";
 
-import { cleanDb, getAdminDb, request } from "./helpers";
+import { cleanDb, createTestUser, getAdminDb, request } from "./helpers";
 import * as schema from "../db/schema";
-import { createUserWithFarm } from "./test-utils";
+import { createUserWithFarm, createFarmMember } from "./test-utils";
 
 // ---------------------------------------------------------------------------
 // Farm CRUD
@@ -11,10 +11,11 @@ describe("Farm CRUD", () => {
   beforeEach(cleanDb);
 
   it("creates a farm and retrieves it", async () => {
-    const { jwt, farmId } = await createUserWithFarm({
-      name: "Sunshine Farm",
-      address: "42 Alpine Rd",
-    });
+    const { jwt, farmId } = await createUserWithFarm(
+      { name: "Sunshine Farm", address: "42 Alpine Rd" },
+      undefined,
+      { withActiveMembership: true }
+    );
 
     // Verify DB
     const db = getAdminDb();
@@ -37,7 +38,7 @@ describe("Farm CRUD", () => {
   });
 
   it("rejects creating a second farm for same user", async () => {
-    const { jwt } = await createUserWithFarm();
+    const { jwt } = await createUserWithFarm({}, undefined, { withActiveMembership: true });
     const res = await request(
       "POST",
       "/v1/farm",
@@ -57,7 +58,7 @@ describe("Farm CRUD", () => {
   });
 
   it("updates a farm", async () => {
-    const { jwt, farmId } = await createUserWithFarm({ name: "OldName" });
+    const { jwt, farmId } = await createUserWithFarm({ name: "OldName" }, undefined, { withActiveMembership: true });
 
     const res = await request("PATCH", "/v1/farm", { name: "NewName", address: "New Address 1" }, jwt);
     expect(res.status).toBe(200);
@@ -77,7 +78,7 @@ describe("Farm CRUD", () => {
   });
 
   it("updates farm federalId and tvdId", async () => {
-    const { jwt, farmId } = await createUserWithFarm();
+    const { jwt, farmId } = await createUserWithFarm({}, undefined, { withActiveMembership: true });
 
     const res = await request("PATCH", "/v1/farm", { federalId: "CH-1234", tvdId: "TVD-5678" }, jwt);
     expect(res.status).toBe(200);
@@ -92,7 +93,7 @@ describe("Farm CRUD", () => {
   });
 
   it("deletes a farm without deleting account", async () => {
-    const { jwt, farmId, userId } = await createUserWithFarm();
+    const { jwt, farmId, userId } = await createUserWithFarm({}, undefined, { withActiveMembership: true });
 
     const res = await request("DELETE", "/v1/farm?deleteAccount=false", undefined, jwt);
     expect(res.status).toBe(200);
@@ -118,7 +119,7 @@ describe("Users", () => {
   beforeEach(cleanDb);
 
   it("retrieves own user profile", async () => {
-    const { jwt, userId } = await createUserWithFarm();
+    const { jwt, userId } = await createUserWithFarm({}, undefined, { withActiveMembership: true });
 
     const res = await request("GET", "/v1/me", undefined, jwt);
     expect(res.status).toBe(200);
@@ -131,7 +132,7 @@ describe("Users", () => {
   });
 
   it("updates own user profile", async () => {
-    const { jwt, userId } = await createUserWithFarm();
+    const { jwt, userId } = await createUserWithFarm({}, undefined, { withActiveMembership: true });
 
     const res = await request("PATCH", "/v1/me", { fullName: "John Doe" }, jwt);
     expect(res.status).toBe(200);
@@ -147,7 +148,7 @@ describe("Users", () => {
   });
 
   it("lists farm users", async () => {
-    const { jwt } = await createUserWithFarm();
+    const { jwt } = await createUserWithFarm({}, undefined, { withActiveMembership: true });
 
     const res = await request("GET", "/v1/users", undefined, jwt);
     expect(res.status).toBe(200);
@@ -158,11 +159,101 @@ describe("Users", () => {
   });
 
   it("retrieves user by id", async () => {
-    const { jwt, userId } = await createUserWithFarm();
+    const { jwt, userId } = await createUserWithFarm({}, undefined, { withActiveMembership: true });
 
     const res = await request("GET", `/v1/users/byId/${userId}`, undefined, jwt);
     expect(res.status).toBe(200);
     const body = (await res.json()) as { data: { id: string } };
     expect(body.data.id).toBe(userId);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Farm Invites (with role)
+// ---------------------------------------------------------------------------
+describe("Farm Invites", () => {
+  beforeEach(cleanDb);
+
+  it("creates an invite with default member role", async () => {
+    const { jwt } = await createUserWithFarm({}, undefined, { withActiveMembership: true });
+
+    const res = await request("POST", "/v1/farm/invites", { email: "member@test.com" }, jwt);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { data: { email: string; role: string } };
+    expect(body.data.email).toBe("member@test.com");
+    expect(body.data.role).toBe("member");
+  });
+
+  it("creates an invite with owner role", async () => {
+    const { jwt } = await createUserWithFarm({}, undefined, { withActiveMembership: true });
+
+    const res = await request("POST", "/v1/farm/invites", { email: "co-owner@test.com", role: "owner" }, jwt);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { data: { role: string } };
+    expect(body.data.role).toBe("owner");
+  });
+
+  it("accepted invite assigns the role from the invite", async () => {
+    const { jwt: ownerJwt } = await createUserWithFarm({}, undefined, { withActiveMembership: true });
+    const { userId: memberId } = await createFarmMember(ownerJwt, "member@test.com", { role: "member" });
+
+    const db = getAdminDb();
+    const profile = await db.query.profiles.findFirst({ where: { id: memberId } });
+    expect(profile?.farmRole).toBe("member");
+  });
+
+  it("accepted invite with owner role sets the invitee as owner", async () => {
+    const { jwt: ownerJwt } = await createUserWithFarm({}, undefined, { withActiveMembership: true });
+    const { userId: coOwnerId } = await createFarmMember(ownerJwt, "coowner@test.com", { role: "owner" });
+
+    const db = getAdminDb();
+    const profile = await db.query.profiles.findFirst({ where: { id: coOwnerId } });
+    expect(profile?.farmRole).toBe("owner");
+  });
+
+  it("non-owner cannot create invites", async () => {
+    const { jwt: ownerJwt } = await createUserWithFarm({}, undefined, { withActiveMembership: true });
+    const { jwt: memberJwt } = await createFarmMember(ownerJwt, "member@test.com");
+
+    const res = await request("POST", "/v1/farm/invites", { email: "another@test.com" }, memberJwt);
+    expect(res.status).toBe(403);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Owner-only actions
+// ---------------------------------------------------------------------------
+describe("Owner-only actions", () => {
+  beforeEach(cleanDb);
+
+  it("member cannot update farm settings", async () => {
+    const { jwt: ownerJwt } = await createUserWithFarm({ name: "Owner Farm" }, undefined, { withActiveMembership: true });
+    const { jwt: memberJwt } = await createFarmMember(ownerJwt, "member@test.com");
+
+    const res = await request("PATCH", "/v1/farm", { name: "Hacked" }, memberJwt);
+    expect(res.status).toBe(403);
+  });
+
+  it("owner can update farm settings", async () => {
+    const { jwt } = await createUserWithFarm({ name: "Original Name" }, undefined, { withActiveMembership: true });
+
+    const res = await request("PATCH", "/v1/farm", { name: "Updated Name" }, jwt);
+    expect(res.status).toBe(200);
+  });
+
+  it("member cannot kick other members", async () => {
+    const { jwt: ownerJwt, userId: ownerId } = await createUserWithFarm({}, undefined, { withActiveMembership: true });
+    const { jwt: memberJwt } = await createFarmMember(ownerJwt, "member@test.com");
+
+    const res = await request("DELETE", `/v1/farm/members/byId/${ownerId}`, undefined, memberJwt);
+    expect(res.status).toBe(403);
+  });
+
+  it("member cannot change member roles", async () => {
+    const { jwt: ownerJwt, userId: ownerId } = await createUserWithFarm({}, undefined, { withActiveMembership: true });
+    const { jwt: memberJwt } = await createFarmMember(ownerJwt, "member@test.com");
+
+    const res = await request("PATCH", `/v1/farm/members/byId/${ownerId}/role`, { role: "member" }, memberJwt);
+    expect(res.status).toBe(403);
   });
 });

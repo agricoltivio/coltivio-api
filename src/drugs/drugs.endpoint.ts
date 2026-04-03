@@ -1,7 +1,10 @@
 import createHttpError from "http-errors";
 import { z } from "zod";
 import { animalTypeSchema, drugDosePerUnitSchema, drugDoseUnitSchema } from "../db/schema";
-import { farmEndpointFactory } from "../endpoint-factory";
+import { permissionFarmEndpoint } from "../endpoint-factory";
+
+const treatmentsRead = permissionFarmEndpoint("animals", "read");
+const treatmentsWrite = permissionFarmEndpoint("animals", "write");
 
 export const drugTreatmentSchema = z.object({
   id: z.string(),
@@ -53,7 +56,7 @@ const updateDrugSchema = z.object({
   drugTreatment: z.array(createDrugTreatmentSchema).optional(),
 });
 
-export const getDrugByIdEndpoint = farmEndpointFactory.build({
+export const getDrugByIdEndpoint = treatmentsRead.build({
   method: "get",
   input: z.object({ drugId: z.string() }),
   output: drugSchema,
@@ -66,7 +69,7 @@ export const getDrugByIdEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const getFarmDrugsEndpoint = farmEndpointFactory.build({
+export const getFarmDrugsEndpoint = treatmentsRead.build({
   method: "get",
   input: z.object({}),
   output: z.object({
@@ -79,7 +82,7 @@ export const getFarmDrugsEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const createDrugEndpoint = farmEndpointFactory.build({
+export const createDrugEndpoint = treatmentsWrite.build({
   method: "post",
   input: createDrugSchema,
   output: drugSchema,
@@ -88,7 +91,7 @@ export const createDrugEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const updateDrugEndpoint = farmEndpointFactory.build({
+export const updateDrugEndpoint = treatmentsWrite.build({
   method: "patch",
   input: updateDrugSchema.extend({ drugId: z.string() }),
   output: drugSchema,
@@ -98,7 +101,7 @@ export const updateDrugEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const deleteDrugEndpoint = farmEndpointFactory.build({
+export const deleteDrugEndpoint = treatmentsWrite.build({
   method: "delete",
   input: z.object({ drugId: z.string() }),
   output: z.object({}),
@@ -108,7 +111,7 @@ export const deleteDrugEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const drugInUseEndpoint = farmEndpointFactory.build({
+export const drugInUseEndpoint = treatmentsRead.build({
   method: "get",
   input: z.object({ drugId: z.string() }),
   output: z.object({ inUse: z.boolean() }),

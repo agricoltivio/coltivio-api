@@ -7,6 +7,7 @@ import { eq } from "drizzle-orm";
 import { adminDrizzle, rlsDb } from "./db/db";
 import { supabase, SupabaseToken } from "./supabase/supabase";
 import * as tables from "./db/schema";
+import { FarmPermissionFeature } from "./db/schema";
 import { sentryResultHandler } from "./sentry";
 
 export const supabaseAuthMiddleware = new Middleware({
@@ -125,6 +126,74 @@ export const userPaidMembershipEndpointFactory = authenticatedEndpointFactory.ad
     },
   })
 );
+
+// Factory for endpoints that are exclusively for farm owners (not members).
+export const ownerOnlyEndpointFactory = farmEndpointFactory.addMiddleware(
+  new Middleware({
+    input: z.object({}),
+    handler: async ({ ctx }) => {
+      if (ctx.user.farmRole !== "owner") {
+        throw createHttpError(403, "Only farm owners can perform this action");
+      }
+      return {};
+    },
+  })
+);
+
+// Returns a factory that requires farm membership (no subscription needed) + feature permission.
+// Use for core agricultural features (animals, plots, crops, etc.) that all farm members can access.
+// Owners bypass the permission check; "none" blocks all access; "write" required for mutations.
+export function permissionFarmEndpoint(feature: FarmPermissionFeature, access: "read" | "write") {
+  return farmEndpointFactory.addMiddleware(
+    new Middleware({
+      input: z.object({}),
+      handler: async ({ ctx }) => {
+        if (ctx.user.farmRole === "owner") return {};
+        const userAccess = await ctx.farmPermissions.getFeatureAccess(ctx.user.id, feature);
+        if (userAccess === "none") throw createHttpError(403, `Access denied for: ${feature}`);
+        if (access === "write" && userAccess !== "write")
+          throw createHttpError(403, `Write access required for: ${feature}`);
+        return {};
+      },
+    })
+  );
+}
+
+// Returns a factory that requires active membership (includes trial) + feature permission.
+// Use for premium features (contacts, orders, tasks, etc.) that require a subscription.
+// Owners bypass the permission check; "none" blocks all access; "write" required for mutations.
+export function permissionMembershipEndpoint(feature: FarmPermissionFeature, access: "read" | "write") {
+  return membershipEndpointFactory.addMiddleware(
+    new Middleware({
+      input: z.object({}),
+      handler: async ({ ctx }) => {
+        if (ctx.user.farmRole === "owner") return {};
+        const userAccess = await ctx.farmPermissions.getFeatureAccess(ctx.user.id, feature);
+        if (userAccess === "none") throw createHttpError(403, `Access denied for: ${feature}`);
+        if (access === "write" && userAccess !== "write")
+          throw createHttpError(403, `Write access required for: ${feature}`);
+        return {};
+      },
+    })
+  );
+}
+
+// Returns a factory that requires paid membership + feature permission.
+export function permissionPaidMembershipEndpoint(feature: FarmPermissionFeature, access: "read" | "write") {
+  return paidMembershipEndpointFactory.addMiddleware(
+    new Middleware({
+      input: z.object({}),
+      handler: async ({ ctx }) => {
+        if (ctx.user.farmRole === "owner") return {};
+        const userAccess = await ctx.farmPermissions.getFeatureAccess(ctx.user.id, feature);
+        if (userAccess === "none") throw createHttpError(403, `Access denied for: ${feature}`);
+        if (access === "write" && userAccess !== "write")
+          throw createHttpError(403, `Write access required for: ${feature}`);
+        return {};
+      },
+    })
+  );
+}
 
 // Factory for internal admin endpoints protected by a static API key (from env ADMIN_API_KEY).
 // Used for operations that don't go through Supabase auth (e.g. promoting wiki moderators).

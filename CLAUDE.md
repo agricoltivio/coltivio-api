@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Always use `yarn` for package installation, never `npm install`.
 - After adding or modifying code: run `yarn format`, `yarn lint`, and `npx tsc --noEmit`.
 - Always add integration tests for new endpoints/features and ensure they pass before finishing.
-- Never run `yarn db:migrate` or `yarn db:generate` — the user always handles migrations manually.
+- Never run `yarn db:migrate` or `yarn db:generate` — the user always handles migrations manually. Do not suggest or remind them to run these commands either.
 - Always keep REST API backwards compatibility. New fields must be optional or have defaults. If a change could break existing clients, double-check and ask before proceeding.
 
 ## Commands
@@ -19,8 +19,9 @@ yarn lint           # ESLint with auto-fix
 yarn format         # Prettier
 npx tsc --noEmit    # Type-check without emitting
 
-# Run a single test file
+# Run specific test files (always prefer this over running all tests)
 yarn test --testPathPattern=membership
+yarn test --testPathPatterns="permissions|security"  # run multiple patterns
 
 # Database
 yarn db:migrate     # Apply pending Drizzle migrations

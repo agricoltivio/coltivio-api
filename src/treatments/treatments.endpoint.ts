@@ -4,7 +4,10 @@ import { z } from "zod";
 import { animalSchema } from "../animals/animals.endpoint";
 import { drugDosePerUnitSchema, drugDoseUnitSchema } from "../db/schema";
 import { drugSchema } from "../drugs/drugs.endpoint";
-import { farmEndpointFactory } from "../endpoint-factory";
+import { permissionFarmEndpoint } from "../endpoint-factory";
+
+const treatmentsRead = permissionFarmEndpoint("animals", "read");
+const treatmentsWrite = permissionFarmEndpoint("animals", "write");
 
 export const treatmentSchema = z.object({
   id: z.string(),
@@ -60,7 +63,7 @@ const updateTreatmentSchema = createTreatmentSchema.partial().extend({
   treatmentId: z.string(),
 });
 
-export const getTreatmentByIdEndpoint = farmEndpointFactory.build({
+export const getTreatmentByIdEndpoint = treatmentsRead.build({
   method: "get",
   input: z.object({ treatmentId: z.string() }),
   output: treatmentWithRelationsSchema,
@@ -73,7 +76,7 @@ export const getTreatmentByIdEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const getFarmTreatmentsEndpoint = farmEndpointFactory.build({
+export const getFarmTreatmentsEndpoint = treatmentsRead.build({
   method: "get",
   input: z.object({}),
   output: z.object({
@@ -86,7 +89,7 @@ export const getFarmTreatmentsEndpoint = farmEndpointFactory.build({
   },
 });
 
-// export const getAnimalTreatmentsEndpoint = farmEndpointFactory.build({
+// export const getAnimalTreatmentsEndpoint = treatmentsRead.build({
 //   method: "get",
 //   input: z.object({ animalId: z.string() }),
 //   output: z.object({
@@ -99,7 +102,7 @@ export const getFarmTreatmentsEndpoint = farmEndpointFactory.build({
 //   },
 // });
 
-export const createTreatmentEndpoint = farmEndpointFactory.build({
+export const createTreatmentEndpoint = treatmentsWrite.build({
   method: "post",
   input: createTreatmentSchema,
   output: treatmentSchema,
@@ -108,7 +111,7 @@ export const createTreatmentEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const updateTreatmentEndpoint = farmEndpointFactory.build({
+export const updateTreatmentEndpoint = treatmentsWrite.build({
   method: "patch",
   input: updateTreatmentSchema,
   output: treatmentSchema,
@@ -118,7 +121,7 @@ export const updateTreatmentEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const deleteTreatmentEndpoint = farmEndpointFactory.build({
+export const deleteTreatmentEndpoint = treatmentsWrite.build({
   method: "delete",
   input: z.object({ treatmentId: z.string() }),
   output: z.object({}),

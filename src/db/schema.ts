@@ -79,6 +79,13 @@ export const federalFarmPlots = pgTable.withRLS(
 
 export const farmRoleEnum = pgEnum("farm_role", ["owner", "member"]);
 
+export const farmPermissionFeatureEnum = pgEnum("farm_permission_feature", [
+  "animals",
+  "field_calendar",
+  "commerce",
+  "tasks",
+]);
+
 export const membershipPaymentStatusEnum = pgEnum("membership_payment_status", [
   "pending",
   "succeeded",
@@ -2105,6 +2112,7 @@ export const farmInvites = pgTable.withRLS(
       .references(() => farms.id, { onDelete: "cascade" }),
     email: text().notNull(),
     code: text().notNull().unique(),
+    role: farmRoleEnum().notNull().default("member"),
     createdBy: uuid().references(() => profiles.id, { onDelete: "set null" }),
     expiresAt: timestamp().notNull(),
     usedAt: timestamp(),
@@ -2114,6 +2122,62 @@ export const farmInvites = pgTable.withRLS(
     pgPolicy("only farm members", {
       as: "permissive",
       to: authenticatedRole,
+      using: eq(table.farmId, currentFarmId),
+      withCheck: eq(table.farmId, currentFarmId),
+    }),
+  ]
+);
+
+// Stores the initial feature permissions to be applied when a farm invite is accepted.
+// Features not listed default to "none". Rows are deleted via cascade when the invite is deleted.
+export const farmInvitePermissions = pgTable.withRLS(
+  "farm_invite_permissions",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    inviteId: uuid()
+      .notNull()
+      .references(() => farmInvites.id, { onDelete: "cascade" }),
+    feature: farmPermissionFeatureEnum().notNull(),
+    access: text().$type<"none" | "read" | "write">().notNull().default("none"),
+  },
+  (table) => [
+    unique("farm_invite_permissions_invite_feature_unique").on(table.inviteId, table.feature),
+    pgPolicy("only farm members via invite", {
+      as: "permissive",
+      to: authenticatedRole,
+      using: sql`${table.inviteId} IN (SELECT id FROM farm_invites WHERE farm_id = farm_id())`,
+      withCheck: sql`${table.inviteId} IN (SELECT id FROM farm_invites WHERE farm_id = farm_id())`,
+    }),
+  ]
+);
+
+export const farmMemberPermissions = pgTable.withRLS(
+  "farm_member_permissions",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    farmId: uuid()
+      .notNull()
+      .references(() => farms.id, { onDelete: "cascade" }),
+    userId: uuid()
+      .notNull()
+      .references(() => profiles.id, { onDelete: "cascade" }),
+    feature: farmPermissionFeatureEnum().notNull(),
+    // "none" = no access; "read" = read-only; "write" = full access
+    access: text().$type<"none" | "read" | "write">().notNull().default("none"),
+  },
+  (table) => [
+    unique("farm_member_permissions_user_feature_unique").on(table.userId, table.feature),
+    pgPolicy("farm members can read permissions", {
+      as: "permissive",
+      to: authenticatedRole,
+      for: "select",
+      using: eq(table.farmId, currentFarmId),
+    }),
+    // Write ops (insert/update/delete) are enforced in the app layer (owner only)
+    pgPolicy("farm members can manage permissions", {
+      as: "permissive",
+      to: authenticatedRole,
+      for: "all",
       using: eq(table.farmId, currentFarmId),
       withCheck: eq(table.farmId, currentFarmId),
     }),
@@ -2294,6 +2358,8 @@ const tables = {
   taskLinks,
   taskChecklistItems,
   farmInvites,
+  farmInvitePermissions,
+  farmMemberPermissions,
   plotJournalEntries,
   plotJournalImages,
   animalJournalEntries,
@@ -2367,6 +2433,26 @@ export const relations = defineRelations(tables, (r) => ({
       from: r.farmInvites.createdBy,
       to: r.profiles.id,
       alias: "creator",
+    }),
+    permissions: r.many.farmInvitePermissions(),
+  },
+  farmInvitePermissions: {
+    invite: r.one.farmInvites({
+      from: r.farmInvitePermissions.inviteId,
+      to: r.farmInvites.id,
+      optional: false,
+    }),
+  },
+  farmMemberPermissions: {
+    farm: r.one.farms({
+      from: r.farmMemberPermissions.farmId,
+      to: r.farms.id,
+      optional: false,
+    }),
+    user: r.one.profiles({
+      from: r.farmMemberPermissions.userId,
+      to: r.profiles.id,
+      optional: false,
     }),
   },
   parcels: {
@@ -3057,6 +3143,9 @@ export const paymentMethodSchema = z.enum(paymentMethod.enumValues);
 export const productCategorySchema = z.enum(productCategory.enumValues);
 export const productUnitSchema = z.enum(productUnit.enumValues);
 export const orderStatusSchema = z.enum(orderStatus.enumValues);
+
+export const farmPermissionFeatureSchema = z.enum(farmPermissionFeatureEnum.enumValues);
+export type FarmPermissionFeature = z.infer<typeof farmPermissionFeatureSchema>;
 
 export const wikiCategorySchema = z.object({
   id: z.string(),

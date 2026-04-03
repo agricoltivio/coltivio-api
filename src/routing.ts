@@ -43,14 +43,6 @@ import {
   updateContactEndpoint,
 } from "./contacts/contacts.endpoint";
 import {
-  createPaymentEndpoint,
-  deletePaymentEndpoint,
-  getContactPaymentsEndpoint,
-  getFarmPaymentsEndpoint,
-  getPaymentByIdEndpoint,
-  updatePaymentEndpoint,
-} from "./payments/payments.endpoint";
-import {
   createSponsorshipEndpoint,
   deleteSponsorshipEndpoint,
   getAnimalSponsorshipsEndpoint,
@@ -59,6 +51,10 @@ import {
   getSponsorshipByIdEndpoint,
   // getSponsorshipPaymentsEndpoint,
   updateSponsorshipEndpoint,
+  createSponsorshipPaymentEndpoint,
+  getSponsorshipPaymentEndpoint,
+  updateSponsorshipPaymentEndpoint,
+  deleteSponsorshipPaymentEndpoint,
 } from "./sponsorships/sponsorships.endpoint";
 import {
   createSponsorshipProgramEndpoint,
@@ -257,6 +253,10 @@ import {
   removeOrderItemEndpoint,
   updateOrderEndpoint,
   updateOrderItemEndpoint,
+  createOrderPaymentEndpoint,
+  getOrderPaymentEndpoint,
+  updateOrderPaymentEndpoint,
+  deleteOrderPaymentEndpoint,
 } from "./orders/orders.endpoint";
 import {
   getInvoiceSettingsEndpoint,
@@ -343,6 +343,11 @@ import {
 } from "./forum/forum.endpoint";
 import { setForumThreadStatusEndpoint, pinForumThreadEndpoint } from "./forum/forum-moderation.endpoint";
 import { createHandoffTokenEndpoint, exchangeHandoffTokenEndpoint } from "./auth/handoff.endpoint";
+import {
+  listMemberPermissionsEndpoint,
+  setMemberPermissionEndpoint,
+  resetMemberPermissionEndpoint,
+} from "./farm/farm-permissions.endpoint";
 
 export const routing: Routing = {
   healthz: healthEndpoint,
@@ -384,6 +389,14 @@ export const routing: Routing = {
           ":userId": {
             "": { delete: kickFarmMemberEndpoint },
             role: { patch: changeFarmMemberRoleEndpoint },
+            permissions: {
+              "": { get: listMemberPermissionsEndpoint },
+              byFeature: {
+                ":feature": {
+                  "": { put: setMemberPermissionEndpoint, delete: resetMemberPermissionEndpoint },
+                },
+              },
+            },
           },
         },
       },
@@ -805,7 +818,6 @@ export const routing: Routing = {
             patch: updateContactEndpoint,
             delete: deleteContactEndpoint,
           },
-          payments: getContactPaymentsEndpoint,
           sponsorships: getContactSponsorshipsEndpoint,
           orders: getContactOrdersEndpoint,
         },
@@ -862,19 +874,16 @@ export const routing: Routing = {
           fulfill: fulfillOrderEndpoint,
           cancel: cancelOrderEndpoint,
           invoice: { post: downloadInvoiceEndpoint },
-        },
-      },
-    },
-    payments: {
-      "": {
-        get: getFarmPaymentsEndpoint,
-        post: createPaymentEndpoint,
-      },
-      byId: {
-        ":paymentId": {
-          get: getPaymentByIdEndpoint,
-          patch: updatePaymentEndpoint,
-          delete: deletePaymentEndpoint,
+          payments: {
+            "": { post: createOrderPaymentEndpoint },
+            byId: {
+              ":paymentId": {
+                get: getOrderPaymentEndpoint,
+                patch: updateOrderPaymentEndpoint,
+                delete: deleteOrderPaymentEndpoint,
+              },
+            },
+          },
         },
       },
     },
@@ -904,6 +913,16 @@ export const routing: Routing = {
             get: getSponsorshipByIdEndpoint,
             patch: updateSponsorshipEndpoint,
             delete: deleteSponsorshipEndpoint,
+          },
+          payments: {
+            "": { post: createSponsorshipPaymentEndpoint },
+            byId: {
+              ":paymentId": {
+                get: getSponsorshipPaymentEndpoint,
+                patch: updateSponsorshipPaymentEndpoint,
+                delete: deleteSponsorshipPaymentEndpoint,
+              },
+            },
           },
         },
       },

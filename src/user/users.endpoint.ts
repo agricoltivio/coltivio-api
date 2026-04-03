@@ -1,6 +1,12 @@
 import createHttpError from "http-errors";
 import { z } from "zod";
 import { farmEndpointFactory, authenticatedEndpointFactory } from "../endpoint-factory";
+import { farmPermissionFeatureSchema } from "../db/schema";
+
+const farmPermissionSchema = z.object({
+  feature: farmPermissionFeatureSchema,
+  access: z.enum(["none", "read", "write"]),
+});
 
 export const userSchema = z.object({
   id: z.string(),
@@ -10,6 +16,13 @@ export const userSchema = z.object({
   farmId: z.string().nullable(),
   farmRole: z.enum(["owner", "member"]).nullable(),
   isWikiModerator: z.boolean(),
+});
+
+// Extended schema for GET /me — includes the caller's explicit permission grants.
+// Owners always have full access so farmPermissions is empty for them.
+// Members default to "none" for unlisted features.
+const myProfileSchema = userSchema.extend({
+  farmPermissions: z.array(farmPermissionSchema),
 });
 
 const updateUserSchema = z
@@ -23,13 +36,14 @@ const updateUserSchema = z
 export const getMyUserProfileEndpoint = authenticatedEndpointFactory.build({
   method: "get",
   input: z.object({}),
-  output: userSchema,
+  output: myProfileSchema,
   handler: async ({ ctx }) => {
-    const [user, isWikiModerator] = await Promise.all([
+    const [user, isWikiModerator, farmPermissions] = await Promise.all([
       ctx.users.getUserById(ctx.user.id),
       ctx.wikiModeration.isModerator(ctx.user.id),
+      ctx.farmPermissions.listPermissionsForUser(ctx.user.id),
     ]);
-    return { ...user, isWikiModerator };
+    return { ...user, isWikiModerator, farmPermissions };
   },
 });
 
@@ -97,6 +111,9 @@ export const kickFarmMemberEndpoint = farmEndpointFactory.build({
   input: z.object({ userId: z.string() }),
   output: z.object({}),
   handler: async ({ input, ctx }) => {
+    if (ctx.user.farmRole !== "owner") {
+      throw createHttpError(403, "Only farm owners can kick members");
+    }
     await ctx.farms.kickMember(input.userId, ctx.user.id, ctx.farmId);
     return {};
   },
@@ -107,6 +124,9 @@ export const changeFarmMemberRoleEndpoint = farmEndpointFactory.build({
   input: z.object({ userId: z.string(), role: z.enum(["owner", "member"]) }),
   output: userSchema,
   handler: async ({ input, ctx }) => {
+    if (ctx.user.farmRole !== "owner") {
+      throw createHttpError(403, "Only farm owners can change member roles");
+    }
     const [updatedProfile, isWikiModerator] = await Promise.all([
       ctx.farms.changeMemberRole(input.userId, ctx.user.id, ctx.farmId, input.role),
       ctx.wikiModeration.isModerator(input.userId),
