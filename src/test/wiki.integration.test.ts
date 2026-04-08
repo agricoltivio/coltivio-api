@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from "@jest/globals";
 import { cleanDb, createTestUser, getAdminDb, request } from "./helpers";
+import { createUserWithFarm, createFarmMember } from "./test-utils";
 import { wikiCategories, wikiCategoryTranslations, wikiModerators } from "../db/schema";
 
 // ---------------------------------------------------------------------------
@@ -207,6 +208,27 @@ describe("Wiki — entry lifecycle", () => {
 
     const res = await request("POST", `/v1/wiki/changeRequests/byId/${cr.id}/approve`, {}, otherJwt);
     expect(res.status).toBe(403);
+  });
+
+  it("farm member can see a farm-scoped entry created by another farm member in the list", async () => {
+    const { jwt: ownerJwt, farmId } = await createUserWithFarm({});
+    const { jwt: memberJwt } = await createFarmMember(ownerJwt, "member@test.com");
+    const cat = await seedCategory();
+
+    // Owner creates a farm-scoped entry (draft, private)
+    const res = await request(
+      "POST",
+      "/v1/wiki",
+      { categoryId: cat.id, farmId, translations: [{ locale: "en", title: "Farm Guide", body: "Content." }] },
+      ownerJwt
+    );
+    expect(res.status).toBe(200);
+
+    // Member lists wiki entries — should see the farm entry even though it's not published+public
+    const listRes = await request("GET", "/v1/wiki", undefined, memberJwt);
+    expect(listRes.status).toBe(200);
+    const body = (await listRes.json()) as { data: { result: Array<{ id: string }>; count: number } };
+    expect(body.data.count).toBe(1);
   });
 
   it("getMyEntries returns entries with correct status", async () => {

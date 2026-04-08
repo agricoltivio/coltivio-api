@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq, inArray, or } from "drizzle-orm";
 import { v4 as uuidv4 } from "uuid";
 import { RlsDb } from "../db/db";
 import {
@@ -12,6 +12,7 @@ import {
   wikiChangeRequestNotes,
   wikiChangeRequestTranslations,
   wikiTags,
+  currentFarmId,
 } from "../db/schema";
 import { wikiStorage } from "../supabase/supabase";
 
@@ -116,13 +117,19 @@ export function wikiApi(db: RlsDb) {
           if (tagEntryIds.length === 0) return [];
         }
 
+        // Match (published+public) OR (belongs to the current farm via session config)
+        let baseWhere = or(
+          and(eq(wikiEntries.status, "published"), eq(wikiEntries.visibility, "public")),
+          eq(wikiEntries.farmId, currentFarmId)
+        );
+        if (categoryId) baseWhere = and(baseWhere, eq(wikiEntries.categoryId, categoryId));
+        if (tagEntryIds) baseWhere = and(baseWhere, inArray(wikiEntries.id, tagEntryIds));
+
+        const matchingIds = await tx.select({ id: wikiEntries.id }).from(wikiEntries).where(baseWhere);
+        if (matchingIds.length === 0) return [];
+
         const entries = await tx.query.wikiEntries.findMany({
-          where: {
-            status: "published",
-            visibility: "public",
-            ...(categoryId ? { categoryId } : {}),
-            ...(tagEntryIds ? { id: { in: tagEntryIds } } : {}),
-          },
+          where: { id: { in: matchingIds.map((r) => r.id) } },
           with: entryWithRelations,
         });
 

@@ -192,7 +192,7 @@ VALUES (
   ST_SetSRID(ST_MakePoint(9.123461723327637, 46.307472229003906), 4326)
 );
 
-UPDATE profiles SET farm_id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa01'
+UPDATE profiles SET farm_id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa01', farm_role = 'owner'
 WHERE id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
 
 -- =============================================================================

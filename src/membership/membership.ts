@@ -119,6 +119,7 @@ export function membershipApi(db: RlsDb) {
     },
 
     async getFarmMembershipStatus(farmId: string): Promise<FarmMembershipStatus> {
+      if (UNLIMITED_TRIAL) return "trial";
       const userIds = await getUserIdsForFarm(farmId);
       if (userIds.length === 0) return "none";
 
