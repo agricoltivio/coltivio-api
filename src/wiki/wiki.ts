@@ -27,7 +27,6 @@ export type WikiEntryTranslationInput = {
 export type WikiEntryCreateInput = {
   id?: string; // Pre-generated UUID to associate images before entry creation
   categoryId: string;
-  farmId?: string;
   translations: WikiEntryTranslationInput[];
   tagIds?: string[];
 };
@@ -149,11 +148,11 @@ export function wikiApi(db: RlsDb) {
       });
     },
 
-    // Get entries belonging to the authenticated user (all statuses, RLS enforces ownership)
-    async getMyEntries(userId: string): Promise<WikiEntryWithRelations[]> {
+    // Get all entries belonging to a farm (all statuses, RLS enforces farm membership)
+    async getFarmEntries(farmId: string): Promise<WikiEntryWithRelations[]> {
       return db.rls(async (tx) => {
         const entries = await tx.query.wikiEntries.findMany({
-          where: { createdBy: userId },
+          where: { farmId },
           with: {
             ...entryWithRelations,
             changeRequests: {
@@ -188,7 +187,7 @@ export function wikiApi(db: RlsDb) {
     },
 
     // Create a new wiki entry as DRAFT with initial translations and tags
-    async createEntry(createdBy: string, input: WikiEntryCreateInput): Promise<WikiEntryWithRelations> {
+    async createEntry(createdBy: string, farmId: string, input: WikiEntryCreateInput): Promise<WikiEntryWithRelations> {
       return db.rls(async (tx) => {
         const entryId = input.id ?? uuidv4();
 
@@ -198,7 +197,7 @@ export function wikiApi(db: RlsDb) {
           visibility: "private",
           createdBy,
           categoryId: input.categoryId,
-          farmId: input.farmId ?? null,
+          farmId,
         });
 
         if (input.translations.length > 0) {
@@ -382,19 +381,19 @@ export function wikiApi(db: RlsDb) {
     },
 
     // Request a signed upload URL from Supabase Storage for a wiki image.
-    // If the entry already exists, the caller must own it.
+    // If the entry already exists, the caller's farm must own it.
     // If it doesn't exist yet (pre-upload flow), the URL is issued — registerImage will
-    // enforce ownership when the entry is created and the image is registered.
+    // enforce farm ownership when the entry is created and the image is registered.
     async requestSignedImageUrl(
       entryId: string,
-      requestedBy: string,
+      farmId: string,
       filename: string
     ): Promise<{ signedUrl: string; path: string }> {
       const existingEntry = await db.admin.query.wikiEntries.findFirst({
         where: { id: entryId },
       });
-      if (existingEntry && existingEntry.createdBy !== requestedBy) {
-        throw new Error("You do not own this entry");
+      if (existingEntry && existingEntry.farmId !== farmId) {
+        throw new Error("This entry does not belong to your farm");
       }
 
       const ext = filename.split(".").pop() ?? "bin";
@@ -414,7 +413,8 @@ export function wikiApi(db: RlsDb) {
     async registerImage(
       entryId: string,
       storagePath: string,
-      uploadedBy: string
+      uploadedBy: string,
+      farmId: string
     ): Promise<{ id: string; publicUrl: string }> {
       // Ensure the storage path is scoped to this entry's folder to prevent
       // a user from registering paths that belong to other entries
@@ -422,12 +422,12 @@ export function wikiApi(db: RlsDb) {
         throw new Error("Invalid storage path for this entry");
       }
 
-      // If the entry already exists, verify ownership
+      // If the entry already exists, verify it belongs to the caller's farm
       const existingEntry = await db.admin.query.wikiEntries.findFirst({
         where: { id: entryId },
       });
-      if (existingEntry && existingEntry.createdBy !== uploadedBy) {
-        throw new Error("You do not own this entry");
+      if (existingEntry && existingEntry.farmId !== farmId) {
+        throw new Error("This entry does not belong to your farm");
       }
 
       const [image] = await db.admin.insert(wikiEntryImages).values({ entryId, storagePath, uploadedBy }).returning();

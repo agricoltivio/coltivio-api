@@ -1617,7 +1617,9 @@ export const wikiEntries = pgTable.withRLS(
     createdBy: uuid()
       .notNull()
       .references(() => profiles.id, { onDelete: "restrict" }),
-    farmId: uuid().references(() => farms.id, { onDelete: "cascade" }),
+    farmId: uuid()
+      .notNull()
+      .references(() => farms.id, { onDelete: "cascade" }),
     categoryId: uuid()
       .notNull()
       .references(() => wikiCategories.id, { onDelete: "restrict" }),
@@ -1626,31 +1628,34 @@ export const wikiEntries = pgTable.withRLS(
   },
   (table) => [
     index("wiki_entries_status_visibility_idx").on(table.status, table.visibility),
-    // Can read: published public entries, own entries, or entries from same farm
+    // Can read: published public entries, or entries belonging to the current farm session
     pgPolicy("authenticated users can read wiki entries", {
       as: "permissive",
       to: authenticatedRole,
       for: "select",
-      using: sql`(${table.status} = 'published'::wiki_entry_status AND ${table.visibility} = 'public'::wiki_visibility) OR ${table.createdBy} = (SELECT auth.uid()) OR (${table.farmId} IS NOT NULL AND ${table.farmId} = (SELECT current_setting('request.farm_id', TRUE)::uuid))`,
+      using: sql`(${table.status} = 'published'::wiki_entry_status AND ${table.visibility} = 'public'::wiki_visibility) OR ${table.farmId} = (SELECT current_setting('request.farm_id', TRUE)::uuid)`,
     }),
-    pgPolicy("authenticated users can create wiki entries", {
+    // Farm members can create entries attributed to themselves within their current farm
+    pgPolicy("farm members can create wiki entries", {
       as: "permissive",
       to: authenticatedRole,
       for: "insert",
-      withCheck: eq(table.createdBy, selectAuthUid),
+      withCheck: sql`${table.createdBy} = (SELECT auth.uid()) AND ${table.farmId} = (SELECT current_setting('request.farm_id', TRUE)::uuid)`,
     }),
-    pgPolicy("creator can update own wiki entries", {
+    // Farm members can update private entries belonging to their farm
+    pgPolicy("farm members can update private wiki entries", {
       as: "permissive",
       to: authenticatedRole,
       for: "update",
-      using: eq(table.createdBy, selectAuthUid),
-      withCheck: eq(table.createdBy, selectAuthUid),
+      using: sql`${table.farmId} = (SELECT current_setting('request.farm_id', TRUE)::uuid) AND ${table.visibility} = 'private'::wiki_visibility`,
+      withCheck: sql`${table.farmId} = (SELECT current_setting('request.farm_id', TRUE)::uuid) AND ${table.visibility} = 'private'::wiki_visibility`,
     }),
-    pgPolicy("creator can delete own private wiki entries", {
+    // Farm members can delete private entries belonging to their farm
+    pgPolicy("farm members can delete private wiki entries", {
       as: "permissive",
       to: authenticatedRole,
       for: "delete",
-      using: and(eq(table.createdBy, selectAuthUid), eq(table.visibility, sql`'private'::wiki_visibility`)),
+      using: sql`${table.farmId} = (SELECT current_setting('request.farm_id', TRUE)::uuid) AND ${table.visibility} = 'private'::wiki_visibility`,
     }),
   ]
 );
@@ -1698,10 +1703,9 @@ export const wikiEntryTags = pgTable.withRLS(
       to: authenticatedRole,
       using: sql`
         EXISTS (SELECT 1 FROM ${wikiEntries} we WHERE we.id = ${table.entryId} AND we.status = 'published'::wiki_entry_status AND we.visibility = 'public'::wiki_visibility)
-        OR (SELECT auth.uid()) IN (SELECT created_by FROM ${wikiEntries} WHERE id = ${table.entryId})
-        OR (SELECT current_setting('request.farm_id', TRUE)::uuid) IN (SELECT farm_id FROM ${wikiEntries} WHERE id = ${table.entryId} AND farm_id IS NOT NULL)
+        OR EXISTS (SELECT 1 FROM ${wikiEntries} we WHERE we.id = ${table.entryId} AND we.farm_id = (SELECT current_setting('request.farm_id', TRUE)::uuid))
       `,
-      withCheck: sql`(SELECT auth.uid()) IN (SELECT created_by FROM ${wikiEntries} WHERE id = ${table.entryId})`,
+      withCheck: sql`EXISTS (SELECT 1 FROM ${wikiEntries} we WHERE we.id = ${table.entryId} AND we.farm_id = (SELECT current_setting('request.farm_id', TRUE)::uuid))`,
     }),
   ]
 );
@@ -1727,10 +1731,9 @@ export const wikiEntryTranslations = pgTable.withRLS(
       to: authenticatedRole,
       using: sql`
         EXISTS (SELECT 1 FROM ${wikiEntries} we WHERE we.id = ${table.entryId} AND we.status = 'published'::wiki_entry_status AND we.visibility = 'public'::wiki_visibility)
-        OR (SELECT auth.uid()) IN (SELECT created_by FROM ${wikiEntries} WHERE id = ${table.entryId})
-        OR (SELECT current_setting('request.farm_id', TRUE)::uuid) IN (SELECT farm_id FROM ${wikiEntries} WHERE id = ${table.entryId} AND farm_id IS NOT NULL)
+        OR EXISTS (SELECT 1 FROM ${wikiEntries} we WHERE we.id = ${table.entryId} AND we.farm_id = (SELECT current_setting('request.farm_id', TRUE)::uuid))
       `,
-      withCheck: sql`(SELECT auth.uid()) IN (SELECT created_by FROM ${wikiEntries} WHERE id = ${table.entryId})`,
+      withCheck: sql`EXISTS (SELECT 1 FROM ${wikiEntries} we WHERE we.id = ${table.entryId} AND we.farm_id = (SELECT current_setting('request.farm_id', TRUE)::uuid))`,
     }),
   ]
 );
@@ -1754,10 +1757,9 @@ export const wikiEntryImages = pgTable.withRLS(
       to: authenticatedRole,
       using: sql`
         EXISTS (SELECT 1 FROM ${wikiEntries} we WHERE we.id = ${table.entryId} AND we.status = 'published'::wiki_entry_status AND we.visibility = 'public'::wiki_visibility)
-        OR (SELECT auth.uid()) IN (SELECT created_by FROM ${wikiEntries} WHERE id = ${table.entryId})
-        OR (SELECT current_setting('request.farm_id', TRUE)::uuid) IN (SELECT farm_id FROM ${wikiEntries} WHERE id = ${table.entryId} AND farm_id IS NOT NULL)
+        OR EXISTS (SELECT 1 FROM ${wikiEntries} we WHERE we.id = ${table.entryId} AND we.farm_id = (SELECT current_setting('request.farm_id', TRUE)::uuid))
       `,
-      withCheck: sql`(SELECT auth.uid()) IN (SELECT created_by FROM ${wikiEntries} WHERE id = ${table.entryId})`,
+      withCheck: sql`EXISTS (SELECT 1 FROM ${wikiEntries} we WHERE we.id = ${table.entryId} AND we.farm_id = (SELECT current_setting('request.farm_id', TRUE)::uuid))`,
     }),
   ]
 );

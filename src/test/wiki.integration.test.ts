@@ -51,7 +51,7 @@ describe("Wiki — entry lifecycle", () => {
   beforeEach(cleanDb);
 
   it("creates a private draft entry", async () => {
-    const { jwt, userId } = await createTestUser("user@test.com", "password123");
+    const { jwt, userId, farmId } = await createUserWithFarm({});
     const cat = await seedCategory();
 
     const entry = await createEntry(jwt, cat.id);
@@ -63,10 +63,11 @@ describe("Wiki — entry lifecycle", () => {
     expect(dbEntry!.status).toBe("draft");
     expect(dbEntry!.visibility).toBe("private");
     expect(dbEntry!.createdBy).toBe(userId);
+    expect(dbEntry!.farmId).toBe(farmId);
   });
 
   it("submits entry for review — entry becomes under_review, CR created", async () => {
-    const { jwt } = await createTestUser("user@test.com", "password123");
+    const { jwt } = await createUserWithFarm({});
     const cat = await seedCategory();
 
     const entry = await createEntry(jwt, cat.id);
@@ -86,7 +87,7 @@ describe("Wiki — entry lifecycle", () => {
   });
 
   it("blocks submitting an entry without translations", async () => {
-    const { jwt } = await createTestUser("user@test.com", "password123");
+    const { jwt } = await createUserWithFarm({});
     const cat = await seedCategory();
 
     const entry = await createEntry(jwt, cat.id);
@@ -95,7 +96,7 @@ describe("Wiki — entry lifecycle", () => {
   });
 
   it("blocks duplicate submission while CR is active", async () => {
-    const { jwt } = await createTestUser("user@test.com", "password123");
+    const { jwt } = await createUserWithFarm({});
     const cat = await seedCategory();
 
     const entry = await createEntry(jwt, cat.id);
@@ -107,7 +108,7 @@ describe("Wiki — entry lifecycle", () => {
   });
 
   it("moderator approves new_entry CR — source entry stays draft, CR becomes approved", async () => {
-    const { jwt: userJwt } = await createTestUser("user@test.com", "password123");
+    const { jwt: userJwt } = await createUserWithFarm({});
     const { jwt: modJwt, userId: modId } = await createTestUser("mod@test.com", "password123");
     await seedModerator(modId);
     const cat = await seedCategory();
@@ -129,7 +130,7 @@ describe("Wiki — entry lifecycle", () => {
   });
 
   it("moderator rejects CR — entry reverts to draft", async () => {
-    const { jwt: userJwt } = await createTestUser("user@test.com", "password123");
+    const { jwt: userJwt } = await createUserWithFarm({});
     const { jwt: modJwt, userId: modId } = await createTestUser("mod@test.com", "password123");
     await seedModerator(modId);
     const cat = await seedCategory();
@@ -151,7 +152,7 @@ describe("Wiki — entry lifecycle", () => {
   });
 
   it("moderator requests changes — CR becomes changes_requested, entry reverts to draft", async () => {
-    const { jwt: userJwt } = await createTestUser("user@test.com", "password123");
+    const { jwt: userJwt } = await createUserWithFarm({});
     const { jwt: modJwt, userId: modId } = await createTestUser("mod@test.com", "password123");
     await seedModerator(modId);
     const cat = await seedCategory();
@@ -173,7 +174,7 @@ describe("Wiki — entry lifecycle", () => {
   });
 
   it("user resubmits after changes_requested — CR goes back to under_review", async () => {
-    const { jwt: userJwt } = await createTestUser("user@test.com", "password123");
+    const { jwt: userJwt } = await createUserWithFarm({});
     const { jwt: modJwt, userId: modId } = await createTestUser("mod@test.com", "password123");
     await seedModerator(modId);
     const cat = await seedCategory();
@@ -197,7 +198,7 @@ describe("Wiki — entry lifecycle", () => {
   });
 
   it("non-moderator cannot approve a CR", async () => {
-    const { jwt: userJwt } = await createTestUser("user@test.com", "password123");
+    const { jwt: userJwt } = await createUserWithFarm({});
     const { jwt: otherJwt } = await createTestUser("other@test.com", "password123");
     const cat = await seedCategory();
 
@@ -211,15 +212,15 @@ describe("Wiki — entry lifecycle", () => {
   });
 
   it("farm member can see a farm-scoped entry created by another farm member in the list", async () => {
-    const { jwt: ownerJwt, farmId } = await createUserWithFarm({});
+    const { jwt: ownerJwt } = await createUserWithFarm({});
     const { jwt: memberJwt } = await createFarmMember(ownerJwt, "member@test.com");
     const cat = await seedCategory();
 
-    // Owner creates a farm-scoped entry (draft, private)
+    // Owner creates a farm-scoped entry (draft, private) — farmId comes from ctx
     const res = await request(
       "POST",
       "/v1/wiki",
-      { categoryId: cat.id, farmId, translations: [{ locale: "en", title: "Farm Guide", body: "Content." }] },
+      { categoryId: cat.id, translations: [{ locale: "en", title: "Farm Guide", body: "Content." }] },
       ownerJwt
     );
     expect(res.status).toBe(200);
@@ -231,8 +232,56 @@ describe("Wiki — entry lifecycle", () => {
     expect(body.data.count).toBe(1);
   });
 
-  it("getMyEntries returns entries with correct status", async () => {
-    const { jwt } = await createTestUser("user@test.com", "password123");
+  it("farm member can edit an entry created by another farm member", async () => {
+    const { jwt: ownerJwt } = await createUserWithFarm({});
+    const { jwt: memberJwt } = await createFarmMember(ownerJwt, "member@test.com");
+    const cat = await seedCategory();
+
+    const entry = await createEntry(ownerJwt, cat.id);
+
+    // Farm member edits the owner's entry
+    const updateRes = await request(
+      "PATCH",
+      `/v1/wiki/byId/${entry.id}`,
+      { translations: [{ locale: "en", title: "Updated by Member", body: "Updated content." }] },
+      memberJwt
+    );
+    expect(updateRes.status).toBe(200);
+
+    const db = getAdminDb();
+    const dbTranslations = await db.query.wikiEntryTranslations.findMany({ where: { entryId: entry.id } });
+    expect(dbTranslations[0].title).toBe("Updated by Member");
+  });
+
+  it("farm member can submit an entry created by another farm member", async () => {
+    const { jwt: ownerJwt } = await createUserWithFarm({});
+    const { jwt: memberJwt } = await createFarmMember(ownerJwt, "member@test.com");
+    const cat = await seedCategory();
+
+    const entry = await createEntry(ownerJwt, cat.id);
+    await addTranslation(ownerJwt, entry.id);
+
+    const res = await request("POST", `/v1/wiki/byId/${entry.id}/submit`, {}, memberJwt);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { data: { status: string } };
+    expect(body.data.status).toBe("under_review");
+  });
+
+  it("user without a farm cannot create wiki entries", async () => {
+    const { jwt } = await createTestUser("noFarm@test.com", "password123");
+    const cat = await seedCategory();
+
+    const res = await request(
+      "POST",
+      "/v1/wiki",
+      { categoryId: cat.id, translations: [{ locale: "en", title: "Test", body: "" }] },
+      jwt
+    );
+    expect(res.status).toBe(400); // farmEndpointFactory returns 400 when no farm
+  });
+
+  it("getFarmEntries returns all farm entries", async () => {
+    const { jwt } = await createUserWithFarm({});
     const cat = await seedCategory();
 
     await createEntry(jwt, cat.id);
