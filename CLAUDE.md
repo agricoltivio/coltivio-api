@@ -87,6 +87,11 @@ Test helpers (`src/test/helpers.ts`):
 - `getAdminDb()` — direct DB access for test assertions (bypasses RLS)
 - `SERVER_URL` env var — set automatically by globalSetup, used to make requests
 
+**IMPORTANT — when asked to fix failing tests:**
+- NEVER run `yarn test` (all tests) — it takes many minutes and wastes a full Docker spin-up cycle.
+- Ask the user which test file(s) are failing, OR infer from context (e.g. if wiki code changed, run `--testPathPatterns=wiki`).
+- Only run `yarn test` (all) when the user explicitly asks to run the full suite.
+
 ### Stripe
 
 Webhook handler at `POST /v1/webhooks/stripe` (`src/stripe/webhook.ts`). Events routed to `membership.handleWebhookEvent()`. Stripe checkout uses `price: priceId` directly (not `price_data`) so billing interval and active subscription counts reflect the configured Stripe price.

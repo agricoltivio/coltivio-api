@@ -408,13 +408,18 @@ export async function createOrder(
   return ((await res.json()) as { data: ApiEntity }).data;
 }
 
-export async function createPayment(jwt: string, contactId: string, data?: Record<string, unknown>) {
-  const payload = merge(
-    {},
-    { contactId, date: "2026-03-01", amount: 100, currency: "CHF", method: "bank_transfer" },
-    data
-  );
-  const res = await request("POST", "/v1/payments", payload, jwt);
+export async function createPayment(jwt: string, _contactId: string, data?: Record<string, unknown>) {
+  const { orderId, sponsorshipId, ...rest } = (data ?? {}) as Record<string, unknown>;
+  const payload = merge({}, { date: "2026-03-01", amount: 100, currency: "CHF", method: "bank_transfer" }, rest);
+  let url: string;
+  if (orderId) {
+    url = `/v1/orders/byId/${orderId}/payments`;
+  } else if (sponsorshipId) {
+    url = `/v1/sponsorships/byId/${sponsorshipId}/payments`;
+  } else {
+    throw new Error("createPayment requires either orderId or sponsorshipId");
+  }
+  const res = await request("POST", url, payload, jwt);
   expect(res.status).toBe(200);
   return ((await res.json()) as { data: ApiEntity }).data;
 }

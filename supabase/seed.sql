@@ -350,3 +350,8 @@ SELECT 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1'::uuid, 'aaaaaaaa-aaaa-aaaa-aaaa-aa
 FROM plots p
 WHERE p.farm_id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa01' AND p.local_id = '377'
 LIMIT 1;
+
+
+-- Moderators
+INSERT INTO wiki_moderators (user_id) VALUES ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa');
+INSERT INTO forum_moderators (user_id) VALUES ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa');
