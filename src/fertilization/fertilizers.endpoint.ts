@@ -1,7 +1,10 @@
 import createHttpError from "http-errors";
 import { z } from "zod";
 import { fertilizerTypeSchema, fertilizerUnitSchema } from "../db/schema";
-import { farmEndpointFactory } from "../endpoint-factory";
+import { permissionFarmEndpoint } from "../endpoint-factory";
+
+const fertilizationRead = permissionFarmEndpoint("field_calendar", "read");
+const fertilizationWrite = permissionFarmEndpoint("field_calendar", "write");
 
 // API Schemas - decoupled from database schema for stable API contract
 export const fertilizerSchema = z.object({
@@ -23,7 +26,7 @@ const createFertilizerSchema = z.object({
 
 const updateFertilizerSchema = createFertilizerSchema.partial();
 
-export const getFertilizerByIdEndpoint = farmEndpointFactory.build({
+export const getFertilizerByIdEndpoint = fertilizationRead.build({
   method: "get",
   input: z.object({ fertilizerId: z.string() }),
   output: fertilizerSchema,
@@ -36,7 +39,7 @@ export const getFertilizerByIdEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const getFarmFertilizersEndpoint = farmEndpointFactory.build({
+export const getFarmFertilizersEndpoint = fertilizationRead.build({
   method: "get",
   input: z.object({}),
   output: z.object({
@@ -52,7 +55,7 @@ export const getFarmFertilizersEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const createFertilizerEndpoint = farmEndpointFactory.build({
+export const createFertilizerEndpoint = fertilizationWrite.build({
   method: "post",
   input: createFertilizerSchema,
   output: fertilizerSchema,
@@ -61,7 +64,7 @@ export const createFertilizerEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const updateFertilizerEndpoint = farmEndpointFactory.build({
+export const updateFertilizerEndpoint = fertilizationWrite.build({
   method: "patch",
   input: updateFertilizerSchema.extend({
     fertilizerId: z.string(),
@@ -72,7 +75,7 @@ export const updateFertilizerEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const deleteFertilizerEndpoint = farmEndpointFactory.build({
+export const deleteFertilizerEndpoint = fertilizationWrite.build({
   method: "delete",
   input: z.object({ fertilizerId: z.string() }),
   output: z.object({}),
@@ -82,7 +85,7 @@ export const deleteFertilizerEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const fertilizerInUseEndpoint = farmEndpointFactory.build({
+export const fertilizerInUseEndpoint = fertilizationRead.build({
   method: "get",
   input: z.object({ fertilizerId: z.string() }),
   output: z.object({ inUse: z.boolean() }),

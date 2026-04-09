@@ -3,7 +3,10 @@ import createHttpError from "http-errors";
 import { z } from "zod";
 import { ensureDateRange } from "../date-utils";
 import { multiPolygonSchema, tillageActionSchema } from "../db/schema";
-import { farmEndpointFactory } from "../endpoint-factory";
+import { permissionFarmEndpoint } from "../endpoint-factory";
+
+const tillagesRead = permissionFarmEndpoint("field_calendar", "read");
+const tillagesWrite = permissionFarmEndpoint("field_calendar", "write");
 
 const plotMinimalSchema = z.object({
   id: z.string(),
@@ -37,7 +40,7 @@ const tillageCreateSchema = z.object({
   additionalNotes: z.string().optional(),
 });
 
-export const getTillageByIdEndpoint = farmEndpointFactory.build({
+export const getTillageByIdEndpoint = tillagesRead.build({
   method: "get",
   input: z.object({ tillageId: z.string() }),
   output: tillagesResponseSchema,
@@ -49,7 +52,7 @@ export const getTillageByIdEndpoint = farmEndpointFactory.build({
     return tillage;
   },
 });
-export const getPlotTillagesEndpoint = farmEndpointFactory.build({
+export const getPlotTillagesEndpoint = tillagesRead.build({
   method: "get",
   input: z.object({
     plotId: z.string(),
@@ -67,7 +70,7 @@ export const getPlotTillagesEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const getFarmTillagesEndpoint = farmEndpointFactory.build({
+export const getFarmTillagesEndpoint = tillagesRead.build({
   method: "get",
   input: z.object({
     fromDate: ez.dateIn().optional(),
@@ -87,7 +90,7 @@ export const getFarmTillagesEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const createTillageEndpoint = farmEndpointFactory.build({
+export const createTillageEndpoint = tillagesWrite.build({
   method: "post",
   input: tillageCreateSchema,
   output: tillagesResponseSchema,
@@ -96,7 +99,7 @@ export const createTillageEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const createTillagesEndpoint = farmEndpointFactory.build({
+export const createTillagesEndpoint = tillagesWrite.build({
   method: "post",
   input: z.object({
     action: tillageActionSchema,
@@ -127,7 +130,7 @@ export const createTillagesEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const updateTillageEndpoint = farmEndpointFactory.build({
+export const updateTillageEndpoint = tillagesWrite.build({
   method: "patch",
   input: tillageCreateSchema.omit({ plotId: true }).partial().extend({
     tillageId: z.string(),
@@ -139,7 +142,7 @@ export const updateTillageEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const deleteTillageEndpoint = farmEndpointFactory.build({
+export const deleteTillageEndpoint = tillagesWrite.build({
   method: "delete",
   input: z.object({ tillageId: z.string() }),
   output: z.object({}),
@@ -149,7 +152,7 @@ export const deleteTillageEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const getTillagesYearsEndpoint = farmEndpointFactory.build({
+export const getTillagesYearsEndpoint = tillagesRead.build({
   method: "get",
   input: z.object({}),
   output: z.object({
@@ -173,7 +176,7 @@ const tillagePresetSchema = z.object({
   customAction: z.string().nullable(),
 });
 
-export const getTillagePresetsEndpoint = farmEndpointFactory.build({
+export const getTillagePresetsEndpoint = tillagesRead.build({
   method: "get",
   input: z.object({}),
   output: z.object({
@@ -186,7 +189,7 @@ export const getTillagePresetsEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const getTillagePresetByIdEndpoint = farmEndpointFactory.build({
+export const getTillagePresetByIdEndpoint = tillagesRead.build({
   method: "get",
   input: z.object({ presetId: z.string() }),
   output: tillagePresetSchema,
@@ -199,7 +202,7 @@ export const getTillagePresetByIdEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const createTillagePresetEndpoint = farmEndpointFactory.build({
+export const createTillagePresetEndpoint = tillagesWrite.build({
   method: "post",
   input: z.object({
     name: z.string(),
@@ -212,7 +215,7 @@ export const createTillagePresetEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const updateTillagePresetEndpoint = farmEndpointFactory.build({
+export const updateTillagePresetEndpoint = tillagesWrite.build({
   method: "patch",
   input: z.object({
     presetId: z.string(),
@@ -226,7 +229,7 @@ export const updateTillagePresetEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const deleteTillagePresetEndpoint = farmEndpointFactory.build({
+export const deleteTillagePresetEndpoint = tillagesWrite.build({
   method: "delete",
   input: z.object({ presetId: z.string() }),
   output: z.object({}),

@@ -113,7 +113,7 @@ export function wikiModerationApi(db: RlsDb) {
 
       await db.admin.transaction(async (tx) => {
         if (changeRequest.type === "new_entry") {
-          if (!changeRequest.proposedCategoryId) {
+          if (!changeRequest.proposedCategoryId || !changeRequest.proposedFarmId) {
             throw new Error("Change request is missing required snapshot fields");
           }
 
@@ -125,7 +125,7 @@ export function wikiModerationApi(db: RlsDb) {
               visibility: "public",
               createdBy: changeRequest.submittedBy,
               categoryId: changeRequest.proposedCategoryId,
-              farmId: changeRequest.proposedFarmId ?? null,
+              farmId: changeRequest.proposedFarmId,
               updatedAt: new Date(),
             })
             .returning();

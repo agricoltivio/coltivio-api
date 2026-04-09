@@ -1,6 +1,10 @@
 import { z } from "zod";
-import { farmEndpointFactory } from "../endpoint-factory";
+import { permissionFarmEndpoint } from "../endpoint-factory";
 import { ez } from "express-zod-api";
+
+// Gated by plots read as the minimum — the report aggregates crop_rotations, tillages,
+// fertilization, crop_protection, and harvests, but requires at least field-level access.
+const plotsRead = permissionFarmEndpoint("field_calendar", "read");
 
 const fieldCalendarReportInput = z.object({
   fromDate: ez.dateIn(),
@@ -12,7 +16,7 @@ const fieldCalendarReportInput = z.object({
   generateHarvests: z.boolean(),
 });
 
-export const sendFieldCalendarReport = farmEndpointFactory.build({
+export const sendFieldCalendarReport = plotsRead.build({
   method: "post",
   input: fieldCalendarReportInput,
   output: z.object({}),
@@ -31,7 +35,7 @@ export const sendFieldCalendarReport = farmEndpointFactory.build({
   },
 });
 
-export const downloadFieldCalendarReport = farmEndpointFactory.build({
+export const downloadFieldCalendarReport = plotsRead.build({
   method: "post",
   input: fieldCalendarReportInput,
   output: z.object({

@@ -1,6 +1,9 @@
 import { ez } from "express-zod-api";
 import { z } from "zod";
-import { membershipEndpointFactory } from "../endpoint-factory";
+import { permissionMembershipEndpoint } from "../endpoint-factory";
+
+const plotsRead = permissionMembershipEndpoint("field_calendar", "read");
+const plotsWrite = permissionMembershipEndpoint("field_calendar", "write");
 
 const journalImageSchema = z.object({
   id: z.string(),
@@ -26,7 +29,7 @@ const journalEntryWithImagesSchema = journalEntrySchema.extend({
   images: z.array(journalImageSchema),
 });
 
-export const listPlotJournalEntriesEndpoint = membershipEndpointFactory.build({
+export const listPlotJournalEntriesEndpoint = plotsRead.build({
   method: "get",
   input: z.object({ plotId: z.string() }),
   output: z.object({ entries: z.array(journalEntryWithImagesSchema) }),
@@ -36,7 +39,7 @@ export const listPlotJournalEntriesEndpoint = membershipEndpointFactory.build({
   },
 });
 
-export const createPlotJournalEntryEndpoint = membershipEndpointFactory.build({
+export const createPlotJournalEntryEndpoint = plotsWrite.build({
   method: "post",
   input: z.object({
     plotId: z.string(),
@@ -51,7 +54,7 @@ export const createPlotJournalEntryEndpoint = membershipEndpointFactory.build({
   },
 });
 
-export const getPlotJournalEntryEndpoint = membershipEndpointFactory.build({
+export const getPlotJournalEntryEndpoint = plotsRead.build({
   method: "get",
   input: z.object({ entryId: z.string() }),
   output: journalEntryWithImagesSchema,
@@ -60,7 +63,7 @@ export const getPlotJournalEntryEndpoint = membershipEndpointFactory.build({
   },
 });
 
-export const updatePlotJournalEntryEndpoint = membershipEndpointFactory.build({
+export const updatePlotJournalEntryEndpoint = plotsWrite.build({
   method: "patch",
   input: z.object({
     entryId: z.string(),
@@ -75,7 +78,7 @@ export const updatePlotJournalEntryEndpoint = membershipEndpointFactory.build({
   },
 });
 
-export const deletePlotJournalEntryEndpoint = membershipEndpointFactory.build({
+export const deletePlotJournalEntryEndpoint = plotsWrite.build({
   method: "delete",
   input: z.object({ entryId: z.string() }),
   output: z.object({}),
@@ -85,7 +88,7 @@ export const deletePlotJournalEntryEndpoint = membershipEndpointFactory.build({
   },
 });
 
-export const requestPlotJournalImageSignedUrlEndpoint = membershipEndpointFactory.build({
+export const requestPlotJournalImageSignedUrlEndpoint = plotsWrite.build({
   method: "post",
   input: z.object({
     journalEntryId: z.string(),
@@ -100,7 +103,7 @@ export const requestPlotJournalImageSignedUrlEndpoint = membershipEndpointFactor
   },
 });
 
-export const registerPlotJournalImageEndpoint = membershipEndpointFactory.build({
+export const registerPlotJournalImageEndpoint = plotsWrite.build({
   method: "post",
   input: z.object({
     journalEntryId: z.string(),
@@ -112,7 +115,7 @@ export const registerPlotJournalImageEndpoint = membershipEndpointFactory.build(
   },
 });
 
-export const deletePlotJournalImageEndpoint = membershipEndpointFactory.build({
+export const deletePlotJournalImageEndpoint = plotsWrite.build({
   method: "delete",
   input: z.object({ imageId: z.string() }),
   output: z.object({}),

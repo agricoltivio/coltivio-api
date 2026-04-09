@@ -1,6 +1,9 @@
 import { z } from "zod";
 import { animalSchema } from "../animals/animals.endpoint";
-import { farmEndpointFactory } from "../endpoint-factory";
+import { permissionFarmEndpoint } from "../endpoint-factory";
+
+const animalsRead = permissionFarmEndpoint("animals", "read");
+const animalsWrite = permissionFarmEndpoint("animals", "write");
 
 export const earTagSchema = z.object({
   id: z.string(),
@@ -14,7 +17,7 @@ const earTagWithAssignmentSchema = earTagSchema.extend({
   },
 });
 
-export const getEarTagsEndpoint = farmEndpointFactory.build({
+export const getEarTagsEndpoint = animalsRead.build({
   method: "get",
   input: z.object({}),
   output: z.object({
@@ -30,7 +33,7 @@ export const getEarTagsEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const getAvailableEarTagsEndpoint = farmEndpointFactory.build({
+export const getAvailableEarTagsEndpoint = animalsRead.build({
   method: "get",
   input: z.object({}),
   output: z.object({
@@ -46,7 +49,7 @@ export const getAvailableEarTagsEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const createEarTagRangeEndpoint = farmEndpointFactory.build({
+export const createEarTagRangeEndpoint = animalsWrite.build({
   method: "post",
   input: z.object({
     fromNumber: z.string().min(1),
@@ -65,7 +68,7 @@ export const createEarTagRangeEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const deleteEarTagRangeEndpoint = farmEndpointFactory.build({
+export const deleteEarTagRangeEndpoint = animalsWrite.build({
   method: "delete",
   input: z.object({
     fromNumber: z.string().min(1),

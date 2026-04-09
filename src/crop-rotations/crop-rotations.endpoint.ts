@@ -3,7 +3,10 @@ import createHttpError from "http-errors";
 import { z } from "zod";
 import { cropSchema } from "../crops/crops.endpoint";
 import { ensureDateRange } from "../date-utils";
-import { farmEndpointFactory } from "../endpoint-factory";
+import { permissionFarmEndpoint } from "../endpoint-factory";
+
+const cropRotationsRead = permissionFarmEndpoint("field_calendar", "read");
+const cropRotationsWrite = permissionFarmEndpoint("field_calendar", "write");
 
 export const cropRotationSchema = z.object({
   id: z.string(),
@@ -48,7 +51,7 @@ const updateCropRotationSchema = z.object({
   recurrence: recurrenceSchema.optional().nullable(),
 });
 
-export const getCropRotationsForPlotEndpoint = farmEndpointFactory.build({
+export const getCropRotationsForPlotEndpoint = cropRotationsRead.build({
   method: "get",
   input: z.object({
     plotId: z.string(),
@@ -74,7 +77,7 @@ const booleanQueryParam = (defaultValue: boolean) =>
     .optional()
     .transform((val) => (val === undefined ? defaultValue : val === "true"));
 
-export const getCropRotationsForPlotsEndpoint = farmEndpointFactory.build({
+export const getCropRotationsForPlotsEndpoint = cropRotationsRead.build({
   method: "get",
   input: z.object({
     plotIds: z.preprocess((val) => (typeof val === "string" ? [val] : val), z.array(z.string()).min(1)),
@@ -103,7 +106,7 @@ export const getCropRotationsForPlotsEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const getCropRotationByIdEndpoint = farmEndpointFactory.build({
+export const getCropRotationByIdEndpoint = cropRotationsRead.build({
   method: "get",
   input: z.object({ rotationId: z.string() }),
   output: cropRotationWithRecurrenceSchema,
@@ -116,7 +119,7 @@ export const getCropRotationByIdEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const getCropRotationsForFarmEndpoint = farmEndpointFactory.build({
+export const getCropRotationsForFarmEndpoint = cropRotationsRead.build({
   method: "get",
   input: z.object({
     fromDate: ez.dateIn().optional(),
@@ -145,7 +148,7 @@ export const getCropRotationsForFarmEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const createCropRotationEndpoint = farmEndpointFactory.build({
+export const createCropRotationEndpoint = cropRotationsWrite.build({
   method: "post",
   input: createCropRotationSchema,
   output: cropRotationSchema,
@@ -154,7 +157,7 @@ export const createCropRotationEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const createCropRotationsByPlotEndpoint = farmEndpointFactory.build({
+export const createCropRotationsByPlotEndpoint = cropRotationsWrite.build({
   method: "post",
   input: z.object({
     plotId: z.string(),
@@ -181,7 +184,7 @@ export const createCropRotationsByPlotEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const planCropRotationsEndpoint = farmEndpointFactory.build({
+export const planCropRotationsEndpoint = cropRotationsWrite.build({
   method: "patch",
   input: z.object({
     plots: z.array(
@@ -216,7 +219,7 @@ export const planCropRotationsEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const createCropRotationsByCropEndpoint = farmEndpointFactory.build({
+export const createCropRotationsByCropEndpoint = cropRotationsWrite.build({
   method: "post",
   input: z.object({
     cropId: z.string(),
@@ -235,7 +238,7 @@ export const createCropRotationsByCropEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const updateCropRotationEndpoint = farmEndpointFactory.build({
+export const updateCropRotationEndpoint = cropRotationsWrite.build({
   method: "patch",
   input: updateCropRotationSchema.extend({ rotationId: z.string() }),
   output: cropRotationSchema,
@@ -244,7 +247,7 @@ export const updateCropRotationEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const deleteCropRotationEndpoint = farmEndpointFactory.build({
+export const deleteCropRotationEndpoint = cropRotationsWrite.build({
   method: "delete",
   input: z.object({ rotationId: z.string() }),
   output: z.object({}),
@@ -254,7 +257,7 @@ export const deleteCropRotationEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const getCropRotationYearsEndpoint = farmEndpointFactory.build({
+export const getCropRotationYearsEndpoint = cropRotationsRead.build({
   method: "get",
   input: z.object({}),
   output: z.object({

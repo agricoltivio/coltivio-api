@@ -1,3 +1,7 @@
+// TESTPHASE: set UNLIMITED_TRIAL=true in .env to bypass all membership checks.
+// Revert: remove the env var (or set it to anything other than "true").
+const UNLIMITED_TRIAL = process.env.UNLIMITED_TRIAL === "true";
+
 import Stripe from "stripe";
 import { eq, and, or, gt, inArray } from "drizzle-orm";
 import createHttpError from "http-errors";
@@ -83,6 +87,7 @@ export function membershipApi(db: RlsDb) {
   return {
     // A farm is active if any of its members has an active trial or succeeded payment
     async isActive(farmId: string): Promise<boolean> {
+      if (UNLIMITED_TRIAL) return true;
       const userIds = await getUserIdsForFarm(farmId);
       if (userIds.length === 0) return false;
 
@@ -114,6 +119,7 @@ export function membershipApi(db: RlsDb) {
     },
 
     async getFarmMembershipStatus(farmId: string): Promise<FarmMembershipStatus> {
+      if (UNLIMITED_TRIAL) return "trial";
       const userIds = await getUserIdsForFarm(farmId);
       if (userIds.length === 0) return "none";
 
@@ -131,6 +137,7 @@ export function membershipApi(db: RlsDb) {
 
     // Paid membership only — excludes trial. Use for write-gated operations.
     async isPaidMember(farmId: string): Promise<boolean> {
+      if (UNLIMITED_TRIAL) return true;
       const userIds = await getUserIdsForFarm(farmId);
       if (userIds.length === 0) return false;
 
@@ -157,6 +164,7 @@ export function membershipApi(db: RlsDb) {
 
     // User-scoped active check (trial OR paid). Used for forum which is not farm-scoped.
     async isActiveUser(userId: string): Promise<boolean> {
+      if (UNLIMITED_TRIAL) return true;
       const now = new Date();
       const activeTrial = await db.admin.query.userTrials.findFirst({
         where: { userId, endsAt: { gt: now } },
@@ -185,6 +193,7 @@ export function membershipApi(db: RlsDb) {
 
     // User-scoped paid-only check (excludes trial). Used for forum write operations.
     async isPaidUser(userId: string): Promise<boolean> {
+      if (UNLIMITED_TRIAL) return true;
       const now = new Date();
       const active = await db.admin
         .select({ id: membershipPayments.id })

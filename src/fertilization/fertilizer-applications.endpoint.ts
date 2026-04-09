@@ -8,7 +8,10 @@ import {
   fertilizerUnitSchema,
   multiPolygonSchema,
 } from "../db/schema";
-import { farmEndpointFactory } from "../endpoint-factory";
+import { permissionFarmEndpoint } from "../endpoint-factory";
+
+const fertilizationRead = permissionFarmEndpoint("field_calendar", "read");
+const fertilizationWrite = permissionFarmEndpoint("field_calendar", "write");
 import { fertilizerSchema } from "./fertilizers.endpoint";
 
 const plotMinimalSchema = z.object({
@@ -37,7 +40,7 @@ export const fertilizerApplicationSchema = z.object({
 
 const fertilizerApplicationResponseSchema = fertilizerApplicationSchema;
 
-export const getFertilizerApplicationsForFarmEndpoint = farmEndpointFactory.build({
+export const getFertilizerApplicationsForFarmEndpoint = fertilizationRead.build({
   method: "get",
   input: z.object({
     fromDate: ez.dateIn().optional(),
@@ -58,7 +61,7 @@ export const getFertilizerApplicationsForFarmEndpoint = farmEndpointFactory.buil
   },
 });
 
-export const getFertilizerApplicationsForPlotEndpoint = farmEndpointFactory.build({
+export const getFertilizerApplicationsForPlotEndpoint = fertilizationRead.build({
   method: "get",
   input: z.object({ plotId: z.string() }),
   output: z.object({
@@ -75,7 +78,7 @@ export const getFertilizerApplicationsForPlotEndpoint = farmEndpointFactory.buil
   },
 });
 
-export const getFertilizerApplicationByIdEndpoint = farmEndpointFactory.build({
+export const getFertilizerApplicationByIdEndpoint = fertilizationRead.build({
   method: "get",
   input: z.object({ fertilizerApplicationId: z.string() }),
   output: fertilizerApplicationResponseSchema,
@@ -90,7 +93,7 @@ export const getFertilizerApplicationByIdEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const createFertilizerApplicationsEndpoint = farmEndpointFactory.build({
+export const createFertilizerApplicationsEndpoint = fertilizationWrite.build({
   method: "post",
   input: z.object({
     date: ez.dateIn(),
@@ -124,7 +127,7 @@ export const createFertilizerApplicationsEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const deleteFertilizerApplicationEndpoint = farmEndpointFactory.build({
+export const deleteFertilizerApplicationEndpoint = fertilizationWrite.build({
   method: "delete",
   input: z.object({ fertilizerApplicationId: z.string() }),
   output: z.object({}),
@@ -134,7 +137,7 @@ export const deleteFertilizerApplicationEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const getFertilizerApplicationYearsEndpoint = farmEndpointFactory.build({
+export const getFertilizerApplicationYearsEndpoint = fertilizationRead.build({
   method: "get",
   input: z.object({}),
   output: z.object({
@@ -165,7 +168,7 @@ const fertilizerApplicationSummaryResponseSchema = z.object({
   ),
 });
 
-export const getFertilizerApplicationSummaryForFarmEndpoint = farmEndpointFactory.build({
+export const getFertilizerApplicationSummaryForFarmEndpoint = fertilizationRead.build({
   method: "get",
   input: z.object({}),
   output: fertilizerApplicationSummaryResponseSchema,
@@ -174,7 +177,7 @@ export const getFertilizerApplicationSummaryForFarmEndpoint = farmEndpointFactor
   },
 });
 
-export const getFertilizerApplicationSummaryForPlotEndpoint = farmEndpointFactory.build({
+export const getFertilizerApplicationSummaryForPlotEndpoint = fertilizationRead.build({
   method: "get",
   input: z.object({ plotId: z.string() }),
   output: fertilizerApplicationSummaryResponseSchema,
@@ -194,7 +197,7 @@ const fertilizerApplicationPresetSchema = z.object({
   fertilizer: fertilizerSchema,
 });
 
-export const getFertilizerApplicationPresetsEndpoint = farmEndpointFactory.build({
+export const getFertilizerApplicationPresetsEndpoint = fertilizationRead.build({
   method: "get",
   input: z.object({}),
   output: z.object({
@@ -207,7 +210,7 @@ export const getFertilizerApplicationPresetsEndpoint = farmEndpointFactory.build
   },
 });
 
-export const getFertilizerApplicationPresetByIdEndpoint = farmEndpointFactory.build({
+export const getFertilizerApplicationPresetByIdEndpoint = fertilizationRead.build({
   method: "get",
   input: z.object({ presetId: z.string() }),
   output: fertilizerApplicationPresetSchema,
@@ -220,7 +223,7 @@ export const getFertilizerApplicationPresetByIdEndpoint = farmEndpointFactory.bu
   },
 });
 
-export const createFertilizerApplicationPresetEndpoint = farmEndpointFactory.build({
+export const createFertilizerApplicationPresetEndpoint = fertilizationWrite.build({
   method: "post",
   input: z.object({
     name: z.string(),
@@ -235,7 +238,7 @@ export const createFertilizerApplicationPresetEndpoint = farmEndpointFactory.bui
   },
 });
 
-export const updateFertilizerApplicationPresetEndpoint = farmEndpointFactory.build({
+export const updateFertilizerApplicationPresetEndpoint = fertilizationWrite.build({
   method: "patch",
   input: z.object({
     presetId: z.string(),
@@ -251,7 +254,7 @@ export const updateFertilizerApplicationPresetEndpoint = farmEndpointFactory.bui
   },
 });
 
-export const deleteFertilizerApplicationPresetEndpoint = farmEndpointFactory.build({
+export const deleteFertilizerApplicationPresetEndpoint = fertilizationWrite.build({
   method: "delete",
   input: z.object({ presetId: z.string() }),
   output: z.object({}),

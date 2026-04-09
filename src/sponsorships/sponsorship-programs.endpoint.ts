@@ -1,6 +1,9 @@
 import createHttpError from "http-errors";
 import { z } from "zod";
-import { membershipEndpointFactory } from "../endpoint-factory";
+import { permissionMembershipEndpoint } from "../endpoint-factory";
+
+const sponsorshipProgramsRead = permissionMembershipEndpoint("commerce", "read");
+const sponsorshipsWrite = permissionMembershipEndpoint("commerce", "write");
 
 export const sponsorshipProgramSchema = z.object({
   id: z.string(),
@@ -18,7 +21,7 @@ const createSponsorshipProgramSchema = z.object({
 
 const updateSponsorshipProgramSchema = createSponsorshipProgramSchema.partial();
 
-export const getSponsorshipProgramByIdEndpoint = membershipEndpointFactory.build({
+export const getSponsorshipProgramByIdEndpoint = sponsorshipProgramsRead.build({
   method: "get",
   input: z.object({ sponsorshipProgramId: z.string() }),
   output: sponsorshipProgramSchema,
@@ -31,7 +34,7 @@ export const getSponsorshipProgramByIdEndpoint = membershipEndpointFactory.build
   },
 });
 
-export const getFarmSponsorshipProgramsEndpoint = membershipEndpointFactory.build({
+export const getFarmSponsorshipProgramsEndpoint = sponsorshipProgramsRead.build({
   method: "get",
   input: z.object({}),
   output: z.object({
@@ -47,7 +50,7 @@ export const getFarmSponsorshipProgramsEndpoint = membershipEndpointFactory.buil
   },
 });
 
-export const createSponsorshipProgramEndpoint = membershipEndpointFactory.build({
+export const createSponsorshipProgramEndpoint = sponsorshipsWrite.build({
   method: "post",
   input: createSponsorshipProgramSchema,
   output: sponsorshipProgramSchema,
@@ -56,7 +59,7 @@ export const createSponsorshipProgramEndpoint = membershipEndpointFactory.build(
   },
 });
 
-export const updateSponsorshipProgramEndpoint = membershipEndpointFactory.build({
+export const updateSponsorshipProgramEndpoint = sponsorshipsWrite.build({
   method: "patch",
   input: updateSponsorshipProgramSchema.extend({
     sponsorshipProgramId: z.string(),
@@ -68,7 +71,7 @@ export const updateSponsorshipProgramEndpoint = membershipEndpointFactory.build(
   },
 });
 
-export const deleteSponsorshipProgramEndpoint = membershipEndpointFactory.build({
+export const deleteSponsorshipProgramEndpoint = sponsorshipsWrite.build({
   method: "delete",
   input: z.object({ sponsorshipProgramId: z.string() }),
   output: z.object({}),

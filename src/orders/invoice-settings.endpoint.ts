@@ -1,6 +1,8 @@
 import { z } from "zod";
 import createHttpError from "http-errors";
-import { membershipEndpointFactory } from "../endpoint-factory";
+import { membershipEndpointFactory, permissionMembershipEndpoint } from "../endpoint-factory";
+
+const ordersWrite = permissionMembershipEndpoint("commerce", "write");
 import { InvoiceSettings } from "./invoice-settings";
 
 export const invoiceSettingsSchema = z.object({
@@ -58,7 +60,7 @@ export const getInvoiceSettingsEndpoint = membershipEndpointFactory.build({
   },
 });
 
-export const createInvoiceSettingsEndpoint = membershipEndpointFactory.build({
+export const createInvoiceSettingsEndpoint = ordersWrite.build({
   method: "post",
   input: invoiceSettingsCreateSchema,
   output: invoiceSettingsSchema,
@@ -68,7 +70,7 @@ export const createInvoiceSettingsEndpoint = membershipEndpointFactory.build({
   },
 });
 
-export const updateInvoiceSettingsEndpoint = membershipEndpointFactory.build({
+export const updateInvoiceSettingsEndpoint = ordersWrite.build({
   method: "put",
   input: z.object({ id: z.string(), ...invoiceSettingsUpdateSchema.shape }),
   output: invoiceSettingsSchema,
@@ -80,7 +82,7 @@ export const updateInvoiceSettingsEndpoint = membershipEndpointFactory.build({
   },
 });
 
-export const deleteInvoiceSettingsEndpoint = membershipEndpointFactory.build({
+export const deleteInvoiceSettingsEndpoint = ordersWrite.build({
   method: "delete",
   input: z.object({ id: z.string() }),
   output: z.object({ success: z.boolean() }),
@@ -90,7 +92,7 @@ export const deleteInvoiceSettingsEndpoint = membershipEndpointFactory.build({
   },
 });
 
-export const uploadLogoEndpoint = membershipEndpointFactory.build({
+export const uploadLogoEndpoint = ordersWrite.build({
   method: "put",
   input: z.object({
     id: z.string(),
@@ -108,7 +110,7 @@ export const uploadLogoEndpoint = membershipEndpointFactory.build({
   },
 });
 
-export const deleteLogoEndpoint = membershipEndpointFactory.build({
+export const deleteLogoEndpoint = ordersWrite.build({
   method: "delete",
   input: z.object({ id: z.string() }),
   output: z.object({ success: z.boolean() }),

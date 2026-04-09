@@ -2,7 +2,10 @@ import createHttpError from "http-errors";
 import { ez } from "express-zod-api";
 import { z } from "zod";
 import { frequencySchema, taskLinkTypeSchema, taskStatusSchema, weekdaySchema } from "../db/schema";
-import { membershipEndpointFactory } from "../endpoint-factory";
+import { permissionMembershipEndpoint } from "../endpoint-factory";
+
+const tasksRead = permissionMembershipEndpoint("tasks", "read");
+const tasksWrite = permissionMembershipEndpoint("tasks", "write");
 
 // ─── Output schemas ───────────────────────────────────────────────────────────
 
@@ -110,7 +113,7 @@ const taskUpdateSchema = z.object({
 
 // ─── Endpoints ────────────────────────────────────────────────────────────────
 
-export const listTasksEndpoint = membershipEndpointFactory.build({
+export const listTasksEndpoint = tasksRead.build({
   method: "get",
   input: z.object({
     status: taskStatusSchema.optional(),
@@ -131,7 +134,7 @@ export const listTasksEndpoint = membershipEndpointFactory.build({
   },
 });
 
-export const createTaskEndpoint = membershipEndpointFactory.build({
+export const createTaskEndpoint = tasksWrite.build({
   method: "post",
   input: taskCreateSchema,
   output: taskWithLinksSchema,
@@ -152,7 +155,7 @@ export const createTaskEndpoint = membershipEndpointFactory.build({
   },
 });
 
-export const getTaskByIdEndpoint = membershipEndpointFactory.build({
+export const getTaskByIdEndpoint = tasksRead.build({
   method: "get",
   input: z.object({ taskId: z.string() }),
   output: taskWithLinksSchema,
@@ -165,7 +168,7 @@ export const getTaskByIdEndpoint = membershipEndpointFactory.build({
   },
 });
 
-export const updateTaskEndpoint = membershipEndpointFactory.build({
+export const updateTaskEndpoint = tasksWrite.build({
   method: "patch",
   input: z.object({ taskId: z.string() }).merge(taskUpdateSchema),
   output: taskWithLinksSchema,
@@ -178,7 +181,7 @@ export const updateTaskEndpoint = membershipEndpointFactory.build({
   },
 });
 
-export const deleteTaskEndpoint = membershipEndpointFactory.build({
+export const deleteTaskEndpoint = tasksWrite.build({
   method: "delete",
   input: z.object({ taskId: z.string() }),
   output: z.object({ success: z.boolean() }),
@@ -192,7 +195,7 @@ export const deleteTaskEndpoint = membershipEndpointFactory.build({
   },
 });
 
-export const setTaskStatusEndpoint = membershipEndpointFactory.build({
+export const setTaskStatusEndpoint = tasksWrite.build({
   method: "patch",
   input: z.object({
     taskId: z.string(),
@@ -213,7 +216,7 @@ export const setTaskStatusEndpoint = membershipEndpointFactory.build({
   },
 });
 
-export const setChecklistItemDoneEndpoint = membershipEndpointFactory.build({
+export const setChecklistItemDoneEndpoint = tasksWrite.build({
   method: "patch",
   input: z.object({
     taskId: z.string(),

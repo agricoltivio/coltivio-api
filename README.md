@@ -107,6 +107,10 @@ yarn format               # auto-format all source files
 yarn test                 # all tests
 ```
 
+## Permissions
+
+See [docs/permissions.md](docs/permissions.md) for the full permission model — which features require membership, what's implicitly covered by each permission, and the testphase override.
+
 ## Project structure
 
 ```

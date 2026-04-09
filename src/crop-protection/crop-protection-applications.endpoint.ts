@@ -8,7 +8,10 @@ import {
   multiPolygonSchema,
 } from "../db/schema";
 import { cropProtectionProductSchema } from "./crop-protection-products.endpoint";
-import { farmEndpointFactory } from "../endpoint-factory";
+import { permissionFarmEndpoint } from "../endpoint-factory";
+
+const cropProtectionRead = permissionFarmEndpoint("field_calendar", "read");
+const cropProtectionWrite = permissionFarmEndpoint("field_calendar", "write");
 import { ensureDateRange } from "../date-utils";
 
 const plotMinimalSchema = z.object({
@@ -50,7 +53,7 @@ const cropProtectionApplicationCreateSchema = z.object({
   additionalNotes: z.string().optional(),
 });
 
-export const getCropProtectionApplicationByIdEndpoint = farmEndpointFactory.build({
+export const getCropProtectionApplicationByIdEndpoint = cropProtectionRead.build({
   method: "get",
   input: z.object({ cropProtectionApplicationId: z.string() }),
   output: cropProtectionApplicationsResponseSchema,
@@ -65,7 +68,7 @@ export const getCropProtectionApplicationByIdEndpoint = farmEndpointFactory.buil
   },
 });
 
-export const getPlotCropProtectionApplicationsEndpoint = farmEndpointFactory.build({
+export const getPlotCropProtectionApplicationsEndpoint = cropProtectionRead.build({
   method: "get",
   input: z.object({
     plotId: z.string(),
@@ -83,7 +86,7 @@ export const getPlotCropProtectionApplicationsEndpoint = farmEndpointFactory.bui
   },
 });
 
-export const getFarmCropProtectionApplicationsEndpoint = farmEndpointFactory.build({
+export const getFarmCropProtectionApplicationsEndpoint = cropProtectionRead.build({
   method: "get",
   input: z.object({
     fromDate: ez.dateIn().optional(),
@@ -103,7 +106,7 @@ export const getFarmCropProtectionApplicationsEndpoint = farmEndpointFactory.bui
   },
 });
 
-export const createCropProtectionApplicationEndpoint = farmEndpointFactory.build({
+export const createCropProtectionApplicationEndpoint = cropProtectionWrite.build({
   method: "post",
   input: cropProtectionApplicationCreateSchema,
   output: cropProtectionApplicationsResponseSchema,
@@ -115,7 +118,7 @@ export const createCropProtectionApplicationEndpoint = farmEndpointFactory.build
   },
 });
 
-export const createCropProtectionApplicationsEndpoint = farmEndpointFactory.build({
+export const createCropProtectionApplicationsEndpoint = cropProtectionWrite.build({
   method: "post",
   input: z.object({
     method: cropProtectionApplicationMethodSchema,
@@ -150,7 +153,7 @@ export const createCropProtectionApplicationsEndpoint = farmEndpointFactory.buil
   },
 });
 
-export const updateCropProtectionApplicationEndpoint = farmEndpointFactory.build({
+export const updateCropProtectionApplicationEndpoint = cropProtectionWrite.build({
   method: "patch",
   input: cropProtectionApplicationCreateSchema.omit({ plotId: true }).partial().extend({
     cropProtectionApplicationId: z.string(),
@@ -161,7 +164,7 @@ export const updateCropProtectionApplicationEndpoint = farmEndpointFactory.build
   },
 });
 
-export const deleteCropProtectionApplicationEndpoint = farmEndpointFactory.build({
+export const deleteCropProtectionApplicationEndpoint = cropProtectionWrite.build({
   method: "delete",
   input: z.object({ cropProtectionApplicationId: z.string() }),
   output: z.object({}),
@@ -174,7 +177,7 @@ export const deleteCropProtectionApplicationEndpoint = farmEndpointFactory.build
   },
 });
 
-export const getCropProtectionApplicationYearsEndpoint = farmEndpointFactory.build({
+export const getCropProtectionApplicationYearsEndpoint = cropProtectionRead.build({
   method: "get",
   input: z.object({}),
   output: z.object({
@@ -206,7 +209,7 @@ const cropProtectionApplicationSummaryResponseSchema = z.object({
   ),
 });
 
-export const getCropProtectionApplicationSummaryForFarmEndpoint = farmEndpointFactory.build({
+export const getCropProtectionApplicationSummaryForFarmEndpoint = cropProtectionRead.build({
   method: "get",
   input: z.object({}),
   output: cropProtectionApplicationSummaryResponseSchema,
@@ -215,7 +218,7 @@ export const getCropProtectionApplicationSummaryForFarmEndpoint = farmEndpointFa
   },
 });
 
-export const getCropProtectionApplicationSummaryForPlotEndpoint = farmEndpointFactory.build({
+export const getCropProtectionApplicationSummaryForPlotEndpoint = cropProtectionRead.build({
   method: "get",
   input: z.object({ plotId: z.string() }),
   output: cropProtectionApplicationSummaryResponseSchema,
@@ -234,7 +237,7 @@ const cropProtectionApplicationPresetSchema = z.object({
   amountPerUnit: z.number(),
 });
 
-export const getCropProtectionApplicationPresetsEndpoint = farmEndpointFactory.build({
+export const getCropProtectionApplicationPresetsEndpoint = cropProtectionRead.build({
   method: "get",
   input: z.object({}),
   output: z.object({
@@ -247,7 +250,7 @@ export const getCropProtectionApplicationPresetsEndpoint = farmEndpointFactory.b
   },
 });
 
-export const getCropProtectionApplicationPresetByIdEndpoint = farmEndpointFactory.build({
+export const getCropProtectionApplicationPresetByIdEndpoint = cropProtectionRead.build({
   method: "get",
   input: z.object({ presetId: z.string() }),
   output: cropProtectionApplicationPresetSchema,
@@ -260,7 +263,7 @@ export const getCropProtectionApplicationPresetByIdEndpoint = farmEndpointFactor
   },
 });
 
-export const createCropProtectionApplicationPresetEndpoint = farmEndpointFactory.build({
+export const createCropProtectionApplicationPresetEndpoint = cropProtectionWrite.build({
   method: "post",
   input: z.object({
     name: z.string(),
@@ -275,7 +278,7 @@ export const createCropProtectionApplicationPresetEndpoint = farmEndpointFactory
   },
 });
 
-export const updateCropProtectionApplicationPresetEndpoint = farmEndpointFactory.build({
+export const updateCropProtectionApplicationPresetEndpoint = cropProtectionWrite.build({
   method: "patch",
   input: z.object({
     presetId: z.string(),
@@ -291,7 +294,7 @@ export const updateCropProtectionApplicationPresetEndpoint = farmEndpointFactory
   },
 });
 
-export const deleteCropProtectionApplicationPresetEndpoint = farmEndpointFactory.build({
+export const deleteCropProtectionApplicationPresetEndpoint = cropProtectionWrite.build({
   method: "delete",
   input: z.object({ presetId: z.string() }),
   output: z.object({}),

@@ -8,7 +8,7 @@ import {
   wikiChangeRequestTypeSchema,
   wikiCategorySchema,
 } from "../db/schema";
-import { authenticatedEndpointFactory } from "../endpoint-factory";
+import { authenticatedEndpointFactory, farmEndpointFactory } from "../endpoint-factory";
 import { captureException } from "@sentry/node";
 import { notifyModeratorsNewReview } from "../email/mailer";
 
@@ -74,7 +74,7 @@ export const wikiEntrySchema = z.object({
   status: wikiEntryStatusSchema,
   visibility: wikiVisibilitySchema,
   createdBy: z.string(),
-  farmId: z.string().nullable(),
+  farmId: z.string(),
   categoryId: z.string(),
   category: wikiCategorySchema,
   createdAt: z.string().or(z.date()),
@@ -96,7 +96,6 @@ const translationInputSchema = z.object({
 const createEntryInputSchema = z.object({
   id: z.string().optional(), // Pre-generated UUID for image upload flow
   categoryId: z.string().uuid(),
-  farmId: z.string().optional(),
   translations: z.array(translationInputSchema).min(1),
   tagIds: z.array(z.string()).optional(),
 });
@@ -145,29 +144,29 @@ export const getWikiEntryByIdEndpoint = authenticatedEndpointFactory.build({
   },
 });
 
-// ─── Get my entries ──────────────────────────────────────────────────────────
+// ─── Get farm entries ─────────────────────────────────────────────────────────
 
-export const getMyWikiEntriesEndpoint = authenticatedEndpointFactory.build({
+export const getMyWikiEntriesEndpoint = farmEndpointFactory.build({
   method: "get",
   input: z.object({}),
   output: z.object({
     result: z.array(wikiEntrySchema),
     count: z.number(),
   }),
-  handler: async ({ ctx: { wiki, user } }) => {
-    const result = await wiki.getMyEntries(user.id);
+  handler: async ({ ctx: { wiki, farmId } }) => {
+    const result = await wiki.getFarmEntries(farmId);
     return { result, count: result.length };
   },
 });
 
 // ─── Create wiki entry (DRAFT) ───────────────────────────────────────────────
 
-export const createWikiEntryEndpoint = authenticatedEndpointFactory.build({
+export const createWikiEntryEndpoint = farmEndpointFactory.build({
   method: "post",
   input: createEntryInputSchema,
   output: wikiEntrySchema,
-  handler: async ({ input, ctx: { wiki, user } }) => {
-    return wiki.createEntry(user.id, {
+  handler: async ({ input, ctx: { wiki, user, farmId } }) => {
+    return wiki.createEntry(user.id, farmId, {
       ...input,
       translations: input.translations.filter((t) => t.title.trim().length > 0),
     });
@@ -176,15 +175,15 @@ export const createWikiEntryEndpoint = authenticatedEndpointFactory.build({
 
 // ─── Update wiki entry ───────────────────────────────────────────────────────
 
-export const updateWikiEntryEndpoint = authenticatedEndpointFactory.build({
+export const updateWikiEntryEndpoint = farmEndpointFactory.build({
   method: "patch",
   input: updateEntryInputSchema.extend({ entryId: z.string() }),
   output: wikiEntrySchema,
   handler: async ({ input, ctx: { wiki, user } }) => {
     const { entryId, ...data } = input;
+    // RLS enforces farm membership and private-only updates
     const entry = await wiki.getById(entryId);
     if (!entry) throw createHttpError(404, "Wiki entry not found");
-    if (entry.createdBy !== user.id) throw createHttpError(403, "You can only edit your own entries");
     if (entry.visibility !== "private") throw createHttpError(400, "Only private entries can be updated");
     return wiki.updateEntry(entryId, user.id, {
       ...data,
@@ -195,7 +194,7 @@ export const updateWikiEntryEndpoint = authenticatedEndpointFactory.build({
 
 // ─── Delete wiki entry ───────────────────────────────────────────────────────
 
-export const deleteWikiEntryEndpoint = authenticatedEndpointFactory.build({
+export const deleteWikiEntryEndpoint = farmEndpointFactory.build({
   method: "delete",
   input: z.object({ entryId: z.string() }),
   output: z.object({}),
@@ -207,10 +206,8 @@ export const deleteWikiEntryEndpoint = authenticatedEndpointFactory.build({
       // Public entries can only be deleted by moderators
       const isMod = await wikiModeration.isModerator(user.id);
       if (!isMod) throw createHttpError(403, "Only moderators can delete public entries");
-    } else {
-      // Private entries can only be deleted by their owner
-      if (entry.createdBy !== user.id) throw createHttpError(403, "You can only delete your own entries");
     }
+    // Private entries: RLS enforces farm membership — getById returns 404 if not a farm member
 
     await wiki.deleteEntry(input.entryId);
     return {};
@@ -219,15 +216,15 @@ export const deleteWikiEntryEndpoint = authenticatedEndpointFactory.build({
 
 // ─── Submit entry for public review ─────────────────────────────────────────
 
-export const submitWikiEntryEndpoint = authenticatedEndpointFactory.build({
+export const submitWikiEntryEndpoint = farmEndpointFactory.build({
   method: "post",
   input: z.object({ entryId: z.string() }),
   output: wikiChangeRequestSchema,
   handler: async ({ input, ctx: { wiki, user } }) => {
     const entry = await wiki.getById(input.entryId);
     if (!entry) throw createHttpError(404, "Wiki entry not found");
-    if (entry.createdBy !== user.id) throw createHttpError(403, "You can only submit your own entries");
     if (entry.visibility !== "private") throw createHttpError(400, "Only private entries can be submitted");
+    // RLS enforces farm membership — any farm member can submit
     const cr = await wiki.submitForReview(input.entryId, user.id);
     notifyModeratorsNewReview(cr.id, cr.type).catch(captureException);
     return cr;
@@ -285,7 +282,7 @@ export const submitWikiChangeRequestDraftEndpoint = authenticatedEndpointFactory
 
 // ─── Image: request signed upload URL ────────────────────────────────────────
 
-export const requestWikiImageSignedUrlEndpoint = authenticatedEndpointFactory.build({
+export const requestWikiImageSignedUrlEndpoint = farmEndpointFactory.build({
   method: "post",
   input: z.object({
     entryId: z.string(),
@@ -295,14 +292,14 @@ export const requestWikiImageSignedUrlEndpoint = authenticatedEndpointFactory.bu
     signedUrl: z.string(),
     path: z.string(),
   }),
-  handler: async ({ input, ctx: { wiki, user } }) => {
-    return wiki.requestSignedImageUrl(input.entryId, user.id, input.filename);
+  handler: async ({ input, ctx: { wiki, farmId } }) => {
+    return wiki.requestSignedImageUrl(input.entryId, farmId, input.filename);
   },
 });
 
 // ─── Image: register after direct upload ─────────────────────────────────────
 
-export const registerWikiImageEndpoint = authenticatedEndpointFactory.build({
+export const registerWikiImageEndpoint = farmEndpointFactory.build({
   method: "post",
   input: z.object({
     entryId: z.string(),
@@ -312,14 +309,14 @@ export const registerWikiImageEndpoint = authenticatedEndpointFactory.build({
     id: z.string(),
     publicUrl: z.string(),
   }),
-  handler: async ({ input, ctx: { wiki, user } }) => {
-    return wiki.registerImage(input.entryId, input.storagePath, user.id);
+  handler: async ({ input, ctx: { wiki, user, farmId } }) => {
+    return wiki.registerImage(input.entryId, input.storagePath, user.id, farmId);
   },
 });
 
 // ─── Image: delete ────────────────────────────────────────────────────────────
 
-export const deleteWikiImageEndpoint = authenticatedEndpointFactory.build({
+export const deleteWikiImageEndpoint = farmEndpointFactory.build({
   method: "delete",
   input: z.object({ imageId: z.string() }),
   output: z.object({}),

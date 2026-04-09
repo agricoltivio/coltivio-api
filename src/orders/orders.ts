@@ -146,7 +146,7 @@ export function ordersApi(rlsDb: RlsDb) {
             `Cannot fulfill order with status "${order.status}". Only confirmed orders can be fulfilled.`
           );
         }
-        const [updated] = await tx.update(orders).set({ status: "fulfilled" }).where(eq(orders.id, id));
+        const [updated] = await tx.update(orders).set({ status: "fulfilled" }).where(eq(orders.id, id)).returning();
         return updated;
       });
     },

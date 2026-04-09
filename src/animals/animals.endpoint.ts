@@ -12,7 +12,10 @@ import {
   weekdaySchema,
 } from "../db/schema";
 import { earTagSchema } from "../ear-tags/ear-tags.endpoint";
-import { farmEndpointFactory } from "../endpoint-factory";
+import { permissionFarmEndpoint } from "../endpoint-factory";
+
+const animalsRead = permissionFarmEndpoint("animals", "read");
+const animalsWrite = permissionFarmEndpoint("animals", "write");
 import { treatmentSchema } from "../treatments/treatments.endpoint";
 
 export const animalSchema = z.object({
@@ -136,7 +139,7 @@ const createAnimalSchema = z.object({
 
 const updateAnimalSchema = createAnimalSchema.partial();
 
-export const getAnimalByIdEndpoint = farmEndpointFactory.build({
+export const getAnimalByIdEndpoint = animalsRead.build({
   method: "get",
   input: z.object({ animalId: z.string() }),
   output: animalWithRelationsSchema,
@@ -149,7 +152,7 @@ export const getAnimalByIdEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const getFarmAnimalsEndpoint = farmEndpointFactory.build({
+export const getFarmAnimalsEndpoint = animalsRead.build({
   method: "get",
   input: z.object({
     animalTypes: z.preprocess((val) => (typeof val === "string" ? [val] : val), z.array(animalTypeSchema)).optional(),
@@ -176,7 +179,7 @@ export const getFarmAnimalsEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const createAnimalEndpoint = farmEndpointFactory.build({
+export const createAnimalEndpoint = animalsWrite.build({
   method: "post",
   input: createAnimalSchema,
   output: animalSchema,
@@ -185,7 +188,7 @@ export const createAnimalEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const updateAnimalEndpoint = farmEndpointFactory.build({
+export const updateAnimalEndpoint = animalsWrite.build({
   method: "patch",
   input: updateAnimalSchema.extend({
     animalId: z.string(),
@@ -197,7 +200,7 @@ export const updateAnimalEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const updateAnimalsEndpoint = farmEndpointFactory.build({
+export const updateAnimalsEndpoint = animalsWrite.build({
   method: "patch",
   input: z.object({
     animals: z.array(
@@ -219,7 +222,7 @@ export const updateAnimalsEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const batchUpdateAnimalsEndpoint = farmEndpointFactory.build({
+export const batchUpdateAnimalsEndpoint = animalsWrite.build({
   method: "patch",
   input: z.object({
     animalIds: z.array(z.string()),
@@ -247,7 +250,7 @@ export const batchUpdateAnimalsEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const deleteAnimalEndpoint = farmEndpointFactory.build({
+export const deleteAnimalEndpoint = animalsWrite.build({
   method: "delete",
   input: z.object({ animalId: z.string() }),
   output: z.object({}),
@@ -257,7 +260,7 @@ export const deleteAnimalEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const deleteAnimalsEndpoint = farmEndpointFactory.build({
+export const deleteAnimalsEndpoint = animalsWrite.build({
   method: "delete",
   input: z.object({ animalIds: z.array(z.string()) }),
   output: z.object({}),
@@ -267,7 +270,7 @@ export const deleteAnimalsEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const setCustomOutdoorJournalCategoriesEndpoint = farmEndpointFactory.build({
+export const setCustomOutdoorJournalCategoriesEndpoint = animalsWrite.build({
   method: "put",
   input: z.object({
     animalId: z.string(),
@@ -288,7 +291,7 @@ export const setCustomOutdoorJournalCategoriesEndpoint = farmEndpointFactory.bui
   },
 });
 
-export const getAnimalChildrenEndpoint = farmEndpointFactory.build({
+export const getAnimalChildrenEndpoint = animalsRead.build({
   method: "get",
   input: z.object({ animalId: z.string() }),
   output: z.object({
@@ -319,7 +322,7 @@ const familyTreeEdgeSchema = z.object({
   relation: z.enum(["mother", "father"]),
 });
 
-export const getFamilyTreeEndpoint = farmEndpointFactory.build({
+export const getFamilyTreeEndpoint = animalsRead.build({
   method: "get",
   input: z.object({ type: animalTypeSchema }),
   output: z.object({
@@ -344,7 +347,7 @@ const importSummarySchema = z.object({
   skipped: z.number(),
 });
 
-export const importAnimalsFromExcelEndpoint = farmEndpointFactory.build({
+export const importAnimalsFromExcelEndpoint = animalsWrite.build({
   method: "post",
   input: z.object({
     file: ez.upload(),
@@ -382,7 +385,7 @@ const parsedImportRowSchema = z.object({
   parseErrors: z.array(z.string()),
 });
 
-export const previewAnimalImportEndpoint = farmEndpointFactory.build({
+export const previewAnimalImportEndpoint = animalsWrite.build({
   method: "post",
   input: z.object({
     file: ez.upload(),
@@ -415,7 +418,7 @@ const commitImportRowSchema = z.object({
   mergeAnimalId: z.string().nullable().optional(),
 });
 
-export const commitAnimalImportEndpoint = farmEndpointFactory.build({
+export const commitAnimalImportEndpoint = animalsWrite.build({
   method: "post",
   input: z.object({
     type: animalTypeSchema,
@@ -440,7 +443,7 @@ const outdoorJournalEntrySchema = z.object({
   animalCount: z.number(),
 });
 
-export const getOutdoorJournalEndpoint = farmEndpointFactory.build({
+export const getOutdoorJournalEndpoint = animalsRead.build({
   method: "get",
   input: z.object({ fromDate: ez.dateIn(), toDate: ez.dateIn() }),
   output: z.object({
@@ -454,7 +457,7 @@ export const getOutdoorJournalEndpoint = farmEndpointFactory.build({
 
 // --- Herd Endpoints ---
 
-export const getFarmHerdsEndpoint = farmEndpointFactory.build({
+export const getFarmHerdsEndpoint = animalsRead.build({
   method: "get",
   input: z.object({}),
   output: z.object({
@@ -467,7 +470,7 @@ export const getFarmHerdsEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const createHerdEndpoint = farmEndpointFactory.build({
+export const createHerdEndpoint = animalsWrite.build({
   method: "post",
   input: createHerdSchema,
   output: herdSchema,
@@ -477,7 +480,7 @@ export const createHerdEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const getHerdByIdEndpoint = farmEndpointFactory.build({
+export const getHerdByIdEndpoint = animalsRead.build({
   method: "get",
   input: z.object({ herdId: z.string() }),
   output: herdWithRelationsSchema,
@@ -490,7 +493,7 @@ export const getHerdByIdEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const updateHerdEndpoint = farmEndpointFactory.build({
+export const updateHerdEndpoint = animalsWrite.build({
   method: "patch",
   input: updateHerdSchema.extend({ herdId: z.string() }),
   output: herdSchema,
@@ -500,7 +503,7 @@ export const updateHerdEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const deleteHerdEndpoint = farmEndpointFactory.build({
+export const deleteHerdEndpoint = animalsWrite.build({
   method: "delete",
   input: z.object({ herdId: z.string() }),
   output: z.object({}),
@@ -512,7 +515,7 @@ export const deleteHerdEndpoint = farmEndpointFactory.build({
 
 // --- Outdoor Schedule Endpoints ---
 
-export const getHerdOutdoorSchedulesEndpoint = farmEndpointFactory.build({
+export const getHerdOutdoorSchedulesEndpoint = animalsRead.build({
   method: "get",
   input: z.object({ herdId: z.string() }),
   output: z.object({
@@ -525,7 +528,7 @@ export const getHerdOutdoorSchedulesEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const createOutdoorScheduleEndpoint = farmEndpointFactory.build({
+export const createOutdoorScheduleEndpoint = animalsWrite.build({
   method: "post",
   input: createOutdoorScheduleSchema.extend({ herdId: z.string() }),
   output: outdoorScheduleSchema,
@@ -535,7 +538,7 @@ export const createOutdoorScheduleEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const getOutdoorScheduleByIdEndpoint = farmEndpointFactory.build({
+export const getOutdoorScheduleByIdEndpoint = animalsRead.build({
   method: "get",
   input: z.object({ outdoorScheduleId: z.string() }),
   output: outdoorScheduleSchema,
@@ -548,7 +551,7 @@ export const getOutdoorScheduleByIdEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const updateOutdoorScheduleEndpoint = farmEndpointFactory.build({
+export const updateOutdoorScheduleEndpoint = animalsWrite.build({
   method: "patch",
   input: updateOutdoorScheduleSchema.extend({
     outdoorScheduleId: z.string(),
@@ -560,7 +563,7 @@ export const updateOutdoorScheduleEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const deleteOutdoorScheduleEndpoint = farmEndpointFactory.build({
+export const deleteOutdoorScheduleEndpoint = animalsWrite.build({
   method: "delete",
   input: z.object({ outdoorScheduleId: z.string() }),
   output: z.object({}),

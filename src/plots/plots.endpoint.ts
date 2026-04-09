@@ -3,7 +3,10 @@ import { ez } from "express-zod-api";
 import { z } from "zod";
 import { multiPolygonSchema } from "../db/schema";
 import { cropRotationSchema } from "../crop-rotations/crop-rotations.endpoint";
-import { farmEndpointFactory } from "../endpoint-factory";
+import { permissionFarmEndpoint } from "../endpoint-factory";
+
+const plotsRead = permissionFarmEndpoint("field_calendar", "read");
+const plotsWrite = permissionFarmEndpoint("field_calendar", "write");
 
 export const plotSchema = z.object({
   id: z.string(),
@@ -40,7 +43,7 @@ const updatePlotSchema = z.object({
   additionalNotes: z.string().optional(),
 });
 
-export const getPlotByIdEndpoint = farmEndpointFactory.build({
+export const getPlotByIdEndpoint = plotsRead.build({
   method: "get",
   input: z.object({ plotId: z.string() }),
   output: plotSchema,
@@ -53,7 +56,7 @@ export const getPlotByIdEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const getFarmPlotsEndpoint = farmEndpointFactory.build({
+export const getFarmPlotsEndpoint = plotsRead.build({
   method: "get",
   input: z.object({}),
   output: z.object({
@@ -69,7 +72,7 @@ export const getFarmPlotsEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const createPlotEndpoint = farmEndpointFactory.build({
+export const createPlotEndpoint = plotsWrite.build({
   method: "post",
   input: createPlotSchema,
   output: plotSchema,
@@ -78,7 +81,7 @@ export const createPlotEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const updatePlotEndpoint = farmEndpointFactory.build({
+export const updatePlotEndpoint = plotsWrite.build({
   method: "patch",
   input: updatePlotSchema.extend({
     plotId: z.string(),
@@ -89,7 +92,7 @@ export const updatePlotEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const deletePlotEndpoint = farmEndpointFactory.build({
+export const deletePlotEndpoint = plotsWrite.build({
   method: "delete",
   input: z.object({ plotId: z.string() }),
   output: z.object({}),
@@ -120,7 +123,7 @@ const splitPlotInputSchema = z.discriminatedUnion("strategy", [
   }),
 ]);
 
-export const splitPlotEndpoint = farmEndpointFactory.build({
+export const splitPlotEndpoint = plotsWrite.build({
   method: "post",
   input: splitPlotInputSchema,
   output: z.object({ result: z.array(plotSchema) }),
@@ -154,7 +157,7 @@ const mergePlotsInputSchema = z.discriminatedUnion("strategy", [
   }),
 ]);
 
-export const mergePlotsEndpoint = farmEndpointFactory.build({
+export const mergePlotsEndpoint = plotsWrite.build({
   method: "post",
   input: mergePlotsInputSchema,
   output: plotSchema,
@@ -164,7 +167,7 @@ export const mergePlotsEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const syncMissingLocalIdsEndpoint = farmEndpointFactory.build({
+export const syncMissingLocalIdsEndpoint = plotsWrite.build({
   method: "post",
   input: z.object({}),
   output: z.object({}),
