@@ -42,7 +42,9 @@ const config = createConfig({
       const allowedOrigins = [
         "https://coltivio.ch",
         "https://app.coltivio.ch",
-        ...(process.env.NODE_ENV !== "production" ? ["http://localhost:4000", "http://localhost:4321"] : []),
+        ...(process.env.NODE_ENV !== "production"
+          ? ["http://localhost:4000", "http://localhost:4321", "http://localhost:3000"]
+          : []),
       ];
       const origin = req.headers.origin;
       if (origin && allowedOrigins.includes(origin)) {

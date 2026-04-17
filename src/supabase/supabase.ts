@@ -17,6 +17,9 @@ export const animalJournalStorage = supabase.storage.from(ANIMAL_JOURNAL_IMAGES_
 export const PLOT_JOURNAL_IMAGES_BUCKET = "plot-journal-images";
 export const plotJournalStorage = supabase.storage.from(PLOT_JOURNAL_IMAGES_BUCKET);
 
+export const FIELD_JOURNAL_IMAGES_BUCKET = "field-journal-images";
+export const fieldJournalStorage = supabase.storage.from(FIELD_JOURNAL_IMAGES_BUCKET);
+
 export type SupabaseToken = {
   iss?: string;
   sub?: string;

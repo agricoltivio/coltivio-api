@@ -86,6 +86,16 @@ import {
 } from "./treatments/treatments.endpoint";
 import { createFarmEndpoint, deleteFarmEndpoint, getFarmEndpoint, updateFarmEndpoint } from "./farm/farm.endpoint";
 import {
+  createFieldJournalEntryEndpoint,
+  deleteFieldJournalEntryEndpoint,
+  deleteFieldJournalImageEndpoint,
+  getFieldJournalEntryEndpoint,
+  listFieldJournalEntriesEndpoint,
+  registerFieldJournalImageEndpoint,
+  requestFieldJournalImageSignedUrlEndpoint,
+  updateFieldJournalEntryEndpoint,
+} from "./farm/field-journal.endpoint";
+import {
   listFarmInvitesEndpoint,
   createFarmInviteEndpoint,
   revokeFarmInviteEndpoint,
@@ -398,6 +408,23 @@ export const routing: Routing = {
               },
             },
           },
+        },
+      },
+      fieldJournal: {
+        "": { get: listFieldJournalEntriesEndpoint, post: createFieldJournalEntryEndpoint },
+        byId: {
+          ":entryId": {
+            "": {
+              get: getFieldJournalEntryEndpoint,
+              patch: updateFieldJournalEntryEndpoint,
+              delete: deleteFieldJournalEntryEndpoint,
+            },
+          },
+        },
+        images: {
+          signedUrl: { post: requestFieldJournalImageSignedUrlEndpoint },
+          "": { post: registerFieldJournalImageEndpoint },
+          byId: { ":imageId": { delete: deleteFieldJournalImageEndpoint } },
         },
       },
     },
