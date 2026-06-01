@@ -1760,6 +1760,46 @@
   dependencies:
     tslib "2.8.1"
 
+"@supabase/cli-darwin-arm64@2.103.0":
+  version "2.103.0"
+  resolved "https://registry.yarnpkg.com/@supabase/cli-darwin-arm64/-/cli-darwin-arm64-2.103.0.tgz#354d463119dbb24824742c2f964734d93e52d84d"
+  integrity sha512-BoOaHyoLuyOtmhxtRti7za3YYH9T05JenEla/zDXikqTiY5yDd63/1RxSF9mXt+ICFMkqHq3oFkFcDP5snumBQ==
+
+"@supabase/cli-darwin-x64@2.103.0":
+  version "2.103.0"
+  resolved "https://registry.yarnpkg.com/@supabase/cli-darwin-x64/-/cli-darwin-x64-2.103.0.tgz#a13f683230d37d94972daa66c4f5f139b094f52b"
+  integrity sha512-SLBb5lfmIF9G+FanWZQvKG6HQeUKFmMv8ls8ZVm6OnO87pLm4aRKLfFYjeXXtiBiRYMZRwxE/RwrRy0uXc0wqw==
+
+"@supabase/cli-linux-arm64-musl@2.103.0":
+  version "2.103.0"
+  resolved "https://registry.yarnpkg.com/@supabase/cli-linux-arm64-musl/-/cli-linux-arm64-musl-2.103.0.tgz#9b0a11ef504c4b1fec65c344e2f9a4589e6239c6"
+  integrity sha512-zn2N7t/Mx1LUE/knZvJfJwNHKKvEl5KCqob1fetfPXoPN/GcI0UnfJ+V/bkPjhpPA1b8htVhq4brHMcqpV80mA==
+
+"@supabase/cli-linux-arm64@2.103.0":
+  version "2.103.0"
+  resolved "https://registry.yarnpkg.com/@supabase/cli-linux-arm64/-/cli-linux-arm64-2.103.0.tgz#35ec6e5bc58ff98706fd37a622a20b3293956903"
+  integrity sha512-nk0fxTbQho+9OoUmIEBlgvEG69GmooMO1D8Ypt7SzgczNcLfYoCoKV9NMkQRUGi5jFXS5xFrRMPeSa/i3tNgwQ==
+
+"@supabase/cli-linux-x64-musl@2.103.0":
+  version "2.103.0"
+  resolved "https://registry.yarnpkg.com/@supabase/cli-linux-x64-musl/-/cli-linux-x64-musl-2.103.0.tgz#2e774fb19ab41481665f05f3508931a5137588c9"
+  integrity sha512-/fpuslo5ERFWJxbkRcpUFLV8T7087vOVU+clN2OeYTL8lgxVl04FPL3nW0qDgYeehb9GUeje5adgGvHYS006KA==
+
+"@supabase/cli-linux-x64@2.103.0":
+  version "2.103.0"
+  resolved "https://registry.yarnpkg.com/@supabase/cli-linux-x64/-/cli-linux-x64-2.103.0.tgz#e0dc4aa3377baaa3cc53c21effd4d9fb3e41e8a3"
+  integrity sha512-xk9ADh4D+luctRgscBzNvYLZa1qAw067IwateSE1AxhO3GOhdN6fiLZszl5LodO7CHmp54204dj+UcMct3KWFQ==
+
+"@supabase/cli-windows-arm64@2.103.0":
+  version "2.103.0"
+  resolved "https://registry.yarnpkg.com/@supabase/cli-windows-arm64/-/cli-windows-arm64-2.103.0.tgz#a69dc7ca0ee8798904331fa606259152164ea215"
+  integrity sha512-oz1xMJ2bu/lfVV1WaNegGmzoxoEEaiBMg6g2Jm4aB6qCUgoIIkiXClghEnPotd0DWklpqFCOIp1lUb15mnjK6Q==
+
+"@supabase/cli-windows-x64@2.103.0":
+  version "2.103.0"
+  resolved "https://registry.yarnpkg.com/@supabase/cli-windows-x64/-/cli-windows-x64-2.103.0.tgz#060a8cdf811c490209808e28550af7aa8e21ba93"
+  integrity sha512-jueFJW/QmzWuVis2vGzeSDsrZ3gy5KIsq5vlpmhQF0bWpemgqP7buojPUiHCGSW6+9tTh8za8MraEy7HJGX/wQ==
+
 "@supabase/functions-js@2.90.1":
   version "2.90.1"
   resolved "https://registry.yarnpkg.com/@supabase/functions-js/-/functions-js-2.90.1.tgz#a02942a18ad0d71daa46d1214858c12ca5d6995e"
@@ -6136,16 +6176,7 @@ string-length@^4.0.2:
     char-regex "^1.0.2"
     strip-ansi "^6.0.0"
 
-"string-width-cjs@npm:string-width@^4.2.0":
-  version "4.2.3"
-  resolved "https://registry.yarnpkg.com/string-width/-/string-width-4.2.3.tgz#269c7117d27b05ad2e536830a8ec895ef9c6d010"
-  integrity sha512-wKyQRQpjJ0sIp62ErSZdGsjMJWsap5oRNihHhu6G7JVO/9jIB6UyevL+tXuOqrng8j/cxKTWyWUwvSTriiZz/g==
-  dependencies:
-    emoji-regex "^8.0.0"
-    is-fullwidth-code-point "^3.0.0"
-    strip-ansi "^6.0.1"
-
-string-width@^4.1.0, string-width@^4.2.0, string-width@^4.2.3:
+"string-width-cjs@npm:string-width@^4.2.0", string-width@^4.1.0, string-width@^4.2.0, string-width@^4.2.3:
   version "4.2.3"
   resolved "https://registry.yarnpkg.com/string-width/-/string-width-4.2.3.tgz#269c7117d27b05ad2e536830a8ec895ef9c6d010"
   integrity sha512-wKyQRQpjJ0sIp62ErSZdGsjMJWsap5oRNihHhu6G7JVO/9jIB6UyevL+tXuOqrng8j/cxKTWyWUwvSTriiZz/g==
@@ -6177,14 +6208,7 @@ string_decoder@~1.1.1:
   dependencies:
     safe-buffer "~5.1.0"
 
-"strip-ansi-cjs@npm:strip-ansi@^6.0.1":
-  version "6.0.1"
-  resolved "https://registry.yarnpkg.com/strip-ansi/-/strip-ansi-6.0.1.tgz#9e26c63d30f53443e9489495b2105d37b67a85d9"
-  integrity sha512-Y38VPSHcqkFrCpFnQ9vuSXmquuv5oXOKpGeT6aGrr3o3Gc9AlVa6JBfUSOCnbxGGZF+/0ooI7KrPuUSztUdU5A==
-  dependencies:
-    ansi-regex "^5.0.1"
-
-strip-ansi@^6.0.0, strip-ansi@^6.0.1:
+"strip-ansi-cjs@npm:strip-ansi@^6.0.1", strip-ansi@^6.0.0, strip-ansi@^6.0.1:
   version "6.0.1"
   resolved "https://registry.yarnpkg.com/strip-ansi/-/strip-ansi-6.0.1.tgz#9e26c63d30f53443e9489495b2105d37b67a85d9"
   integrity sha512-Y38VPSHcqkFrCpFnQ9vuSXmquuv5oXOKpGeT6aGrr3o3Gc9AlVa6JBfUSOCnbxGGZF+/0ooI7KrPuUSztUdU5A==
@@ -6217,6 +6241,20 @@ stripe@^20.4.1:
   version "20.4.1"
   resolved "https://registry.yarnpkg.com/stripe/-/stripe-20.4.1.tgz#547d8a22a97e85a239895f0ffe14de21d96f060a"
   integrity sha512-axCguHItc8Sxt0HC6aSkdVRPffjYPV7EQqZRb2GkIa8FzWDycE7nHJM19C6xAIynH1Qp1/BHiopSi96jGBxT0w==
+
+supabase@^2.103.0:
+  version "2.103.0"
+  resolved "https://registry.yarnpkg.com/supabase/-/supabase-2.103.0.tgz#2aadfb4359e8f5799996daec053ff34be06ef29e"
+  integrity sha512-LAdBSEzbmJIAf3UojILFL1DF2npwUpqGZ5FNtuqu9pzUdPMHvICyFeQeQCpUpLNrqmee78LqYwiFBpHtBP/TQQ==
+  optionalDependencies:
+    "@supabase/cli-darwin-arm64" "2.103.0"
+    "@supabase/cli-darwin-x64" "2.103.0"
+    "@supabase/cli-linux-arm64" "2.103.0"
+    "@supabase/cli-linux-arm64-musl" "2.103.0"
+    "@supabase/cli-linux-x64" "2.103.0"
+    "@supabase/cli-linux-x64-musl" "2.103.0"
+    "@supabase/cli-windows-arm64" "2.103.0"
+    "@supabase/cli-windows-x64" "2.103.0"
 
 supports-color@^7.1.0:
   version "7.2.0"
@@ -6676,16 +6714,7 @@ wordwrap@^1.0.0:
   resolved "https://registry.yarnpkg.com/wordwrap/-/wordwrap-1.0.0.tgz#27584810891456a4171c8d0226441ade90cbcaeb"
   integrity sha512-gvVzJFlPycKc5dZN4yPkP8w7Dc37BtP1yczEneOb4uq34pXZcvrtRTmWV8W+Ume+XCxKgbjM+nevkyFPMybd4Q==
 
-"wrap-ansi-cjs@npm:wrap-ansi@^7.0.0":
-  version "7.0.0"
-  resolved "https://registry.yarnpkg.com/wrap-ansi/-/wrap-ansi-7.0.0.tgz#67e145cff510a6a6984bdf1152911d69d2eb9e43"
-  integrity sha512-YVGIj2kamLSTxw6NsZjoBxfSwsn0ycdesmc4p+Q21c5zPuZ1pl+NfxVdxPtdHvmNVOQ6XSYG4AUtyt/Fi7D16Q==
-  dependencies:
-    ansi-styles "^4.0.0"
-    string-width "^4.1.0"
-    strip-ansi "^6.0.0"
-
-wrap-ansi@^7.0.0:
+"wrap-ansi-cjs@npm:wrap-ansi@^7.0.0", wrap-ansi@^7.0.0:
   version "7.0.0"
   resolved "https://registry.yarnpkg.com/wrap-ansi/-/wrap-ansi-7.0.0.tgz#67e145cff510a6a6984bdf1152911d69d2eb9e43"
   integrity sha512-YVGIj2kamLSTxw6NsZjoBxfSwsn0ycdesmc4p+Q21c5zPuZ1pl+NfxVdxPtdHvmNVOQ6XSYG4AUtyt/Fi7D16Q==
