@@ -1,4 +1,4 @@
-import { and, defineRelations, eq, isNotNull, or, sql } from "drizzle-orm";
+import { defineRelations } from "drizzle-orm";
 import {
   boolean,
   customType,
@@ -7,18 +7,13 @@ import {
   index,
   integer,
   pgEnum,
-  pgPolicy,
-  pgRole,
-  pgSchema,
   pgTable,
-  pgView,
   real,
   text,
   timestamp,
   unique,
   uuid,
 } from "drizzle-orm/pg-core";
-import { authenticatedRole, authUsers } from "drizzle-orm/supabase";
 
 import { z } from "zod";
 
@@ -28,7 +23,6 @@ const bytea = customType<{ data: Buffer; driverData: Buffer | string }>({
   },
   fromDriver(value: Buffer | string) {
     if (Buffer.isBuffer(value)) return value;
-    // pg returns bytea as \x-prefixed hex string in text protocol
     return Buffer.from((value as string).replace(/^\\x/, ""), "hex");
   },
 });
@@ -44,15 +38,18 @@ const point = customType<{ data: string }>({
   },
 });
 
-// Wrapped in (select ...) so Postgres caches the result per statement instead of evaluating per row
-export const currentFarmId = sql`(select farm_id())`;
-export const farmIdColumnValue = { farmId: currentFarmId };
-const selectAuthUid = sql`(select auth.uid())`;
+export const farmRoleEnum = pgEnum("farm_role", ["owner", "member"]);
 
-const _appRole = pgRole("rls_client").existing();
-const _extensions = pgSchema("extensions");
+export const farmPermissionFeatureEnum = pgEnum("farm_permission_feature", [
+  "animals",
+  "field_calendar",
+  "commerce",
+  "tasks",
+]);
 
-export const federalFarmPlots = pgTable.withRLS(
+export const userRoleEnum = pgEnum("user_role", ["ADMIN", "USER", "CONTRACTOR"]);
+
+export const federalFarmPlots = pgTable(
   "federal_farm_plots",
   {
     id: integer().primaryKey(),
@@ -64,117 +61,33 @@ export const federalFarmPlots = pgTable.withRLS(
     canton: text().notNull(),
     geometry: polygon().notNull(),
   },
-
   (table) => [
     index("federal_farm_plots_geometries_idx").using("gist", table.geometry),
     index("federal_farm_id_idx").using("gin", table.federalFarmId.op("gin_trgm_ops")),
-    pgPolicy("authenticated users can read", {
-      as: "permissive",
-      to: authenticatedRole,
-      for: "select",
-      using: sql`true`,
-    }),
   ]
 );
 
-export const farmRoleEnum = pgEnum("farm_role", ["owner", "member"]);
+export const profiles = pgTable("profiles", {
+  id: uuid().primaryKey().notNull(),
+  email: text().notNull().unique(),
+  passwordHash: text(),
+  fullName: text(),
+  emailVerified: boolean().notNull().default(false),
+  locale: text().notNull().default("de"),
+  farmId: uuid().references(() => farms.id, { onDelete: "set null" }),
+  farmRole: farmRoleEnum(),
+});
 
-export const farmPermissionFeatureEnum = pgEnum("farm_permission_feature", [
-  "animals",
-  "field_calendar",
-  "commerce",
-  "tasks",
-]);
+export const farms = pgTable("farms", {
+  id: uuid().primaryKey().defaultRandom(),
+  federalId: text(),
+  tvdId: text(),
+  name: text().notNull(),
+  address: text().notNull(),
+  location: point(),
+});
 
-export const membershipPaymentStatusEnum = pgEnum("membership_payment_status", [
-  "pending",
-  "succeeded",
-  "failed",
-  "refunded",
-]);
-export const donationStatusEnum = pgEnum("donation_status", ["pending", "succeeded", "failed", "refunded"]);
-
-export const profiles = pgTable.withRLS(
-  "profiles",
-  {
-    id: uuid().primaryKey().notNull(),
-    email: text().notNull().unique(),
-    fullName: text(),
-    emailVerified: boolean().notNull().default(false),
-    locale: text().notNull().default("de"),
-    farmId: uuid().references(() => farms.id, { onDelete: "set null" }),
-    farmRole: farmRoleEnum(),
-    stripeCustomerId: text(),
-  },
-  (table) => [
-    foreignKey({
-      columns: [table.id],
-      foreignColumns: [authUsers.id],
-      name: "profiles_id_fk",
-    }).onDelete("cascade"),
-    pgPolicy("user can insert own profile", {
-      as: "permissive",
-      to: authenticatedRole,
-      for: "insert",
-      withCheck: eq(selectAuthUid, table.id),
-    }),
-    pgPolicy("user can update own profile", {
-      as: "permissive",
-      to: authenticatedRole,
-      for: "update",
-      using: eq(selectAuthUid, table.id),
-    }),
-    pgPolicy("members of same farm can read each others profile and owners can read their own profile", {
-      as: "permissive",
-      to: authenticatedRole,
-      for: "select",
-      using: or(and(isNotNull(table.farmId), eq(table.farmId, currentFarmId)), eq(selectAuthUid, table.id)),
-    }),
-  ]
-);
-
-// View exposing only id + full_name — security_invoker=false + owned by postgres
-// means it bypasses profiles RLS, allowing forum threads to show author names across farms.
-// After migration, run: ALTER VIEW profile_names OWNER TO postgres; GRANT SELECT ON profile_names TO authenticated;
-export const profileNamesView = pgView("profile_names", {
-  id: uuid("id").notNull(),
-  fullName: text("full_name"),
-}).as(sql`SELECT id, full_name FROM profiles`);
-
-export const farms = pgTable.withRLS(
-  "farms",
-  {
-    id: uuid().primaryKey().defaultRandom(),
-    federalId: text(),
-    tvdId: text(),
-    name: text().notNull(),
-    address: text().notNull(),
-    location: point(),
-  },
-  (table) => [
-    pgPolicy("only farm members can read", {
-      as: "permissive",
-      to: authenticatedRole,
-      for: "select",
-      using: eq(currentFarmId, table.id),
-    }),
-    pgPolicy("only farm members can update", {
-      as: "permissive",
-      to: authenticatedRole,
-      for: "update",
-      using: eq(currentFarmId, table.id),
-      withCheck: eq(currentFarmId, table.id),
-    }),
-    pgPolicy("only farm members can delete", {
-      as: "permissive",
-      to: authenticatedRole,
-      for: "delete",
-      using: eq(currentFarmId, table.id),
-    }),
-  ]
-);
-
-export const invoiceSettings = pgTable.withRLS(
+export const invoiceSettings = pgTable(
   "invoice_settings",
   {
     id: uuid().primaryKey().defaultRandom(),
@@ -195,198 +108,42 @@ export const invoiceSettings = pgTable.withRLS(
     introText: text(),
     closingText: text(),
     logoData: bytea(),
-    logoMimeType: text(), // "jpg" | "png"
+    logoMimeType: text(),
     updatedAt: timestamp({ mode: "date" }).defaultNow().notNull(),
   },
-  (table) => [
-    unique("invoice_settings_farm_name_unique").on(table.farmId, table.name),
-    pgPolicy("only farm members", {
-      as: "permissive",
-      to: authenticatedRole,
-      using: eq(table.farmId, currentFarmId),
-      withCheck: eq(table.farmId, currentFarmId),
-    }),
-  ]
+  (table) => [unique("invoice_settings_farm_name_unique").on(table.farmId, table.name)]
 );
 
-// Tracks auto-renewing Stripe Subscriptions per user (one row max per user)
-export const userSubscriptions = pgTable.withRLS(
-  "user_subscriptions",
-  {
-    id: uuid().primaryKey().defaultRandom(),
-    userId: uuid()
-      .notNull()
-      .unique()
-      .references(() => profiles.id, { onDelete: "cascade" }),
-    stripeSubscriptionId: text().notNull().unique(),
-    cancelAtPeriodEnd: boolean().notNull().default(false),
-    createdAt: timestamp({ mode: "date" }).defaultNow().notNull(),
-  },
-  (table) => [
-    pgPolicy("user can read own subscription", {
-      as: "permissive",
-      to: authenticatedRole,
-      for: "select",
-      using: eq(table.userId, selectAuthUid),
-    }),
-  ]
-);
-
-// One trial per user ever — free, no credit card required
-export const userTrials = pgTable.withRLS(
-  "user_trials",
-  {
-    id: uuid().primaryKey().defaultRandom(),
-    userId: uuid()
-      .notNull()
-      .unique()
-      .references(() => profiles.id, { onDelete: "cascade" }),
-    endsAt: timestamp({ mode: "date" }).notNull(),
-    createdAt: timestamp({ mode: "date" }).defaultNow().notNull(),
-  },
-  (table) => [
-    pgPolicy("user can read own trial", {
-      as: "permissive",
-      to: authenticatedRole,
-      for: "select",
-      using: eq(table.userId, selectAuthUid),
-    }),
-  ]
-);
-
-// One row per payment period (subscription renewals + manual one-time payments)
-// Active membership = exists a row with status='succeeded' AND periodEnd > now()
-export const membershipPayments = pgTable.withRLS(
-  "membership_payments",
-  {
-    id: uuid().primaryKey().defaultRandom(),
-    userId: uuid()
-      .notNull()
-      .references(() => profiles.id, { onDelete: "cascade" }),
-    stripePaymentId: text().notNull().unique(), // PaymentIntent ID or Invoice ID
-    stripeSubscriptionId: text(), // only for auto-renewing payments
-    amount: integer().notNull(), // CHF cents
-    currency: text().notNull().default("chf"),
-    status: membershipPaymentStatusEnum().notNull().default("pending"),
-    periodEnd: timestamp({ mode: "date" }).notNull(), // when this payment's coverage expires
-    cardLast4: text(),
-    cardBrand: text(),
-    cardExpMonth: integer(),
-    cardExpYear: integer(),
-    cancelledByUser: boolean().notNull().default(false),
-    createdAt: timestamp({ mode: "date" }).defaultNow().notNull(),
-  },
-  (table) => [
-    pgPolicy("user can read own payments", {
-      as: "permissive",
-      to: authenticatedRole,
-      for: "select",
-      using: eq(table.userId, selectAuthUid),
-    }),
-  ]
-);
-
-export const membershipExpiryNotificationTypeEnum = pgEnum("membership_expiry_notification_type", [
-  "payment_failed", // auto-renewal failed, sent via webhook immediately
-  "expiry_reminder", // manual expiry day 0, sent via cron
-  "access_lost", // day +10, sent via cron
-  "membership_ended", // day +30, sent via cron
-]);
-
-// No RLS needed — managed via db.admin only
-export const membershipExpiryNotifications = pgTable(
-  "membership_expiry_notifications",
-  {
-    id: uuid().primaryKey().defaultRandom(),
-    userId: uuid()
-      .notNull()
-      .references(() => profiles.id, { onDelete: "cascade" }),
-    periodEndDate: date({ mode: "date" }).notNull(), // the periodEnd of the expired payment (DATE precision)
-    type: membershipExpiryNotificationTypeEnum().notNull(),
-    sentAt: timestamp({ mode: "date" }).defaultNow().notNull(),
-  },
-  (table) => [unique().on(table.userId, table.type, table.periodEndDate)]
-);
-
-// Donations — no RLS, managed via db.admin only
-export const handoffTokens = pgTable.withRLS("handoff_tokens", {
-  id: uuid().primaryKey().defaultRandom(),
-  userId: uuid()
-    .notNull()
-    .references(() => profiles.id, { onDelete: "cascade" }),
-  token: text().notNull().unique(),
-  expiresAt: timestamp({ mode: "date" }).notNull(),
-  usedAt: timestamp({ mode: "date" }),
-  createdAt: timestamp({ mode: "date" }).defaultNow().notNull(),
-});
-
-export const donations = pgTable("donations", {
-  id: uuid().primaryKey().defaultRandom(),
-  userId: uuid().references(() => profiles.id, { onDelete: "set null" }), // null = anonymous
-  email: text().notNull(),
-  stripePaymentId: text().notNull().unique(),
-  amount: integer().notNull(), // CHF cents
-  currency: text().notNull().default("chf"),
-  status: donationStatusEnum().notNull().default("pending"),
-  createdAt: timestamp({ mode: "date" }).defaultNow().notNull(),
-});
-
-export const userRoleEnum = pgEnum("user_role", ["ADMIN", "USER", "CONTRACTOR"]);
-
-export const parcels = pgTable.withRLS(
+export const parcels = pgTable(
   "parcels",
   {
     id: uuid().primaryKey().defaultRandom(),
     farmId: uuid()
       .notNull()
-      .references(() => farms.id, {
-        onDelete: "cascade",
-      }),
+      .references(() => farms.id, { onDelete: "cascade" }),
     communalId: text().notNull(),
     gisId: integer(),
     geometry: polygon(),
     size: integer().notNull(),
   },
+  (table) => [index("parcel_geometries_idx").using("gist", table.geometry), index("parcel_gisid_idx").on(table.gisId)]
+);
 
-  (table) => [
-    index("parcel_geometries_idx").using("gist", table.geometry),
-    index("parcel_gisid_idx").on(table.gisId),
-    pgPolicy("only farm members", {
-      as: "permissive",
-      to: authenticatedRole,
-      using: eq(table.farmId, currentFarmId),
-      withCheck: eq(table.farmId, currentFarmId),
-    }),
-  ]
-);
-export const cropRotations = pgTable.withRLS(
-  "crop_rotations",
-  {
-    id: uuid().primaryKey().defaultRandom(),
-    farmId: uuid()
-      .notNull()
-      .references(() => farms.id, {
-        onDelete: "cascade",
-      }),
-    plotId: uuid()
-      .notNull()
-      .references(() => plots.id, { onDelete: "cascade" }),
-    cropId: uuid()
-      .notNull()
-      .references(() => crops.id),
-    sowingDate: date({ mode: "date" }),
-    fromDate: date({ mode: "date" }).notNull(),
-    toDate: date({ mode: "date" }).notNull(),
-  },
-  (table) => [
-    pgPolicy("only farm members", {
-      as: "permissive",
-      to: authenticatedRole,
-      using: eq(table.farmId, currentFarmId),
-      withCheck: eq(table.farmId, currentFarmId),
-    }),
-  ]
-);
+export const cropRotations = pgTable("crop_rotations", {
+  id: uuid().primaryKey().defaultRandom(),
+  farmId: uuid()
+    .notNull()
+    .references(() => farms.id, { onDelete: "cascade" }),
+  plotId: uuid()
+    .notNull()
+    .references(() => plots.id, { onDelete: "cascade" }),
+  cropId: uuid()
+    .notNull()
+    .references(() => crops.id),
+  sowingDate: date({ mode: "date" }),
+  fromDate: date({ mode: "date" }).notNull(),
+  toDate: date({ mode: "date" }).notNull(),
+});
 
 export const frequency = pgEnum("frequency", ["weekly", "monthly", "yearly"]);
 
@@ -404,208 +161,117 @@ export const taskLinkType = pgEnum("task_link_type", [
 
 export const weekday = pgEnum("weekday", ["MO", "TU", "WE", "TH", "FR", "SA", "SU"]);
 
-export const cropRotationYearlyRecurrences = pgTable.withRLS(
-  "crop_rotation_yearly_recurrences",
-  {
-    id: uuid("id").defaultRandom().primaryKey(),
-    farmId: uuid()
-      .notNull()
-      .references(() => farms.id, { onDelete: "cascade" }),
-    cropRotationId: uuid("crop_rotation_id")
-      .references(() => cropRotations.id, { onDelete: "cascade" })
-      .notNull(),
+export const cropRotationYearlyRecurrences = pgTable("crop_rotation_yearly_recurrences", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  farmId: uuid()
+    .notNull()
+    .references(() => farms.id, { onDelete: "cascade" }),
+  cropRotationId: uuid("crop_rotation_id")
+    .references(() => cropRotations.id, { onDelete: "cascade" })
+    .notNull(),
+  interval: integer("interval").default(1).notNull(),
+  until: date({ mode: "date" }),
+});
 
-    interval: integer("interval").default(1).notNull(),
-    until: date({ mode: "date" }),
-  },
-  (table) => [
-    pgPolicy("only farm members", {
-      as: "permissive",
-      to: authenticatedRole,
-      using: eq(table.farmId, currentFarmId),
-      withCheck: eq(table.farmId, currentFarmId),
-    }),
-  ]
-);
+export const cropRotationDraftPlans = pgTable("crop_rotation_draft_plans", {
+  id: uuid().primaryKey().defaultRandom(),
+  farmId: uuid()
+    .notNull()
+    .references(() => farms.id, { onDelete: "cascade" }),
+  name: text().notNull(),
+  createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp({ withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdateFn(() => new Date()),
+});
 
-export const cropRotationDraftPlans = pgTable.withRLS(
-  "crop_rotation_draft_plans",
-  {
-    id: uuid().primaryKey().defaultRandom(),
-    farmId: uuid()
-      .notNull()
-      .references(() => farms.id, { onDelete: "cascade" }),
-    name: text().notNull(),
-    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp({ withTimezone: true })
-      .notNull()
-      .defaultNow()
-      .$onUpdateFn(() => new Date()),
-  },
-  (table) => [
-    pgPolicy("only farm members", {
-      as: "permissive",
-      to: authenticatedRole,
-      using: eq(table.farmId, currentFarmId),
-      withCheck: eq(table.farmId, currentFarmId),
-    }),
-  ]
-);
+export const cropRotationDraftPlanPlots = pgTable("crop_rotation_draft_plan_plots", {
+  id: uuid().primaryKey().defaultRandom(),
+  farmId: uuid()
+    .notNull()
+    .references(() => farms.id, { onDelete: "cascade" }),
+  draftPlanId: uuid()
+    .notNull()
+    .references(() => cropRotationDraftPlans.id, { onDelete: "cascade" }),
+  plotId: uuid()
+    .notNull()
+    .references(() => plots.id, { onDelete: "cascade" }),
+});
 
-export const cropRotationDraftPlanPlots = pgTable.withRLS(
-  "crop_rotation_draft_plan_plots",
-  {
-    id: uuid().primaryKey().defaultRandom(),
-    farmId: uuid()
-      .notNull()
-      .references(() => farms.id, { onDelete: "cascade" }),
-    draftPlanId: uuid()
-      .notNull()
-      .references(() => cropRotationDraftPlans.id, { onDelete: "cascade" }),
-    plotId: uuid()
-      .notNull()
-      .references(() => plots.id, { onDelete: "cascade" }),
-  },
-  (table) => [
-    pgPolicy("only farm members", {
-      as: "permissive",
-      to: authenticatedRole,
-      using: eq(table.farmId, currentFarmId),
-      withCheck: eq(table.farmId, currentFarmId),
-    }),
-  ]
-);
+export const cropRotationDraftPlanEntries = pgTable("crop_rotation_draft_plan_entries", {
+  id: uuid().primaryKey().defaultRandom(),
+  farmId: uuid()
+    .notNull()
+    .references(() => farms.id, { onDelete: "cascade" }),
+  draftPlanPlotId: uuid()
+    .notNull()
+    .references(() => cropRotationDraftPlanPlots.id, { onDelete: "cascade" }),
+  cropId: uuid()
+    .notNull()
+    .references(() => crops.id),
+  sowingDate: date({ mode: "date" }),
+  fromDate: date({ mode: "date" }).notNull(),
+  toDate: date({ mode: "date" }).notNull(),
+  recurrenceInterval: integer(),
+  recurrenceUntil: date({ mode: "date" }),
+});
 
-export const cropRotationDraftPlanEntries = pgTable.withRLS(
-  "crop_rotation_draft_plan_entries",
-  {
-    id: uuid().primaryKey().defaultRandom(),
-    farmId: uuid()
-      .notNull()
-      .references(() => farms.id, { onDelete: "cascade" }),
-    draftPlanPlotId: uuid()
-      .notNull()
-      .references(() => cropRotationDraftPlanPlots.id, { onDelete: "cascade" }),
-    cropId: uuid()
-      .notNull()
-      .references(() => crops.id),
-    sowingDate: date({ mode: "date" }),
-    fromDate: date({ mode: "date" }).notNull(),
-    toDate: date({ mode: "date" }).notNull(),
-    recurrenceInterval: integer(),
-    recurrenceUntil: date({ mode: "date" }),
-  },
-  (table) => [
-    pgPolicy("only farm members", {
-      as: "permissive",
-      to: authenticatedRole,
-      using: eq(table.farmId, currentFarmId),
-      withCheck: eq(table.farmId, currentFarmId),
-    }),
-  ]
-);
-
-export const tillageReason = pgEnum("tillage_reason", [
-  "weed_control",
-  // "pest_control",
-  "soil_loosening",
-  "other",
-]);
+export const tillageReason = pgEnum("tillage_reason", ["weed_control", "soil_loosening", "other"]);
 
 export const tillageAction = pgEnum("tillage_action", [
-  // soil preparation
   "plowing",
   "tilling",
   "harrowing",
   "rolling",
   "rotavating",
-  // weed control,
-  "weed_harrowing", // striegel
+  "weed_harrowing",
   "hoeing",
   "flame_weeding",
   "custom",
 ]);
 
-export const tillagePresets = pgTable.withRLS(
-  "tillage_presets",
-  {
-    id: uuid().defaultRandom().primaryKey(),
-    farmId: uuid()
-      .notNull()
-      .references(() => farms.id, {
-        onDelete: "cascade",
-      }),
-    name: text().notNull(),
-    reason: tillageReason(),
-    action: tillageAction().notNull(),
-    customAction: text(),
-  },
-  (table) => [
-    pgPolicy("only farm members", {
-      as: "permissive",
-      to: authenticatedRole,
-      using: eq(table.farmId, currentFarmId),
-      withCheck: eq(table.farmId, currentFarmId),
-    }),
-  ]
-);
+export const tillagePresets = pgTable("tillage_presets", {
+  id: uuid().defaultRandom().primaryKey(),
+  farmId: uuid()
+    .notNull()
+    .references(() => farms.id, { onDelete: "cascade" }),
+  name: text().notNull(),
+  reason: tillageReason(),
+  action: tillageAction().notNull(),
+  customAction: text(),
+});
 
-export const tillages = pgTable.withRLS(
-  "tillages",
-  {
-    id: uuid().primaryKey().defaultRandom(),
-    farmId: uuid()
-      .notNull()
-      .references(() => farms.id, {
-        onDelete: "cascade",
-      }),
-    createdAt: timestamp().notNull().defaultNow(),
-    createdBy: uuid().references(() => profiles.id, { onDelete: "set null" }),
-    plotId: uuid()
-      .notNull()
-      .references(() => plots.id, { onDelete: "cascade" }),
-    geometry: polygon().notNull(),
-    size: integer().notNull(),
-    reason: tillageReason(),
-    action: tillageAction().notNull(),
-    customAction: text(),
-    date: date({ mode: "date" }).notNull(),
-    additionalNotes: text(),
-  },
-  (table) => [
-    pgPolicy("only farm members", {
-      as: "permissive",
-      to: authenticatedRole,
-      using: eq(table.farmId, currentFarmId),
-      withCheck: eq(table.farmId, currentFarmId),
-    }),
-  ]
-);
+export const tillages = pgTable("tillages", {
+  id: uuid().primaryKey().defaultRandom(),
+  farmId: uuid()
+    .notNull()
+    .references(() => farms.id, { onDelete: "cascade" }),
+  createdAt: timestamp().notNull().defaultNow(),
+  createdBy: uuid().references(() => profiles.id, { onDelete: "set null" }),
+  plotId: uuid()
+    .notNull()
+    .references(() => plots.id, { onDelete: "cascade" }),
+  geometry: polygon().notNull(),
+  size: integer().notNull(),
+  reason: tillageReason(),
+  action: tillageAction().notNull(),
+  customAction: text(),
+  date: date({ mode: "date" }).notNull(),
+  additionalNotes: text(),
+});
 
 export const cropProtectionUnit = pgEnum("crop_protection_unit", ["ml", "l", "g", "kg"]);
 
-export const cropProtectionProducts = pgTable.withRLS(
-  "crop_protection_products",
-  {
-    id: uuid().primaryKey().defaultRandom(),
-    farmId: uuid()
-      .notNull()
-      .references(() => farms.id, {
-        onDelete: "cascade",
-      }),
-    name: text().notNull(),
-    unit: cropProtectionUnit().notNull(),
-    description: text(),
-  },
-  (table) => [
-    pgPolicy("only farm members", {
-      as: "permissive",
-      to: authenticatedRole,
-      using: eq(table.farmId, currentFarmId),
-      withCheck: eq(table.farmId, currentFarmId),
-    }),
-  ]
-);
+export const cropProtectionProducts = pgTable("crop_protection_products", {
+  id: uuid().primaryKey().defaultRandom(),
+  farmId: uuid()
+    .notNull()
+    .references(() => farms.id, { onDelete: "cascade" }),
+  name: text().notNull(),
+  unit: cropProtectionUnit().notNull(),
+  description: text(),
+});
 
 export const cropProtectionApplicationMethod = pgEnum("crop_protection_application_method", [
   "spraying",
@@ -623,151 +289,86 @@ export const cropProtectionApplicationUnit = pgEnum("crop_protection_application
   "other",
 ]);
 
-export const cropProtectionApplicationPresets = pgTable.withRLS(
-  "crop_protection_application_presets",
-  {
-    id: uuid().defaultRandom().primaryKey(),
-    farmId: uuid()
-      .notNull()
-      .references(() => farms.id, {
-        onDelete: "cascade",
-      }),
-    name: text().notNull(),
-    method: cropProtectionApplicationMethod(),
-    unit: cropProtectionApplicationUnit().notNull(),
-    customUnit: text(),
-    amountPerUnit: real().notNull(),
-  },
-  (table) => [
-    pgPolicy("only farm members", {
-      as: "permissive",
-      to: authenticatedRole,
-      using: eq(table.farmId, currentFarmId),
-      withCheck: eq(table.farmId, currentFarmId),
-    }),
-  ]
-);
+export const cropProtectionApplicationPresets = pgTable("crop_protection_application_presets", {
+  id: uuid().defaultRandom().primaryKey(),
+  farmId: uuid()
+    .notNull()
+    .references(() => farms.id, { onDelete: "cascade" }),
+  name: text().notNull(),
+  method: cropProtectionApplicationMethod(),
+  unit: cropProtectionApplicationUnit().notNull(),
+  customUnit: text(),
+  amountPerUnit: real().notNull(),
+});
 
-export const cropProtectionApplications = pgTable.withRLS(
-  "crop_protection_applications",
-  {
-    id: uuid().primaryKey().defaultRandom(),
-    farmId: uuid()
-      .notNull()
-      .references(() => farms.id, {
-        onDelete: "cascade",
-      }),
-    createdAt: timestamp().notNull().defaultNow(),
-    createdBy: uuid().references(() => profiles.id, { onDelete: "set null" }),
-    plotId: uuid()
-      .notNull()
-      .references(() => plots.id, { onDelete: "cascade" }),
-    dateTime: timestamp().notNull(),
-    productId: uuid()
-      .notNull()
-      .references(() => cropProtectionProducts.id),
-    geometry: polygon().notNull(),
-    size: integer().notNull(),
-    method: cropProtectionApplicationMethod(),
-    unit: cropProtectionApplicationUnit().notNull(),
-    amountPerUnit: real().notNull(),
-    numberOfUnits: real().notNull(),
-    additionalNotes: text(),
-  },
-  (table) => [
-    pgPolicy("only farm members", {
-      as: "permissive",
-      to: authenticatedRole,
-      using: eq(table.farmId, currentFarmId),
-      withCheck: eq(table.farmId, currentFarmId),
-    }),
-  ]
-);
+export const cropProtectionApplications = pgTable("crop_protection_applications", {
+  id: uuid().primaryKey().defaultRandom(),
+  farmId: uuid()
+    .notNull()
+    .references(() => farms.id, { onDelete: "cascade" }),
+  createdAt: timestamp().notNull().defaultNow(),
+  createdBy: uuid().references(() => profiles.id, { onDelete: "set null" }),
+  plotId: uuid()
+    .notNull()
+    .references(() => plots.id, { onDelete: "cascade" }),
+  dateTime: timestamp().notNull(),
+  productId: uuid()
+    .notNull()
+    .references(() => cropProtectionProducts.id),
+  geometry: polygon().notNull(),
+  size: integer().notNull(),
+  method: cropProtectionApplicationMethod(),
+  unit: cropProtectionApplicationUnit().notNull(),
+  amountPerUnit: real().notNull(),
+  numberOfUnits: real().notNull(),
+  additionalNotes: text(),
+});
 
-export const plots = pgTable.withRLS(
+export const plots = pgTable(
   "plots",
   {
     id: uuid().primaryKey().defaultRandom(),
     farmId: uuid()
       .notNull()
-      .references(() => farms.id, {
-        onDelete: "cascade",
-      }),
+      .references(() => farms.id, { onDelete: "cascade" }),
     name: text().notNull(),
-    localId: text(), // parcel number
+    localId: text(),
     usage: integer(),
     cuttingDate: date({ mode: "date" }),
     geometry: polygon().notNull(),
     size: integer().notNull(),
     additionalNotes: text(),
   },
-
-  (table) => [
-    index("plot_geometries_idx").using("gist", table.geometry),
-    pgPolicy("only farm members", {
-      as: "permissive",
-      to: authenticatedRole,
-      using: eq(table.farmId, currentFarmId),
-      withCheck: eq(table.farmId, currentFarmId),
-    }),
-  ]
+  (table) => [index("plot_geometries_idx").using("gist", table.geometry)]
 );
 
 export const conservationMethod = pgEnum("conservation_method", ["dried", "silage", "haylage", "other", "none"]);
 
 export const cropCategory = pgEnum("crop_category", ["grass", "grain", "vegetable", "fruit", "other"]);
 
-export const cropFamilies = pgTable.withRLS(
-  "crop_families",
-  {
-    id: uuid().primaryKey().defaultRandom(),
-    farmId: uuid()
-      .notNull()
-      .references(() => farms.id, {
-        onDelete: "cascade",
-      }),
-    name: text().notNull(),
-    waitingTimeInYears: integer().notNull().default(0),
-    additionalNotes: text(),
-  },
-  (table) => [
-    pgPolicy("only farm members", {
-      as: "permissive",
-      to: authenticatedRole,
-      using: eq(table.farmId, currentFarmId),
-      withCheck: eq(table.farmId, currentFarmId),
-    }),
-  ]
-);
+export const cropFamilies = pgTable("crop_families", {
+  id: uuid().primaryKey().defaultRandom(),
+  farmId: uuid()
+    .notNull()
+    .references(() => farms.id, { onDelete: "cascade" }),
+  name: text().notNull(),
+  waitingTimeInYears: integer().notNull().default(0),
+  additionalNotes: text(),
+});
 
-export const crops = pgTable.withRLS(
-  "crops",
-  {
-    id: uuid().primaryKey().defaultRandom(),
-    farmId: uuid()
-      .notNull()
-      .references(() => farms.id, {
-        onDelete: "cascade",
-      }),
-    name: text().notNull(),
-    category: cropCategory().notNull(),
-    familyId: uuid().references(() => cropFamilies.id, {
-      onDelete: "set null",
-    }),
-    variety: text(),
-    waitingTimeInYears: integer(),
-    usageCodes: integer().array().notNull().default([]),
-    additionalNotes: text(),
-  },
-  (table) => [
-    pgPolicy("only farm members", {
-      as: "permissive",
-      to: authenticatedRole,
-      using: eq(table.farmId, currentFarmId),
-      withCheck: eq(table.farmId, currentFarmId),
-    }),
-  ]
-);
+export const crops = pgTable("crops", {
+  id: uuid().primaryKey().defaultRandom(),
+  farmId: uuid()
+    .notNull()
+    .references(() => farms.id, { onDelete: "cascade" }),
+  name: text().notNull(),
+  category: cropCategory().notNull(),
+  familyId: uuid().references(() => cropFamilies.id, { onDelete: "set null" }),
+  variety: text(),
+  waitingTimeInYears: integer(),
+  usageCodes: integer().array().notNull().default([]),
+  additionalNotes: text(),
+});
 
 export const harvestUnits = pgEnum("harvest_unit", [
   "load",
@@ -778,66 +379,40 @@ export const harvestUnits = pgEnum("harvest_unit", [
   "other",
 ]);
 
-export const harvestPresets = pgTable.withRLS(
-  "harvest_presets",
-  {
-    id: uuid().primaryKey().defaultRandom(),
-    farmId: uuid()
-      .notNull()
-      .references(() => farms.id, {
-        onDelete: "cascade",
-      }),
-    name: text().notNull(),
-    unit: harvestUnits().notNull(),
-    kilosPerUnit: real().notNull(),
-    conservationMethod: conservationMethod(),
-  },
-  (table) => [
-    pgPolicy("only farm members", {
-      as: "permissive",
-      to: authenticatedRole,
-      using: eq(table.farmId, currentFarmId),
-      withCheck: eq(table.farmId, currentFarmId),
-    }),
-  ]
-);
+export const harvestPresets = pgTable("harvest_presets", {
+  id: uuid().primaryKey().defaultRandom(),
+  farmId: uuid()
+    .notNull()
+    .references(() => farms.id, { onDelete: "cascade" }),
+  name: text().notNull(),
+  unit: harvestUnits().notNull(),
+  kilosPerUnit: real().notNull(),
+  conservationMethod: conservationMethod(),
+});
 
-export const harvests = pgTable.withRLS(
-  "harvests",
-  {
-    id: uuid().primaryKey().defaultRandom(),
-    farmId: uuid()
-      .notNull()
-      .references(() => farms.id, {
-        onDelete: "cascade",
-      }),
-    createdAt: timestamp().notNull().defaultNow(),
-    createdBy: uuid().references(() => profiles.id, { onDelete: "set null" }),
-    date: date({ mode: "date" }).notNull(),
-    plotId: uuid()
-      .notNull()
-      .references(() => plots.id, { onDelete: "cascade" }),
-    cropId: uuid()
-      .notNull()
-      .references(() => crops.id),
-    conservationMethod: conservationMethod(),
-    unit: harvestUnits().notNull(),
-    kilosPerUnit: real().notNull(),
-    numberOfUnits: real().notNull(),
-    harvestCount: integer(),
-    geometry: polygon().notNull(),
-    size: integer().notNull(),
-    additionalNotes: text(),
-  },
-  (table) => [
-    pgPolicy("only farm members", {
-      as: "permissive",
-      to: authenticatedRole,
-      using: eq(table.farmId, currentFarmId),
-      withCheck: eq(table.farmId, currentFarmId),
-    }),
-  ]
-);
+export const harvests = pgTable("harvests", {
+  id: uuid().primaryKey().defaultRandom(),
+  farmId: uuid()
+    .notNull()
+    .references(() => farms.id, { onDelete: "cascade" }),
+  createdAt: timestamp().notNull().defaultNow(),
+  createdBy: uuid().references(() => profiles.id, { onDelete: "set null" }),
+  date: date({ mode: "date" }).notNull(),
+  plotId: uuid()
+    .notNull()
+    .references(() => plots.id, { onDelete: "cascade" }),
+  cropId: uuid()
+    .notNull()
+    .references(() => crops.id),
+  conservationMethod: conservationMethod(),
+  unit: harvestUnits().notNull(),
+  kilosPerUnit: real().notNull(),
+  numberOfUnits: real().notNull(),
+  harvestCount: integer(),
+  geometry: polygon().notNull(),
+  size: integer().notNull(),
+  additionalNotes: text(),
+});
 
 export const fertilizerUnit = pgEnum("fertilizer_unit", ["l", "kg", "dt", "t"]);
 
@@ -855,251 +430,126 @@ export const orderStatus = pgEnum("order_status", ["pending", "confirmed", "fulf
 
 export const preferredCommunication = pgEnum("preferred_communication", ["email", "phone", "whatsapp"]);
 
-export const contacts = pgTable.withRLS(
-  "contacts",
-  {
-    id: uuid().primaryKey().defaultRandom(),
-    farmId: uuid()
-      .notNull()
-      .references(() => farms.id, {
-        onDelete: "cascade",
-      }),
-    firstName: text().notNull(),
-    lastName: text().notNull(),
-    street: text(),
-    city: text(),
-    zip: text(),
-    phone: text(),
-    email: text(),
-    preferredCommunication: preferredCommunication(),
-    labels: text().array().notNull().default([]),
-  },
-  (table) => [
-    pgPolicy("only farm members", {
-      as: "permissive",
-      to: authenticatedRole,
-      using: eq(table.farmId, currentFarmId),
-      withCheck: eq(table.farmId, currentFarmId),
-    }),
-  ]
-);
+export const contacts = pgTable("contacts", {
+  id: uuid().primaryKey().defaultRandom(),
+  farmId: uuid()
+    .notNull()
+    .references(() => farms.id, { onDelete: "cascade" }),
+  firstName: text().notNull(),
+  lastName: text().notNull(),
+  street: text(),
+  city: text(),
+  zip: text(),
+  phone: text(),
+  email: text(),
+  preferredCommunication: preferredCommunication(),
+  labels: text().array().notNull().default([]),
+});
 
-export const products = pgTable.withRLS(
-  "products",
-  {
-    id: uuid().primaryKey().defaultRandom(),
-    farmId: uuid()
-      .notNull()
-      .references(() => farms.id, {
-        onDelete: "cascade",
-      }),
-    name: text().notNull(),
-    category: productCategory().notNull(),
-    unit: productUnit().notNull(),
-    pricePerUnit: real().notNull(),
-    description: text(),
-    active: boolean().notNull().default(true),
-  },
-  (table) => [
-    pgPolicy("only farm members", {
-      as: "permissive",
-      to: authenticatedRole,
-      using: eq(table.farmId, currentFarmId),
-      withCheck: eq(table.farmId, currentFarmId),
-    }),
-  ]
-);
+export const products = pgTable("products", {
+  id: uuid().primaryKey().defaultRandom(),
+  farmId: uuid()
+    .notNull()
+    .references(() => farms.id, { onDelete: "cascade" }),
+  name: text().notNull(),
+  category: productCategory().notNull(),
+  unit: productUnit().notNull(),
+  pricePerUnit: real().notNull(),
+  description: text(),
+  active: boolean().notNull().default(true),
+});
 
-export const orders = pgTable.withRLS(
-  "orders",
-  {
-    id: uuid().primaryKey().defaultRandom(),
-    farmId: uuid()
-      .notNull()
-      .references(() => farms.id, {
-        onDelete: "cascade",
-      }),
-    contactId: uuid()
-      .notNull()
-      .references(() => contacts.id, {
-        onDelete: "cascade",
-      }),
-    status: orderStatus().notNull().default("pending"),
-    orderDate: date({ mode: "date" }).notNull(),
-    shippingDate: date({ mode: "date" }),
-    notes: text(),
-  },
-  (table) => [
-    pgPolicy("only farm members", {
-      as: "permissive",
-      to: authenticatedRole,
-      using: eq(table.farmId, currentFarmId),
-      withCheck: eq(table.farmId, currentFarmId),
-    }),
-  ]
-);
+export const orders = pgTable("orders", {
+  id: uuid().primaryKey().defaultRandom(),
+  farmId: uuid()
+    .notNull()
+    .references(() => farms.id, { onDelete: "cascade" }),
+  contactId: uuid()
+    .notNull()
+    .references(() => contacts.id, { onDelete: "cascade" }),
+  status: orderStatus().notNull().default("pending"),
+  orderDate: date({ mode: "date" }).notNull(),
+  shippingDate: date({ mode: "date" }),
+  notes: text(),
+});
 
-export const orderItems = pgTable.withRLS(
-  "order_items",
-  {
-    id: uuid().primaryKey().defaultRandom(),
-    farmId: uuid()
-      .notNull()
-      .references(() => farms.id, {
-        onDelete: "cascade",
-      }),
-    orderId: uuid()
-      .notNull()
-      .references(() => orders.id, {
-        onDelete: "cascade",
-      }),
-    productId: uuid()
-      .notNull()
-      .references(() => products.id, {
-        onDelete: "restrict",
-      }),
-    quantity: real().notNull(),
-    unitPrice: real().notNull(),
-  },
-  (table) => [
-    pgPolicy("only farm members", {
-      as: "permissive",
-      to: authenticatedRole,
-      using: eq(table.farmId, currentFarmId),
-      withCheck: eq(table.farmId, currentFarmId),
-    }),
-  ]
-);
+export const orderItems = pgTable("order_items", {
+  id: uuid().primaryKey().defaultRandom(),
+  farmId: uuid()
+    .notNull()
+    .references(() => farms.id, { onDelete: "cascade" }),
+  orderId: uuid()
+    .notNull()
+    .references(() => orders.id, { onDelete: "cascade" }),
+  productId: uuid()
+    .notNull()
+    .references(() => products.id, { onDelete: "restrict" }),
+  quantity: real().notNull(),
+  unitPrice: real().notNull(),
+});
 
 export const paymentMethod = pgEnum("payment_method", ["cash", "bank_transfer", "twint", "card", "other"]);
 
-export const sponsorshipPrograms = pgTable.withRLS(
-  "sponsorship_programs",
-  {
-    id: uuid().primaryKey().defaultRandom(),
-    farmId: uuid()
-      .notNull()
-      .references(() => farms.id, {
-        onDelete: "cascade",
-      }),
-    name: text().notNull(),
-    description: text(),
-    yearlyCost: real().notNull(),
-  },
-  (table) => [
-    pgPolicy("only farm members", {
-      as: "permissive",
-      to: authenticatedRole,
-      using: eq(table.farmId, currentFarmId),
-      withCheck: eq(table.farmId, currentFarmId),
-    }),
-  ]
-);
+export const sponsorshipPrograms = pgTable("sponsorship_programs", {
+  id: uuid().primaryKey().defaultRandom(),
+  farmId: uuid()
+    .notNull()
+    .references(() => farms.id, { onDelete: "cascade" }),
+  name: text().notNull(),
+  description: text(),
+  yearlyCost: real().notNull(),
+});
 
-export const sponsorships = pgTable.withRLS(
-  "sponsorships",
-  {
-    id: uuid().primaryKey().defaultRandom(),
-    farmId: uuid()
-      .notNull()
-      .references(() => farms.id, {
-        onDelete: "cascade",
-      }),
-    contactId: uuid()
-      .notNull()
-      .references(() => contacts.id, {
-        onDelete: "cascade",
-      }),
-    animalId: uuid()
-      .notNull()
-      .references(() => animals.id, {
-        onDelete: "cascade",
-      }),
-    sponsorshipProgramId: uuid()
-      .notNull()
-      .references(() => sponsorshipPrograms.id, {
-        onDelete: "restrict",
-      }),
-    startDate: date({ mode: "date" }).notNull(),
-    endDate: date({ mode: "date" }),
-    notes: text(),
-    preferredCommunication: preferredCommunication(),
-  },
-  (table) => [
-    pgPolicy("only farm members", {
-      as: "permissive",
-      to: authenticatedRole,
-      using: eq(table.farmId, currentFarmId),
-      withCheck: eq(table.farmId, currentFarmId),
-    }),
-  ]
-);
+export const sponsorships = pgTable("sponsorships", {
+  id: uuid().primaryKey().defaultRandom(),
+  farmId: uuid()
+    .notNull()
+    .references(() => farms.id, { onDelete: "cascade" }),
+  contactId: uuid()
+    .notNull()
+    .references(() => contacts.id, { onDelete: "cascade" }),
+  animalId: uuid()
+    .notNull()
+    .references(() => animals.id, { onDelete: "cascade" }),
+  sponsorshipProgramId: uuid()
+    .notNull()
+    .references(() => sponsorshipPrograms.id, { onDelete: "restrict" }),
+  startDate: date({ mode: "date" }).notNull(),
+  endDate: date({ mode: "date" }),
+  notes: text(),
+  preferredCommunication: preferredCommunication(),
+});
 
-export const payments = pgTable.withRLS(
-  "payments",
-  {
-    id: uuid().primaryKey().defaultRandom(),
-    farmId: uuid()
-      .notNull()
-      .references(() => farms.id, {
-        onDelete: "cascade",
-      }),
-    contactId: uuid()
-      .notNull()
-      .references(() => contacts.id, {
-        onDelete: "cascade",
-      }),
-    sponsorshipId: uuid().references(() => sponsorships.id, {
-      onDelete: "set null",
-    }),
-    orderId: uuid().references(() => orders.id, {
-      onDelete: "set null",
-    }),
-    date: date({ mode: "date" }).notNull(),
-    amount: real().notNull(),
-    currency: text().notNull().default("CHF"),
-    method: paymentMethod().notNull(),
-    notes: text(),
-  },
-  (table) => [
-    pgPolicy("only farm members", {
-      as: "permissive",
-      to: authenticatedRole,
-      using: eq(table.farmId, currentFarmId),
-      withCheck: eq(table.farmId, currentFarmId),
-    }),
-  ]
-);
+export const payments = pgTable("payments", {
+  id: uuid().primaryKey().defaultRandom(),
+  farmId: uuid()
+    .notNull()
+    .references(() => farms.id, { onDelete: "cascade" }),
+  contactId: uuid()
+    .notNull()
+    .references(() => contacts.id, { onDelete: "cascade" }),
+  sponsorshipId: uuid().references(() => sponsorships.id, { onDelete: "set null" }),
+  orderId: uuid().references(() => orders.id, { onDelete: "set null" }),
+  date: date({ mode: "date" }).notNull(),
+  amount: real().notNull(),
+  currency: text().notNull().default("CHF"),
+  method: paymentMethod().notNull(),
+  notes: text(),
+});
 
 export const fertilizerType = pgEnum("fertilizer_type", ["mineral", "organic"]);
 export const fertilizationMethod = pgEnum("fertilization_method", ["spray", "spread", "other"]);
 
-export const fertilizers = pgTable.withRLS(
-  "fertilizers",
-  {
-    id: uuid().primaryKey().defaultRandom(),
-    farmId: uuid()
-      .notNull()
-      .references(() => farms.id, {
-        onDelete: "cascade",
-      }),
-    name: text().notNull(),
-    description: text(),
-    type: fertilizerType().notNull(),
-    unit: fertilizerUnit().notNull(),
-    // nitrogenPerUnit: real(),
-    // phosphorusPerUnit: real(),
-    // potassiumPerUnit: real(),
-  },
-  (table) => [
-    pgPolicy("only farm members", {
-      as: "permissive",
-      to: authenticatedRole,
-      using: eq(table.farmId, currentFarmId),
-      withCheck: eq(table.farmId, currentFarmId),
-    }),
-  ]
-);
+export const fertilizers = pgTable("fertilizers", {
+  id: uuid().primaryKey().defaultRandom(),
+  farmId: uuid()
+    .notNull()
+    .references(() => farms.id, { onDelete: "cascade" }),
+  name: text().notNull(),
+  description: text(),
+  type: fertilizerType().notNull(),
+  unit: fertilizerUnit().notNull(),
+});
 
 export const fertilizerApplicationUnit = pgEnum("fertilizer_application_unit", [
   "load",
@@ -1109,93 +559,52 @@ export const fertilizerApplicationUnit = pgEnum("fertilizer_application_unit", [
   "other",
 ]);
 
-export const fertilizerApplicationPresets = pgTable.withRLS(
-  "fertilizer_application_presets",
-  {
-    id: uuid().primaryKey().defaultRandom(),
-    farmId: uuid()
-      .notNull()
-      .references(() => farms.id, {
-        onDelete: "cascade",
-      }),
-    name: text().notNull(),
-    fertilizerId: uuid()
-      .notNull()
-      .references(() => fertilizers.id, {
-        onDelete: "cascade",
-      }),
-    unit: fertilizerApplicationUnit().notNull(),
-    method: fertilizationMethod(),
-    amountPerUnit: real().notNull(),
-  },
-  (table) => [
-    pgPolicy("only farm members", {
-      as: "permissive",
-      to: authenticatedRole,
-      using: eq(table.farmId, currentFarmId),
-      withCheck: eq(table.farmId, currentFarmId),
-    }),
-  ]
-);
+export const fertilizerApplicationPresets = pgTable("fertilizer_application_presets", {
+  id: uuid().primaryKey().defaultRandom(),
+  farmId: uuid()
+    .notNull()
+    .references(() => farms.id, { onDelete: "cascade" }),
+  name: text().notNull(),
+  fertilizerId: uuid()
+    .notNull()
+    .references(() => fertilizers.id, { onDelete: "cascade" }),
+  unit: fertilizerApplicationUnit().notNull(),
+  method: fertilizationMethod(),
+  amountPerUnit: real().notNull(),
+});
 
-export const fertilizerApplications = pgTable.withRLS(
-  "fertilizer_applications",
-  {
-    id: uuid().primaryKey().defaultRandom(),
-    farmId: uuid()
-      .notNull()
-      .references(() => farms.id, {
-        onDelete: "cascade",
-      }),
-    createdAt: timestamp().notNull().defaultNow(),
-    createdBy: uuid()
-      .notNull()
-      .references(() => profiles.id),
-    plotId: uuid()
-      .notNull()
-      .references(() => plots.id, { onDelete: "cascade" }),
-    date: date({ mode: "date" }).notNull(),
-    method: fertilizationMethod(),
-    unit: fertilizerApplicationUnit().notNull(),
-    amountPerUnit: real().notNull(),
-    numberOfUnits: real().notNull(),
-    fertilizerId: uuid()
-      .references(() => fertilizers.id)
-      .notNull(),
-    geometry: polygon().notNull(),
-    size: integer().notNull(),
-    additionalNotes: text(),
-  },
-  (table) => [
-    pgPolicy("only farm members", {
-      as: "permissive",
-      to: authenticatedRole,
-      using: eq(table.farmId, currentFarmId),
-      withCheck: eq(table.farmId, currentFarmId),
-    }),
-  ]
-);
+export const fertilizerApplications = pgTable("fertilizer_applications", {
+  id: uuid().primaryKey().defaultRandom(),
+  farmId: uuid()
+    .notNull()
+    .references(() => farms.id, { onDelete: "cascade" }),
+  createdAt: timestamp().notNull().defaultNow(),
+  createdBy: uuid()
+    .notNull()
+    .references(() => profiles.id),
+  plotId: uuid()
+    .notNull()
+    .references(() => plots.id, { onDelete: "cascade" }),
+  date: date({ mode: "date" }).notNull(),
+  method: fertilizationMethod(),
+  unit: fertilizerApplicationUnit().notNull(),
+  amountPerUnit: real().notNull(),
+  numberOfUnits: real().notNull(),
+  fertilizerId: uuid()
+    .references(() => fertilizers.id)
+    .notNull(),
+  geometry: polygon().notNull(),
+  size: integer().notNull(),
+  additionalNotes: text(),
+});
 
-export const earTags = pgTable.withRLS(
-  "ear_tags",
-  {
-    id: uuid().primaryKey().defaultRandom(),
-    farmId: uuid()
-      .notNull()
-      .references(() => farms.id, {
-        onDelete: "cascade",
-      }),
-    number: text().notNull(),
-  },
-  (table) => [
-    pgPolicy("only farm members", {
-      as: "permissive",
-      to: authenticatedRole,
-      using: eq(table.farmId, currentFarmId),
-      withCheck: eq(table.farmId, currentFarmId),
-    }),
-  ]
-);
+export const earTags = pgTable("ear_tags", {
+  id: uuid().primaryKey().defaultRandom(),
+  farmId: uuid()
+    .notNull()
+    .references(() => farms.id, { onDelete: "cascade" }),
+  number: text().notNull(),
+});
 
 export const animalCategory = pgEnum("animal_category", [
   "A1",
@@ -1225,15 +634,13 @@ export const animalCategory = pgEnum("animal_category", [
 
 export const animalUsage = pgEnum("animal_usage", ["milk", "other"]);
 
-export const animals = pgTable.withRLS(
+export const animals = pgTable(
   "animals",
   {
     id: uuid().primaryKey().defaultRandom(),
     farmId: uuid()
       .notNull()
-      .references(() => farms.id, {
-        onDelete: "cascade",
-      }),
+      .references(() => farms.id, { onDelete: "cascade" }),
     name: text().notNull(),
     type: animalType().notNull(),
     usage: animalUsage().notNull(),
@@ -1258,37 +665,18 @@ export const animals = pgTable.withRLS(
       foreignColumns: [table.id],
       name: "animals_father_fk",
     }).onDelete("set null"),
-    pgPolicy("only farm members", {
-      as: "permissive",
-      to: authenticatedRole,
-      using: eq(table.farmId, currentFarmId),
-      withCheck: eq(table.farmId, currentFarmId),
-    }),
   ]
 );
 
-export const herds = pgTable.withRLS(
-  "herds",
-  {
-    id: uuid().primaryKey().defaultRandom(),
-    farmId: uuid()
-      .notNull()
-      .references(() => farms.id, {
-        onDelete: "cascade",
-      }),
-    name: text().notNull(),
-  },
-  (table) => [
-    pgPolicy("only farm members", {
-      as: "permissive",
-      to: authenticatedRole,
-      using: eq(table.farmId, currentFarmId),
-      withCheck: eq(table.farmId, currentFarmId),
-    }),
-  ]
-);
+export const herds = pgTable("herds", {
+  id: uuid().primaryKey().defaultRandom(),
+  farmId: uuid()
+    .notNull()
+    .references(() => farms.id, { onDelete: "cascade" }),
+  name: text().notNull(),
+});
 
-export const herdMemberships = pgTable.withRLS(
+export const herdMemberships = pgTable(
   "herd_memberships",
   {
     id: uuid().primaryKey().defaultRandom(),
@@ -1302,21 +690,15 @@ export const herdMemberships = pgTable.withRLS(
       .notNull()
       .references(() => herds.id, { onDelete: "cascade" }),
     fromDate: date({ mode: "date" }).notNull(),
-    toDate: date({ mode: "date" }), // null = still active
+    toDate: date({ mode: "date" }),
   },
   (table) => [
     index("herd_memberships_animal_id_idx").on(table.animalId),
     index("herd_memberships_herd_id_idx").on(table.herdId),
-    pgPolicy("only farm members", {
-      as: "permissive",
-      to: authenticatedRole,
-      using: eq(table.farmId, currentFarmId),
-      withCheck: eq(table.farmId, currentFarmId),
-    }),
   ]
 );
 
-export const customOutdoorJournalCategories = pgTable.withRLS(
+export const customOutdoorJournalCategories = pgTable(
   "custom_outdoor_journal_categories",
   {
     id: uuid().primaryKey().defaultRandom(),
@@ -1330,103 +712,53 @@ export const customOutdoorJournalCategories = pgTable.withRLS(
     endDate: date({ mode: "date" }),
     category: animalCategory().notNull(),
   },
-  (table) => [
-    index("custom_outdoor_journal_categories_animal_id_idx").on(table.animalId),
-    pgPolicy("only farm members", {
-      as: "permissive",
-      to: authenticatedRole,
-      using: eq(table.farmId, currentFarmId),
-      withCheck: eq(table.farmId, currentFarmId),
-    }),
-  ]
+  (table) => [index("custom_outdoor_journal_categories_animal_id_idx").on(table.animalId)]
 );
 
 export const outdoorScheduleType = pgEnum("outdoor_schedule_type", ["pasture", "exercise_yard"]);
 
-export const outdoorSchedules = pgTable.withRLS(
-  "outdoor_shedules",
-  {
-    id: uuid().primaryKey().defaultRandom(),
-    farmId: uuid()
-      .notNull()
-      .references(() => farms.id, {
-        onDelete: "cascade",
-      }),
-    herdId: uuid()
-      .notNull()
-      .references(() => herds.id, { onDelete: "cascade" }),
-    startDate: date({ mode: "date" }).notNull(),
-    endDate: date({ mode: "date" }),
-    type: outdoorScheduleType().notNull(),
-    notes: text(),
-  },
-  (table) => [
-    pgPolicy("only farm members", {
-      as: "permissive",
-      to: authenticatedRole,
-      using: eq(table.farmId, currentFarmId),
-      withCheck: eq(table.farmId, currentFarmId),
-    }),
-  ]
-);
+export const outdoorSchedules = pgTable("outdoor_shedules", {
+  id: uuid().primaryKey().defaultRandom(),
+  farmId: uuid()
+    .notNull()
+    .references(() => farms.id, { onDelete: "cascade" }),
+  herdId: uuid()
+    .notNull()
+    .references(() => herds.id, { onDelete: "cascade" }),
+  startDate: date({ mode: "date" }).notNull(),
+  endDate: date({ mode: "date" }),
+  type: outdoorScheduleType().notNull(),
+  notes: text(),
+});
 
-export const outdoorScheduleRecurrences = pgTable.withRLS(
-  "outdoor_schedule_recurrences",
-  {
-    id: uuid("id").defaultRandom().primaryKey(),
-    farmId: uuid()
-      .notNull()
-      .references(() => farms.id, {
-        onDelete: "cascade",
-      }),
-    outdoorScheduleId: uuid("outdoor_schedule_id")
-      .references(() => outdoorSchedules.id, { onDelete: "cascade" })
-      .notNull(),
+export const outdoorScheduleRecurrences = pgTable("outdoor_schedule_recurrences", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  farmId: uuid()
+    .notNull()
+    .references(() => farms.id, { onDelete: "cascade" }),
+  outdoorScheduleId: uuid("outdoor_schedule_id")
+    .references(() => outdoorSchedules.id, { onDelete: "cascade" })
+    .notNull(),
+  frequency: frequency("frequency").notNull(),
+  interval: integer("interval").default(1).notNull(),
+  byWeekday: weekday("by_weekday").array(),
+  byMonthDay: integer("by_month_day"),
+  until: date("until"),
+  count: integer("count"),
+});
 
-    frequency: frequency("frequency").notNull(),
-    interval: integer("interval").default(1).notNull(),
+export const drugs = pgTable("drugs", {
+  id: uuid().primaryKey().defaultRandom(),
+  farmId: uuid()
+    .notNull()
+    .references(() => farms.id, { onDelete: "cascade" }),
+  name: text().notNull(),
+  isAntibiotic: boolean().notNull().default(false),
+  criticalAntibiotic: boolean().notNull(),
+  receivedFrom: text().notNull(),
+  notes: text(),
+});
 
-    byWeekday: weekday("by_weekday").array(),
-    byMonthDay: integer("by_month_day"),
-
-    until: date("until"),
-    count: integer("count"),
-  },
-
-  (table) => [
-    pgPolicy("only farm members", {
-      as: "permissive",
-      to: authenticatedRole,
-      using: eq(table.farmId, currentFarmId),
-      withCheck: eq(table.farmId, currentFarmId),
-    }),
-  ]
-);
-
-export const drugs = pgTable.withRLS(
-  "drugs",
-  {
-    id: uuid().primaryKey().defaultRandom(),
-    farmId: uuid()
-      .notNull()
-      .references(() => farms.id, {
-        onDelete: "cascade",
-      }),
-    name: text().notNull(),
-    isAntibiotic: boolean().notNull().default(false),
-    criticalAntibiotic: boolean().notNull(),
-    receivedFrom: text().notNull(),
-    notes: text(),
-  },
-  (table) => [
-    pgPolicy("only farm members", {
-      as: "permissive",
-      to: authenticatedRole,
-      using: eq(table.farmId, currentFarmId),
-      withCheck: eq(table.farmId, currentFarmId),
-    }),
-  ]
-);
 export const drugDoseUnit = pgEnum("drug_dose_unit", [
   "tablet",
   "capsule",
@@ -1441,7 +773,7 @@ export const drugDoseUnit = pgEnum("drug_dose_unit", [
 
 export const drugDosePerUnit = pgEnum("dose_per_unit", ["kg", "animal", "day", "total_amount"]);
 
-export const drugTreatment = pgTable.withRLS(
+export const drugTreatment = pgTable(
   "drug_treatment",
   {
     id: uuid().primaryKey().defaultRandom(),
@@ -1459,23 +791,16 @@ export const drugTreatment = pgTable.withRLS(
   (table) => [
     index("drug_treatment_drug_id_idx").on(table.drugId),
     unique("drug_treatment_drug_animal_unique").on(table.drugId, table.animalType),
-    pgPolicy("only farm members", {
-      as: "permissive",
-      to: authenticatedRole,
-      using: sql`(SELECT current_setting('request.farm_id')::uuid) IN (SELECT farm_id FROM ${drugs} WHERE id = ${table.drugId})`,
-    }),
   ]
 );
 
-export const treatments = pgTable.withRLS(
+export const treatments = pgTable(
   "treatments",
   {
     id: uuid().primaryKey().defaultRandom(),
     farmId: uuid()
       .notNull()
-      .references(() => farms.id, {
-        onDelete: "cascade",
-      }),
+      .references(() => farms.id, { onDelete: "cascade" }),
     drugId: uuid().references(() => drugs.id, { onDelete: "restrict" }),
     startDate: date({ mode: "date" }).notNull(),
     endDate: date({ mode: "date" }).notNull(),
@@ -1494,19 +819,10 @@ export const treatments = pgTable.withRLS(
     createdAt: timestamp().notNull().defaultNow(),
     createdBy: uuid().references(() => profiles.id, { onDelete: "set null" }),
   },
-  (table) => [
-    index("treatments_drug_id_idx").on(table.drugId),
-    index("treatments_date_idx").on(table.startDate),
-    pgPolicy("only farm members", {
-      as: "permissive",
-      to: authenticatedRole,
-      using: eq(table.farmId, currentFarmId),
-      withCheck: eq(table.farmId, currentFarmId),
-    }),
-  ]
+  (table) => [index("treatments_drug_id_idx").on(table.drugId), index("treatments_date_idx").on(table.startDate)]
 );
 
-export const animalTreatments = pgTable.withRLS(
+export const animalTreatments = pgTable(
   "animal_treatments",
   {
     id: uuid().primaryKey().defaultRandom(),
@@ -1524,69 +840,22 @@ export const animalTreatments = pgTable.withRLS(
     index("animal_treatments_animal_id_idx").on(table.animalId),
     index("animal_treatments_treatment_id_idx").on(table.treatmentId),
     unique("animal_treatments_unique").on(table.animalId, table.treatmentId),
-    pgPolicy("only farm members", {
-      as: "permissive",
-      to: authenticatedRole,
-      using: eq(table.farmId, currentFarmId),
-      withCheck: eq(table.farmId, currentFarmId),
-    }),
   ]
 );
 
-// Wiki knowledgebase tables
+// Wiki — private farm knowledge base (no public/community features)
 
-export const wikiEntryStatus = pgEnum("wiki_entry_status", [
-  "draft",
-  "submitted",
-  "under_review",
-  "published",
-  "rejected",
-]);
-
-export const wikiVisibility = pgEnum("wiki_visibility", ["private", "public"]);
-
-export const wikiChangeRequestType = pgEnum("wiki_change_request_type", ["new_entry", "change_request"]);
-
-export const wikiChangeRequestStatus = pgEnum("wiki_change_request_status", [
-  "draft", // editable by submitter; moderator cannot act on it yet
-  "under_review", // frozen; moderator is reviewing
-  "approved",
-  "rejected",
-  "changes_requested", // moderator asked for revisions; submitter must update and resubmit
-]);
+export const wikiEntryStatus = pgEnum("wiki_entry_status", ["draft", "published"]);
 
 export const wikiLocale = pgEnum("wiki_locale", ["de", "en", "it", "fr"]);
 
-export const forumThreadTypeEnum = pgEnum("forum_thread_type", [
-  "question",
-  "feature_request",
-  "bug_report",
-  "general",
-]);
+export const wikiCategories = pgTable("wiki_categories", {
+  id: uuid().primaryKey().defaultRandom(),
+  slug: text().notNull().unique(),
+  createdAt: timestamp().notNull().defaultNow(),
+});
 
-export const forumThreadStatusEnum = pgEnum("forum_thread_status", ["open", "closed"]);
-
-// Categories are admin-managed and dynamically created (not an enum).
-// Defined before wiki_entries because wiki_entries holds a FK to this table.
-export const wikiCategories = pgTable.withRLS(
-  "wiki_categories",
-  {
-    id: uuid().primaryKey().defaultRandom(),
-    slug: text().notNull().unique(),
-    createdAt: timestamp().notNull().defaultNow(),
-  },
-  () => [
-    pgPolicy("authenticated users can read wiki categories", {
-      as: "permissive",
-      to: authenticatedRole,
-      for: "select",
-      using: sql`true`,
-    }),
-    // INSERT / UPDATE / DELETE handled exclusively via adminDrizzle (API key protected)
-  ]
-);
-
-export const wikiCategoryTranslations = pgTable.withRLS(
+export const wikiCategoryTranslations = pgTable(
   "wiki_category_translations",
   {
     id: uuid().primaryKey().defaultRandom(),
@@ -1599,21 +868,14 @@ export const wikiCategoryTranslations = pgTable.withRLS(
   (table) => [
     unique("wiki_category_translations_unique").on(table.categoryId, table.locale),
     index("wiki_category_translations_category_id_idx").on(table.categoryId),
-    pgPolicy("authenticated users can read wiki category translations", {
-      as: "permissive",
-      to: authenticatedRole,
-      for: "select",
-      using: sql`true`,
-    }),
   ]
 );
 
-export const wikiEntries = pgTable.withRLS(
+export const wikiEntries = pgTable(
   "wiki_entries",
   {
     id: uuid().primaryKey().defaultRandom(),
     status: wikiEntryStatus().notNull().default("draft"),
-    visibility: wikiVisibility().notNull().default("private"),
     createdBy: uuid()
       .notNull()
       .references(() => profiles.id, { onDelete: "restrict" }),
@@ -1626,66 +888,18 @@ export const wikiEntries = pgTable.withRLS(
     createdAt: timestamp().notNull().defaultNow(),
     updatedAt: timestamp().notNull().defaultNow(),
   },
-  (table) => [
-    index("wiki_entries_status_visibility_idx").on(table.status, table.visibility),
-    // Can read: published public entries, or entries belonging to the current farm session
-    pgPolicy("authenticated users can read wiki entries", {
-      as: "permissive",
-      to: authenticatedRole,
-      for: "select",
-      using: sql`(${table.status} = 'published'::wiki_entry_status AND ${table.visibility} = 'public'::wiki_visibility) OR ${table.farmId} = (SELECT current_setting('request.farm_id', TRUE)::uuid)`,
-    }),
-    // Farm members can create entries attributed to themselves within their current farm
-    pgPolicy("farm members can create wiki entries", {
-      as: "permissive",
-      to: authenticatedRole,
-      for: "insert",
-      withCheck: sql`${table.createdBy} = (SELECT auth.uid()) AND ${table.farmId} = (SELECT current_setting('request.farm_id', TRUE)::uuid)`,
-    }),
-    // Farm members can update private entries belonging to their farm
-    pgPolicy("farm members can update private wiki entries", {
-      as: "permissive",
-      to: authenticatedRole,
-      for: "update",
-      using: sql`${table.farmId} = (SELECT current_setting('request.farm_id', TRUE)::uuid) AND ${table.visibility} = 'private'::wiki_visibility`,
-      withCheck: sql`${table.farmId} = (SELECT current_setting('request.farm_id', TRUE)::uuid) AND ${table.visibility} = 'private'::wiki_visibility`,
-    }),
-    // Farm members can delete private entries belonging to their farm
-    pgPolicy("farm members can delete private wiki entries", {
-      as: "permissive",
-      to: authenticatedRole,
-      for: "delete",
-      using: sql`${table.farmId} = (SELECT current_setting('request.farm_id', TRUE)::uuid) AND ${table.visibility} = 'private'::wiki_visibility`,
-    }),
-  ]
+  (table) => [index("wiki_entries_status_idx").on(table.status)]
 );
 
-export const wikiTags = pgTable.withRLS(
-  "wiki_tags",
-  {
-    id: uuid().primaryKey().defaultRandom(),
-    name: text().notNull().unique(),
-    slug: text().notNull().unique(),
-    createdBy: uuid().references(() => profiles.id, { onDelete: "set null" }),
-    createdAt: timestamp().notNull().defaultNow(),
-  },
-  () => [
-    pgPolicy("authenticated users can read wiki tags", {
-      as: "permissive",
-      to: authenticatedRole,
-      for: "select",
-      using: sql`true`,
-    }),
-    pgPolicy("authenticated users can create wiki tags", {
-      as: "permissive",
-      to: authenticatedRole,
-      for: "insert",
-      withCheck: sql`true`,
-    }),
-  ]
-);
+export const wikiTags = pgTable("wiki_tags", {
+  id: uuid().primaryKey().defaultRandom(),
+  name: text().notNull().unique(),
+  slug: text().notNull().unique(),
+  createdBy: uuid().references(() => profiles.id, { onDelete: "set null" }),
+  createdAt: timestamp().notNull().defaultNow(),
+});
 
-export const wikiEntryTags = pgTable.withRLS(
+export const wikiEntryTags = pgTable(
   "wiki_entry_tags",
   {
     id: uuid().primaryKey().defaultRandom(),
@@ -1696,21 +910,10 @@ export const wikiEntryTags = pgTable.withRLS(
       .notNull()
       .references(() => wikiTags.id, { onDelete: "cascade" }),
   },
-  (table) => [
-    unique("wiki_entry_tags_unique").on(table.entryId, table.tagId),
-    pgPolicy("follow entry access for entry tags", {
-      as: "permissive",
-      to: authenticatedRole,
-      using: sql`
-        EXISTS (SELECT 1 FROM ${wikiEntries} we WHERE we.id = ${table.entryId} AND we.status = 'published'::wiki_entry_status AND we.visibility = 'public'::wiki_visibility)
-        OR EXISTS (SELECT 1 FROM ${wikiEntries} we WHERE we.id = ${table.entryId} AND we.farm_id = (SELECT current_setting('request.farm_id', TRUE)::uuid))
-      `,
-      withCheck: sql`EXISTS (SELECT 1 FROM ${wikiEntries} we WHERE we.id = ${table.entryId} AND we.farm_id = (SELECT current_setting('request.farm_id', TRUE)::uuid))`,
-    }),
-  ]
+  (table) => [unique("wiki_entry_tags_unique").on(table.entryId, table.tagId)]
 );
 
-export const wikiEntryTranslations = pgTable.withRLS(
+export const wikiEntryTranslations = pgTable(
   "wiki_entry_translations",
   {
     id: uuid().primaryKey().defaultRandom(),
@@ -1726,334 +929,55 @@ export const wikiEntryTranslations = pgTable.withRLS(
   (table) => [
     unique("wiki_entry_translations_entry_locale_unique").on(table.entryId, table.locale),
     index("wiki_entry_translations_entry_id_idx").on(table.entryId),
-    pgPolicy("follow entry access for translations", {
-      as: "permissive",
-      to: authenticatedRole,
-      using: sql`
-        EXISTS (SELECT 1 FROM ${wikiEntries} we WHERE we.id = ${table.entryId} AND we.status = 'published'::wiki_entry_status AND we.visibility = 'public'::wiki_visibility)
-        OR EXISTS (SELECT 1 FROM ${wikiEntries} we WHERE we.id = ${table.entryId} AND we.farm_id = (SELECT current_setting('request.farm_id', TRUE)::uuid))
-      `,
-      withCheck: sql`EXISTS (SELECT 1 FROM ${wikiEntries} we WHERE we.id = ${table.entryId} AND we.farm_id = (SELECT current_setting('request.farm_id', TRUE)::uuid))`,
-    }),
   ]
 );
 
-export const wikiEntryImages = pgTable.withRLS(
+export const wikiEntryImages = pgTable(
   "wiki_entry_images",
   {
     id: uuid().primaryKey().defaultRandom(),
-    // No FK to wikiEntries — images may be uploaded before the entry is created
-    // (pre-generated UUID flow). Orphaned images are cleaned up by a cron job.
     entryId: uuid().notNull(),
     storagePath: text().notNull(),
     altText: text(),
     uploadedBy: uuid().references(() => profiles.id, { onDelete: "set null" }),
     createdAt: timestamp().notNull().defaultNow(),
   },
-  (table) => [
-    index("wiki_entry_images_entry_id_idx").on(table.entryId),
-    pgPolicy("follow entry access for images", {
-      as: "permissive",
-      to: authenticatedRole,
-      using: sql`
-        EXISTS (SELECT 1 FROM ${wikiEntries} we WHERE we.id = ${table.entryId} AND we.status = 'published'::wiki_entry_status AND we.visibility = 'public'::wiki_visibility)
-        OR EXISTS (SELECT 1 FROM ${wikiEntries} we WHERE we.id = ${table.entryId} AND we.farm_id = (SELECT current_setting('request.farm_id', TRUE)::uuid))
-      `,
-      withCheck: sql`EXISTS (SELECT 1 FROM ${wikiEntries} we WHERE we.id = ${table.entryId} AND we.farm_id = (SELECT current_setting('request.farm_id', TRUE)::uuid))`,
-    }),
-  ]
+  (table) => [index("wiki_entry_images_entry_id_idx").on(table.entryId)]
 );
 
-export const wikiChangeRequests = pgTable.withRLS(
-  "wiki_change_requests",
-  {
-    id: uuid().primaryKey().defaultRandom(),
-    // For new_entry: optional back-reference to the source private entry (null if deleted).
-    // For change_request: references the public entry being modified.
-    entryId: uuid().references(() => wikiEntries.id, { onDelete: "set null" }),
-    type: wikiChangeRequestType().notNull(),
-    status: wikiChangeRequestStatus().notNull().default("draft"),
-    submittedBy: uuid()
-      .notNull()
-      .references(() => profiles.id, { onDelete: "restrict" }),
-    // Snapshot fields for new_entry type — the proposed public entry content
-    proposedCategoryId: uuid().references(() => wikiCategories.id, {
-      onDelete: "set null",
-    }),
-    proposedFarmId: uuid().references(() => farms.id, { onDelete: "set null" }),
-    createdAt: timestamp().notNull().defaultNow(),
-    resolvedAt: timestamp(),
-  },
-  (table) => [
-    index("wiki_change_requests_entry_id_idx").on(table.entryId),
-    index("wiki_change_requests_status_idx").on(table.status),
-    pgPolicy("submitter can read own change requests", {
-      as: "permissive",
-      to: authenticatedRole,
-      for: "select",
-      using: eq(table.submittedBy, selectAuthUid),
-    }),
-    pgPolicy("authenticated can create change requests", {
-      as: "permissive",
-      to: authenticatedRole,
-      for: "insert",
-      withCheck: eq(table.submittedBy, selectAuthUid),
-    }),
-    // Submitter can update their own draft CRs (edit content + resubmit).
-    // Moderator actions (approve/reject/requestChanges) are performed via admin role.
-    pgPolicy("submitter can update own draft change requests", {
-      as: "permissive",
-      to: authenticatedRole,
-      for: "update",
-      using: and(
-        eq(table.submittedBy, selectAuthUid),
-        or(
-          eq(table.status, sql`'draft'::wiki_change_request_status`),
-          eq(table.status, sql`'changes_requested'::wiki_change_request_status`)
-        )
-      ),
-      withCheck: eq(table.submittedBy, selectAuthUid),
-    }),
-  ]
-);
+export const tasks = pgTable("tasks", {
+  id: uuid().primaryKey().defaultRandom(),
+  farmId: uuid()
+    .notNull()
+    .references(() => farms.id, { onDelete: "cascade" }),
+  name: text().notNull(),
+  description: text(),
+  labels: text().array().notNull().default([]),
+  status: taskStatus().notNull().default("todo"),
+  pinned: boolean().notNull().default(false),
+  assigneeId: uuid().references(() => profiles.id, { onDelete: "set null" }),
+  dueDate: date({ mode: "date" }),
+  createdAt: timestamp().notNull().defaultNow(),
+  createdBy: uuid().references(() => profiles.id, { onDelete: "set null" }),
+});
 
-export const wikiChangeRequestTranslations = pgTable.withRLS(
-  "wiki_change_request_translations",
-  {
-    id: uuid().primaryKey().defaultRandom(),
-    changeRequestId: uuid()
-      .notNull()
-      .references(() => wikiChangeRequests.id, { onDelete: "cascade" }),
-    locale: wikiLocale().notNull(),
-    title: text().notNull(),
-    body: text().notNull().default(""),
-  },
-  (table) => [
-    unique("wiki_cr_translations_unique").on(table.changeRequestId, table.locale),
-    index("wiki_cr_translations_cr_id_idx").on(table.changeRequestId),
-    pgPolicy("follow change request access for cr translations", {
-      as: "permissive",
-      to: authenticatedRole,
-      using: sql`(SELECT auth.uid()) IN (SELECT submitted_by FROM ${wikiChangeRequests} WHERE id = ${table.changeRequestId})`,
-      withCheck: sql`(SELECT auth.uid()) IN (SELECT submitted_by FROM ${wikiChangeRequests} WHERE id = ${table.changeRequestId})`,
-    }),
-  ]
-);
+export const taskRecurrences = pgTable("task_recurrences", {
+  id: uuid().defaultRandom().primaryKey(),
+  farmId: uuid()
+    .notNull()
+    .references(() => farms.id, { onDelete: "cascade" }),
+  taskId: uuid()
+    .notNull()
+    .references(() => tasks.id, { onDelete: "cascade" }),
+  frequency: frequency("frequency").notNull(),
+  interval: integer("interval").default(1).notNull(),
+  byWeekday: weekday("by_weekday").array(),
+  byMonthDay: integer("by_month_day"),
+  until: date("until", { mode: "date" }),
+  count: integer("count"),
+});
 
-// Notes thread on a change request — used for communication between submitter and moderators
-export const wikiChangeRequestNotes = pgTable.withRLS(
-  "wiki_change_request_notes",
-  {
-    id: uuid().primaryKey().defaultRandom(),
-    changeRequestId: uuid()
-      .notNull()
-      .references(() => wikiChangeRequests.id, { onDelete: "cascade" }),
-    authorId: uuid()
-      .notNull()
-      .references(() => profiles.id, { onDelete: "restrict" }),
-    body: text().notNull(),
-    createdAt: timestamp().notNull().defaultNow(),
-  },
-  (table) => [
-    index("wiki_cr_notes_cr_id_idx").on(table.changeRequestId),
-    // Submitter can read and write notes on their own CRs.
-    // Moderators read/write via db.admin (bypasses RLS).
-    pgPolicy("submitter can read and write notes on own change requests", {
-      as: "permissive",
-      to: authenticatedRole,
-      using: sql`(SELECT auth.uid()) IN (SELECT submitted_by FROM ${wikiChangeRequests} WHERE id = ${table.changeRequestId})`,
-      withCheck: sql`(SELECT auth.uid()) IN (SELECT submitted_by FROM ${wikiChangeRequests} WHERE id = ${table.changeRequestId}) AND ${table.authorId} = (SELECT auth.uid())`,
-    }),
-  ]
-);
-
-export const wikiModerators = pgTable.withRLS(
-  "wiki_moderators",
-  {
-    userId: uuid()
-      .primaryKey()
-      .references(() => profiles.id, { onDelete: "cascade" }),
-    grantedBy: uuid().references(() => profiles.id, { onDelete: "set null" }),
-    grantedAt: timestamp().notNull().defaultNow(),
-  },
-  () => [
-    pgPolicy("authenticated users can read wiki moderators", {
-      as: "permissive",
-      to: authenticatedRole,
-      for: "select",
-      using: sql`true`,
-    }),
-    // INSERT/UPDATE/DELETE managed by service role only
-  ]
-);
-
-// Platform-wide forum threads (not farm-scoped); any authenticated user can read,
-// membership-gated writes are enforced at app layer via membershipEndpointFactory
-export const forumThreads = pgTable.withRLS(
-  "forum_threads",
-  {
-    id: uuid().primaryKey().defaultRandom(),
-    title: text().notNull(),
-    body: text().notNull().default(""),
-    type: forumThreadTypeEnum().notNull().default("general"),
-    status: forumThreadStatusEnum().notNull().default("open"),
-    isPinned: boolean("is_pinned").notNull().default(false),
-    createdBy: uuid()
-      .notNull()
-      .references(() => profiles.id, { onDelete: "restrict" }),
-    createdAt: timestamp().notNull().defaultNow(),
-    updatedAt: timestamp().notNull().defaultNow(),
-  },
-  (table) => [
-    index("forum_threads_status_idx").on(table.status),
-    index("forum_threads_type_idx").on(table.type),
-    pgPolicy("authenticated users can read forum threads", {
-      as: "permissive",
-      to: authenticatedRole,
-      for: "select",
-      using: sql`true`,
-    }),
-    pgPolicy("authenticated users can create forum threads", {
-      as: "permissive",
-      to: authenticatedRole,
-      for: "insert",
-      withCheck: eq(table.createdBy, selectAuthUid),
-    }),
-    pgPolicy("creator can update own forum threads", {
-      as: "permissive",
-      to: authenticatedRole,
-      for: "update",
-      using: eq(table.createdBy, selectAuthUid),
-      withCheck: eq(table.createdBy, selectAuthUid),
-    }),
-    pgPolicy("creator can delete own forum threads", {
-      as: "permissive",
-      to: authenticatedRole,
-      for: "delete",
-      using: eq(table.createdBy, selectAuthUid),
-    }),
-  ]
-);
-
-export const forumReplies = pgTable.withRLS(
-  "forum_replies",
-  {
-    id: uuid().primaryKey().defaultRandom(),
-    threadId: uuid()
-      .notNull()
-      .references(() => forumThreads.id, { onDelete: "cascade" }),
-    body: text().notNull(),
-    createdBy: uuid()
-      .notNull()
-      .references(() => profiles.id, { onDelete: "restrict" }),
-    createdAt: timestamp().notNull().defaultNow(),
-    updatedAt: timestamp().notNull().defaultNow(),
-  },
-  (table) => [
-    index("forum_replies_thread_id_idx").on(table.threadId),
-    pgPolicy("authenticated users can read forum replies", {
-      as: "permissive",
-      to: authenticatedRole,
-      for: "select",
-      using: sql`true`,
-    }),
-    pgPolicy("authenticated users can create forum replies", {
-      as: "permissive",
-      to: authenticatedRole,
-      for: "insert",
-      withCheck: eq(table.createdBy, selectAuthUid),
-    }),
-    pgPolicy("creator can update own forum replies", {
-      as: "permissive",
-      to: authenticatedRole,
-      for: "update",
-      using: eq(table.createdBy, selectAuthUid),
-      withCheck: eq(table.createdBy, selectAuthUid),
-    }),
-    pgPolicy("creator can delete own forum replies", {
-      as: "permissive",
-      to: authenticatedRole,
-      for: "delete",
-      using: eq(table.createdBy, selectAuthUid),
-    }),
-  ]
-);
-
-// Moderator permission table — admin-managed, authenticated users can read (to check own status)
-export const forumModerators = pgTable.withRLS(
-  "forum_moderators",
-  {
-    userId: uuid()
-      .primaryKey()
-      .references(() => profiles.id, { onDelete: "cascade" }),
-    grantedBy: uuid().references(() => profiles.id, { onDelete: "set null" }),
-    grantedAt: timestamp().notNull().defaultNow(),
-  },
-  () => [
-    pgPolicy("authenticated users can read forum moderators", {
-      as: "permissive",
-      to: authenticatedRole,
-      for: "select",
-      using: sql`true`,
-    }),
-  ]
-);
-
-export const tasks = pgTable.withRLS(
-  "tasks",
-  {
-    id: uuid().primaryKey().defaultRandom(),
-    farmId: uuid()
-      .notNull()
-      .references(() => farms.id, { onDelete: "cascade" }),
-    name: text().notNull(),
-    description: text(),
-    labels: text().array().notNull().default([]),
-    status: taskStatus().notNull().default("todo"),
-    pinned: boolean().notNull().default(false),
-    assigneeId: uuid().references(() => profiles.id, { onDelete: "set null" }),
-    dueDate: date({ mode: "date" }),
-    createdAt: timestamp().notNull().defaultNow(),
-    createdBy: uuid().references(() => profiles.id, { onDelete: "set null" }),
-  },
-  (table) => [
-    pgPolicy("only farm members", {
-      as: "permissive",
-      to: authenticatedRole,
-      using: eq(table.farmId, currentFarmId),
-      withCheck: eq(table.farmId, currentFarmId),
-    }),
-  ]
-);
-
-export const taskRecurrences = pgTable.withRLS(
-  "task_recurrences",
-  {
-    id: uuid().defaultRandom().primaryKey(),
-    farmId: uuid()
-      .notNull()
-      .references(() => farms.id, { onDelete: "cascade" }),
-    taskId: uuid()
-      .notNull()
-      .references(() => tasks.id, { onDelete: "cascade" }),
-    frequency: frequency("frequency").notNull(),
-    interval: integer("interval").default(1).notNull(),
-    byWeekday: weekday("by_weekday").array(),
-    byMonthDay: integer("by_month_day"),
-    until: date("until", { mode: "date" }),
-    count: integer("count"),
-  },
-  (table) => [
-    pgPolicy("only farm members", {
-      as: "permissive",
-      to: authenticatedRole,
-      using: eq(table.farmId, currentFarmId),
-      withCheck: eq(table.farmId, currentFarmId),
-    }),
-  ]
-);
-
-export const taskLinks = pgTable.withRLS(
+export const taskLinks = pgTable(
   "task_links",
   {
     id: uuid().primaryKey().defaultRandom(),
@@ -2069,16 +993,10 @@ export const taskLinks = pgTable.withRLS(
   (table) => [
     unique("task_links_unique").on(table.taskId, table.linkType, table.linkedId),
     index("task_links_task_id_idx").on(table.taskId),
-    pgPolicy("only farm members", {
-      as: "permissive",
-      to: authenticatedRole,
-      using: eq(table.farmId, currentFarmId),
-      withCheck: eq(table.farmId, currentFarmId),
-    }),
   ]
 );
 
-export const taskChecklistItems = pgTable.withRLS(
+export const taskChecklistItems = pgTable(
   "task_checklist_items",
   {
     id: uuid().primaryKey().defaultRandom(),
@@ -2094,66 +1012,10 @@ export const taskChecklistItems = pgTable.withRLS(
     done: boolean().notNull().default(false),
     createdAt: timestamp().notNull().defaultNow(),
   },
-  (table) => [
-    index("task_checklist_items_task_id_idx").on(table.taskId),
-    pgPolicy("only farm members", {
-      as: "permissive",
-      to: authenticatedRole,
-      using: eq(table.farmId, currentFarmId),
-      withCheck: eq(table.farmId, currentFarmId),
-    }),
-  ]
+  (table) => [index("task_checklist_items_task_id_idx").on(table.taskId)]
 );
 
-export const farmInvites = pgTable.withRLS(
-  "farm_invites",
-  {
-    id: uuid().primaryKey().defaultRandom(),
-    farmId: uuid()
-      .notNull()
-      .references(() => farms.id, { onDelete: "cascade" }),
-    email: text().notNull(),
-    code: text().notNull().unique(),
-    role: farmRoleEnum().notNull().default("member"),
-    createdBy: uuid().references(() => profiles.id, { onDelete: "set null" }),
-    expiresAt: timestamp().notNull(),
-    usedAt: timestamp(),
-  },
-  (table) => [
-    index("farm_invites_code_idx").on(table.code),
-    pgPolicy("only farm members", {
-      as: "permissive",
-      to: authenticatedRole,
-      using: eq(table.farmId, currentFarmId),
-      withCheck: eq(table.farmId, currentFarmId),
-    }),
-  ]
-);
-
-// Stores the initial feature permissions to be applied when a farm invite is accepted.
-// Features not listed default to "none". Rows are deleted via cascade when the invite is deleted.
-export const farmInvitePermissions = pgTable.withRLS(
-  "farm_invite_permissions",
-  {
-    id: uuid().primaryKey().defaultRandom(),
-    inviteId: uuid()
-      .notNull()
-      .references(() => farmInvites.id, { onDelete: "cascade" }),
-    feature: farmPermissionFeatureEnum().notNull(),
-    access: text().$type<"none" | "read" | "write">().notNull().default("none"),
-  },
-  (table) => [
-    unique("farm_invite_permissions_invite_feature_unique").on(table.inviteId, table.feature),
-    pgPolicy("only farm members via invite", {
-      as: "permissive",
-      to: authenticatedRole,
-      using: sql`${table.inviteId} IN (SELECT id FROM farm_invites WHERE farm_id = farm_id())`,
-      withCheck: sql`${table.inviteId} IN (SELECT id FROM farm_invites WHERE farm_id = farm_id())`,
-    }),
-  ]
-);
-
-export const farmMemberPermissions = pgTable.withRLS(
+export const farmMemberPermissions = pgTable(
   "farm_member_permissions",
   {
     id: uuid().primaryKey().defaultRandom(),
@@ -2164,29 +1026,12 @@ export const farmMemberPermissions = pgTable.withRLS(
       .notNull()
       .references(() => profiles.id, { onDelete: "cascade" }),
     feature: farmPermissionFeatureEnum().notNull(),
-    // "none" = no access; "read" = read-only; "write" = full access
     access: text().$type<"none" | "read" | "write">().notNull().default("none"),
   },
-  (table) => [
-    unique("farm_member_permissions_user_feature_unique").on(table.userId, table.feature),
-    pgPolicy("farm members can read permissions", {
-      as: "permissive",
-      to: authenticatedRole,
-      for: "select",
-      using: eq(table.farmId, currentFarmId),
-    }),
-    // Write ops (insert/update/delete) are enforced in the app layer (owner only)
-    pgPolicy("farm members can manage permissions", {
-      as: "permissive",
-      to: authenticatedRole,
-      for: "all",
-      using: eq(table.farmId, currentFarmId),
-      withCheck: eq(table.farmId, currentFarmId),
-    }),
-  ]
+  (table) => [unique("farm_member_permissions_user_feature_unique").on(table.userId, table.feature)]
 );
 
-export const plotJournalEntries = pgTable.withRLS(
+export const plotJournalEntries = pgTable(
   "plot_journal_entries",
   {
     id: uuid().primaryKey().defaultRandom(),
@@ -2203,46 +1048,21 @@ export const plotJournalEntries = pgTable.withRLS(
     createdAt: timestamp().notNull().defaultNow(),
     updatedAt: timestamp().notNull().defaultNow(),
   },
-  (table) => [
-    index("plot_journal_entries_plot_id_idx").on(table.plotId),
-    pgPolicy("only farm members", {
-      as: "permissive",
-      to: authenticatedRole,
-      using: eq(table.farmId, currentFarmId),
-      withCheck: eq(table.farmId, currentFarmId),
-    }),
-  ]
+  (table) => [index("plot_journal_entries_plot_id_idx").on(table.plotId)]
 );
 
-export const plotJournalImages = pgTable.withRLS(
+export const plotJournalImages = pgTable(
   "plot_journal_images",
   {
     id: uuid().primaryKey().defaultRandom(),
-    // No FK to plotJournalEntries — pre-upload flow, same rationale as animalJournalImages
     journalEntryId: uuid().notNull(),
     storagePath: text().notNull(),
     createdAt: timestamp().notNull().defaultNow(),
   },
-  (table) => [
-    index("plot_journal_images_entry_id_idx").on(table.journalEntryId),
-    pgPolicy("only farm members via journal entry", {
-      as: "permissive",
-      to: authenticatedRole,
-      using: sql`EXISTS (
-        SELECT 1 FROM ${plotJournalEntries} e
-        WHERE e.id = ${table.journalEntryId}
-        AND e.farm_id = (SELECT farm_id())
-      )`,
-      withCheck: sql`EXISTS (
-        SELECT 1 FROM ${plotJournalEntries} e
-        WHERE e.id = ${table.journalEntryId}
-        AND e.farm_id = (SELECT farm_id())
-      )`,
-    }),
-  ]
+  (table) => [index("plot_journal_images_entry_id_idx").on(table.journalEntryId)]
 );
 
-export const animalJournalEntries = pgTable.withRLS(
+export const animalJournalEntries = pgTable(
   "animal_journal_entries",
   {
     id: uuid().primaryKey().defaultRandom(),
@@ -2259,47 +1079,21 @@ export const animalJournalEntries = pgTable.withRLS(
     createdAt: timestamp().notNull().defaultNow(),
     updatedAt: timestamp().notNull().defaultNow(),
   },
-  (table) => [
-    index("animal_journal_entries_animal_id_idx").on(table.animalId),
-    pgPolicy("only farm members", {
-      as: "permissive",
-      to: authenticatedRole,
-      using: eq(table.farmId, currentFarmId),
-      withCheck: eq(table.farmId, currentFarmId),
-    }),
-  ]
+  (table) => [index("animal_journal_entries_animal_id_idx").on(table.animalId)]
 );
 
-export const animalJournalImages = pgTable.withRLS(
+export const animalJournalImages = pgTable(
   "animal_journal_images",
   {
     id: uuid().primaryKey().defaultRandom(),
-    // No FK to animalJournalEntries — images may be uploaded before the entry is created
-    // (pre-generated UUID flow). Orphaned images can be cleaned up by a cron job.
     journalEntryId: uuid().notNull(),
     storagePath: text().notNull(),
     createdAt: timestamp().notNull().defaultNow(),
   },
-  (table) => [
-    index("animal_journal_images_entry_id_idx").on(table.journalEntryId),
-    pgPolicy("only farm members via journal entry", {
-      as: "permissive",
-      to: authenticatedRole,
-      using: sql`EXISTS (
-        SELECT 1 FROM ${animalJournalEntries} e
-        WHERE e.id = ${table.journalEntryId}
-        AND e.farm_id = (SELECT farm_id())
-      )`,
-      withCheck: sql`EXISTS (
-        SELECT 1 FROM ${animalJournalEntries} e
-        WHERE e.id = ${table.journalEntryId}
-        AND e.farm_id = (SELECT farm_id())
-      )`,
-    }),
-  ]
+  (table) => [index("animal_journal_images_entry_id_idx").on(table.journalEntryId)]
 );
 
-// Schema object for defineRelations (contains all tables)
+// Schema object for defineRelations
 const tables = {
   federalFarmPlots,
   profiles,
@@ -2348,46 +1142,23 @@ const tables = {
   wikiEntryTags,
   wikiEntryTranslations,
   wikiEntryImages,
-  wikiChangeRequests,
-  wikiChangeRequestTranslations,
-  wikiChangeRequestNotes,
-  wikiModerators,
-  forumThreads,
-  forumReplies,
-  forumModerators,
   tasks,
   taskRecurrences,
   taskLinks,
   taskChecklistItems,
-  farmInvites,
-  farmInvitePermissions,
   farmMemberPermissions,
   plotJournalEntries,
   plotJournalImages,
   animalJournalEntries,
   animalJournalImages,
-  userSubscriptions,
-  userTrials,
-  membershipPayments,
-  membershipExpiryNotifications,
-  donations,
-  handoffTokens,
   invoiceSettings,
 };
 
-// Define all relations using the new Drizzle v1 API
 export const relations = defineRelations(tables, (r) => ({
   profiles: {
     farm: r.one.farms({
       from: r.profiles.farmId,
       to: r.farms.id,
-    }), // optional - farmId can be null
-    handoffTokens: r.many.handoffTokens(),
-  },
-  handoffTokens: {
-    user: r.one.profiles({
-      from: r.handoffTokens.userId,
-      to: r.profiles.id,
     }),
   },
   farms: {
@@ -2396,54 +1167,6 @@ export const relations = defineRelations(tables, (r) => ({
     plots: r.many.plots(),
     harvests: r.many.harvests(),
     fertilizerApplications: r.many.fertilizerApplications(),
-    invites: r.many.farmInvites(),
-  },
-  userSubscriptions: {
-    user: r.one.profiles({
-      from: r.userSubscriptions.userId,
-      to: r.profiles.id,
-      optional: false,
-    }),
-  },
-  userTrials: {
-    user: r.one.profiles({
-      from: r.userTrials.userId,
-      to: r.profiles.id,
-      optional: false,
-    }),
-  },
-  membershipPayments: {
-    user: r.one.profiles({
-      from: r.membershipPayments.userId,
-      to: r.profiles.id,
-      optional: false,
-    }),
-  },
-  donations: {
-    user: r.one.profiles({
-      from: r.donations.userId,
-      to: r.profiles.id,
-    }),
-  },
-  farmInvites: {
-    farm: r.one.farms({
-      from: r.farmInvites.farmId,
-      to: r.farms.id,
-      optional: false,
-    }),
-    creator: r.one.profiles({
-      from: r.farmInvites.createdBy,
-      to: r.profiles.id,
-      alias: "creator",
-    }),
-    permissions: r.many.farmInvitePermissions(),
-  },
-  farmInvitePermissions: {
-    invite: r.one.farmInvites({
-      from: r.farmInvitePermissions.inviteId,
-      to: r.farmInvites.id,
-      optional: false,
-    }),
   },
   farmMemberPermissions: {
     farm: r.one.farms({
@@ -2728,11 +1451,11 @@ export const relations = defineRelations(tables, (r) => ({
     sponsorship: r.one.sponsorships({
       from: r.payments.sponsorshipId,
       to: r.sponsorships.id,
-    }), // optional - sponsorshipId can be null
+    }),
     order: r.one.orders({
       from: r.payments.orderId,
       to: r.orders.id,
-    }), // optional - orderId can be null
+    }),
   },
   earTags: {
     farm: r.one.farms({
@@ -2743,7 +1466,7 @@ export const relations = defineRelations(tables, (r) => ({
     animal: r.one.animals({
       from: r.earTags.id,
       to: r.animals.earTagId,
-    }), // optional - may not be assigned to any animal
+    }),
   },
   animals: {
     farm: r.one.farms({
@@ -2754,17 +1477,17 @@ export const relations = defineRelations(tables, (r) => ({
     earTag: r.one.earTags({
       from: r.animals.earTagId,
       to: r.earTags.id,
-    }), // optional - earTagId can be null
+    }),
     mother: r.one.animals({
       from: r.animals.motherId,
       to: r.animals.id,
       alias: "mother",
-    }), // optional - motherId can be null
+    }),
     father: r.one.animals({
       from: r.animals.fatherId,
       to: r.animals.id,
       alias: "father",
-    }), // optional - fatherId can be null
+    }),
     childrenAsMother: r.many.animals({
       from: r.animals.id,
       to: r.animals.motherId,
@@ -2872,7 +1595,7 @@ export const relations = defineRelations(tables, (r) => ({
     createdByProfile: r.one.profiles({
       from: r.treatments.createdBy,
       to: r.profiles.id,
-    }), // optional - createdBy can be null
+    }),
     animalTreatments: r.many.animalTreatments(),
   },
   animalTreatments: {
@@ -2916,7 +1639,6 @@ export const relations = defineRelations(tables, (r) => ({
     translations: r.many.wikiEntryTranslations(),
     images: r.many.wikiEntryImages(),
     tags: r.many.wikiEntryTags(),
-    changeRequests: r.many.wikiChangeRequests(),
   },
   wikiTags: {
     creator: r.one.profiles({
@@ -2948,73 +1670,6 @@ export const relations = defineRelations(tables, (r) => ({
     entry: r.one.wikiEntries({
       from: r.wikiEntryImages.entryId,
       to: r.wikiEntries.id,
-      optional: false,
-    }),
-  },
-  wikiChangeRequests: {
-    entry: r.one.wikiEntries({
-      from: r.wikiChangeRequests.entryId,
-      to: r.wikiEntries.id,
-      optional: true,
-    }),
-    submitter: r.one.profiles({
-      from: r.wikiChangeRequests.submittedBy,
-      to: r.profiles.id,
-      optional: false,
-    }),
-    translations: r.many.wikiChangeRequestTranslations(),
-    notes: r.many.wikiChangeRequestNotes(),
-  },
-  wikiChangeRequestTranslations: {
-    changeRequest: r.one.wikiChangeRequests({
-      from: r.wikiChangeRequestTranslations.changeRequestId,
-      to: r.wikiChangeRequests.id,
-      optional: false,
-    }),
-  },
-  wikiChangeRequestNotes: {
-    changeRequest: r.one.wikiChangeRequests({
-      from: r.wikiChangeRequestNotes.changeRequestId,
-      to: r.wikiChangeRequests.id,
-      optional: false,
-    }),
-    author: r.one.profiles({
-      from: r.wikiChangeRequestNotes.authorId,
-      to: r.profiles.id,
-      optional: false,
-    }),
-  },
-  wikiModerators: {
-    user: r.one.profiles({
-      from: r.wikiModerators.userId,
-      to: r.profiles.id,
-      optional: false,
-    }),
-  },
-  forumThreads: {
-    creator: r.one.profiles({
-      from: r.forumThreads.createdBy,
-      to: r.profiles.id,
-      optional: false,
-    }),
-    replies: r.many.forumReplies(),
-  },
-  forumReplies: {
-    thread: r.one.forumThreads({
-      from: r.forumReplies.threadId,
-      to: r.forumThreads.id,
-      optional: false,
-    }),
-    creator: r.one.profiles({
-      from: r.forumReplies.createdBy,
-      to: r.profiles.id,
-      optional: false,
-    }),
-  },
-  forumModerators: {
-    user: r.one.profiles({
-      from: r.forumModerators.userId,
-      to: r.profiles.id,
       optional: false,
     }),
   },
@@ -3164,16 +1819,7 @@ export const wikiCategorySchema = z.object({
 });
 
 export const wikiEntryStatusSchema = z.enum(wikiEntryStatus.enumValues);
-export const wikiVisibilitySchema = z.enum(wikiVisibility.enumValues);
-export const wikiChangeRequestTypeSchema = z.enum(wikiChangeRequestType.enumValues);
-export const wikiChangeRequestStatusSchema = z.enum(wikiChangeRequestStatus.enumValues);
 export const wikiLocaleSchema = z.enum(wikiLocale.enumValues);
 
 export const taskStatusSchema = z.enum(taskStatus.enumValues);
 export const taskLinkTypeSchema = z.enum(taskLinkType.enumValues);
-
-export const membershipPaymentStatusSchema = z.enum(membershipPaymentStatusEnum.enumValues);
-export const donationStatusSchema = z.enum(donationStatusEnum.enumValues);
-
-export const forumThreadTypeSchema = z.enum(forumThreadTypeEnum.enumValues);
-export const forumThreadStatusSchema = z.enum(forumThreadStatusEnum.enumValues);

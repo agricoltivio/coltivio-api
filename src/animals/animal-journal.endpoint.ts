@@ -1,9 +1,19 @@
 import { ez } from "express-zod-api";
 import { z } from "zod";
-import { permissionMembershipEndpoint } from "../endpoint-factory";
+import { permissionFarmEndpoint } from "../endpoint-factory";
+import {
+  listAnimalJournalEntries,
+  getAnimalJournalEntry,
+  createAnimalJournalEntry,
+  updateAnimalJournalEntry,
+  deleteAnimalJournalEntry,
+  requestAnimalJournalSignedImageUrl,
+  registerAnimalJournalImage,
+  deleteAnimalJournalImage,
+} from "./animal-journal";
 
-const animalsRead = permissionMembershipEndpoint("animals", "read");
-const animalsWrite = permissionMembershipEndpoint("animals", "write");
+const animalsRead = permissionFarmEndpoint("animals", "read");
+const animalsWrite = permissionFarmEndpoint("animals", "write");
 
 const journalImageSchema = z.object({
   id: z.string(),
@@ -33,8 +43,8 @@ export const listAnimalJournalEntriesEndpoint = animalsRead.build({
   method: "get",
   input: z.object({ animalId: z.string() }),
   output: z.object({ entries: z.array(journalEntryWithImagesSchema) }),
-  handler: async ({ input, ctx: { animalJournal, farmId } }) => {
-    const entries = await animalJournal.listEntries(input.animalId, farmId);
+  handler: async ({ input, ctx: { farmId } }) => {
+    const entries = await listAnimalJournalEntries(input.animalId, farmId);
     return { entries };
   },
 });
@@ -48,9 +58,9 @@ export const createAnimalJournalEntryEndpoint = animalsWrite.build({
     content: z.string().optional(),
   }),
   output: journalEntrySchema,
-  handler: async ({ input, ctx: { animalJournal, farmId, user } }) => {
+  handler: async ({ input, ctx: { farmId, user } }) => {
     const { animalId, ...entryInput } = input;
-    return animalJournal.createEntry(animalId, farmId, user.id, entryInput);
+    return createAnimalJournalEntry(animalId, farmId, user.id, entryInput);
   },
 });
 
@@ -58,8 +68,8 @@ export const getAnimalJournalEntryEndpoint = animalsRead.build({
   method: "get",
   input: z.object({ entryId: z.string() }),
   output: journalEntryWithImagesSchema,
-  handler: async ({ input, ctx: { animalJournal } }) => {
-    return animalJournal.getEntry(input.entryId);
+  handler: async ({ input, ctx: { farmId } }) => {
+    return getAnimalJournalEntry(input.entryId, farmId);
   },
 });
 
@@ -72,9 +82,9 @@ export const updateAnimalJournalEntryEndpoint = animalsWrite.build({
     content: z.string().optional(),
   }),
   output: journalEntrySchema,
-  handler: async ({ input, ctx: { animalJournal } }) => {
+  handler: async ({ input, ctx: { farmId } }) => {
     const { entryId, ...updateInput } = input;
-    return animalJournal.updateEntry(entryId, updateInput);
+    return updateAnimalJournalEntry(entryId, farmId, updateInput);
   },
 });
 
@@ -82,8 +92,8 @@ export const deleteAnimalJournalEntryEndpoint = animalsWrite.build({
   method: "delete",
   input: z.object({ entryId: z.string() }),
   output: z.object({}),
-  handler: async ({ input, ctx: { animalJournal } }) => {
-    await animalJournal.deleteEntry(input.entryId);
+  handler: async ({ input, ctx: { farmId } }) => {
+    await deleteAnimalJournalEntry(input.entryId, farmId);
     return {};
   },
 });
@@ -98,8 +108,8 @@ export const requestAnimalJournalImageSignedUrlEndpoint = animalsWrite.build({
     signedUrl: z.string(),
     path: z.string(),
   }),
-  handler: async ({ input, ctx: { animalJournal } }) => {
-    return animalJournal.requestSignedImageUrl(input.journalEntryId, input.filename);
+  handler: async ({ input }) => {
+    return requestAnimalJournalSignedImageUrl(input.journalEntryId, input.filename);
   },
 });
 
@@ -110,8 +120,8 @@ export const registerAnimalJournalImageEndpoint = animalsWrite.build({
     storagePath: z.string().min(1),
   }),
   output: journalImageSchema,
-  handler: async ({ input, ctx: { animalJournal } }) => {
-    return animalJournal.registerImage(input.journalEntryId, input.storagePath);
+  handler: async ({ input }) => {
+    return registerAnimalJournalImage(input.journalEntryId, input.storagePath);
   },
 });
 
@@ -119,8 +129,8 @@ export const deleteAnimalJournalImageEndpoint = animalsWrite.build({
   method: "delete",
   input: z.object({ imageId: z.string() }),
   output: z.object({}),
-  handler: async ({ input, ctx: { animalJournal } }) => {
-    await animalJournal.deleteImage(input.imageId);
+  handler: async ({ input }) => {
+    await deleteAnimalJournalImage(input.imageId);
     return {};
   },
 });

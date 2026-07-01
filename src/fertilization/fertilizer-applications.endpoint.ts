@@ -9,10 +9,25 @@ import {
   multiPolygonSchema,
 } from "../db/schema";
 import { permissionFarmEndpoint } from "../endpoint-factory";
+import {
+  createFertilizerApplicationPreset,
+  createFertilizerApplications,
+  deleteFertilizerApplication,
+  deleteFertilizerApplicationPreset,
+  getFertilizerApplicationById,
+  getFertilizerApplicationPresetById,
+  getFertilizerApplicationPresets,
+  getFertilizerApplicationsForFarm,
+  getFertilizerApplicationsForPlot,
+  getFertilizerApplicationSummaryForFarm,
+  getFertilizerApplicationSummaryForPlot,
+  getFertilizerApplicationYears,
+  updateFertilizerApplicationPreset,
+} from "./fertilizer-applications";
+import { fertilizerSchema } from "./fertilizers.endpoint";
 
 const fertilizationRead = permissionFarmEndpoint("field_calendar", "read");
 const fertilizationWrite = permissionFarmEndpoint("field_calendar", "write");
-import { fertilizerSchema } from "./fertilizers.endpoint";
 
 const plotMinimalSchema = z.object({
   id: z.string(),
@@ -50,10 +65,9 @@ export const getFertilizerApplicationsForFarmEndpoint = fertilizationRead.build(
     result: z.array(fertilizerApplicationResponseSchema),
     count: z.number(),
   }),
-  handler: async ({ input, ctx: { fertilizerApplications, farmId } }) => {
+  handler: async ({ input, ctx: { farmId } }) => {
     const { from, to } = ensureDateRange(input.fromDate, input.toDate);
-    const result = await fertilizerApplications.getFertilizerApplicationsForFarm(farmId, from, to);
-
+    const result = await getFertilizerApplicationsForFarm(farmId, from, to);
     return {
       result,
       count: result.length,
@@ -68,9 +82,8 @@ export const getFertilizerApplicationsForPlotEndpoint = fertilizationRead.build(
     result: fertilizerApplicationResponseSchema.omit({ plot: true }).array(),
     count: z.number(),
   }),
-  handler: async ({ input, ctx: { fertilizerApplications } }) => {
-    const result = await fertilizerApplications.getFertilizerApplicationsForPlot(input.plotId);
-
+  handler: async ({ input }) => {
+    const result = await getFertilizerApplicationsForPlot(input.plotId);
     return {
       result,
       count: result.length,
@@ -82,10 +95,8 @@ export const getFertilizerApplicationByIdEndpoint = fertilizationRead.build({
   method: "get",
   input: z.object({ fertilizerApplicationId: z.string() }),
   output: fertilizerApplicationResponseSchema,
-  handler: async ({ input, ctx: { fertilizerApplications } }) => {
-    const fertilizerApplication = await fertilizerApplications.getFertilizerApplicationById(
-      input.fertilizerApplicationId
-    );
+  handler: async ({ input }) => {
+    const fertilizerApplication = await getFertilizerApplicationById(input.fertilizerApplicationId);
     if (!fertilizerApplication) {
       throw createHttpError(404, "Fertilizer Application not found");
     }
@@ -115,11 +126,8 @@ export const createFertilizerApplicationsEndpoint = fertilizationWrite.build({
     result: fertilizerApplicationResponseSchema.array(),
     count: z.number(),
   }),
-  handler: async ({ input, ctx: { user, fertilizerApplications } }) => {
-    const result = await fertilizerApplications.createFertilizerApplications({
-      ...input,
-      createdBy: user.id,
-    });
+  handler: async ({ input, ctx: { user, farmId } }) => {
+    const result = await createFertilizerApplications({ ...input, createdBy: user.id }, farmId);
     return {
       result,
       count: result.length,
@@ -131,8 +139,8 @@ export const deleteFertilizerApplicationEndpoint = fertilizationWrite.build({
   method: "delete",
   input: z.object({ fertilizerApplicationId: z.string() }),
   output: z.object({}),
-  handler: async ({ input, ctx: { fertilizerApplications } }) => {
-    await fertilizerApplications.deleteFertilizerApplication(input.fertilizerApplicationId);
+  handler: async ({ input }) => {
+    await deleteFertilizerApplication(input.fertilizerApplicationId);
     return {};
   },
 });
@@ -144,8 +152,8 @@ export const getFertilizerApplicationYearsEndpoint = fertilizationRead.build({
     result: z.array(z.string()),
     count: z.number(),
   }),
-  handler: async ({ ctx: { fertilizerApplications } }) => {
-    const result = await fertilizerApplications.getFertilizerApplicationYears();
+  handler: async ({ ctx: { farmId } }) => {
+    const result = await getFertilizerApplicationYears(farmId);
     return {
       result,
       count: result.length,
@@ -172,8 +180,8 @@ export const getFertilizerApplicationSummaryForFarmEndpoint = fertilizationRead.
   method: "get",
   input: z.object({}),
   output: fertilizerApplicationSummaryResponseSchema,
-  handler: async ({ ctx: { fertilizerApplications, farmId } }) => {
-    return fertilizerApplications.getFertilizerApplicationSummaryForFarm(farmId);
+  handler: async ({ ctx: { farmId } }) => {
+    return getFertilizerApplicationSummaryForFarm(farmId);
   },
 });
 
@@ -181,8 +189,8 @@ export const getFertilizerApplicationSummaryForPlotEndpoint = fertilizationRead.
   method: "get",
   input: z.object({ plotId: z.string() }),
   output: fertilizerApplicationSummaryResponseSchema,
-  handler: async ({ input, ctx: { fertilizerApplications } }) => {
-    return fertilizerApplications.getFertilizerApplicationSummaryForPlot(input.plotId);
+  handler: async ({ input }) => {
+    return getFertilizerApplicationSummaryForPlot(input.plotId);
   },
 });
 
@@ -204,8 +212,8 @@ export const getFertilizerApplicationPresetsEndpoint = fertilizationRead.build({
     result: z.array(fertilizerApplicationPresetSchema),
     count: z.number(),
   }),
-  handler: async ({ ctx: { fertilizerApplications } }) => {
-    const result = await fertilizerApplications.getFertilizerApplicationPresets();
+  handler: async ({ ctx: { farmId } }) => {
+    const result = await getFertilizerApplicationPresets(farmId);
     return { result, count: result.length };
   },
 });
@@ -214,8 +222,8 @@ export const getFertilizerApplicationPresetByIdEndpoint = fertilizationRead.buil
   method: "get",
   input: z.object({ presetId: z.string() }),
   output: fertilizerApplicationPresetSchema,
-  handler: async ({ input, ctx: { fertilizerApplications } }) => {
-    const preset = await fertilizerApplications.getFertilizerApplicationPresetById(input.presetId);
+  handler: async ({ input }) => {
+    const preset = await getFertilizerApplicationPresetById(input.presetId);
     if (!preset) {
       throw createHttpError(404, "Fertilizer application preset not found");
     }
@@ -233,8 +241,8 @@ export const createFertilizerApplicationPresetEndpoint = fertilizationWrite.buil
     amountPerUnit: z.number(),
   }),
   output: fertilizerApplicationPresetSchema,
-  handler: async ({ input, ctx: { fertilizerApplications } }) => {
-    return fertilizerApplications.createFertilizerApplicationPreset(input);
+  handler: async ({ input, ctx: { farmId } }) => {
+    return createFertilizerApplicationPreset(input, farmId);
   },
 });
 
@@ -249,8 +257,8 @@ export const updateFertilizerApplicationPresetEndpoint = fertilizationWrite.buil
     amountPerUnit: z.number().optional(),
   }),
   output: fertilizerApplicationPresetSchema,
-  handler: async ({ input: { presetId, ...data }, ctx: { fertilizerApplications } }) => {
-    return fertilizerApplications.updateFertilizerApplicationPreset(presetId, data);
+  handler: async ({ input: { presetId, ...data } }) => {
+    return updateFertilizerApplicationPreset(presetId, data);
   },
 });
 
@@ -258,8 +266,8 @@ export const deleteFertilizerApplicationPresetEndpoint = fertilizationWrite.buil
   method: "delete",
   input: z.object({ presetId: z.string() }),
   output: z.object({}),
-  handler: async ({ input: { presetId }, ctx: { fertilizerApplications } }) => {
-    await fertilizerApplications.deleteFertilizerApplicationPreset(presetId);
+  handler: async ({ input: { presetId } }) => {
+    await deleteFertilizerApplicationPreset(presetId);
     return {};
   },
 });

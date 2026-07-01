@@ -1,11 +1,11 @@
 import { eq } from "drizzle-orm";
-import { v4 as uuidv4 } from "uuid";
 import createHttpError from "http-errors";
-import { RlsDb } from "../db/db";
+import { v4 as uuidv4 } from "uuid";
+import { appDrizzle } from "../db/db";
 import { plotJournalEntries, plotJournalImages } from "../db/schema";
-import { plotJournalStorage } from "../supabase/supabase";
+import { createPresignedGetUrl, createPresignedPutUrl, deleteFile } from "../storage/storage";
 
-const SIGNED_URL_EXPIRY_SECONDS = 3600;
+const BUCKET = "plot-journal-images";
 
 export type PlotJournalImage = {
   id: string;
@@ -33,146 +33,102 @@ export type PlotJournalEntryUpdateInput = {
   content?: string;
 };
 
-async function attachSignedUrls(images: (typeof plotJournalImages.$inferSelect)[]): Promise<PlotJournalImage[]> {
-  return Promise.all(
-    images.map(async (image) => {
-      const { data, error } = await plotJournalStorage.createSignedUrl(image.storagePath, SIGNED_URL_EXPIRY_SECONDS);
-      if (error || !data) {
-        throw new Error(`Failed to create signed URL: ${error?.message}`);
-      }
-      return { ...image, signedUrl: data.signedUrl };
-    })
-  );
+function attachSignedUrls(images: (typeof plotJournalImages.$inferSelect)[]): PlotJournalImage[] {
+  return images.map((image) => ({
+    ...image,
+    signedUrl: createPresignedGetUrl(BUCKET, image.storagePath),
+  }));
 }
 
-export function plotJournalApi(db: RlsDb) {
-  async function listEntries(plotId: string, farmId: string): Promise<PlotJournalEntryWithImages[]> {
-    const entries = await db.rls(async (tx) => {
-      return tx.query.plotJournalEntries.findMany({
-        where: { plotId, farmId },
-        with: { images: true },
-        orderBy: (t, { desc }) => [desc(t.date), desc(t.createdAt)],
-      });
-    });
-    return Promise.all(
-      entries.map(async (entry) => ({
-        ...entry,
-        images: await attachSignedUrls(entry.images),
-      }))
-    );
+export async function listPlotJournalEntries(plotId: string, farmId: string): Promise<PlotJournalEntryWithImages[]> {
+  const entries = await appDrizzle.query.plotJournalEntries.findMany({
+    where: { plotId, farmId },
+    with: { images: true },
+    orderBy: (t, { desc }) => [desc(t.date), desc(t.createdAt)],
+  });
+  return entries.map((entry) => ({ ...entry, images: attachSignedUrls(entry.images) }));
+}
+
+export async function getPlotJournalEntry(entryId: string, farmId: string): Promise<PlotJournalEntryWithImages> {
+  const entry = await appDrizzle.query.plotJournalEntries.findFirst({
+    where: { id: entryId, farmId },
+    with: { images: true },
+  });
+  if (!entry) throw createHttpError(404, "Journal entry not found");
+  return { ...entry, images: attachSignedUrls(entry.images) };
+}
+
+export async function createPlotJournalEntry(
+  plotId: string,
+  farmId: string,
+  createdBy: string,
+  input: PlotJournalEntryCreateInput
+): Promise<PlotJournalEntry> {
+  const plot = await appDrizzle.query.plots.findFirst({ where: { id: plotId, farmId } });
+  if (!plot) throw createHttpError(404, "Plot not found");
+
+  const [entry] = await appDrizzle
+    .insert(plotJournalEntries)
+    .values({ plotId, farmId, createdBy, ...input })
+    .returning();
+  return entry;
+}
+
+export async function updatePlotJournalEntry(
+  entryId: string,
+  farmId: string,
+  input: PlotJournalEntryUpdateInput
+): Promise<PlotJournalEntry> {
+  const [updated] = await appDrizzle
+    .update(plotJournalEntries)
+    .set({ ...input, updatedAt: new Date() })
+    .where(eq(plotJournalEntries.id, entryId) && eq(plotJournalEntries.farmId, farmId))
+    .returning();
+  if (!updated) throw createHttpError(404, "Journal entry not found");
+  return updated;
+}
+
+export async function deletePlotJournalEntry(entryId: string, farmId: string): Promise<void> {
+  const entry = await appDrizzle.query.plotJournalEntries.findFirst({
+    where: { id: entryId, farmId },
+    with: { images: true },
+  });
+  if (!entry) return;
+
+  if (entry.images.length > 0) {
+    await appDrizzle.delete(plotJournalImages).where(eq(plotJournalImages.journalEntryId, entryId));
+  }
+  await appDrizzle.delete(plotJournalEntries).where(eq(plotJournalEntries.id, entryId));
+
+  // Best-effort storage cleanup
+  for (const img of entry.images) {
+    await deleteFile(BUCKET, img.storagePath).catch(() => null);
+  }
+}
+
+export async function requestPlotJournalSignedImageUrl(
+  journalEntryId: string,
+  filename: string
+): Promise<{ signedUrl: string; path: string }> {
+  const ext = filename.split(".").pop() ?? "bin";
+  const storagePath = `${journalEntryId}/${uuidv4()}.${ext}`;
+  const signedUrl = createPresignedPutUrl(BUCKET, storagePath);
+  return { signedUrl, path: storagePath };
+}
+
+export async function registerPlotJournalImage(journalEntryId: string, storagePath: string): Promise<PlotJournalImage> {
+  if (!storagePath.startsWith(`${journalEntryId}/`)) {
+    throw createHttpError(400, "Invalid storage path for this journal entry");
   }
 
-  async function getEntry(entryId: string): Promise<PlotJournalEntryWithImages> {
-    const entry = await db.rls(async (tx) => {
-      return tx.query.plotJournalEntries.findFirst({
-        where: { id: entryId },
-        with: { images: true },
-      });
-    });
-    if (!entry) throw createHttpError(404, "Journal entry not found");
-    return { ...entry, images: await attachSignedUrls(entry.images) };
-  }
+  const [image] = await appDrizzle.insert(plotJournalImages).values({ journalEntryId, storagePath }).returning();
+  return { ...image, signedUrl: createPresignedGetUrl(BUCKET, image.storagePath) };
+}
 
-  async function createEntry(
-    plotId: string,
-    farmId: string,
-    createdBy: string,
-    input: PlotJournalEntryCreateInput
-  ): Promise<PlotJournalEntry> {
-    return db.rls(async (tx) => {
-      const plot = await tx.query.plots.findFirst({ where: { id: plotId, farmId } });
-      if (!plot) throw createHttpError(404, "Plot not found");
+export async function deletePlotJournalImage(imageId: string): Promise<void> {
+  const image = await appDrizzle.query.plotJournalImages.findFirst({ where: { id: imageId } });
+  if (!image) return;
 
-      const [entry] = await tx
-        .insert(plotJournalEntries)
-        .values({ plotId, farmId, createdBy, ...input })
-        .returning();
-      return entry;
-    });
-  }
-
-  async function updateEntry(entryId: string, input: PlotJournalEntryUpdateInput): Promise<PlotJournalEntry> {
-    return db.rls(async (tx) => {
-      const [updated] = await tx
-        .update(plotJournalEntries)
-        .set({ ...input, updatedAt: new Date() })
-        .where(eq(plotJournalEntries.id, entryId))
-        .returning();
-      if (!updated) throw createHttpError(404, "Journal entry not found");
-      return updated;
-    });
-  }
-
-  async function deleteEntry(entryId: string): Promise<void> {
-    return db.rls(async (tx) => {
-      const entry = await tx.query.plotJournalEntries.findFirst({
-        where: { id: entryId },
-        with: { images: true },
-      });
-      if (!entry) return;
-
-      // Delete images first (while RLS can still resolve them via the entry join)
-      if (entry.images.length > 0) {
-        await tx.delete(plotJournalImages).where(eq(plotJournalImages.journalEntryId, entryId));
-      }
-
-      await tx.delete(plotJournalEntries).where(eq(plotJournalEntries.id, entryId));
-
-      // Best-effort storage cleanup
-      if (entry.images.length > 0) {
-        await plotJournalStorage.remove(entry.images.map((img) => img.storagePath));
-      }
-    });
-  }
-
-  async function requestSignedImageUrl(
-    journalEntryId: string,
-    filename: string
-  ): Promise<{ signedUrl: string; path: string }> {
-    const ext = filename.split(".").pop() ?? "bin";
-    const path = `${journalEntryId}/${uuidv4()}.${ext}`;
-
-    const { data, error } = await plotJournalStorage.createSignedUploadUrl(path);
-    if (error || !data) {
-      throw new Error(`Failed to create signed upload URL: ${error?.message}`);
-    }
-    return { signedUrl: data.signedUrl, path };
-  }
-
-  async function registerImage(journalEntryId: string, storagePath: string): Promise<PlotJournalImage> {
-    if (!storagePath.startsWith(`${journalEntryId}/`)) {
-      throw createHttpError(400, "Invalid storage path for this journal entry");
-    }
-
-    const [image] = await db.admin.insert(plotJournalImages).values({ journalEntryId, storagePath }).returning();
-
-    const { data, error } = await plotJournalStorage.createSignedUrl(image.storagePath, SIGNED_URL_EXPIRY_SECONDS);
-    if (error || !data) {
-      throw new Error(`Failed to create signed URL: ${error?.message}`);
-    }
-    return { ...image, signedUrl: data.signedUrl };
-  }
-
-  async function deleteImage(imageId: string): Promise<void> {
-    return db.rls(async (tx) => {
-      const image = await tx.query.plotJournalImages.findFirst({ where: { id: imageId } });
-      if (!image) return;
-
-      await tx.delete(plotJournalImages).where(eq(plotJournalImages.id, imageId));
-
-      // Best-effort storage removal
-      await plotJournalStorage.remove([image.storagePath]);
-    });
-  }
-
-  return {
-    listEntries,
-    getEntry,
-    createEntry,
-    updateEntry,
-    deleteEntry,
-    requestSignedImageUrl,
-    registerImage,
-    deleteImage,
-  };
+  await appDrizzle.delete(plotJournalImages).where(eq(plotJournalImages.id, imageId));
+  await deleteFile(BUCKET, image.storagePath).catch(() => null);
 }

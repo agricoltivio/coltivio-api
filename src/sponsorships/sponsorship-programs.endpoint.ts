@@ -1,9 +1,16 @@
 import createHttpError from "http-errors";
 import { z } from "zod";
-import { permissionMembershipEndpoint } from "../endpoint-factory";
+import { permissionFarmEndpoint } from "../endpoint-factory";
+import {
+  createSponsorshipProgram,
+  deleteSponsorshipProgram,
+  getSponsorshipProgramById,
+  getSponsorshipProgramsForFarm,
+  updateSponsorshipProgram,
+} from "./sponsorship-programs";
 
-const sponsorshipProgramsRead = permissionMembershipEndpoint("commerce", "read");
-const sponsorshipsWrite = permissionMembershipEndpoint("commerce", "write");
+const sponsorshipProgramsRead = permissionFarmEndpoint("commerce", "read");
+const sponsorshipsWrite = permissionFarmEndpoint("commerce", "write");
 
 export const sponsorshipProgramSchema = z.object({
   id: z.string(),
@@ -25,8 +32,8 @@ export const getSponsorshipProgramByIdEndpoint = sponsorshipProgramsRead.build({
   method: "get",
   input: z.object({ sponsorshipProgramId: z.string() }),
   output: sponsorshipProgramSchema,
-  handler: async ({ input, ctx: { sponsorshipPrograms } }) => {
-    const sponsorshipProgram = await sponsorshipPrograms.getSponsorshipProgramById(input.sponsorshipProgramId);
+  handler: async ({ input }) => {
+    const sponsorshipProgram = await getSponsorshipProgramById(input.sponsorshipProgramId);
     if (!sponsorshipProgram) {
       throw createHttpError(404, "Sponsorship type not found");
     }
@@ -41,8 +48,8 @@ export const getFarmSponsorshipProgramsEndpoint = sponsorshipProgramsRead.build(
     result: z.array(sponsorshipProgramSchema),
     count: z.number(),
   }),
-  handler: async ({ ctx: { sponsorshipPrograms, farmId } }) => {
-    const result = await sponsorshipPrograms.getSponsorshipProgramsForFarm(farmId);
+  handler: async ({ ctx: { farmId } }) => {
+    const result = await getSponsorshipProgramsForFarm(farmId);
     return {
       result,
       count: result.length,
@@ -54,8 +61,8 @@ export const createSponsorshipProgramEndpoint = sponsorshipsWrite.build({
   method: "post",
   input: createSponsorshipProgramSchema,
   output: sponsorshipProgramSchema,
-  handler: async ({ input, ctx: { sponsorshipPrograms } }) => {
-    return sponsorshipPrograms.createSponsorshipProgram(input);
+  handler: async ({ input, ctx: { farmId } }) => {
+    return createSponsorshipProgram(input, farmId);
   },
 });
 
@@ -65,9 +72,9 @@ export const updateSponsorshipProgramEndpoint = sponsorshipsWrite.build({
     sponsorshipProgramId: z.string(),
   }),
   output: sponsorshipProgramSchema,
-  handler: async ({ input, ctx: { sponsorshipPrograms } }) => {
+  handler: async ({ input }) => {
     const { sponsorshipProgramId, ...data } = input;
-    return sponsorshipPrograms.updateSponsorshipProgram(sponsorshipProgramId, data);
+    return updateSponsorshipProgram(sponsorshipProgramId, data);
   },
 });
 
@@ -75,8 +82,8 @@ export const deleteSponsorshipProgramEndpoint = sponsorshipsWrite.build({
   method: "delete",
   input: z.object({ sponsorshipProgramId: z.string() }),
   output: z.object({}),
-  handler: async ({ input: { sponsorshipProgramId }, ctx: { sponsorshipPrograms } }) => {
-    await sponsorshipPrograms.deleteSponsorshipProgram(sponsorshipProgramId);
+  handler: async ({ input: { sponsorshipProgramId } }) => {
+    await deleteSponsorshipProgram(sponsorshipProgramId);
     return {};
   },
 });

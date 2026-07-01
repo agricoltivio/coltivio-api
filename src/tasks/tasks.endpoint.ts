@@ -2,10 +2,19 @@ import createHttpError from "http-errors";
 import { ez } from "express-zod-api";
 import { z } from "zod";
 import { frequencySchema, taskLinkTypeSchema, taskStatusSchema, weekdaySchema } from "../db/schema";
-import { permissionMembershipEndpoint } from "../endpoint-factory";
+import { permissionFarmEndpoint } from "../endpoint-factory";
+import {
+  createTask,
+  deleteTask,
+  getTaskById,
+  listTasks,
+  setChecklistItemDone,
+  setTaskStatus,
+  updateTask,
+} from "./tasks";
 
-const tasksRead = permissionMembershipEndpoint("tasks", "read");
-const tasksWrite = permissionMembershipEndpoint("tasks", "write");
+const tasksRead = permissionFarmEndpoint("tasks", "read");
+const tasksWrite = permissionFarmEndpoint("tasks", "write");
 
 // ─── Output schemas ───────────────────────────────────────────────────────────
 
@@ -124,12 +133,12 @@ export const listTasksEndpoint = tasksRead.build({
     result: z.array(taskSchema),
     count: z.number(),
   }),
-  handler: async ({ input, ctx: { tasks } }) => {
-    const result = await tasks.listTasks({
-      status: input.status,
-      assigneeId: input.assigneeId,
-      label: input.label,
-    });
+  handler: async ({ input, ctx: { farmId, preferredLanguage } }) => {
+    const result = await listTasks(
+      farmId,
+      { status: input.status, assigneeId: input.assigneeId, label: input.label },
+      preferredLanguage
+    );
     return { result, count: result.length };
   },
 });
@@ -138,8 +147,8 @@ export const createTaskEndpoint = tasksWrite.build({
   method: "post",
   input: taskCreateSchema,
   output: taskWithLinksSchema,
-  handler: async ({ input, ctx: { tasks, user } }) => {
-    return tasks.createTask(
+  handler: async ({ input, ctx: { user, farmId, preferredLanguage } }) => {
+    return createTask(
       {
         name: input.name,
         description: input.description,
@@ -150,7 +159,9 @@ export const createTaskEndpoint = tasksWrite.build({
         links: input.links,
         checklistItems: input.checklistItems,
       },
-      user.id
+      user.id,
+      farmId,
+      preferredLanguage
     );
   },
 });
@@ -159,8 +170,8 @@ export const getTaskByIdEndpoint = tasksRead.build({
   method: "get",
   input: z.object({ taskId: z.string() }),
   output: taskWithLinksSchema,
-  handler: async ({ input, ctx: { tasks } }) => {
-    const task = await tasks.getTaskById(input.taskId);
+  handler: async ({ input, ctx: { preferredLanguage } }) => {
+    const task = await getTaskById(input.taskId, preferredLanguage);
     if (!task) {
       throw createHttpError(404, "Task not found");
     }
@@ -172,12 +183,12 @@ export const updateTaskEndpoint = tasksWrite.build({
   method: "patch",
   input: z.object({ taskId: z.string() }).merge(taskUpdateSchema),
   output: taskWithLinksSchema,
-  handler: async ({ input: { taskId, ...rest }, ctx: { tasks } }) => {
-    const task = await tasks.getTaskById(taskId);
+  handler: async ({ input: { taskId, ...rest }, ctx: { farmId, preferredLanguage } }) => {
+    const task = await getTaskById(taskId, preferredLanguage);
     if (!task) {
       throw createHttpError(404, "Task not found");
     }
-    return tasks.updateTask(taskId, rest);
+    return updateTask(taskId, rest, farmId, preferredLanguage);
   },
 });
 
@@ -185,12 +196,12 @@ export const deleteTaskEndpoint = tasksWrite.build({
   method: "delete",
   input: z.object({ taskId: z.string() }),
   output: z.object({ success: z.boolean() }),
-  handler: async ({ input, ctx: { tasks } }) => {
-    const task = await tasks.getTaskById(input.taskId);
+  handler: async ({ input, ctx: { preferredLanguage } }) => {
+    const task = await getTaskById(input.taskId, preferredLanguage);
     if (!task) {
       throw createHttpError(404, "Task not found");
     }
-    await tasks.deleteTask(input.taskId);
+    await deleteTask(input.taskId);
     return { success: true };
   },
 });
@@ -205,13 +216,12 @@ export const setTaskStatusEndpoint = tasksWrite.build({
     task: taskSchema,
     nextTaskId: z.string().nullable(),
   }),
-  handler: async ({ input, ctx: { tasks } }) => {
-    const existing = await tasks.getTaskById(input.taskId);
+  handler: async ({ input, ctx: { farmId, preferredLanguage } }) => {
+    const existing = await getTaskById(input.taskId, preferredLanguage);
     if (!existing) {
       throw createHttpError(404, "Task not found");
     }
-    const { task: updated, nextTaskId } = await tasks.setTaskStatus(input.taskId, input.status);
-    // Merge updated scalar fields over the enriched existing shape for the response
+    const { task: updated, nextTaskId } = await setTaskStatus(input.taskId, input.status, farmId);
     return { task: { ...existing, ...updated }, nextTaskId };
   },
 });
@@ -224,9 +234,8 @@ export const setChecklistItemDoneEndpoint = tasksWrite.build({
     done: z.boolean(),
   }),
   output: taskChecklistItemSchema,
-  handler: async ({ input, ctx: { tasks } }) => {
-    // Verify task exists in this farm context
-    const task = await tasks.getTaskById(input.taskId);
+  handler: async ({ input, ctx: { preferredLanguage } }) => {
+    const task = await getTaskById(input.taskId, preferredLanguage);
     if (!task) {
       throw createHttpError(404, "Task not found");
     }
@@ -234,6 +243,6 @@ export const setChecklistItemDoneEndpoint = tasksWrite.build({
     if (!item) {
       throw createHttpError(404, "Checklist item not found");
     }
-    return tasks.setChecklistItemDone(input.itemId, input.done);
+    return setChecklistItemDone(input.itemId, input.done);
   },
 });

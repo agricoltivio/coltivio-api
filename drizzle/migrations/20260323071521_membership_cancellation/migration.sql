@@ -1,1 +1,0 @@
-ALTER TABLE "membership_payments" ADD COLUMN "cancelled_by_user" boolean DEFAULT false NOT NULL;

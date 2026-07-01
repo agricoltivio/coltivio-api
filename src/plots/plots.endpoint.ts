@@ -4,6 +4,16 @@ import { z } from "zod";
 import { multiPolygonSchema } from "../db/schema";
 import { cropRotationSchema } from "../crop-rotations/crop-rotations.endpoint";
 import { permissionFarmEndpoint } from "../endpoint-factory";
+import {
+  getPlotById,
+  getPlotsForFarm,
+  createPlot,
+  updatePlot,
+  deletePlot,
+  splitPlot,
+  mergePlots,
+  syncMissingLocalIds,
+} from "./plots";
 
 const plotsRead = permissionFarmEndpoint("field_calendar", "read");
 const plotsWrite = permissionFarmEndpoint("field_calendar", "write");
@@ -47,8 +57,8 @@ export const getPlotByIdEndpoint = plotsRead.build({
   method: "get",
   input: z.object({ plotId: z.string() }),
   output: plotSchema,
-  handler: async ({ input, ctx: { plots } }) => {
-    const plot = await plots.getPlotById(input.plotId);
+  handler: async ({ input }) => {
+    const plot = await getPlotById(input.plotId);
     if (!plot) {
       throw createHttpError(404, "Plot not found");
     }
@@ -63,8 +73,8 @@ export const getFarmPlotsEndpoint = plotsRead.build({
     result: z.array(plotSchema),
     count: z.number(),
   }),
-  handler: async ({ ctx: { plots, farmId } }) => {
-    const result = await plots.getPlotsForFarm(farmId);
+  handler: async ({ ctx: { farmId } }) => {
+    const result = await getPlotsForFarm(farmId);
     return {
       result,
       count: result.length,
@@ -76,8 +86,8 @@ export const createPlotEndpoint = plotsWrite.build({
   method: "post",
   input: createPlotSchema,
   output: plotSchema,
-  handler: async ({ input, ctx: { plots } }) => {
-    return plots.createPlot(input);
+  handler: async ({ input, ctx: { farmId } }) => {
+    return createPlot(input, farmId);
   },
 });
 
@@ -87,8 +97,8 @@ export const updatePlotEndpoint = plotsWrite.build({
     plotId: z.string(),
   }),
   output: plotSchema,
-  handler: async ({ input, ctx: { plots } }) => {
-    return plots.updatePlot(input.plotId, input);
+  handler: async ({ input, ctx: { farmId } }) => {
+    return updatePlot(input.plotId, input, farmId);
   },
 });
 
@@ -96,8 +106,8 @@ export const deletePlotEndpoint = plotsWrite.build({
   method: "delete",
   input: z.object({ plotId: z.string() }),
   output: z.object({}),
-  handler: async ({ input: { plotId }, ctx: { plots: plot } }) => {
-    await plot.deletePlot(plotId);
+  handler: async ({ input: { plotId }, ctx: { farmId } }) => {
+    await deletePlot(plotId, farmId);
     return {};
   },
 });
@@ -127,9 +137,9 @@ export const splitPlotEndpoint = plotsWrite.build({
   method: "post",
   input: splitPlotInputSchema,
   output: z.object({ result: z.array(plotSchema) }),
-  handler: async ({ input, ctx: { plots } }) => {
+  handler: async ({ input, ctx: { farmId } }) => {
     const { plotId, subPlots, ...strategyOptions } = input;
-    const result = await plots.splitPlot(plotId, subPlots, strategyOptions);
+    const result = await splitPlot(plotId, subPlots, farmId, strategyOptions);
     return { result };
   },
 });
@@ -161,9 +171,9 @@ export const mergePlotsEndpoint = plotsWrite.build({
   method: "post",
   input: mergePlotsInputSchema,
   output: plotSchema,
-  handler: async ({ input, ctx: { plots } }) => {
+  handler: async ({ input, ctx: { farmId } }) => {
     const { strategy, plotIds, ...plotData } = input;
-    return plots.mergePlots(plotIds, plotData, { strategy });
+    return mergePlots(plotIds, plotData, farmId, { strategy });
   },
 });
 
@@ -171,8 +181,8 @@ export const syncMissingLocalIdsEndpoint = plotsWrite.build({
   method: "post",
   input: z.object({}),
   output: z.object({}),
-  handler: async ({ ctx: { plots } }) => {
-    await plots.syncMissingLocalIds();
+  handler: async () => {
+    await syncMissingLocalIds();
     return {};
   },
 });

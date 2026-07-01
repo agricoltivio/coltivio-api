@@ -1,6 +1,6 @@
 import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
-import { RlsDb } from "../db/db";
+import { appDrizzle } from "../db/db";
 import * as tables from "../db/schema";
 import { MultiPolygon } from "../geo/geojson";
 import { Plot } from "../plots/plots";
@@ -49,11 +49,7 @@ interface ProducedQuantity {
   totalAmountInKilos: number;
   forageName: string;
   conservationMethod: string | null;
-  producedUnits: {
-    unit: string;
-    totalAmountInKilos: number;
-    totalProducedUnits: number;
-  }[];
+  producedUnits: { unit: string; totalAmountInKilos: number; totalProducedUnits: number }[];
 }
 
 interface MonthlyHarvest {
@@ -66,264 +62,180 @@ export interface HarvestSummary {
   monthlyHarvests: MonthlyHarvest[];
 }
 
-export function harvestsApi(rlsDb: RlsDb) {
-  return {
-    async createHarvests({ plots, ...base }: HarvestsBatchCreateInput): Promise<Harvest[]> {
-      const result = await rlsDb.rls(async (tx) => {
-        const harvests = await tx
-          .insert(tables.harvests)
-          .values(
-            plots.map((plot) => ({
-              ...tables.farmIdColumnValue,
-              ...base,
-              ...plot,
-              geometry: sql<MultiPolygon>`ST_GeomFromGeoJSON(${JSON.stringify(plot.geometry)})`,
-            }))
-          )
-          .returning({
-            id: tables.harvests.id,
-          });
+export async function createHarvests({ plots, ...base }: HarvestsBatchCreateInput, farmId: string): Promise<Harvest[]> {
+  const result = await appDrizzle
+    .insert(tables.harvests)
+    .values(
+      plots.map((plot) => ({
+        farmId,
+        ...base,
+        ...plot,
+        geometry: sql<MultiPolygon>`ST_GeomFromGeoJSON(${JSON.stringify(plot.geometry)})`,
+      }))
+    )
+    .returning({ id: tables.harvests.id });
+  return getHarvestsByIds(result.map((h) => h.id));
+}
 
-        return harvests;
-      });
-      return this.getHarvestsByIds(result.map((harvest) => harvest.id))!;
-    },
-    async deleteHarvest(id: string): Promise<void> {
-      return rlsDb.rls(async (tx) => {
-        await tx.delete(tables.harvests).where(eq(tables.harvests.id, id));
-      });
-    },
-    async getHarvestsByIds(ids: string[]): Promise<Harvest[]> {
-      return rlsDb.rls(async (tx) => {
-        return tx.query.harvests.findMany({
-          where: { id: { in: ids } },
-          with: {
-            crop: true,
-            plot: {
-              extras: {
-                geometry: (t) => sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as("geometry"),
-              },
-            },
-          },
-          extras: {
-            geometry: (t) => sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as("geometry"),
-          },
-        });
-      });
-    },
-    async getHarvestById(id: string): Promise<Harvest | undefined> {
-      return rlsDb.rls(async (tx) => {
-        return tx.query.harvests.findFirst({
-          where: { id },
-          with: {
-            crop: true,
-            plot: {
-              extras: {
-                geometry: (t) => sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as("geometry"),
-              },
-            },
-          },
-          extras: {
-            geometry: (t) => sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as("geometry"),
-          },
-        });
-      });
-    },
-    async getHarvestsForFarm(farmId: string, fromDate: Date, toDate: Date): Promise<Harvest[]> {
-      return rlsDb.rls(async (tx) => {
-        return tx.query.harvests.findMany({
-          where: {
-            farmId,
-            AND: [{ date: { gte: fromDate } }, { date: { lte: toDate } }],
-          },
-          with: {
-            crop: true,
-            plot: {
-              extras: {
-                geometry: (t) => sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as("geometry"),
-              },
-            },
-          },
-          extras: {
-            geometry: (t) => sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as("geometry"),
-          },
-          orderBy: { date: "desc" },
-        });
-      });
-    },
-    async getHarvestsForPlot(plotId: string): Promise<Omit<Harvest, "plot">[]> {
-      return rlsDb.rls(async (tx) => {
-        return tx.query.harvests.findMany({
-          where: { plotId },
-          with: {
-            crop: true,
-          },
-          extras: {
-            geometry: (t) => sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as("geometry"),
-          },
-          orderBy: { date: "desc" },
-        });
-      });
-    },
+export async function deleteHarvest(id: string): Promise<void> {
+  await appDrizzle.delete(tables.harvests).where(eq(tables.harvests.id, id));
+}
 
-    async getHarvestYears(): Promise<string[]> {
-      return rlsDb.rls(async (tx) => {
-        const result = await tx.query.harvests.findMany({
-          columns: {
-            date: true,
-          },
-          orderBy: { date: "desc" },
-        });
-        return Array.from(new Set(result.map((application) => application.date.getFullYear().toString())));
-      });
+export async function getHarvestsByIds(ids: string[]): Promise<Harvest[]> {
+  return appDrizzle.query.harvests.findMany({
+    where: { id: { in: ids } },
+    with: {
+      crop: true,
+      plot: { extras: { geometry: (t) => sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as("geometry") } },
     },
-    async getHarvestSummaryForFarm(farmId: string): Promise<HarvestSummary> {
-      return rlsDb.rls(async (tx) => {
-        const results = await tx.query.harvests.findMany({
-          where: { farmId },
-          columns: {
-            geometry: false,
-          },
-          with: {
-            crop: true,
-          },
-        });
+    extras: { geometry: (t) => sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as("geometry") },
+  });
+}
 
-        return mapToMonthlySummaries(results);
-      });
+export async function getHarvestById(id: string): Promise<Harvest | undefined> {
+  return appDrizzle.query.harvests.findFirst({
+    where: { id },
+    with: {
+      crop: true,
+      plot: { extras: { geometry: (t) => sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as("geometry") } },
     },
-    async getHarvestSummaryForPlot(plotId: string): Promise<HarvestSummary> {
-      return rlsDb.rls(async (tx) => {
-        const results = await tx.query.harvests.findMany({
-          where: { plotId },
-          columns: {
-            geometry: false,
-          },
-          with: {
-            crop: true,
-          },
-        });
+    extras: { geometry: (t) => sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as("geometry") },
+  });
+}
 
-        return mapToMonthlySummaries(results);
-      });
+export async function getHarvestsForFarm(farmId: string, fromDate: Date, toDate: Date): Promise<Harvest[]> {
+  return appDrizzle.query.harvests.findMany({
+    where: { farmId, AND: [{ date: { gte: fromDate } }, { date: { lte: toDate } }] },
+    with: {
+      crop: true,
+      plot: { extras: { geometry: (t) => sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as("geometry") } },
     },
-    async createHarvestPreset(input: HarvestPresetCreateInput): Promise<HarvestPreset> {
-      return rlsDb.rls(async (tx) => {
-        const [preset] = await tx
-          .insert(tables.harvestPresets)
-          .values({ ...tables.farmIdColumnValue, ...input })
-          .returning();
-        return preset;
-      });
-    },
-    async getHarvestPresets(): Promise<HarvestPreset[]> {
-      return rlsDb.rls(async (tx) => {
-        return tx.query.harvestPresets.findMany({
-          orderBy: { name: "asc" },
-        });
-      });
-    },
-    async getHarvestPresetById(id: string): Promise<HarvestPreset | undefined> {
-      return rlsDb.rls(async (tx) => {
-        return tx.query.harvestPresets.findFirst({ where: { id } });
-      });
-    },
-    async updateHarvestPreset(id: string, input: HarvestPresetUpdateInput): Promise<HarvestPreset> {
-      return rlsDb.rls(async (tx) => {
-        const [preset] = await tx
-          .update(tables.harvestPresets)
-          .set(input)
-          .where(eq(tables.harvestPresets.id, id))
-          .returning();
-        return preset;
-      });
-    },
-    async deleteHarvestPreset(id: string): Promise<void> {
-      return rlsDb.rls(async (tx) => {
-        await tx.delete(tables.harvestPresets).where(eq(tables.harvestPresets.id, id));
-      });
-    },
-  };
+    extras: { geometry: (t) => sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as("geometry") },
+    orderBy: { date: "desc" },
+  });
+}
 
-  function mapToMonthlySummaries(harvests: Omit<Harvest, "geometry" | "plot">[]): HarvestSummary {
-    const monthlyHarvests = harvests.reduce<
-      Record<
-        string,
-        {
-          year: number;
-          month: number;
-          producedQuantities: Record<
-            string,
-            {
-              totalAmountInKilos: number;
-              forageName: string;
-              conservationMethod: string | null;
-              producedUnits: {
-                [unit: string]: {
-                  unit: string;
-                  totalAmountInKilos: number;
-                  totalProducedUnits: number;
-                };
-              };
-            }
-          >;
-        }
-      >
-    >((acc, harvest) => {
-      const date = harvest.date;
-      const year = date.getFullYear();
-      const month = date.getMonth(); // getMonth() is zero-based
-      const forageKey = `${harvest.crop.name}-${harvest.conservationMethod}`;
+export async function getHarvestsForPlot(plotId: string): Promise<Omit<Harvest, "plot">[]> {
+  return appDrizzle.query.harvests.findMany({
+    where: { plotId },
+    with: { crop: true },
+    extras: { geometry: (t) => sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as("geometry") },
+    orderBy: { date: "desc" },
+  });
+}
 
-      const key = `${year}-${month}`;
-      if (!acc[key]) {
-        acc[key] = {
-          year,
-          month,
-          producedQuantities: {},
-        };
-      }
+export async function getHarvestYears(farmId: string): Promise<string[]> {
+  const result = await appDrizzle.query.harvests.findMany({
+    where: { farmId },
+    columns: { date: true },
+    orderBy: { date: "desc" },
+  });
+  return Array.from(new Set(result.map((h) => h.date.getFullYear().toString())));
+}
 
-      if (!acc[key].producedQuantities[forageKey]) {
-        acc[key].producedQuantities[forageKey] = {
-          forageName: harvest.crop.name,
-          totalAmountInKilos: 0,
-          conservationMethod: harvest.conservationMethod,
-          producedUnits: {},
-        };
-      }
+export async function getHarvestSummaryForFarm(farmId: string): Promise<HarvestSummary> {
+  const results = await appDrizzle.query.harvests.findMany({
+    where: { farmId },
+    columns: { geometry: false },
+    with: { crop: true },
+  });
+  return mapToMonthlySummaries(results);
+}
 
-      if (!acc[key].producedQuantities[forageKey].producedUnits[harvest.unit]) {
-        acc[key].producedQuantities[forageKey].producedUnits[harvest.unit] = {
-          unit: harvest.unit,
-          totalAmountInKilos: 0,
-          totalProducedUnits: 0,
-        };
-      }
+export async function getHarvestSummaryForPlot(plotId: string): Promise<HarvestSummary> {
+  const results = await appDrizzle.query.harvests.findMany({
+    where: { plotId },
+    columns: { geometry: false },
+    with: { crop: true },
+  });
+  return mapToMonthlySummaries(results);
+}
 
-      acc[key].producedQuantities[forageKey].totalAmountInKilos += harvest.numberOfUnits * harvest.kilosPerUnit;
-      acc[key].producedQuantities[forageKey].producedUnits[harvest.unit].totalAmountInKilos +=
-        harvest.numberOfUnits * harvest.kilosPerUnit;
-      acc[key].producedQuantities[forageKey].producedUnits[harvest.unit].totalProducedUnits += harvest.numberOfUnits;
+export async function createHarvestPreset(input: HarvestPresetCreateInput, farmId: string): Promise<HarvestPreset> {
+  const [preset] = await appDrizzle
+    .insert(tables.harvestPresets)
+    .values({ farmId, ...input })
+    .returning();
+  return preset;
+}
 
-      return acc;
-    }, {});
+export async function getHarvestPresets(farmId: string): Promise<HarvestPreset[]> {
+  return appDrizzle.query.harvestPresets.findMany({ where: { farmId }, orderBy: { name: "asc" } });
+}
 
-    return {
-      monthlyHarvests: Object.values(monthlyHarvests)
-        .map((monthlyHarvest) => ({
-          ...monthlyHarvest,
-          producedQuantities: Object.values(monthlyHarvest.producedQuantities).map((producedQuantity) => ({
-            ...producedQuantity,
-            producedUnits: Object.values(producedQuantity.producedUnits),
-          })),
-        }))
-        .sort((a, b) => {
-          if (a.year === b.year) {
-            return a.month - b.month;
+export async function getHarvestPresetById(id: string): Promise<HarvestPreset | undefined> {
+  return appDrizzle.query.harvestPresets.findFirst({ where: { id } });
+}
+
+export async function updateHarvestPreset(id: string, input: HarvestPresetUpdateInput): Promise<HarvestPreset> {
+  const [preset] = await appDrizzle
+    .update(tables.harvestPresets)
+    .set(input)
+    .where(eq(tables.harvestPresets.id, id))
+    .returning();
+  return preset;
+}
+
+export async function deleteHarvestPreset(id: string): Promise<void> {
+  await appDrizzle.delete(tables.harvestPresets).where(eq(tables.harvestPresets.id, id));
+}
+
+function mapToMonthlySummaries(harvests: Omit<Harvest, "geometry" | "plot">[]): HarvestSummary {
+  const monthlyHarvests = harvests.reduce<
+    Record<
+      string,
+      {
+        year: number;
+        month: number;
+        producedQuantities: Record<
+          string,
+          {
+            totalAmountInKilos: number;
+            forageName: string;
+            conservationMethod: string | null;
+            producedUnits: { [unit: string]: { unit: string; totalAmountInKilos: number; totalProducedUnits: number } };
           }
-          return a.year - b.year;
-        }),
-    };
-  }
+        >;
+      }
+    >
+  >((acc, harvest) => {
+    const date = harvest.date;
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const forageKey = `${harvest.crop.name}-${harvest.conservationMethod}`;
+    const key = `${year}-${month}`;
+    if (!acc[key]) acc[key] = { year, month, producedQuantities: {} };
+    if (!acc[key].producedQuantities[forageKey]) {
+      acc[key].producedQuantities[forageKey] = {
+        forageName: harvest.crop.name,
+        totalAmountInKilos: 0,
+        conservationMethod: harvest.conservationMethod,
+        producedUnits: {},
+      };
+    }
+    if (!acc[key].producedQuantities[forageKey].producedUnits[harvest.unit]) {
+      acc[key].producedQuantities[forageKey].producedUnits[harvest.unit] = {
+        unit: harvest.unit,
+        totalAmountInKilos: 0,
+        totalProducedUnits: 0,
+      };
+    }
+    acc[key].producedQuantities[forageKey].totalAmountInKilos += harvest.numberOfUnits * harvest.kilosPerUnit;
+    acc[key].producedQuantities[forageKey].producedUnits[harvest.unit].totalAmountInKilos +=
+      harvest.numberOfUnits * harvest.kilosPerUnit;
+    acc[key].producedQuantities[forageKey].producedUnits[harvest.unit].totalProducedUnits += harvest.numberOfUnits;
+    return acc;
+  }, {});
+
+  return {
+    monthlyHarvests: Object.values(monthlyHarvests)
+      .map((mh) => ({
+        ...mh,
+        producedQuantities: Object.values(mh.producedQuantities).map((pq) => ({
+          ...pq,
+          producedUnits: Object.values(pq.producedUnits),
+        })),
+      }))
+      .sort((a, b) => (a.year === b.year ? a.month - b.month : a.year - b.year)),
+  };
 }

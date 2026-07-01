@@ -3,6 +3,13 @@ import { authenticatedEndpointFactory } from "../endpoint-factory";
 import { BBox } from "../geo/geojson";
 import { ez } from "express-zod-api";
 import { multiPolygonSchema } from "../db/schema";
+import {
+  getPlotsLayerForBoundingBox,
+  getPlotsForFederalFarmId,
+  getFarmAndNearbyPlots,
+  getPlotsWithinRadiusOfPoint,
+  getFederalFarmIds,
+} from "./federal-farm-plots";
 
 const BoundingBoxSchema = z.object({
   xmin: z.string().transform((value) => parseFloat(value)),
@@ -29,22 +36,11 @@ export const getPlotsLayerForBoundingBoxEndpoint = authenticatedEndpointFactory.
     result: selectFederalFarmPlotSchema.array(),
     count: z.number(),
     bbox: z.tuple([z.number(), z.number(), z.number(), z.number()]),
-    // bbox: z.object({
-    //   xmin: z.number(),
-    //   xmax: z.number(),
-    //   ymin: z.number(),
-    //   ymax: z.number(),
-    // }),
   }),
-  handler: async ({ input: { xmax, xmin, ymax, ymin }, ctx: { federalParcelLayer } }) => {
-    const parcels = await federalParcelLayer.getPlotsLayerForBoundingBox(xmin, ymin, xmax, ymax);
+  handler: async ({ input: { xmax, xmin, ymax, ymin } }) => {
+    const parcels = await getPlotsLayerForBoundingBox(xmin, ymin, xmax, ymax);
     const bbox: BBox = [xmin, ymin, xmax, ymax];
-
-    return {
-      result: parcels,
-      bbox,
-      count: parcels.length,
-    };
+    return { result: parcels, bbox, count: parcels.length };
   },
 });
 
@@ -55,12 +51,9 @@ export const getPlotsForFederalFarmIdEndpoint = authenticatedEndpointFactory.bui
     result: selectFederalFarmPlotSchema.array(),
     count: z.number(),
   }),
-  handler: async ({ input: { federalFarmId }, ctx: { federalParcelLayer } }) => {
-    const parcels = await federalParcelLayer.getPlotsForFederalFarmId(federalFarmId);
-    return {
-      result: parcels,
-      count: parcels.length,
-    };
+  handler: async ({ input: { federalFarmId } }) => {
+    const parcels = await getPlotsForFederalFarmId(federalFarmId);
+    return { result: parcels, count: parcels.length };
   },
 });
 
@@ -74,14 +67,12 @@ export const getFarmAndNearbyPlotsEndpoint = authenticatedEndpointFactory.build(
     result: selectFederalFarmPlotSchema.array(),
     count: z.number(),
   }),
-  handler: async ({ input: { federalFarmId, buffer }, ctx: { federalParcelLayer } }) => {
-    const parcels = await federalParcelLayer.getFarmAndNearbyPlots(federalFarmId, buffer);
-    return {
-      result: parcels,
-      count: parcels.length,
-    };
+  handler: async ({ input: { federalFarmId, buffer } }) => {
+    const parcels = await getFarmAndNearbyPlots(federalFarmId, buffer);
+    return { result: parcels, count: parcels.length };
   },
 });
+
 export const getPlotsWithinRadiusOfPointEndpoint = authenticatedEndpointFactory.build({
   method: "get",
   input: z.object({
@@ -93,12 +84,9 @@ export const getPlotsWithinRadiusOfPointEndpoint = authenticatedEndpointFactory.
     result: selectFederalFarmPlotSchema.array(),
     count: z.number(),
   }),
-  handler: async ({ input: { longitude, latitude, radiusInKm }, ctx: { federalParcelLayer } }) => {
-    const parcels = await federalParcelLayer.getPlotsWithinRadiusOfPoint(longitude, latitude, radiusInKm);
-    return {
-      result: parcels,
-      count: parcels.length,
-    };
+  handler: async ({ input: { longitude, latitude, radiusInKm } }) => {
+    const parcels = await getPlotsWithinRadiusOfPoint(longitude, latitude, radiusInKm);
+    return { result: parcels, count: parcels.length };
   },
 });
 
@@ -115,17 +103,14 @@ export const getFederalFarmIdsEndpoint = authenticatedEndpointFactory.build({
     result: z.array(z.string()),
     count: z.number(),
   }),
-  handler: async ({ input, ctx: { federalParcelLayer } }) => {
-    const federalFarmIds = await federalParcelLayer.getFederalFarmIds(
+  handler: async ({ input }) => {
+    const federalFarmIds = await getFederalFarmIds(
       input.query,
       input.longitude,
       input.latitude,
       input.radiusInKm,
       input.limit
     );
-    return {
-      result: federalFarmIds,
-      count: federalFarmIds.length,
-    };
+    return { result: federalFarmIds, count: federalFarmIds.length };
   },
 });

@@ -1,67 +1,60 @@
 import { eq } from "drizzle-orm";
-import { RlsDb } from "../db/db";
-import { invoiceSettings, farmIdColumnValue } from "../db/schema";
+import { appDrizzle } from "../db/db";
+import { invoiceSettings } from "../db/schema";
 
 export type InvoiceSettings = typeof invoiceSettings.$inferSelect;
 export type InvoiceSettingsCreateInput = Omit<typeof invoiceSettings.$inferInsert, "id" | "farmId" | "updatedAt">;
 export type InvoiceSettingsUpdateInput = Partial<InvoiceSettingsCreateInput>;
 
-export function invoiceSettingsApi(rlsDb: RlsDb) {
-  return {
-    async listForFarm(farmId: string): Promise<InvoiceSettings[]> {
-      return rlsDb.rls((tx) => tx.query.invoiceSettings.findMany({ where: { farmId } }));
-    },
+export async function listInvoiceSettingsForFarm(farmId: string): Promise<InvoiceSettings[]> {
+  return appDrizzle.query.invoiceSettings.findMany({ where: { farmId } });
+}
 
-    async getById(id: string): Promise<InvoiceSettings | null> {
-      return rlsDb.rls(async (tx) => {
-        const result = await tx.query.invoiceSettings.findFirst({ where: { id } });
-        return result ?? null;
-      });
-    },
+export async function getInvoiceSettingsById(id: string): Promise<InvoiceSettings | null> {
+  const result = await appDrizzle.query.invoiceSettings.findFirst({ where: { id } });
+  return result ?? null;
+}
 
-    async create(farmId: string, input: InvoiceSettingsCreateInput): Promise<InvoiceSettings> {
-      return rlsDb.rls(async (tx) => {
-        const [row] = await tx
-          .insert(invoiceSettings)
-          .values({ ...farmIdColumnValue, ...input, updatedAt: new Date() })
-          .returning();
-        return row;
-      });
-    },
+export async function createInvoiceSettings(
+  farmId: string,
+  input: InvoiceSettingsCreateInput
+): Promise<InvoiceSettings> {
+  const [row] = await appDrizzle
+    .insert(invoiceSettings)
+    .values({ farmId, ...input, updatedAt: new Date() })
+    .returning();
+  return row;
+}
 
-    async update(id: string, input: InvoiceSettingsUpdateInput): Promise<InvoiceSettings> {
-      return rlsDb.rls(async (tx) => {
-        const [row] = await tx
-          .update(invoiceSettings)
-          .set({ ...input, updatedAt: new Date() })
-          .where(eq(invoiceSettings.id, id))
-          .returning();
-        return row;
-      });
-    },
+export async function updateInvoiceSettings(id: string, input: InvoiceSettingsUpdateInput): Promise<InvoiceSettings> {
+  const [row] = await appDrizzle
+    .update(invoiceSettings)
+    .set({ ...input, updatedAt: new Date() })
+    .where(eq(invoiceSettings.id, id))
+    .returning();
+  return row;
+}
 
-    async delete(id: string): Promise<void> {
-      await rlsDb.rls((tx) => tx.delete(invoiceSettings).where(eq(invoiceSettings.id, id)));
-    },
+export async function deleteInvoiceSettings(id: string): Promise<void> {
+  await appDrizzle.delete(invoiceSettings).where(eq(invoiceSettings.id, id));
+}
 
-    async upsertLogo(id: string, logoData: Buffer, logoMimeType: string): Promise<InvoiceSettings> {
-      return rlsDb.rls(async (tx) => {
-        const [row] = await tx
-          .update(invoiceSettings)
-          .set({ logoData, logoMimeType, updatedAt: new Date() })
-          .where(eq(invoiceSettings.id, id))
-          .returning();
-        return row;
-      });
-    },
+export async function upsertInvoiceSettingsLogo(
+  id: string,
+  logoData: Buffer,
+  logoMimeType: string
+): Promise<InvoiceSettings> {
+  const [row] = await appDrizzle
+    .update(invoiceSettings)
+    .set({ logoData, logoMimeType, updatedAt: new Date() })
+    .where(eq(invoiceSettings.id, id))
+    .returning();
+  return row;
+}
 
-    async deleteLogo(id: string): Promise<void> {
-      await rlsDb.rls((tx) =>
-        tx
-          .update(invoiceSettings)
-          .set({ logoData: null, logoMimeType: null, updatedAt: new Date() })
-          .where(eq(invoiceSettings.id, id))
-      );
-    },
-  };
+export async function deleteInvoiceSettingsLogo(id: string): Promise<void> {
+  await appDrizzle
+    .update(invoiceSettings)
+    .set({ logoData: null, logoMimeType: null, updatedAt: new Date() })
+    .where(eq(invoiceSettings.id, id));
 }

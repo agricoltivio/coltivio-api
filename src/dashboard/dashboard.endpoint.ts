@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { farmEndpointFactory } from "../endpoint-factory";
 import { multiPolygonSchema } from "../db/schema";
+import { getDashboardStats, getFieldEvents } from "./dashboard";
 
 const animalTypeSchema = z.enum(["goat", "sheep", "cow", "horse", "donkey", "pig", "deer"]);
 
@@ -80,8 +81,8 @@ export const getDashboardStatsEndpoint = farmEndpointFactory.build({
       .transform((val) => (val != null ? parseInt(val, 10) : new Date().getFullYear())),
   }),
   output: dashboardStatsSchema,
-  handler: async ({ input, ctx }) => {
-    return ctx.dashboard.getDashboardStats(ctx.farmId, input.year);
+  handler: async ({ input, ctx: { farmId } }) => {
+    return getDashboardStats(farmId, input.year);
   },
 });
 
@@ -92,10 +93,10 @@ export const getFieldEventsEndpoint = farmEndpointFactory.build({
     toDate: z.string().date(),
   }),
   output: z.object({ result: z.array(fieldEventSchema) }),
-  handler: async ({ input, ctx }) => {
+  handler: async ({ input, ctx: { farmId } }) => {
     const fromDate = new Date(input.fromDate);
     const toDate = new Date(input.toDate);
-    const result = await ctx.dashboard.getFieldEvents(ctx.farmId, fromDate, toDate);
+    const result = await getFieldEvents(farmId, fromDate, toDate);
     return { result };
   },
 });

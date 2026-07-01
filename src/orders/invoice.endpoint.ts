@@ -1,14 +1,17 @@
 import { z } from "zod";
 import createHttpError from "http-errors";
-import { membershipEndpointFactory } from "../endpoint-factory";
+import { farmEndpointFactory } from "../endpoint-factory";
+import { downloadInvoice, downloadInvoicesBatch } from "./invoice";
+import i18next from "i18next";
 
-export const downloadInvoiceEndpoint = membershipEndpointFactory.build({
+export const downloadInvoiceEndpoint = farmEndpointFactory.build({
   method: "post",
   input: z.object({ orderId: z.string(), settingsId: z.string() }),
   output: z.object({ base64: z.string(), fileName: z.string() }),
-  handler: async ({ input, ctx }) => {
+  handler: async ({ input, ctx: { farmId, preferredLanguage } }) => {
+    const t = i18next.getFixedT(preferredLanguage);
     try {
-      return await ctx.invoices.downloadInvoice(input.orderId, ctx.farmId, input.settingsId, ctx.token);
+      return await downloadInvoice(input.orderId, farmId, input.settingsId, t);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Unknown error";
       if (msg === "Order not found") throw createHttpError(404, msg);
@@ -18,7 +21,7 @@ export const downloadInvoiceEndpoint = membershipEndpointFactory.build({
   },
 });
 
-export const downloadInvoicesBatchEndpoint = membershipEndpointFactory.build({
+export const downloadInvoicesBatchEndpoint = farmEndpointFactory.build({
   method: "post",
   input: z.object({
     orderIds: z.array(z.string()).min(1).max(100),
@@ -26,15 +29,10 @@ export const downloadInvoicesBatchEndpoint = membershipEndpointFactory.build({
     mode: z.enum(["single", "zip"]).default("single"),
   }),
   output: z.object({ base64: z.string(), fileName: z.string() }),
-  handler: async ({ input, ctx }) => {
+  handler: async ({ input, ctx: { farmId, preferredLanguage } }) => {
+    const t = i18next.getFixedT(preferredLanguage);
     try {
-      return await ctx.invoices.downloadInvoicesBatch(
-        input.orderIds,
-        ctx.farmId,
-        input.settingsId,
-        ctx.token,
-        input.mode
-      );
+      return await downloadInvoicesBatch(input.orderIds, farmId, input.settingsId, t, input.mode);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Unknown error";
       if (msg.startsWith("Order not found")) throw createHttpError(404, msg);

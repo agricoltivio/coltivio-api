@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { animalSchema } from "../animals/animals.endpoint";
 import { permissionFarmEndpoint } from "../endpoint-factory";
+import { createEarTagRange, deleteEarTagRange, getAvailableEarTagsForFarm, getEarTagsForFarm } from "./ear-tags";
 
 const animalsRead = permissionFarmEndpoint("animals", "read");
 const animalsWrite = permissionFarmEndpoint("animals", "write");
@@ -24,8 +25,8 @@ export const getEarTagsEndpoint = animalsRead.build({
     result: z.array(earTagWithAssignmentSchema),
     count: z.number(),
   }),
-  handler: async ({ ctx: { earTags, farmId } }) => {
-    const result = await earTags.getEarTagsForFarm(farmId);
+  handler: async ({ ctx: { farmId } }) => {
+    const result = await getEarTagsForFarm(farmId);
     return {
       result,
       count: result.length,
@@ -40,8 +41,8 @@ export const getAvailableEarTagsEndpoint = animalsRead.build({
     result: z.array(earTagSchema),
     count: z.number(),
   }),
-  handler: async ({ ctx: { earTags, farmId } }) => {
-    const result = await earTags.getAvailableEarTagsForFarm(farmId);
+  handler: async ({ ctx: { farmId } }) => {
+    const result = await getAvailableEarTagsForFarm(farmId);
     return {
       result,
       count: result.length,
@@ -59,8 +60,8 @@ export const createEarTagRangeEndpoint = animalsWrite.build({
     result: z.array(earTagSchema),
     count: z.number(),
   }),
-  handler: async ({ input, ctx: { earTags } }) => {
-    const result = await earTags.createEarTagRange(input.fromNumber, input.toNumber);
+  handler: async ({ input, ctx: { farmId } }) => {
+    const result = await createEarTagRange(input.fromNumber, input.toNumber, farmId);
     return {
       result,
       count: result.length,
@@ -78,7 +79,7 @@ export const deleteEarTagRangeEndpoint = animalsWrite.build({
     deletedCount: z.number(),
     skippedAssigned: z.array(z.string()),
   }),
-  handler: async ({ input, ctx: { earTags, farmId } }) => {
-    return earTags.deleteEarTagRange(farmId, input.fromNumber, input.toNumber);
+  handler: async ({ input, ctx: { farmId } }) => {
+    return deleteEarTagRange(farmId, input.fromNumber, input.toNumber);
   },
 });

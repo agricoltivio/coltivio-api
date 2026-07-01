@@ -1,8 +1,10 @@
 import { expect } from "@jest/globals";
 import merge from "lodash/merge";
+import { eq } from "drizzle-orm";
 import { createTestUser, getAdminDb, request } from "./helpers";
-import { membershipPayments } from "../db/schema";
+import { profiles, farmMemberPermissions } from "../db/schema";
 import type { FarmPermissionFeature } from "../db/schema";
+import { initializeMemberPermissions } from "../farm/farm-permissions";
 
 export type InvitePermission = { feature: FarmPermissionFeature; access: "none" | "read" | "write" };
 
@@ -113,64 +115,42 @@ export const TEST_GEOMETRY = DEFAULT_PLOT.geometry;
 
 type ApiEntity = Record<string, unknown> & { id: string; farmId: string };
 
-async function insertActiveMembership(userId: string) {
-  const db = getAdminDb();
-  const periodEnd = new Date();
-  periodEnd.setFullYear(periodEnd.getFullYear() + 1);
-  await db.insert(membershipPayments).values({
-    userId,
-    stripePaymentId: `pi_test_${Date.now()}_${Math.random().toString(36).slice(2)}`,
-    stripeSubscriptionId: null,
-    amount: 29000,
-    currency: "chf",
-    status: "succeeded",
-    periodEnd,
-  });
-}
-
-export async function createUserWithFarm(
-  data?: Record<string, unknown>,
-  email = "test@test.com",
-  opts: { withActiveMembership?: boolean } = {}
-) {
+export async function createUserWithFarm(data?: Record<string, unknown>, email = "test@test.com") {
   const { jwt, userId } = await createTestUser(email, "password123");
   const farmData = merge({}, DEFAULT_FARM, data);
   const res = await request("POST", "/v1/farm", farmData, jwt);
   const body = (await res.json()) as { data: { id: string } };
   const farmId = body.data.id;
-
-  if (opts.withActiveMembership === true) {
-    await insertActiveMembership(userId);
-  }
-
   return { jwt, userId, farmId };
 }
 
 /**
- * Creates a second user, has the owner invite them, and accepts the invite.
- * The member gets an active membership by default (needed for write endpoints).
+ * Creates a second user and directly assigns them to the farm via admin DB.
+ * In standalone there are no invites — farm membership is set directly.
  */
 export async function createFarmMember(
-  ownerJwt: string,
+  farmId: string,
   email: string,
-  opts: { role?: "owner" | "member"; withActiveMembership?: boolean; permissions?: InvitePermission[] } = {}
+  opts: { role?: "owner" | "member"; permissions?: InvitePermission[] } = {}
 ) {
   const role = opts.role ?? "member";
   const { jwt, userId } = await createTestUser(email, "password123");
 
-  const inviteRes = await request("POST", "/v1/farm/invites", { email, role, permissions: opts.permissions }, ownerJwt);
-  expect(inviteRes.status).toBe(200);
-
-  // Get the invite code from the DB — not returned by the API
   const db = getAdminDb();
-  const invite = await db.query.farmInvites.findFirst({ where: { email } });
-  expect(invite).toBeDefined();
+  await db.update(profiles).set({ farmId, farmRole: role }).where(eq(profiles.id, userId));
+  // Initialize all permission features to "none" (mirrors what the invite-accept flow did)
+  await initializeMemberPermissions(userId, farmId);
 
-  const acceptRes = await request("POST", "/v1/farm/invites/accept", { code: invite!.code }, jwt);
-  expect(acceptRes.status).toBe(200);
-
-  if (opts.withActiveMembership === true) {
-    await insertActiveMembership(userId);
+  if (opts.permissions) {
+    for (const perm of opts.permissions) {
+      await db
+        .insert(farmMemberPermissions)
+        .values({ userId, farmId, feature: perm.feature, access: perm.access })
+        .onConflictDoUpdate({
+          target: [farmMemberPermissions.userId, farmMemberPermissions.feature],
+          set: { access: perm.access },
+        });
+    }
   }
 
   return { jwt, userId };

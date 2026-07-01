@@ -1,6 +1,9 @@
 import createHttpError from "http-errors";
 import { z } from "zod";
 import { authenticatedEndpointFactory, farmEndpointFactory } from "../endpoint-factory";
+import { createFarm, deleteFarm, getFarmById, updateFarm } from "./farms";
+import { deleteUser } from "../user/users";
+import i18next from "i18next";
 
 const pointSchema = z.object({
   type: z.literal("Point"),
@@ -17,7 +20,7 @@ const farmBaseSchema = z.object({
 });
 
 export const farmSchema = farmBaseSchema.extend({
-  membership: z.object({ status: z.enum(["none", "trial", "active"]) }),
+  membership: z.object({ status: z.enum(["none", "trial", "active"]) }).optional(),
 });
 
 const createFarmSchema = z.object({
@@ -39,16 +42,12 @@ export const getFarmEndpoint = farmEndpointFactory.build({
   method: "get",
   input: z.object({}),
   output: farmSchema,
-  handler: async ({ ctx }) => {
-    const [farm, status] = await Promise.all([
-      ctx.farms.getFarmById(ctx.farmId),
-      ctx.membership.getFarmMembershipStatus(ctx.farmId),
-    ]);
+  handler: async ({ ctx: { farmId } }) => {
+    const farm = await getFarmById(farmId);
     if (!farm) {
       throw createHttpError(404, "Farm not found");
     }
-
-    return { ...farm, membership: { status } };
+    return farm;
   },
 });
 
@@ -60,7 +59,8 @@ export const createFarmEndpoint = authenticatedEndpointFactory.build({
     if (ctx.user.farmId != null) {
       throw createHttpError(400, "User already has a farm");
     }
-    return ctx.farms.createFarm(ctx.user.id, input);
+    const t = i18next.getFixedT(ctx.preferredLanguage);
+    return createFarm(ctx.user.id, input, t);
   },
 });
 
@@ -68,15 +68,11 @@ export const updateFarmEndpoint = farmEndpointFactory.build({
   method: "patch",
   input: updateFarmSchema,
   output: farmSchema,
-  handler: async ({ input, ctx }) => {
-    if (ctx.user.farmRole !== "owner") {
+  handler: async ({ input, ctx: { user, farmId } }) => {
+    if (user.farmRole !== "owner") {
       throw createHttpError(403, "Only farm owners can update farm settings");
     }
-    const [farm, status] = await Promise.all([
-      ctx.farms.updateFarm(ctx.farmId, input),
-      ctx.membership.getFarmMembershipStatus(ctx.farmId),
-    ]);
-    return { ...farm, membership: { status } };
+    return updateFarm(farmId, input);
   },
 });
 
@@ -86,13 +82,13 @@ export const deleteFarmEndpoint = farmEndpointFactory.build({
     deleteAccount: z.string().transform((value) => value === "true"),
   }),
   output: z.object({}),
-  handler: async ({ input, ctx }) => {
-    if (ctx.user.farmRole !== "owner") {
+  handler: async ({ input, ctx: { user, farmId } }) => {
+    if (user.farmRole !== "owner") {
       throw createHttpError(403, "Only farm owners can delete the farm");
     }
-    await ctx.farms.deleteFarm(ctx.farmId);
+    await deleteFarm(farmId);
     if (input.deleteAccount) {
-      await ctx.users.deleteUser(ctx.user.id);
+      await deleteUser(user.id);
     }
     return {};
   },

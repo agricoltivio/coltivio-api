@@ -5,6 +5,21 @@ import { cropSchema } from "../crops/crops.endpoint";
 import { ensureDateRange } from "../date-utils";
 import * as tables from "../db/schema";
 import { permissionFarmEndpoint } from "../endpoint-factory";
+import {
+  getHarvestsForFarm,
+  getHarvestsForPlot,
+  getHarvestSummaryForFarm,
+  getHarvestSummaryForPlot,
+  getHarvestById,
+  createHarvests,
+  deleteHarvest,
+  getHarvestYears,
+  getHarvestPresets,
+  getHarvestPresetById,
+  createHarvestPreset,
+  updateHarvestPreset,
+  deleteHarvestPreset,
+} from "./harvests";
 
 const harvestsRead = permissionFarmEndpoint("field_calendar", "read");
 const harvestsWrite = permissionFarmEndpoint("field_calendar", "write");
@@ -44,9 +59,9 @@ export const getHarvestsForFarmEndpoint = harvestsRead.build({
     result: z.array(harvestSchema),
     count: z.number(),
   }),
-  handler: async ({ input, ctx: { harvests, farmId } }) => {
+  handler: async ({ input, ctx: { farmId } }) => {
     const { from, to } = ensureDateRange(input.fromDate, input.toDate);
-    const result = await harvests.getHarvestsForFarm(farmId, from, to);
+    const result = await getHarvestsForFarm(farmId, from, to);
     return { result, count: result.length };
   },
 });
@@ -58,8 +73,8 @@ export const getHarvestsForPlotEndpoint = harvestsRead.build({
     result: z.array(harvestSchema.omit({ plot: true })),
     count: z.number(),
   }),
-  handler: async ({ input, ctx: { harvests } }) => {
-    const result = await harvests.getHarvestsForPlot(input.plotId);
+  handler: async ({ input }) => {
+    const result = await getHarvestsForPlot(input.plotId);
     return { result, count: result.length };
   },
 });
@@ -91,9 +106,8 @@ export const getHarvestSummaryForFarmEndpoint = harvestsRead.build({
   method: "get",
   input: z.object({}),
   output: harvestSummaryResponseSchema,
-  handler: async ({ ctx: { harvests, farmId } }) => {
-    const result = await harvests.getHarvestSummaryForFarm(farmId);
-    return result;
+  handler: async ({ ctx: { farmId } }) => {
+    return getHarvestSummaryForFarm(farmId);
   },
 });
 
@@ -101,9 +115,8 @@ export const getHarvestSummaryForPlotEndpoint = harvestsRead.build({
   method: "get",
   input: z.object({ plotId: z.string() }),
   output: harvestSummaryResponseSchema,
-  handler: async ({ input, ctx: { harvests } }) => {
-    const result = await harvests.getHarvestSummaryForPlot(input.plotId);
-    return result;
+  handler: async ({ input }) => {
+    return getHarvestSummaryForPlot(input.plotId);
   },
 });
 
@@ -111,8 +124,8 @@ export const getHarvestByIdEndpoint = harvestsRead.build({
   method: "get",
   input: z.object({ harvestId: z.string() }),
   output: harvestSchema,
-  handler: async ({ input, ctx: { harvests } }) => {
-    const harvest = await harvests.getHarvestById(input.harvestId);
+  handler: async ({ input }) => {
+    const harvest = await getHarvestById(input.harvestId);
     if (!harvest) {
       throw createHttpError(404, "Forage Harvest not found");
     }
@@ -145,15 +158,9 @@ export const createHarvestsEndpoint = harvestsWrite.build({
     result: harvestSchema.array(),
     count: z.number(),
   }),
-  handler: async ({ input, ctx: { harvests, user } }) => {
-    const result = await harvests.createHarvests({
-      ...input,
-      createdBy: user.id,
-    });
-    return {
-      result,
-      count: result.length,
-    };
+  handler: async ({ input, ctx: { user, farmId } }) => {
+    const result = await createHarvests({ ...input, createdBy: user.id }, farmId);
+    return { result, count: result.length };
   },
 });
 
@@ -161,8 +168,8 @@ export const deleteHarvestEndpoint = harvestsWrite.build({
   method: "delete",
   input: z.object({ harvestId: z.string() }),
   output: z.object({}),
-  handler: async ({ input: { harvestId }, ctx: { harvests } }) => {
-    await harvests.deleteHarvest(harvestId);
+  handler: async ({ input: { harvestId } }) => {
+    await deleteHarvest(harvestId);
     return {};
   },
 });
@@ -174,8 +181,8 @@ export const getHarvestYearsEndpoint = harvestsRead.build({
     result: z.array(z.string()),
     count: z.number(),
   }),
-  handler: async ({ ctx: { harvests } }) => {
-    const result = await harvests.getHarvestYears();
+  handler: async ({ ctx: { farmId } }) => {
+    const result = await getHarvestYears(farmId);
     return { result, count: result.length };
   },
 });
@@ -196,8 +203,8 @@ export const getHarvestPresetsEndpoint = harvestsRead.build({
     result: z.array(harvestPresetSchema),
     count: z.number(),
   }),
-  handler: async ({ ctx: { harvests } }) => {
-    const result = await harvests.getHarvestPresets();
+  handler: async ({ ctx: { farmId } }) => {
+    const result = await getHarvestPresets(farmId);
     return { result, count: result.length };
   },
 });
@@ -206,8 +213,8 @@ export const getHarvestPresetByIdEndpoint = harvestsRead.build({
   method: "get",
   input: z.object({ presetId: z.string() }),
   output: harvestPresetSchema,
-  handler: async ({ input, ctx: { harvests } }) => {
-    const preset = await harvests.getHarvestPresetById(input.presetId);
+  handler: async ({ input }) => {
+    const preset = await getHarvestPresetById(input.presetId);
     if (!preset) {
       throw createHttpError(404, "Harvest preset not found");
     }
@@ -224,8 +231,8 @@ export const createHarvestPresetEndpoint = harvestsWrite.build({
     conservationMethod: tables.conservationMethodEnumSchema.optional().nullable(),
   }),
   output: harvestPresetSchema,
-  handler: async ({ input, ctx: { harvests } }) => {
-    return harvests.createHarvestPreset(input);
+  handler: async ({ input, ctx: { farmId } }) => {
+    return createHarvestPreset(input, farmId);
   },
 });
 
@@ -239,8 +246,8 @@ export const updateHarvestPresetEndpoint = harvestsWrite.build({
     conservationMethod: tables.conservationMethodEnumSchema.optional().nullable(),
   }),
   output: harvestPresetSchema,
-  handler: async ({ input: { presetId, ...data }, ctx: { harvests } }) => {
-    return harvests.updateHarvestPreset(presetId, data);
+  handler: async ({ input: { presetId, ...data } }) => {
+    return updateHarvestPreset(presetId, data);
   },
 });
 
@@ -248,8 +255,8 @@ export const deleteHarvestPresetEndpoint = harvestsWrite.build({
   method: "delete",
   input: z.object({ presetId: z.string() }),
   output: z.object({}),
-  handler: async ({ input: { presetId }, ctx: { harvests } }) => {
-    await harvests.deleteHarvestPreset(presetId);
+  handler: async ({ input: { presetId } }) => {
+    await deleteHarvestPreset(presetId);
     return {};
   },
 });

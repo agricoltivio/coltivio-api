@@ -3,14 +3,23 @@ import createHttpError from "http-errors";
 import { z } from "zod";
 import { animalSchema } from "../animals/animals.endpoint";
 import { contactSchema } from "../contacts/contacts.endpoint";
-import { preferredCommunicationSchema } from "../db/schema";
-import { permissionMembershipEndpoint } from "../endpoint-factory";
-
-const sponsorshipsRead = permissionMembershipEndpoint("commerce", "read");
-const sponsorshipsWrite = permissionMembershipEndpoint("commerce", "write");
+import { paymentMethodSchema, preferredCommunicationSchema } from "../db/schema";
+import { permissionFarmEndpoint } from "../endpoint-factory";
+import { createPayment, deletePayment, getPaymentById, updatePayment } from "../payments/payments";
 import { paymentSchema } from "../payments/payment-schema";
-import { paymentMethodSchema } from "../db/schema";
 import { sponsorshipProgramSchema } from "./sponsorship-programs.endpoint";
+import {
+  createSponsorship,
+  deleteSponsorship,
+  getSponsorshipById,
+  getSponsorshipsForAnimal,
+  getSponsorshipsForContact,
+  getSponsorshipsForFarm,
+  updateSponsorship,
+} from "./sponsorships";
+
+const sponsorshipsRead = permissionFarmEndpoint("commerce", "read");
+const sponsorshipsWrite = permissionFarmEndpoint("commerce", "write");
 
 export const sponsorshipSchema = z.object({
   id: z.string(),
@@ -55,8 +64,8 @@ export const getSponsorshipByIdEndpoint = sponsorshipsRead.build({
   method: "get",
   input: z.object({ sponsorshipId: z.string() }),
   output: sponsorshipWithRelationsSchema,
-  handler: async ({ input, ctx: { sponsorships } }) => {
-    const sponsorship = await sponsorships.getSponsorshipById(input.sponsorshipId);
+  handler: async ({ input }) => {
+    const sponsorship = await getSponsorshipById(input.sponsorshipId);
     if (!sponsorship) {
       throw createHttpError(404, "Sponsorship not found");
     }
@@ -75,8 +84,8 @@ export const getFarmSponsorshipsEndpoint = sponsorshipsRead.build({
     result: z.array(sponsorshipWithPaidFlagSchema),
     count: z.number(),
   }),
-  handler: async ({ input, ctx: { sponsorships, farmId } }) => {
-    const rawResult = await sponsorships.getSponsorshipsForFarm(farmId, input.onlyActive);
+  handler: async ({ input, ctx: { farmId } }) => {
+    const rawResult = await getSponsorshipsForFarm(farmId, input.onlyActive);
     const currentYear = new Date().getFullYear();
     const result = rawResult.map((sponsorship) => {
       const paidThisYear =
@@ -102,8 +111,8 @@ export const getContactSponsorshipsEndpoint = sponsorshipsRead.build({
     result: z.array(sponsorshipWithRelationsSchema.omit({ contact: true })),
     count: z.number(),
   }),
-  handler: async ({ input, ctx: { sponsorships } }) => {
-    const result = await sponsorships.getSponsorshipsForContact(input.contactId, input.onlyActive);
+  handler: async ({ input }) => {
+    const result = await getSponsorshipsForContact(input.contactId, input.onlyActive);
     return {
       result,
       count: result.length,
@@ -121,8 +130,8 @@ export const getAnimalSponsorshipsEndpoint = sponsorshipsRead.build({
     result: z.array(sponsorshipWithRelationsSchema.omit({ animal: true })),
     count: z.number(),
   }),
-  handler: async ({ input, ctx: { sponsorships } }) => {
-    const result = await sponsorships.getSponsorshipsForAnimal(input.animalId, input.onlyActive);
+  handler: async ({ input }) => {
+    const result = await getSponsorshipsForAnimal(input.animalId, input.onlyActive);
     return {
       result,
       count: result.length,
@@ -152,8 +161,8 @@ export const createSponsorshipEndpoint = sponsorshipsWrite.build({
   method: "post",
   input: createSponsorshipSchema,
   output: sponsorshipSchema,
-  handler: async ({ input, ctx: { sponsorships } }) => {
-    return sponsorships.createSponsorship(input);
+  handler: async ({ input, ctx: { farmId } }) => {
+    return createSponsorship(input, farmId);
   },
 });
 
@@ -163,9 +172,9 @@ export const updateSponsorshipEndpoint = sponsorshipsWrite.build({
     sponsorshipId: z.string(),
   }),
   output: sponsorshipSchema,
-  handler: async ({ input, ctx: { sponsorships } }) => {
+  handler: async ({ input }) => {
     const { sponsorshipId, ...data } = input;
-    return sponsorships.updateSponsorship(sponsorshipId, data);
+    return updateSponsorship(sponsorshipId, data);
   },
 });
 
@@ -173,8 +182,8 @@ export const deleteSponsorshipEndpoint = sponsorshipsWrite.build({
   method: "delete",
   input: z.object({ sponsorshipId: z.string() }),
   output: z.object({}),
-  handler: async ({ input: { sponsorshipId }, ctx: { sponsorships } }) => {
-    await sponsorships.deleteSponsorship(sponsorshipId);
+  handler: async ({ input: { sponsorshipId } }) => {
+    await deleteSponsorship(sponsorshipId);
     return {};
   },
 });
@@ -191,11 +200,11 @@ export const createSponsorshipPaymentEndpoint = sponsorshipsWrite.build({
   method: "post",
   input: sponsorshipPaymentInputSchema.extend({ sponsorshipId: z.string() }),
   output: paymentSchema,
-  handler: async ({ input, ctx: { sponsorships, payments } }) => {
-    const sponsorship = await sponsorships.getSponsorshipById(input.sponsorshipId);
+  handler: async ({ input, ctx: { farmId } }) => {
+    const sponsorship = await getSponsorshipById(input.sponsorshipId);
     if (!sponsorship) throw createHttpError(404, "Sponsorship not found");
     const { sponsorshipId, ...paymentData } = input;
-    return payments.createPayment({ ...paymentData, sponsorshipId, contactId: sponsorship.contactId, orderId: null });
+    return createPayment({ ...paymentData, sponsorshipId, contactId: sponsorship.contactId, orderId: null }, farmId);
   },
 });
 
@@ -203,8 +212,8 @@ export const getSponsorshipPaymentEndpoint = sponsorshipsRead.build({
   method: "get",
   input: z.object({ sponsorshipId: z.string(), paymentId: z.string() }),
   output: paymentSchema,
-  handler: async ({ input, ctx: { payments } }) => {
-    const payment = await payments.getPaymentById(input.paymentId);
+  handler: async ({ input }) => {
+    const payment = await getPaymentById(input.paymentId);
     if (!payment || payment.sponsorshipId !== input.sponsorshipId) throw createHttpError(404, "Payment not found");
     return payment;
   },
@@ -214,9 +223,9 @@ export const updateSponsorshipPaymentEndpoint = sponsorshipsWrite.build({
   method: "patch",
   input: sponsorshipPaymentInputSchema.partial().extend({ sponsorshipId: z.string(), paymentId: z.string() }),
   output: paymentSchema,
-  handler: async ({ input, ctx: { payments } }) => {
+  handler: async ({ input }) => {
     const { paymentId, sponsorshipId: _sponsorshipId, ...data } = input;
-    return payments.updatePayment(paymentId, data);
+    return updatePayment(paymentId, data);
   },
 });
 
@@ -224,8 +233,8 @@ export const deleteSponsorshipPaymentEndpoint = sponsorshipsWrite.build({
   method: "delete",
   input: z.object({ sponsorshipId: z.string(), paymentId: z.string() }),
   output: z.object({}),
-  handler: async ({ input, ctx: { payments } }) => {
-    await payments.deletePayment(input.paymentId);
+  handler: async ({ input }) => {
+    await deletePayment(input.paymentId);
     return {};
   },
 });

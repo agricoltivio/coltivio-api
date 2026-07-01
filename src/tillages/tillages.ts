@@ -1,6 +1,6 @@
 import { eq, sql } from "drizzle-orm";
-import { RlsDb } from "../db/db";
-import { farmIdColumnValue, tillages, tillagePresets } from "../db/schema";
+import { appDrizzle } from "../db/db";
+import { tillages, tillagePresets } from "../db/schema";
 import { MultiPolygon } from "../geo/geojson";
 import { Plot } from "../plots/plots";
 
@@ -31,160 +31,111 @@ export type Tillage = typeof tillages.$inferSelect & {
   plot: Omit<Plot, "currentCropRotation" | "geometry">;
 };
 
-export function tillagesApi(rlsDb: RlsDb) {
-  return {
-    async createTillage(input: TillageCreateInput): Promise<Tillage> {
-      const result = await rlsDb.rls(async (tx) => {
-        const [tillage] = await tx
-          .insert(tillages)
-          .values({
-            ...farmIdColumnValue,
-            ...input,
-            geometry: sql<MultiPolygon>`ST_GeomFromGeoJSON(${JSON.stringify(input.geometry)})`,
-          })
-          .returning();
-        return tillage;
-      });
-      const tillage = await this.getTillageById(result.id);
-      return tillage!;
-    },
-    async createTillages({ plots, ...base }: TillageBatchCreateInput): Promise<Tillage[]> {
-      const result = await rlsDb.rls(async (tx) => {
-        return tx
-          .insert(tillages)
-          .values(
-            plots.map((plot) => ({
-              ...farmIdColumnValue,
-              ...base,
-              ...plot,
-              geometry: sql<MultiPolygon>`ST_GeomFromGeoJSON(${JSON.stringify(plot.geometry)})`,
-            }))
-          )
-          .returning({ id: tillages.id });
-      });
-      return this.getTillagesByIds(result.map((application) => application.id))!;
-    },
-    async getTillagesByIds(ids: string[]): Promise<Tillage[]> {
-      return rlsDb.rls(async (tx) => {
-        return tx.query.tillages.findMany({
-          where: { id: { in: ids } },
-          with: {
-            plot: true,
-          },
-          extras: {
-            geometry: (t) => sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as("geometry"),
-          },
-        });
-      });
-    },
-    async getTillageById(id: string): Promise<Tillage | undefined> {
-      return rlsDb.rls(async (tx) => {
-        return tx.query.tillages.findFirst({
-          where: { id },
-          with: {
-            plot: true,
-          },
-          extras: {
-            geometry: (t) => sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as("geometry"),
-          },
-        });
-      });
-    },
-    async getTillagesForFarm(farmId: string, fromDate: Date, toDate: Date): Promise<Tillage[]> {
-      return rlsDb.rls(async (tx) => {
-        return tx.query.tillages.findMany({
-          where: {
-            farmId,
-            AND: [{ date: { gte: fromDate } }, { date: { lte: toDate } }],
-          },
-          with: {
-            plot: true,
-          },
-          extras: {
-            geometry: (t) => sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as("geometry"),
-          },
-          orderBy: { date: "desc" },
-        });
-      });
-    },
-    async getTillagesForPlot(plotId: string): Promise<Tillage[]> {
-      return rlsDb.rls(async (tx) => {
-        return tx.query.tillages.findMany({
-          where: { plotId },
-          with: {
-            plot: true,
-          },
-          extras: {
-            geometry: (t) => sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as("geometry"),
-          },
-          orderBy: { date: "desc" },
-        });
-      });
-    },
-    async updateTillage(id: string, data: TillageUpdateInput): Promise<Tillage> {
-      const result = await rlsDb.rls(async (tx) => {
-        const geometry = data.geometry
-          ? sql<MultiPolygon>`ST_GeomFromGeoJSON(${JSON.stringify(data.geometry)})`
-          : undefined;
+export async function createTillage(input: TillageCreateInput, farmId: string): Promise<Tillage> {
+  const [result] = await appDrizzle
+    .insert(tillages)
+    .values({ farmId, ...input, geometry: sql<MultiPolygon>`ST_GeomFromGeoJSON(${JSON.stringify(input.geometry)})` })
+    .returning();
+  const tillage = await getTillageById(result.id);
+  return tillage!;
+}
 
-        const [tillage] = await tx
-          .update(tillages)
-          .set({ ...data, geometry })
-          .where(eq(tillages.id, id))
-          .returning();
-        return tillage;
-      });
-      const tillage = await this.getTillageById(result.id);
-      return tillage!;
-    },
-    async deleteTillage(id: string): Promise<void> {
-      return rlsDb.rls(async (tx) => {
-        await tx.delete(tillages).where(eq(tillages.id, id));
-      });
-    },
-    async getTillagesYears(): Promise<string[]> {
-      return rlsDb.rls(async (tx) => {
-        const result = await tx.query.tillages.findMany({
-          columns: {
-            date: true,
-          },
-          orderBy: { date: "desc" },
-        });
+export async function createTillages(
+  { plots: plotInputs, ...base }: TillageBatchCreateInput,
+  farmId: string
+): Promise<Tillage[]> {
+  const result = await appDrizzle
+    .insert(tillages)
+    .values(
+      plotInputs.map((plot) => ({
+        farmId,
+        ...base,
+        ...plot,
+        geometry: sql<MultiPolygon>`ST_GeomFromGeoJSON(${JSON.stringify(plot.geometry)})`,
+      }))
+    )
+    .returning({ id: tillages.id });
+  return getTillagesByIds(result.map((t) => t.id));
+}
 
-        return Array.from(new Set(result.map((application) => application.date.getFullYear().toString())));
-      });
-    },
-    async createTillagePreset(input: TillagePresetCreateInput): Promise<TillagePreset> {
-      return rlsDb.rls(async (tx) => {
-        const [preset] = await tx
-          .insert(tillagePresets)
-          .values({ ...farmIdColumnValue, ...input })
-          .returning();
-        return preset;
-      });
-    },
-    async getTillagePresets(): Promise<TillagePreset[]> {
-      return rlsDb.rls(async (tx) => {
-        return tx.query.tillagePresets.findMany({
-          orderBy: { name: "asc" },
-        });
-      });
-    },
-    async getTillagePresetById(id: string): Promise<TillagePreset | undefined> {
-      return rlsDb.rls(async (tx) => {
-        return tx.query.tillagePresets.findFirst({ where: { id } });
-      });
-    },
-    async updateTillagePreset(id: string, input: TillagePresetUpdateInput): Promise<TillagePreset> {
-      return rlsDb.rls(async (tx) => {
-        const [preset] = await tx.update(tillagePresets).set(input).where(eq(tillagePresets.id, id)).returning();
-        return preset;
-      });
-    },
-    async deleteTillagePreset(id: string): Promise<void> {
-      return rlsDb.rls(async (tx) => {
-        await tx.delete(tillagePresets).where(eq(tillagePresets.id, id));
-      });
-    },
-  };
+export async function getTillagesByIds(ids: string[]): Promise<Tillage[]> {
+  return appDrizzle.query.tillages.findMany({
+    where: { id: { in: ids } },
+    with: { plot: true },
+    extras: { geometry: (t) => sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as("geometry") },
+  });
+}
+
+export async function getTillageById(id: string): Promise<Tillage | undefined> {
+  return appDrizzle.query.tillages.findFirst({
+    where: { id },
+    with: { plot: true },
+    extras: { geometry: (t) => sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as("geometry") },
+  });
+}
+
+export async function getTillagesForFarm(farmId: string, fromDate: Date, toDate: Date): Promise<Tillage[]> {
+  return appDrizzle.query.tillages.findMany({
+    where: { farmId, AND: [{ date: { gte: fromDate } }, { date: { lte: toDate } }] },
+    with: { plot: true },
+    extras: { geometry: (t) => sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as("geometry") },
+    orderBy: { date: "desc" },
+  });
+}
+
+export async function getTillagesForPlot(plotId: string): Promise<Tillage[]> {
+  return appDrizzle.query.tillages.findMany({
+    where: { plotId },
+    with: { plot: true },
+    extras: { geometry: (t) => sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as("geometry") },
+    orderBy: { date: "desc" },
+  });
+}
+
+export async function updateTillage(id: string, data: TillageUpdateInput): Promise<Tillage> {
+  const geometry = data.geometry ? sql<MultiPolygon>`ST_GeomFromGeoJSON(${JSON.stringify(data.geometry)})` : undefined;
+  await appDrizzle
+    .update(tillages)
+    .set({ ...data, geometry })
+    .where(eq(tillages.id, id));
+  const tillage = await getTillageById(id);
+  return tillage!;
+}
+
+export async function deleteTillage(id: string): Promise<void> {
+  await appDrizzle.delete(tillages).where(eq(tillages.id, id));
+}
+
+export async function getTillagesYears(farmId: string): Promise<string[]> {
+  const result = await appDrizzle.query.tillages.findMany({
+    where: { farmId },
+    columns: { date: true },
+    orderBy: { date: "desc" },
+  });
+  return Array.from(new Set(result.map((t) => t.date.getFullYear().toString())));
+}
+
+export async function createTillagePreset(input: TillagePresetCreateInput, farmId: string): Promise<TillagePreset> {
+  const [preset] = await appDrizzle
+    .insert(tillagePresets)
+    .values({ farmId, ...input })
+    .returning();
+  return preset;
+}
+
+export async function getTillagePresets(farmId: string): Promise<TillagePreset[]> {
+  return appDrizzle.query.tillagePresets.findMany({ where: { farmId }, orderBy: { name: "asc" } });
+}
+
+export async function getTillagePresetById(id: string): Promise<TillagePreset | undefined> {
+  return appDrizzle.query.tillagePresets.findFirst({ where: { id } });
+}
+
+export async function updateTillagePreset(id: string, input: TillagePresetUpdateInput): Promise<TillagePreset> {
+  const [preset] = await appDrizzle.update(tillagePresets).set(input).where(eq(tillagePresets.id, id)).returning();
+  return preset;
+}
+
+export async function deleteTillagePreset(id: string): Promise<void> {
+  await appDrizzle.delete(tillagePresets).where(eq(tillagePresets.id, id));
 }

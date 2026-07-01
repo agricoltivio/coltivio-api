@@ -1,9 +1,17 @@
 import { z } from "zod";
 import createHttpError from "http-errors";
-import { membershipEndpointFactory, permissionMembershipEndpoint } from "../endpoint-factory";
-
-const ordersWrite = permissionMembershipEndpoint("commerce", "write");
+import { farmEndpointFactory, permissionFarmEndpoint } from "../endpoint-factory";
 import { InvoiceSettings } from "./invoice-settings";
+import {
+  listInvoiceSettingsForFarm,
+  createInvoiceSettings,
+  updateInvoiceSettings,
+  deleteInvoiceSettings,
+  upsertInvoiceSettingsLogo,
+  deleteInvoiceSettingsLogo,
+} from "./invoice-settings";
+
+const ordersWrite = permissionFarmEndpoint("commerce", "write");
 
 export const invoiceSettingsSchema = z.object({
   id: z.string(),
@@ -50,12 +58,12 @@ function toSettingsResponse(row: InvoiceSettings): InvoiceSettingsResponse {
   return { ...rest, hasLogo: logoData !== null };
 }
 
-export const getInvoiceSettingsEndpoint = membershipEndpointFactory.build({
+export const getInvoiceSettingsEndpoint = farmEndpointFactory.build({
   method: "get",
   input: z.object({}),
   output: z.object({ result: z.array(invoiceSettingsSchema) }),
-  handler: async ({ ctx: { farmId, invoiceSettings } }) => {
-    const rows = await invoiceSettings.listForFarm(farmId);
+  handler: async ({ ctx: { farmId } }) => {
+    const rows = await listInvoiceSettingsForFarm(farmId);
     return { result: rows.map(toSettingsResponse) };
   },
 });
@@ -64,8 +72,8 @@ export const createInvoiceSettingsEndpoint = ordersWrite.build({
   method: "post",
   input: invoiceSettingsCreateSchema,
   output: invoiceSettingsSchema,
-  handler: async ({ input, ctx: { farmId, invoiceSettings } }): Promise<InvoiceSettingsResponse> => {
-    const row = await invoiceSettings.create(farmId, input);
+  handler: async ({ input, ctx: { farmId } }): Promise<InvoiceSettingsResponse> => {
+    const row = await createInvoiceSettings(farmId, input);
     return toSettingsResponse(row);
   },
 });
@@ -74,9 +82,9 @@ export const updateInvoiceSettingsEndpoint = ordersWrite.build({
   method: "put",
   input: z.object({ id: z.string(), ...invoiceSettingsUpdateSchema.shape }),
   output: invoiceSettingsSchema,
-  handler: async ({ input, ctx: { invoiceSettings } }): Promise<InvoiceSettingsResponse> => {
+  handler: async ({ input }): Promise<InvoiceSettingsResponse> => {
     const { id, ...rest } = input;
-    const row = await invoiceSettings.update(id, rest);
+    const row = await updateInvoiceSettings(id, rest);
     if (!row) throw createHttpError(404, "Invoice settings not found");
     return toSettingsResponse(row);
   },
@@ -86,8 +94,8 @@ export const deleteInvoiceSettingsEndpoint = ordersWrite.build({
   method: "delete",
   input: z.object({ id: z.string() }),
   output: z.object({ success: z.boolean() }),
-  handler: async ({ input, ctx: { invoiceSettings } }) => {
-    await invoiceSettings.delete(input.id);
+  handler: async ({ input }) => {
+    await deleteInvoiceSettings(input.id);
     return { success: true };
   },
 });
@@ -100,11 +108,11 @@ export const uploadLogoEndpoint = ordersWrite.build({
     mimeType: z.enum(["jpg", "png"]),
   }),
   output: invoiceSettingsSchema,
-  handler: async ({ input, ctx: { invoiceSettings } }): Promise<InvoiceSettingsResponse> => {
+  handler: async ({ input }): Promise<InvoiceSettingsResponse> => {
     // Strip data URI prefix if present (e.g. "data:image/png;base64,...")
     const raw = input.base64.replace(/^data:[^;]+;base64,/, "");
     const buffer = Buffer.from(raw, "base64");
-    const row = await invoiceSettings.upsertLogo(input.id, buffer, input.mimeType);
+    const row = await upsertInvoiceSettingsLogo(input.id, buffer, input.mimeType);
     if (!row) throw createHttpError(404, "Invoice settings not found");
     return toSettingsResponse(row);
   },
@@ -114,8 +122,8 @@ export const deleteLogoEndpoint = ordersWrite.build({
   method: "delete",
   input: z.object({ id: z.string() }),
   output: z.object({ success: z.boolean() }),
-  handler: async ({ input, ctx: { invoiceSettings } }) => {
-    await invoiceSettings.deleteLogo(input.id);
+  handler: async ({ input }) => {
+    await deleteInvoiceSettingsLogo(input.id);
     return { success: true };
   },
 });

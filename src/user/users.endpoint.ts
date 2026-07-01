@@ -2,6 +2,9 @@ import createHttpError from "http-errors";
 import { z } from "zod";
 import { farmEndpointFactory, authenticatedEndpointFactory } from "../endpoint-factory";
 import { farmPermissionFeatureSchema } from "../db/schema";
+import { getUserById, updateUser } from "./users";
+import { getFarmUsers, kickMember, changeMemberRole } from "../farm/farms";
+import { listPermissionsForUser } from "../farm/farm-permissions";
 
 const farmPermissionSchema = z.object({
   feature: farmPermissionFeatureSchema,
@@ -18,9 +21,6 @@ export const userSchema = z.object({
   isWikiModerator: z.boolean(),
 });
 
-// Extended schema for GET /me — includes the caller's explicit permission grants.
-// Owners always have full access so farmPermissions is empty for them.
-// Members default to "none" for unlisted features.
 const myProfileSchema = userSchema.extend({
   farmPermissions: z.array(farmPermissionSchema),
 });
@@ -38,28 +38,21 @@ export const getMyUserProfileEndpoint = authenticatedEndpointFactory.build({
   input: z.object({}),
   output: myProfileSchema,
   handler: async ({ ctx }) => {
-    const [user, isWikiModerator, farmPermissions] = await Promise.all([
-      ctx.users.getUserById(ctx.user.id),
-      ctx.wikiModeration.isModerator(ctx.user.id),
-      ctx.farmPermissions.listPermissionsForUser(ctx.user.id),
-    ]);
-    return { ...user, isWikiModerator, farmPermissions };
+    const farmPermissions = await listPermissionsForUser(ctx.user.id);
+    return { ...ctx.user, isWikiModerator: false, farmPermissions };
   },
 });
 
-export const getUserProfileByIdEndpoint = authenticatedEndpointFactory.build({
+export const getUserProfileByIdEndpoint = farmEndpointFactory.build({
   method: "get",
   input: z.object({ userId: z.string() }),
   output: userSchema,
-  handler: async ({ input, ctx }) => {
-    const [user, isWikiModerator] = await Promise.all([
-      ctx.users.getUserById(input.userId),
-      ctx.wikiModeration.isModerator(input.userId),
-    ]);
+  handler: async ({ input, ctx: { farmId } }) => {
+    const user = await getUserById(input.userId, farmId);
     if (!user) {
       throw createHttpError(404, "User not found");
     }
-    return { ...user, isWikiModerator };
+    return { ...user, isWikiModerator: false };
   },
 });
 
@@ -70,15 +63,9 @@ export const getFarmUsersEndpoint = farmEndpointFactory.build({
     result: z.array(userSchema),
     count: z.number(),
   }),
-  handler: async ({ ctx }) => {
-    const [users, moderatorIds] = await Promise.all([
-      ctx.farms.getFarmUsers(ctx.farmId),
-      ctx.wikiModeration.getModeratorUserIds(),
-    ]);
-    const result = users.map((u) => ({
-      ...u,
-      isWikiModerator: moderatorIds.has(u.id),
-    }));
+  handler: async ({ ctx: { farmId } }) => {
+    const users = await getFarmUsers(farmId);
+    const result = users.map((u) => ({ ...u, isWikiModerator: false }));
     return { result, count: result.length };
   },
 });
@@ -88,11 +75,8 @@ export const updateUserProfileEndpoint = authenticatedEndpointFactory.build({
   input: updateUserSchema,
   output: userSchema,
   handler: async ({ input, ctx }) => {
-    const [user, isWikiModerator] = await Promise.all([
-      ctx.users.updateUser(ctx.user.id, input),
-      ctx.wikiModeration.isModerator(ctx.user.id),
-    ]);
-    return { ...user, isWikiModerator };
+    const user = await updateUser(ctx.user.id, input);
+    return { ...user, isWikiModerator: false };
   },
 });
 
@@ -110,11 +94,11 @@ export const kickFarmMemberEndpoint = farmEndpointFactory.build({
   method: "delete",
   input: z.object({ userId: z.string() }),
   output: z.object({}),
-  handler: async ({ input, ctx }) => {
-    if (ctx.user.farmRole !== "owner") {
+  handler: async ({ input, ctx: { user, farmId } }) => {
+    if (user.farmRole !== "owner") {
       throw createHttpError(403, "Only farm owners can kick members");
     }
-    await ctx.farms.kickMember(input.userId, ctx.user.id, ctx.farmId);
+    await kickMember(input.userId, user.id, farmId);
     return {};
   },
 });
@@ -123,14 +107,11 @@ export const changeFarmMemberRoleEndpoint = farmEndpointFactory.build({
   method: "patch",
   input: z.object({ userId: z.string(), role: z.enum(["owner", "member"]) }),
   output: userSchema,
-  handler: async ({ input, ctx }) => {
-    if (ctx.user.farmRole !== "owner") {
+  handler: async ({ input, ctx: { user, farmId } }) => {
+    if (user.farmRole !== "owner") {
       throw createHttpError(403, "Only farm owners can change member roles");
     }
-    const [updatedProfile, isWikiModerator] = await Promise.all([
-      ctx.farms.changeMemberRole(input.userId, ctx.user.id, ctx.farmId, input.role),
-      ctx.wikiModeration.isModerator(input.userId),
-    ]);
-    return { ...updatedProfile, isWikiModerator };
+    const updatedProfile = await changeMemberRole(input.userId, user.id, farmId, input.role);
+    return { ...updatedProfile, isWikiModerator: false };
   },
 });

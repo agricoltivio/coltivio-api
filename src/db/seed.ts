@@ -1,13 +1,8 @@
 import "dotenv/config";
-import { Pool } from "pg";
-import { drizzle } from "drizzle-orm/node-postgres";
-import * as schema from "./schema";
+import { drizzle } from "drizzle-orm/postgres-js";
+import { relations } from "./schema";
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-});
-
-const _db = drizzle({ client: pool, schema });
+const _db = drizzle(process.env.DATABASE_URL!, { relations });
 
 async function main() {
   // const [battesta] = await db
@@ -55,5 +50,5 @@ main()
     console.log(e);
   })
   .finally(async () => {
-    await pool.end();
+    // pool already managed by postgres-js
   });

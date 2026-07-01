@@ -2,6 +2,7 @@ import createHttpError from "http-errors";
 import { z } from "zod";
 import { animalTypeSchema, drugDosePerUnitSchema, drugDoseUnitSchema } from "../db/schema";
 import { permissionFarmEndpoint } from "../endpoint-factory";
+import { createDrug, deleteDrug, drugInUse, getDrugById, getDrugsForFarm, updateDrug } from "./drugs";
 
 const treatmentsRead = permissionFarmEndpoint("animals", "read");
 const treatmentsWrite = permissionFarmEndpoint("animals", "write");
@@ -60,8 +61,8 @@ export const getDrugByIdEndpoint = treatmentsRead.build({
   method: "get",
   input: z.object({ drugId: z.string() }),
   output: drugSchema,
-  handler: async ({ input, ctx: { drugs } }) => {
-    const drug = await drugs.getDrugById(input.drugId);
+  handler: async ({ input }) => {
+    const drug = await getDrugById(input.drugId);
     if (!drug) {
       throw createHttpError(404, "Drug not found");
     }
@@ -76,8 +77,8 @@ export const getFarmDrugsEndpoint = treatmentsRead.build({
     result: z.array(drugSchema),
     count: z.number(),
   }),
-  handler: async ({ ctx: { drugs, farmId } }) => {
-    const result = await drugs.getDrugsForFarm(farmId);
+  handler: async ({ ctx: { farmId } }) => {
+    const result = await getDrugsForFarm(farmId);
     return { result, count: result.length };
   },
 });
@@ -86,8 +87,8 @@ export const createDrugEndpoint = treatmentsWrite.build({
   method: "post",
   input: createDrugSchema,
   output: drugSchema,
-  handler: async ({ input, ctx: { drugs } }) => {
-    return drugs.createDrug(input);
+  handler: async ({ input, ctx: { farmId } }) => {
+    return createDrug(input, farmId);
   },
 });
 
@@ -95,9 +96,9 @@ export const updateDrugEndpoint = treatmentsWrite.build({
   method: "patch",
   input: updateDrugSchema.extend({ drugId: z.string() }),
   output: drugSchema,
-  handler: async ({ input, ctx: { drugs } }) => {
+  handler: async ({ input }) => {
     const { drugId, ...data } = input;
-    return drugs.updateDrug(drugId, data);
+    return updateDrug(drugId, data);
   },
 });
 
@@ -105,8 +106,8 @@ export const deleteDrugEndpoint = treatmentsWrite.build({
   method: "delete",
   input: z.object({ drugId: z.string() }),
   output: z.object({}),
-  handler: async ({ input: { drugId }, ctx: { drugs } }) => {
-    await drugs.deleteDrug(drugId);
+  handler: async ({ input: { drugId } }) => {
+    await deleteDrug(drugId);
     return {};
   },
 });
@@ -115,8 +116,8 @@ export const drugInUseEndpoint = treatmentsRead.build({
   method: "get",
   input: z.object({ drugId: z.string() }),
   output: z.object({ inUse: z.boolean() }),
-  handler: async ({ input, ctx: { drugs } }) => {
-    const inUse = await drugs.drugInUse(input.drugId);
+  handler: async ({ input }) => {
+    const inUse = await drugInUse(input.drugId);
     return { inUse };
   },
 });

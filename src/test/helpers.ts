@@ -1,19 +1,15 @@
 import crypto from "crypto";
-import { GoTrueClient } from "@supabase/auth-js";
 import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
-import * as schema from "../db/schema";
 import { relations } from "../db/schema";
-
-// Helper to create a typed drizzle instance (used for ReturnType inference)
-function createAdminDb() {
-  const client = postgres(process.env.DATABASE_URL!, { prepare: false });
-  return drizzle({ client, schema, relations, casing: "snake_case" });
-}
 
 // Lazy singleton admin DB for direct state verification in tests
 let _adminSql: ReturnType<typeof postgres> | null = null;
 let _adminDb: ReturnType<typeof createAdminDb> | null = null;
+
+function createAdminDb() {
+  return drizzle(process.env.DATABASE_URL!, { relations });
+}
 
 export function getAdminSql() {
   if (!_adminSql) {
@@ -24,53 +20,40 @@ export function getAdminSql() {
 
 export function getAdminDb() {
   if (!_adminDb) {
-    _adminDb = drizzle({
-      client: getAdminSql(),
-      schema,
-      relations,
-      casing: "snake_case",
-    });
+    _adminDb = createAdminDb();
   }
   return _adminDb;
 }
 
 /**
- * Creates a user via GoTrue admin API and signs in to get a JWT.
- * Uses GoTrueClient directly because @supabase/supabase-js appends /auth/v1
- * to the URL, but our test GoTrue container serves at the root.
+ * Creates a user via the admin endpoint and logs in to get a JWT.
  */
 export async function createTestUser(email: string, password: string) {
-  const gotrue = new GoTrueClient({
-    url: process.env.GOTRUE_URL!,
-    headers: {
-      Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY!}`,
-      apikey: process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    },
-    persistSession: false,
-    autoRefreshToken: false,
-    detectSessionInUrl: false,
-  });
+  const adminKey = process.env.ADMIN_API_KEY!;
 
-  const { data: createData, error: createError } = await gotrue.admin.createUser({
-    email,
-    password,
-    email_confirm: true,
-  });
-  if (createError) throw createError;
+  const createRes = await request("POST", "/v1/auth/users", { email, password }, undefined, adminKey);
+  if (!createRes.ok) {
+    const body = await createRes.text();
+    throw new Error(`Failed to create test user: ${body}`);
+  }
+  const { data: { id: userId } } = (await createRes.json()) as { data: { id: string } };
 
-  const { data: signInData, error: signInError } = await gotrue.signInWithPassword({ email, password });
-  if (signInError) throw signInError;
+  const loginRes = await request("POST", "/v1/auth/login", { email, password });
+  if (!loginRes.ok) {
+    const body = await loginRes.text();
+    throw new Error(`Failed to log in test user: ${body}`);
+  }
+  const { data: { token: jwt } } = (await loginRes.json()) as { data: { token: string } };
 
-  return {
-    jwt: signInData.session!.access_token,
-    userId: createData.user.id,
-  };
+  return { jwt, userId };
 }
 
 /**
- * Truncates all public tables and deletes auth users.
- * Call in beforeEach for test isolation.
+ * Truncates all public tables for test isolation.
  */
+// PostGIS system tables that must never be truncated
+const POSTGIS_SYSTEM_TABLES = new Set(["spatial_ref_sys"]);
+
 export async function cleanDb() {
   const sql = getAdminSql();
 
@@ -78,19 +61,23 @@ export async function cleanDb() {
     SELECT tablename FROM pg_tables WHERE schemaname = 'public'
   `;
 
-  if (tables.length > 0) {
-    const tableNames = tables.map((t) => `"${t.tablename}"`).join(", ");
+  const appTables = tables.filter((t) => !POSTGIS_SYSTEM_TABLES.has(t.tablename));
+  if (appTables.length > 0) {
+    const tableNames = appTables.map((t) => `"${t.tablename}"`).join(", ");
     await sql.unsafe(`TRUNCATE ${tableNames} CASCADE`);
   }
-
-  // Delete auth users (profiles already removed by truncate)
-  await sql`DELETE FROM auth.users`;
 }
 
 /**
  * Fetch wrapper that prepends the test server base URL.
  */
-export async function request(method: string, path: string, body?: Record<string, unknown>, jwt?: string) {
+export async function request(
+  method: string,
+  path: string,
+  body?: Record<string, unknown>,
+  jwt?: string,
+  adminKey?: string
+) {
   const baseUrl = process.env.SERVER_URL!;
   const url = `${baseUrl}${path}`;
 
@@ -99,6 +86,9 @@ export async function request(method: string, path: string, body?: Record<string
   };
   if (jwt) {
     headers["Authorization"] = `Bearer ${jwt}`;
+  }
+  if (adminKey) {
+    headers["x-admin-api-key"] = adminKey;
   }
 
   return fetch(url, {
@@ -134,8 +124,7 @@ export async function rawRequest(
 }
 
 /**
- * Signs a test JWT using HMAC-SHA256. Used for crafting malformed/expired tokens.
- * The secret must match the GoTrue JWT_SECRET from docker-compose.test.yml.
+ * Signs a test JWT using HMAC-SHA256.
  */
 export function signTestJwt(
   payload: Record<string, unknown>,

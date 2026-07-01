@@ -1,10 +1,11 @@
 import createHttpError from "http-errors";
 import { z } from "zod";
 import { preferredCommunicationSchema } from "../db/schema";
-import { permissionMembershipEndpoint } from "../endpoint-factory";
+import { permissionFarmEndpoint } from "../endpoint-factory";
+import { createContact, deleteContact, getContactById, getContactsForFarm, updateContact } from "./contacts";
 
-const contactsRead = permissionMembershipEndpoint("commerce", "read");
-const contactsWrite = permissionMembershipEndpoint("commerce", "write");
+const contactsRead = permissionFarmEndpoint("commerce", "read");
+const contactsWrite = permissionFarmEndpoint("commerce", "write");
 import { paymentSchema } from "../payments/payment-schema";
 import { sponsorshipWithRelationsSchema } from "../sponsorships/sponsorships.endpoint";
 import { orderSchema } from "../orders/orders.endpoint";
@@ -58,8 +59,8 @@ export const getContactByIdEndpoint = contactsRead.build({
   method: "get",
   input: z.object({ contactId: z.string() }),
   output: contactWithRelationsSchema,
-  handler: async ({ input, ctx: { contacts } }) => {
-    const contact = await contacts.getContactById(input.contactId);
+  handler: async ({ input }) => {
+    const contact = await getContactById(input.contactId);
     if (!contact) {
       throw createHttpError(404, "Contact not found");
     }
@@ -74,8 +75,8 @@ export const getFarmContactsEndpoint = contactsRead.build({
     result: z.array(contactSchema),
     count: z.number(),
   }),
-  handler: async ({ ctx: { contacts, farmId } }) => {
-    const result = await contacts.getContactsForFarm(farmId);
+  handler: async ({ ctx: { farmId } }) => {
+    const result = await getContactsForFarm(farmId);
     return {
       result,
       count: result.length,
@@ -87,9 +88,8 @@ export const createContactEndpoint = contactsWrite.build({
   method: "post",
   input: createContactSchema,
   output: contactSchema,
-  handler: async ({ input, ctx: { contacts } }) => {
-    console.log("CREATE CONTACT");
-    return contacts.createContact(input);
+  handler: async ({ input, ctx: { farmId } }) => {
+    return createContact(input, farmId);
   },
 });
 
@@ -99,9 +99,9 @@ export const updateContactEndpoint = contactsWrite.build({
     contactId: z.string(),
   }),
   output: contactSchema,
-  handler: async ({ input, ctx: { contacts } }) => {
+  handler: async ({ input }) => {
     const { contactId, ...data } = input;
-    return contacts.updateContact(contactId, data);
+    return updateContact(contactId, data);
   },
 });
 
@@ -109,8 +109,8 @@ export const deleteContactEndpoint = contactsWrite.build({
   method: "delete",
   input: z.object({ contactId: z.string() }),
   output: z.object({}),
-  handler: async ({ input: { contactId }, ctx: { contacts } }) => {
-    await contacts.deleteContact(contactId);
+  handler: async ({ input: { contactId } }) => {
+    await deleteContact(contactId);
     return {};
   },
 });

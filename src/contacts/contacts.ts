@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
-import { RlsDb } from "../db/db";
-import { contacts, farmIdColumnValue } from "../db/schema";
+import { appDrizzle } from "../db/db";
+import { contacts } from "../db/schema";
 import { Payment } from "../payments/payments";
 import { SponsorshipWithRelations } from "../sponsorships/sponsorships";
 import { Order } from "../orders/orders";
@@ -23,53 +23,39 @@ export type ContactWithRelations = Contact & {
   orders: Order[];
 };
 
-export function contactsApi(rlsDb: RlsDb) {
-  return {
-    async createContact(contactInput: ContactCreateInput): Promise<Contact> {
-      return rlsDb.rls(async (tx) => {
-        const [contact] = await tx
-          .insert(contacts)
-          .values({ ...farmIdColumnValue, ...contactInput })
-          .returning();
-        return contact;
-      });
-    },
+export async function createContact(contactInput: ContactCreateInput, farmId: string): Promise<Contact> {
+  const [contact] = await appDrizzle
+    .insert(contacts)
+    .values({ farmId, ...contactInput })
+    .returning();
+  return contact;
+}
 
-    async getContactById(id: string): Promise<ContactWithRelations | undefined> {
-      return rlsDb.rls(async (tx) => {
-        return tx.query.contacts.findFirst({
-          where: { id },
-          with: {
-            payments: true,
-            sponsorships: {
-              with: {
-                animal: true,
-                sponsorshipProgram: true,
-              },
-            },
-            orders: true,
-          },
-        });
-      });
+export async function getContactById(id: string): Promise<ContactWithRelations | undefined> {
+  return appDrizzle.query.contacts.findFirst({
+    where: { id },
+    with: {
+      payments: true,
+      sponsorships: {
+        with: {
+          animal: true,
+          sponsorshipProgram: true,
+        },
+      },
+      orders: true,
     },
+  });
+}
 
-    async getContactsForFarm(farmId: string): Promise<Contact[]> {
-      return rlsDb.rls(async (tx) => {
-        return tx.select().from(contacts).where(eq(contacts.farmId, farmId));
-      });
-    },
+export async function getContactsForFarm(farmId: string): Promise<Contact[]> {
+  return appDrizzle.select().from(contacts).where(eq(contacts.farmId, farmId));
+}
 
-    async updateContact(id: string, data: ContactUpdateInput): Promise<Contact> {
-      return rlsDb.rls(async (tx) => {
-        const [contact] = await tx.update(contacts).set(data).where(eq(contacts.id, id)).returning();
-        return contact;
-      });
-    },
+export async function updateContact(id: string, data: ContactUpdateInput): Promise<Contact> {
+  const [contact] = await appDrizzle.update(contacts).set(data).where(eq(contacts.id, id)).returning();
+  return contact;
+}
 
-    async deleteContact(id: string): Promise<void> {
-      return rlsDb.rls(async (tx) => {
-        await tx.delete(contacts).where(eq(contacts.id, id));
-      });
-    },
-  };
+export async function deleteContact(id: string): Promise<void> {
+  await appDrizzle.delete(contacts).where(eq(contacts.id, id));
 }

@@ -6,10 +6,25 @@ import { contactSchema } from "../contacts/contacts.endpoint";
 import { paymentSchema } from "../payments/payment-schema";
 import { paymentMethodSchema } from "../db/schema";
 import { productSchema } from "../products/products.endpoint";
-import { permissionMembershipEndpoint } from "../endpoint-factory";
+import { permissionFarmEndpoint } from "../endpoint-factory";
+import {
+  getOrderById,
+  getOrdersForFarm,
+  getOrdersForContact,
+  getOrderItems,
+  createOrder,
+  confirmOrder,
+  fulfillOrder,
+  cancelOrder,
+  updateOrderNotes,
+  addOrderItem,
+  updateOrderItem,
+  removeOrderItem,
+} from "./orders";
+import { createPayment, getPaymentById, updatePayment, deletePayment } from "../payments/payments";
 
-const ordersRead = permissionMembershipEndpoint("commerce", "read");
-const ordersWrite = permissionMembershipEndpoint("commerce", "write");
+const ordersRead = permissionFarmEndpoint("commerce", "read");
+const ordersWrite = permissionFarmEndpoint("commerce", "write");
 
 export const orderSchema = z.object({
   id: z.string(),
@@ -64,8 +79,8 @@ export const getOrderByIdEndpoint = ordersRead.build({
   method: "get",
   input: z.object({ orderId: z.string() }),
   output: orderWithRelationsSchema,
-  handler: async ({ input, ctx: { orders } }) => {
-    const order = await orders.getOrderById(input.orderId);
+  handler: async ({ input }) => {
+    const order = await getOrderById(input.orderId);
     if (!order) {
       throw createHttpError(404, "Order not found");
     }
@@ -84,8 +99,8 @@ export const getFarmOrdersEndpoint = ordersRead.build({
     result: z.array(orderWithPaidFlagSchema),
     count: z.number(),
   }),
-  handler: async ({ ctx: { orders, farmId } }) => {
-    const rawResult = await orders.getOrdersForFarm(farmId);
+  handler: async ({ ctx: { farmId } }) => {
+    const rawResult = await getOrdersForFarm(farmId);
     const result = rawResult.map((order) => {
       const orderTotal = order.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
       const totalPaid = order.payments.reduce((sum, p) => sum + p.amount, 0);
@@ -105,8 +120,8 @@ export const getContactOrdersEndpoint = ordersRead.build({
     result: z.array(orderSchema),
     count: z.number(),
   }),
-  handler: async ({ input, ctx: { orders } }) => {
-    const result = await orders.getOrdersForContact(input.contactId);
+  handler: async ({ input }) => {
+    const result = await getOrdersForContact(input.contactId);
     return {
       result,
       count: result.length,
@@ -121,8 +136,8 @@ export const getOrderItemsEndpoint = ordersRead.build({
     result: z.array(orderItemSchema),
     count: z.number(),
   }),
-  handler: async ({ input, ctx: { orders } }) => {
-    const result = await orders.getOrderItems(input.orderId);
+  handler: async ({ input }) => {
+    const result = await getOrderItems(input.orderId);
     return {
       result,
       count: result.length,
@@ -141,9 +156,9 @@ export const createOrderEndpoint = ordersWrite.build({
     items: z.array(orderItemInputSchema).min(1),
   }),
   output: orderWithRelationsSchema,
-  handler: async ({ input, ctx: { orders } }) => {
+  handler: async ({ input, ctx: { farmId } }) => {
     const { items, ...orderData } = input;
-    return orders.createOrder(orderData, items);
+    return createOrder(orderData, items, farmId);
   },
 });
 
@@ -151,8 +166,8 @@ export const confirmOrderEndpoint = ordersWrite.build({
   method: "post",
   input: z.object({ orderId: z.string() }),
   output: orderSchema,
-  handler: async ({ input, ctx: { orders } }) => {
-    return orders.confirmOrder(input.orderId);
+  handler: async ({ input }) => {
+    return confirmOrder(input.orderId);
   },
 });
 
@@ -160,8 +175,8 @@ export const fulfillOrderEndpoint = ordersWrite.build({
   method: "post",
   input: z.object({ orderId: z.string() }),
   output: orderSchema,
-  handler: async ({ input, ctx: { orders } }) => {
-    return orders.fulfillOrder(input.orderId);
+  handler: async ({ input }) => {
+    return fulfillOrder(input.orderId);
   },
 });
 
@@ -169,8 +184,8 @@ export const cancelOrderEndpoint = ordersWrite.build({
   method: "post",
   input: z.object({ orderId: z.string() }),
   output: orderSchema,
-  handler: async ({ input, ctx: { orders } }) => {
-    return orders.cancelOrder(input.orderId);
+  handler: async ({ input }) => {
+    return cancelOrder(input.orderId);
   },
 });
 
@@ -182,9 +197,9 @@ export const updateOrderEndpoint = ordersWrite.build({
     shippingDate: ez.dateIn().optional(),
   }),
   output: orderSchema,
-  handler: async ({ input, ctx: { orders } }) => {
+  handler: async ({ input }) => {
     const { orderId, ...data } = input;
-    return orders.updateOrderNotes(orderId, data);
+    return updateOrderNotes(orderId, data);
   },
 });
 
@@ -197,9 +212,9 @@ export const addOrderItemEndpoint = ordersWrite.build({
     unitPrice: z.number().nonnegative().optional(),
   }),
   output: orderItemWithProductSchema,
-  handler: async ({ input, ctx: { orders } }) => {
+  handler: async ({ input, ctx: { farmId } }) => {
     const { orderId, ...item } = input;
-    return orders.addOrderItem(orderId, item);
+    return addOrderItem(orderId, item, farmId);
   },
 });
 
@@ -212,9 +227,9 @@ export const updateOrderItemEndpoint = ordersWrite.build({
     unitPrice: z.number().nonnegative().optional(),
   }),
   output: orderItemSchema,
-  handler: async ({ input, ctx: { orders } }) => {
+  handler: async ({ input }) => {
     const { orderItemId, ...data } = input;
-    return orders.updateOrderItem(orderItemId, data);
+    return updateOrderItem(orderItemId, data);
   },
 });
 
@@ -222,8 +237,8 @@ export const removeOrderItemEndpoint = ordersWrite.build({
   method: "delete",
   input: z.object({ orderId: z.string(), orderItemId: z.string() }),
   output: z.object({ success: z.boolean() }),
-  handler: async ({ input, ctx: { orders } }) => {
-    await orders.removeOrderItem(input.orderItemId);
+  handler: async ({ input }) => {
+    await removeOrderItem(input.orderItemId);
     return { success: true };
   },
 });
@@ -240,11 +255,11 @@ export const createOrderPaymentEndpoint = ordersWrite.build({
   method: "post",
   input: orderPaymentInputSchema.extend({ orderId: z.string() }),
   output: paymentSchema,
-  handler: async ({ input, ctx: { orders, payments } }) => {
-    const order = await orders.getOrderById(input.orderId);
+  handler: async ({ input, ctx: { farmId } }) => {
+    const order = await getOrderById(input.orderId);
     if (!order) throw createHttpError(404, "Order not found");
     const { orderId, ...paymentData } = input;
-    return payments.createPayment({ ...paymentData, orderId, contactId: order.contactId, sponsorshipId: null });
+    return createPayment({ ...paymentData, orderId, contactId: order.contactId, sponsorshipId: null }, farmId);
   },
 });
 
@@ -252,8 +267,8 @@ export const getOrderPaymentEndpoint = ordersRead.build({
   method: "get",
   input: z.object({ orderId: z.string(), paymentId: z.string() }),
   output: paymentSchema,
-  handler: async ({ input, ctx: { payments } }) => {
-    const payment = await payments.getPaymentById(input.paymentId);
+  handler: async ({ input }) => {
+    const payment = await getPaymentById(input.paymentId);
     if (!payment || payment.orderId !== input.orderId) throw createHttpError(404, "Payment not found");
     return payment;
   },
@@ -263,9 +278,9 @@ export const updateOrderPaymentEndpoint = ordersWrite.build({
   method: "patch",
   input: orderPaymentInputSchema.partial().extend({ orderId: z.string(), paymentId: z.string() }),
   output: paymentSchema,
-  handler: async ({ input, ctx: { payments } }) => {
+  handler: async ({ input }) => {
     const { paymentId, orderId: _orderId, ...data } = input;
-    return payments.updatePayment(paymentId, data);
+    return updatePayment(paymentId, data);
   },
 });
 
@@ -273,8 +288,8 @@ export const deleteOrderPaymentEndpoint = ordersWrite.build({
   method: "delete",
   input: z.object({ orderId: z.string(), paymentId: z.string() }),
   output: z.object({}),
-  handler: async ({ input, ctx: { payments } }) => {
-    await payments.deletePayment(input.paymentId);
+  handler: async ({ input }) => {
+    await deletePayment(input.paymentId);
     return {};
   },
 });

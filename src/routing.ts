@@ -49,7 +49,6 @@ import {
   getContactSponsorshipsEndpoint,
   getFarmSponsorshipsEndpoint,
   getSponsorshipByIdEndpoint,
-  // getSponsorshipPaymentsEndpoint,
   updateSponsorshipEndpoint,
   createSponsorshipPaymentEndpoint,
   getSponsorshipPaymentEndpoint,
@@ -85,12 +84,6 @@ import {
   updateTreatmentEndpoint,
 } from "./treatments/treatments.endpoint";
 import { createFarmEndpoint, deleteFarmEndpoint, getFarmEndpoint, updateFarmEndpoint } from "./farm/farm.endpoint";
-import {
-  listFarmInvitesEndpoint,
-  createFarmInviteEndpoint,
-  revokeFarmInviteEndpoint,
-  acceptFarmInviteEndpoint,
-} from "./farm/farm-invites.endpoint";
 import { getDashboardStatsEndpoint, getFieldEventsEndpoint } from "./dashboard/dashboard.endpoint";
 import {
   createHarvestsEndpoint,
@@ -275,30 +268,21 @@ import {
   getProductByIdEndpoint,
   updateProductEndpoint,
 } from "./products/products.endpoint";
-import { sendFieldCalendarReport, downloadFieldCalendarReport } from "./reports/field-calendar-reports.endpoint";
+import { downloadFieldCalendarReport } from "./reports/field-calendar-reports.endpoint";
 import { downloadTreatmentReport } from "./reports/treatment-reports.endpoint";
 import { downloadOutdoorJournalReport } from "./reports/outdoor-journal-reports.endpoint";
 import { healthEndpoint } from "./chore/chore.endpoint";
-import { verifyCaptchaEndpoint } from "./captcha/turnstile.endpoint";
 import {
-  listPublishedWikiEntriesEndpoint,
   getMyWikiEntriesEndpoint,
   createWikiEntryEndpoint,
   updateWikiEntryEndpoint,
   deleteWikiEntryEndpoint,
-  submitWikiEntryEndpoint,
-  createWikiChangeRequestEndpoint,
   requestWikiImageSignedUrlEndpoint,
   registerWikiImageEndpoint,
   deleteWikiImageEndpoint,
   listWikiTagsEndpoint,
   upsertWikiTagEndpoint,
-  getMyWikiChangeRequestsEndpoint,
   listWikiCategoriesEndpoint,
-  updateWikiChangeRequestDraftEndpoint,
-  submitWikiChangeRequestDraftEndpoint,
-  addWikiChangeRequestNoteEndpoint,
-  getWikiChangeRequestNotesEndpoint,
   getWikiEntryByIdEndpoint,
 } from "./wiki/wiki.endpoint";
 import {
@@ -311,47 +295,22 @@ import {
   updateTaskEndpoint,
 } from "./tasks/tasks.endpoint";
 import {
-  getWikiReviewQueueEndpoint,
-  getWikiChangeRequestForReviewEndpoint,
-  approveWikiChangeRequestEndpoint,
-  rejectWikiChangeRequestEndpoint,
-  requestWikiChangesEndpoint,
-  createWikiCategoryEndpoint,
-  deleteWikiCategoryEndpoint,
-} from "./wiki/wiki-moderation.endpoint";
-import {
-  createSubscriptionCheckoutEndpoint,
-  createManualCheckoutEndpoint,
-  getMembershipStatusEndpoint,
-  cancelMembershipEndpoint,
-  getMembershipPaymentsEndpoint,
-  createPaymentMethodSetupEndpoint,
-  reactivateMembershipEndpoint,
-  startTrialEndpoint,
-} from "./membership/membership.endpoint";
-import { createDonationCheckoutEndpoint } from "./donations/donations.endpoint";
-import {
-  listForumThreadsEndpoint,
-  createForumThreadEndpoint,
-  getForumThreadByIdEndpoint,
-  updateForumThreadEndpoint,
-  deleteForumThreadEndpoint,
-  listForumRepliesEndpoint,
-  addForumReplyEndpoint,
-  updateForumReplyEndpoint,
-  deleteForumReplyEndpoint,
-} from "./forum/forum.endpoint";
-import { setForumThreadStatusEndpoint, pinForumThreadEndpoint } from "./forum/forum-moderation.endpoint";
-import { createHandoffTokenEndpoint, exchangeHandoffTokenEndpoint } from "./auth/handoff.endpoint";
-import {
   listMemberPermissionsEndpoint,
   setMemberPermissionEndpoint,
   resetMemberPermissionEndpoint,
 } from "./farm/farm-permissions.endpoint";
+import { loginEndpoint, createUserEndpoint, changePasswordEndpoint } from "./auth/local-auth.endpoint";
 
 export const routing: Routing = {
   healthz: healthEndpoint,
   v1: {
+    auth: {
+      login: { post: loginEndpoint },
+      users: {
+        "": { post: createUserEndpoint },
+        password: { patch: changePasswordEndpoint },
+      },
+    },
     layers: {
       plots: {
         bbox: getPlotsLayerForBoundingBoxEndpoint,
@@ -365,9 +324,6 @@ export const routing: Routing = {
       },
       federalFarmIds: getFederalFarmIdsEndpoint,
     },
-    captcha: {
-      verify: verifyCaptchaEndpoint,
-    },
     farm: {
       "": {
         post: createFarmEndpoint,
@@ -377,13 +333,6 @@ export const routing: Routing = {
       },
       dashboard: getDashboardStatsEndpoint,
       fieldEvents: getFieldEventsEndpoint,
-      invites: {
-        "": { get: listFarmInvitesEndpoint, post: createFarmInviteEndpoint },
-        accept: { post: acceptFarmInviteEndpoint },
-        byId: {
-          ":inviteId": { delete: revokeFarmInviteEndpoint },
-        },
-      },
       members: {
         byId: {
           ":userId": {
@@ -414,22 +363,6 @@ export const routing: Routing = {
         get: getMyUserProfileEndpoint,
       },
     },
-    // parcels: {
-    //   "": {
-    //     get: getFarmParcelsEndpoint,
-    //     post: createParcelsEndpoint,
-    //   }),
-    //   copy: copyFromFederalParcelsEndpoint,
-    //   byId: {
-    //     ":parcelId": {
-    //       "": {
-    //         get: getParcelByIdEndpoint,
-    //         delete: deleteParcelEndpoint,
-    //         patch: updateParcelEndpoint,
-    //       }),
-    //     },
-    //   },
-    // },
     plots: {
       "": {
         get: getFarmPlotsEndpoint,
@@ -686,7 +619,6 @@ export const routing: Routing = {
     },
     reports: {
       fieldcalendar: {
-        email: sendFieldCalendarReport,
         download: downloadFieldCalendarReport,
       },
       treatments: {
@@ -929,25 +861,9 @@ export const routing: Routing = {
     },
     wiki: {
       "": {
-        get: listPublishedWikiEntriesEndpoint,
         post: createWikiEntryEndpoint,
       },
       myEntries: getMyWikiEntriesEndpoint,
-      myChangeRequests: getMyWikiChangeRequestsEndpoint,
-      myChangeRequestDrafts: {
-        byId: {
-          ":changeRequestId": {
-            "": updateWikiChangeRequestDraftEndpoint,
-            submit: submitWikiChangeRequestDraftEndpoint,
-            notes: {
-              "": {
-                get: getWikiChangeRequestNotesEndpoint,
-                post: addWikiChangeRequestNoteEndpoint,
-              },
-            },
-          },
-        },
-      },
       byId: {
         ":entryId": {
           "": {
@@ -955,8 +871,6 @@ export const routing: Routing = {
             patch: updateWikiEntryEndpoint,
             delete: deleteWikiEntryEndpoint,
           },
-          submit: submitWikiEntryEndpoint,
-          changeRequest: createWikiChangeRequestEndpoint,
         },
       },
       images: {
@@ -971,31 +885,6 @@ export const routing: Routing = {
         "": {
           get: listWikiTagsEndpoint,
           post: upsertWikiTagEndpoint,
-        },
-      },
-      reviewQueue: getWikiReviewQueueEndpoint,
-      changeRequests: {
-        byId: {
-          ":changeRequestId": {
-            "": getWikiChangeRequestForReviewEndpoint,
-            approve: approveWikiChangeRequestEndpoint,
-            reject: rejectWikiChangeRequestEndpoint,
-            requestChanges: requestWikiChangesEndpoint,
-            notes: {
-              "": {
-                get: getWikiChangeRequestNotesEndpoint,
-                post: addWikiChangeRequestNoteEndpoint,
-              },
-            },
-          },
-        },
-      },
-      admin: {
-        categories: {
-          "": createWikiCategoryEndpoint,
-          byId: {
-            ":categoryId": deleteWikiCategoryEndpoint,
-          },
         },
       },
     },
@@ -1013,60 +902,6 @@ export const routing: Routing = {
             byId: {
               ":itemId": { patch: setChecklistItemDoneEndpoint },
             },
-          },
-        },
-      },
-    },
-    membership: {
-      checkout: {
-        subscription: { post: createSubscriptionCheckoutEndpoint },
-        manual: { post: createManualCheckoutEndpoint },
-      },
-      status: { get: getMembershipStatusEndpoint },
-      paymentMethod: { post: createPaymentMethodSetupEndpoint },
-      subscription: {
-        delete: cancelMembershipEndpoint,
-        post: reactivateMembershipEndpoint,
-      },
-      payments: { get: getMembershipPaymentsEndpoint },
-      trial: { post: startTrialEndpoint },
-    },
-    donations: {
-      checkout: { post: createDonationCheckoutEndpoint },
-    },
-    auth: {
-      handoff: { post: createHandoffTokenEndpoint },
-      exchange: { post: exchangeHandoffTokenEndpoint },
-    },
-    forum: {
-      threads: {
-        "": {
-          get: listForumThreadsEndpoint,
-          post: createForumThreadEndpoint,
-        },
-        byId: {
-          ":threadId": {
-            "": {
-              get: getForumThreadByIdEndpoint,
-              patch: updateForumThreadEndpoint,
-              delete: deleteForumThreadEndpoint,
-            },
-            replies: {
-              "": {
-                get: listForumRepliesEndpoint,
-                post: addForumReplyEndpoint,
-              },
-            },
-            status: { post: setForumThreadStatusEndpoint },
-            pin: { post: pinForumThreadEndpoint },
-          },
-        },
-      },
-      replies: {
-        byId: {
-          ":replyId": {
-            patch: updateForumReplyEndpoint,
-            delete: deleteForumReplyEndpoint,
           },
         },
       },

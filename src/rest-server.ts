@@ -1,9 +1,8 @@
-import express from "express";
 import { createConfig, createServer } from "express-zod-api";
 import ui from "swagger-ui-express";
 import documentation from "../openapi.json";
 import { routing } from "./routing";
-import { stripeWebhookHandler } from "./stripe/webhook";
+import { registerStorageRoutes } from "./storage/storage.endpoint";
 
 import i18next from "i18next";
 import i18nextMiddleware from "i18next-http-middleware";
@@ -42,7 +41,9 @@ const config = createConfig({
       const allowedOrigins = [
         "https://coltivio.ch",
         "https://app.coltivio.ch",
-        ...(process.env.NODE_ENV !== "production" ? ["http://localhost:4000", "http://localhost:4321"] : []),
+        ...(process.env.NODE_ENV !== "production"
+          ? ["http://localhost:4000", "http://localhost:4321", "http://localhost:3000"]
+          : []),
       ];
       const origin = req.headers.origin;
       if (origin && allowedOrigins.includes(origin)) {
@@ -56,10 +57,9 @@ const config = createConfig({
       }
       next();
     });
-    // Raw body required for Stripe webhook signature verification — must come before any body parsers
-    app.post("/v1/webhooks/stripe", express.raw({ type: "application/json" }), stripeWebhookHandler);
     app.use("/docs", ui.serve, ui.setup(documentation));
     app.use(i18nextMiddleware.handle(i18next));
+    registerStorageRoutes(app);
   },
   cors: ({ defaultHeaders, request }) => {
     const allowedOrigins = [

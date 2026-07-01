@@ -1,1 +1,0 @@
-ALTER TABLE "crop_protection_equipment" ALTER COLUMN "capacity" SET DATA TYPE real;

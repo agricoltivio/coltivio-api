@@ -1,9 +1,19 @@
 import { ez } from "express-zod-api";
 import { z } from "zod";
-import { permissionMembershipEndpoint } from "../endpoint-factory";
+import { permissionFarmEndpoint } from "../endpoint-factory";
+import {
+  listPlotJournalEntries,
+  getPlotJournalEntry,
+  createPlotJournalEntry,
+  updatePlotJournalEntry,
+  deletePlotJournalEntry,
+  requestPlotJournalSignedImageUrl,
+  registerPlotJournalImage,
+  deletePlotJournalImage,
+} from "./plot-journal";
 
-const plotsRead = permissionMembershipEndpoint("field_calendar", "read");
-const plotsWrite = permissionMembershipEndpoint("field_calendar", "write");
+const plotsRead = permissionFarmEndpoint("field_calendar", "read");
+const plotsWrite = permissionFarmEndpoint("field_calendar", "write");
 
 const journalImageSchema = z.object({
   id: z.string(),
@@ -33,8 +43,8 @@ export const listPlotJournalEntriesEndpoint = plotsRead.build({
   method: "get",
   input: z.object({ plotId: z.string() }),
   output: z.object({ entries: z.array(journalEntryWithImagesSchema) }),
-  handler: async ({ input, ctx: { plotJournal, farmId } }) => {
-    const entries = await plotJournal.listEntries(input.plotId, farmId);
+  handler: async ({ input, ctx: { farmId } }) => {
+    const entries = await listPlotJournalEntries(input.plotId, farmId);
     return { entries };
   },
 });
@@ -48,9 +58,9 @@ export const createPlotJournalEntryEndpoint = plotsWrite.build({
     content: z.string().optional(),
   }),
   output: journalEntrySchema,
-  handler: async ({ input, ctx: { plotJournal, farmId, user } }) => {
+  handler: async ({ input, ctx: { farmId, user } }) => {
     const { plotId, ...entryInput } = input;
-    return plotJournal.createEntry(plotId, farmId, user.id, entryInput);
+    return createPlotJournalEntry(plotId, farmId, user.id, entryInput);
   },
 });
 
@@ -58,8 +68,8 @@ export const getPlotJournalEntryEndpoint = plotsRead.build({
   method: "get",
   input: z.object({ entryId: z.string() }),
   output: journalEntryWithImagesSchema,
-  handler: async ({ input, ctx: { plotJournal } }) => {
-    return plotJournal.getEntry(input.entryId);
+  handler: async ({ input, ctx: { farmId } }) => {
+    return getPlotJournalEntry(input.entryId, farmId);
   },
 });
 
@@ -72,9 +82,9 @@ export const updatePlotJournalEntryEndpoint = plotsWrite.build({
     content: z.string().optional(),
   }),
   output: journalEntrySchema,
-  handler: async ({ input, ctx: { plotJournal } }) => {
+  handler: async ({ input, ctx: { farmId } }) => {
     const { entryId, ...updateInput } = input;
-    return plotJournal.updateEntry(entryId, updateInput);
+    return updatePlotJournalEntry(entryId, farmId, updateInput);
   },
 });
 
@@ -82,8 +92,8 @@ export const deletePlotJournalEntryEndpoint = plotsWrite.build({
   method: "delete",
   input: z.object({ entryId: z.string() }),
   output: z.object({}),
-  handler: async ({ input, ctx: { plotJournal } }) => {
-    await plotJournal.deleteEntry(input.entryId);
+  handler: async ({ input, ctx: { farmId } }) => {
+    await deletePlotJournalEntry(input.entryId, farmId);
     return {};
   },
 });
@@ -98,8 +108,8 @@ export const requestPlotJournalImageSignedUrlEndpoint = plotsWrite.build({
     signedUrl: z.string(),
     path: z.string(),
   }),
-  handler: async ({ input, ctx: { plotJournal } }) => {
-    return plotJournal.requestSignedImageUrl(input.journalEntryId, input.filename);
+  handler: async ({ input }) => {
+    return requestPlotJournalSignedImageUrl(input.journalEntryId, input.filename);
   },
 });
 
@@ -110,8 +120,8 @@ export const registerPlotJournalImageEndpoint = plotsWrite.build({
     storagePath: z.string().min(1),
   }),
   output: journalImageSchema,
-  handler: async ({ input, ctx: { plotJournal } }) => {
-    return plotJournal.registerImage(input.journalEntryId, input.storagePath);
+  handler: async ({ input }) => {
+    return registerPlotJournalImage(input.journalEntryId, input.storagePath);
   },
 });
 
@@ -119,8 +129,8 @@ export const deletePlotJournalImageEndpoint = plotsWrite.build({
   method: "delete",
   input: z.object({ imageId: z.string() }),
   output: z.object({}),
-  handler: async ({ input, ctx: { plotJournal } }) => {
-    await plotJournal.deleteImage(input.imageId);
+  handler: async ({ input }) => {
+    await deletePlotJournalImage(input.imageId);
     return {};
   },
 });

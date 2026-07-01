@@ -9,10 +9,27 @@ import {
 } from "../db/schema";
 import { cropProtectionProductSchema } from "./crop-protection-products.endpoint";
 import { permissionFarmEndpoint } from "../endpoint-factory";
+import { ensureDateRange } from "../date-utils";
+import {
+  createCropProtectionApplication,
+  createCropProtectionApplicationPreset,
+  createCropProtectionApplications,
+  deleteCropProtectionApplication,
+  deleteCropProtectionApplicationPreset,
+  getCropProtectionApplicationById,
+  getCropProtectionApplicationPresetById,
+  getCropProtectionApplicationPresets,
+  getCropProtectionApplicationsForFarm,
+  getCropProtectionApplicationsForPlot,
+  getCropProtectionApplicationSummaryForFarm,
+  getCropProtectionApplicationSummaryForPlot,
+  getCropProtectionApplicationYears,
+  updateCropProtectionApplication,
+  updateCropProtectionApplicationPreset,
+} from "./crop-protection-applications";
 
 const cropProtectionRead = permissionFarmEndpoint("field_calendar", "read");
 const cropProtectionWrite = permissionFarmEndpoint("field_calendar", "write");
-import { ensureDateRange } from "../date-utils";
 
 const plotMinimalSchema = z.object({
   id: z.string(),
@@ -57,10 +74,8 @@ export const getCropProtectionApplicationByIdEndpoint = cropProtectionRead.build
   method: "get",
   input: z.object({ cropProtectionApplicationId: z.string() }),
   output: cropProtectionApplicationsResponseSchema,
-  handler: async ({ input, ctx: { cropProtectionApplications } }) => {
-    const cropProtectionApplication = await cropProtectionApplications.getCropProtectionApplicationById(
-      input.cropProtectionApplicationId
-    );
+  handler: async ({ input }) => {
+    const cropProtectionApplication = await getCropProtectionApplicationById(input.cropProtectionApplicationId);
     if (!cropProtectionApplication) {
       throw createHttpError(404, "CropProtectionApplication not found");
     }
@@ -77,8 +92,8 @@ export const getPlotCropProtectionApplicationsEndpoint = cropProtectionRead.buil
     result: z.array(cropProtectionApplicationsResponseSchema),
     count: z.number(),
   }),
-  handler: async ({ input, ctx: { cropProtectionApplications } }) => {
-    const result = await cropProtectionApplications.getCropProtectionApplicationsForPlot(input.plotId);
+  handler: async ({ input }) => {
+    const result = await getCropProtectionApplicationsForPlot(input.plotId);
     return {
       result,
       count: result.length,
@@ -96,9 +111,9 @@ export const getFarmCropProtectionApplicationsEndpoint = cropProtectionRead.buil
     result: z.array(cropProtectionApplicationsResponseSchema),
     count: z.number(),
   }),
-  handler: async ({ input, ctx: { cropProtectionApplications, farmId } }) => {
+  handler: async ({ input, ctx: { farmId } }) => {
     const { from, to } = ensureDateRange(input.fromDate, input.toDate);
-    const result = await cropProtectionApplications.getCropProtectionApplicationsForFarm(farmId, from, to);
+    const result = await getCropProtectionApplicationsForFarm(farmId, from, to);
     return {
       result,
       count: result.length,
@@ -110,11 +125,8 @@ export const createCropProtectionApplicationEndpoint = cropProtectionWrite.build
   method: "post",
   input: cropProtectionApplicationCreateSchema,
   output: cropProtectionApplicationsResponseSchema,
-  handler: async ({ input, ctx: { cropProtectionApplications, user } }) => {
-    return cropProtectionApplications.createCropProtectionApplication({
-      ...input,
-      createdBy: user.id,
-    });
+  handler: async ({ input, ctx: { user, farmId } }) => {
+    return createCropProtectionApplication({ ...input, createdBy: user.id }, farmId);
   },
 });
 
@@ -141,11 +153,8 @@ export const createCropProtectionApplicationsEndpoint = cropProtectionWrite.buil
     result: z.array(cropProtectionApplicationsResponseSchema),
     count: z.number(),
   }),
-  handler: async ({ input, ctx: { cropProtectionApplications, user } }) => {
-    const result = await cropProtectionApplications.createCropProtectionApplications({
-      ...input,
-      createdBy: user.id,
-    });
+  handler: async ({ input, ctx: { user, farmId } }) => {
+    const result = await createCropProtectionApplications({ ...input, createdBy: user.id }, farmId);
     return {
       result,
       count: result.length,
@@ -159,8 +168,8 @@ export const updateCropProtectionApplicationEndpoint = cropProtectionWrite.build
     cropProtectionApplicationId: z.string(),
   }),
   output: cropProtectionApplicationsResponseSchema,
-  handler: async ({ input, ctx: { cropProtectionApplications } }) => {
-    return cropProtectionApplications.updateCropProtectionApplication(input.cropProtectionApplicationId, input);
+  handler: async ({ input }) => {
+    return updateCropProtectionApplication(input.cropProtectionApplicationId, input);
   },
 });
 
@@ -168,11 +177,8 @@ export const deleteCropProtectionApplicationEndpoint = cropProtectionWrite.build
   method: "delete",
   input: z.object({ cropProtectionApplicationId: z.string() }),
   output: z.object({}),
-  handler: async ({
-    input: { cropProtectionApplicationId },
-    ctx: { cropProtectionApplications: cropProtectionApplication },
-  }) => {
-    await cropProtectionApplication.deleteCropProtectionApplication(cropProtectionApplicationId);
+  handler: async ({ input: { cropProtectionApplicationId } }) => {
+    await deleteCropProtectionApplication(cropProtectionApplicationId);
     return {};
   },
 });
@@ -184,8 +190,8 @@ export const getCropProtectionApplicationYearsEndpoint = cropProtectionRead.buil
     result: z.array(z.string()),
     count: z.number(),
   }),
-  handler: async ({ ctx: { cropProtectionApplications } }) => {
-    const result = await cropProtectionApplications.getCropProtectionApplicationYears();
+  handler: async ({ ctx: { farmId } }) => {
+    const result = await getCropProtectionApplicationYears(farmId);
     return {
       result,
       count: result.length,
@@ -213,8 +219,8 @@ export const getCropProtectionApplicationSummaryForFarmEndpoint = cropProtection
   method: "get",
   input: z.object({}),
   output: cropProtectionApplicationSummaryResponseSchema,
-  handler: async ({ ctx: { cropProtectionApplications } }) => {
-    return cropProtectionApplications.getCropProtectionApplicationSummaryForFarm();
+  handler: async ({ ctx: { farmId } }) => {
+    return getCropProtectionApplicationSummaryForFarm(farmId);
   },
 });
 
@@ -222,8 +228,8 @@ export const getCropProtectionApplicationSummaryForPlotEndpoint = cropProtection
   method: "get",
   input: z.object({ plotId: z.string() }),
   output: cropProtectionApplicationSummaryResponseSchema,
-  handler: async ({ input: { plotId }, ctx: { cropProtectionApplications } }) => {
-    return cropProtectionApplications.getCropProtectionApplicationSummaryForPlot(plotId);
+  handler: async ({ input: { plotId } }) => {
+    return getCropProtectionApplicationSummaryForPlot(plotId);
   },
 });
 
@@ -244,8 +250,8 @@ export const getCropProtectionApplicationPresetsEndpoint = cropProtectionRead.bu
     result: z.array(cropProtectionApplicationPresetSchema),
     count: z.number(),
   }),
-  handler: async ({ ctx: { cropProtectionApplications } }) => {
-    const result = await cropProtectionApplications.getCropProtectionApplicationPresets();
+  handler: async ({ ctx: { farmId } }) => {
+    const result = await getCropProtectionApplicationPresets(farmId);
     return { result, count: result.length };
   },
 });
@@ -254,8 +260,8 @@ export const getCropProtectionApplicationPresetByIdEndpoint = cropProtectionRead
   method: "get",
   input: z.object({ presetId: z.string() }),
   output: cropProtectionApplicationPresetSchema,
-  handler: async ({ input, ctx: { cropProtectionApplications } }) => {
-    const preset = await cropProtectionApplications.getCropProtectionApplicationPresetById(input.presetId);
+  handler: async ({ input }) => {
+    const preset = await getCropProtectionApplicationPresetById(input.presetId);
     if (!preset) {
       throw createHttpError(404, "Crop protection application preset not found");
     }
@@ -273,8 +279,8 @@ export const createCropProtectionApplicationPresetEndpoint = cropProtectionWrite
     amountPerUnit: z.number(),
   }),
   output: cropProtectionApplicationPresetSchema,
-  handler: async ({ input, ctx: { cropProtectionApplications } }) => {
-    return cropProtectionApplications.createCropProtectionApplicationPreset(input);
+  handler: async ({ input, ctx: { farmId } }) => {
+    return createCropProtectionApplicationPreset(input, farmId);
   },
 });
 
@@ -289,8 +295,8 @@ export const updateCropProtectionApplicationPresetEndpoint = cropProtectionWrite
     amountPerUnit: z.number().optional(),
   }),
   output: cropProtectionApplicationPresetSchema,
-  handler: async ({ input: { presetId, ...data }, ctx: { cropProtectionApplications } }) => {
-    return cropProtectionApplications.updateCropProtectionApplicationPreset(presetId, data);
+  handler: async ({ input: { presetId, ...data } }) => {
+    return updateCropProtectionApplicationPreset(presetId, data);
   },
 });
 
@@ -298,8 +304,8 @@ export const deleteCropProtectionApplicationPresetEndpoint = cropProtectionWrite
   method: "delete",
   input: z.object({ presetId: z.string() }),
   output: z.object({}),
-  handler: async ({ input: { presetId }, ctx: { cropProtectionApplications } }) => {
-    await cropProtectionApplications.deleteCropProtectionApplicationPreset(presetId);
+  handler: async ({ input: { presetId } }) => {
+    await deleteCropProtectionApplicationPreset(presetId);
     return {};
   },
 });

@@ -1,10 +1,18 @@
 import createHttpError from "http-errors";
 import { z } from "zod";
 import { productCategorySchema, productUnitSchema } from "../db/schema";
-import { permissionMembershipEndpoint } from "../endpoint-factory";
+import { permissionFarmEndpoint } from "../endpoint-factory";
+import {
+  createProduct,
+  deleteProduct,
+  getActiveProductsForFarm,
+  getProductById,
+  getProductsForFarm,
+  updateProduct,
+} from "./products";
 
-const productsRead = permissionMembershipEndpoint("commerce", "read");
-const productsWrite = permissionMembershipEndpoint("commerce", "write");
+const productsRead = permissionFarmEndpoint("commerce", "read");
+const productsWrite = permissionFarmEndpoint("commerce", "write");
 
 export const productSchema = z.object({
   id: z.string(),
@@ -32,8 +40,8 @@ export const getProductByIdEndpoint = productsRead.build({
   method: "get",
   input: z.object({ productId: z.string() }),
   output: productSchema,
-  handler: async ({ input, ctx: { products } }) => {
-    const product = await products.getProductById(input.productId);
+  handler: async ({ input }) => {
+    const product = await getProductById(input.productId);
     if (!product) {
       throw createHttpError(404, "Product not found");
     }
@@ -48,8 +56,8 @@ export const getFarmProductsEndpoint = productsRead.build({
     result: z.array(productSchema),
     count: z.number(),
   }),
-  handler: async ({ ctx: { products, farmId } }) => {
-    const result = await products.getProductsForFarm(farmId);
+  handler: async ({ ctx: { farmId } }) => {
+    const result = await getProductsForFarm(farmId);
     return {
       result,
       count: result.length,
@@ -64,8 +72,8 @@ export const getActiveProductsEndpoint = productsRead.build({
     result: z.array(productSchema),
     count: z.number(),
   }),
-  handler: async ({ ctx: { products, farmId } }) => {
-    const result = await products.getActiveProductsForFarm(farmId);
+  handler: async ({ ctx: { farmId } }) => {
+    const result = await getActiveProductsForFarm(farmId);
     return {
       result,
       count: result.length,
@@ -77,8 +85,8 @@ export const createProductEndpoint = productsWrite.build({
   method: "post",
   input: createProductSchema,
   output: productSchema,
-  handler: async ({ input, ctx: { products } }) => {
-    return products.createProduct(input);
+  handler: async ({ input, ctx: { farmId } }) => {
+    return createProduct(input, farmId);
   },
 });
 
@@ -88,9 +96,9 @@ export const updateProductEndpoint = productsWrite.build({
     productId: z.string(),
   }),
   output: productSchema,
-  handler: async ({ input, ctx: { products } }) => {
+  handler: async ({ input }) => {
     const { productId, ...data } = input;
-    return products.updateProduct(productId, data);
+    return updateProduct(productId, data);
   },
 });
 
@@ -98,8 +106,8 @@ export const deleteProductEndpoint = productsWrite.build({
   method: "delete",
   input: z.object({ productId: z.string() }),
   output: z.object({}),
-  handler: async ({ input: { productId }, ctx: { products } }) => {
-    await products.deleteProduct(productId);
+  handler: async ({ input: { productId } }) => {
+    await deleteProduct(productId);
     return {};
   },
 });

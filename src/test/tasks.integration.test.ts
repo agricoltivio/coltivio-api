@@ -57,7 +57,7 @@ describe("Tasks", () => {
   beforeEach(cleanDb);
 
   it("creates a task and retrieves it", async () => {
-    const { jwt } = await createUserWithFarm({}, "test@test.com", { withActiveMembership: true });
+    const { jwt } = await createUserWithFarm({}, "test@test.com");
     const task = await createTask(jwt, { name: "My Task", checklistItems: [] });
     expect(task.name).toBe("My Task");
     expect(task.status).toBe("todo");
@@ -65,7 +65,7 @@ describe("Tasks", () => {
   });
 
   it("preserves checklist item done state when updating other items", async () => {
-    const { jwt } = await createUserWithFarm({}, "test@test.com", { withActiveMembership: true });
+    const { jwt } = await createUserWithFarm({}, "test@test.com");
 
     // Create task with 3 checklist items
     const task = await createTask(jwt, {
@@ -98,7 +98,7 @@ describe("Tasks", () => {
   });
 
   it("adds a new checklist item without resetting existing done states", async () => {
-    const { jwt } = await createUserWithFarm({}, "test@test.com", { withActiveMembership: true });
+    const { jwt } = await createUserWithFarm({}, "test@test.com");
 
     const task = await createTask(jwt, {
       name: "Task",
@@ -125,7 +125,7 @@ describe("Tasks", () => {
   });
 
   it("removes a checklist item when omitted from update", async () => {
-    const { jwt } = await createUserWithFarm({}, "test@test.com", { withActiveMembership: true });
+    const { jwt } = await createUserWithFarm({}, "test@test.com");
 
     const task = await createTask(jwt, {
       name: "Task",
@@ -143,7 +143,7 @@ describe("Tasks", () => {
   });
 
   it("returns checklist items in stable position order regardless of done state", async () => {
-    const { jwt } = await createUserWithFarm({}, "test@test.com", { withActiveMembership: true });
+    const { jwt } = await createUserWithFarm({}, "test@test.com");
 
     const task = await createTask(jwt, {
       name: "Order test",
@@ -167,7 +167,7 @@ describe("Tasks", () => {
   });
 
   it("pins a task", async () => {
-    const { jwt } = await createUserWithFarm({}, "test@test.com", { withActiveMembership: true });
+    const { jwt } = await createUserWithFarm({}, "test@test.com");
     const task = await createTask(jwt, { name: "Pinnable" });
 
     const updated = await updateTask(jwt, task.id, { pinned: true });
@@ -178,7 +178,7 @@ describe("Tasks", () => {
   });
 
   it("returns pinned tasks first in list", async () => {
-    const { jwt } = await createUserWithFarm({}, "test@test.com", { withActiveMembership: true });
+    const { jwt } = await createUserWithFarm({}, "test@test.com");
 
     const t1 = await createTask(jwt, { name: "Normal" });
     const t2 = await createTask(jwt, { name: "Pinned" });

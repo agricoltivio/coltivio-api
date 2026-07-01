@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
-import { RlsDb } from "../db/db";
-import { payments, farmIdColumnValue } from "../db/schema";
+import { appDrizzle } from "../db/db";
+import { payments } from "../db/schema";
 import { Contact } from "../contacts/contacts";
 import { Sponsorship } from "../sponsorships/sponsorships";
 import { Order } from "../orders/orders";
@@ -15,79 +15,48 @@ export type PaymentWithRelations = Payment & {
   order: Order | null;
 };
 
-export function paymentsApi(rlsDb: RlsDb) {
-  return {
-    async createPayment(paymentInput: PaymentCreateInput): Promise<Payment> {
-      return rlsDb.rls(async (tx) => {
-        const [payment] = await tx
-          .insert(payments)
-          .values({ ...farmIdColumnValue, ...paymentInput })
-          .returning();
-        return payment;
-      });
-    },
+export async function createPayment(paymentInput: PaymentCreateInput, farmId: string): Promise<Payment> {
+  const [payment] = await appDrizzle
+    .insert(payments)
+    .values({ farmId, ...paymentInput })
+    .returning();
+  return payment;
+}
 
-    async getPaymentById(id: string): Promise<PaymentWithRelations | undefined> {
-      return rlsDb.rls(async (tx) => {
-        return tx.query.payments.findFirst({
-          where: { id },
-          with: {
-            contact: true,
-            sponsorship: true,
-            order: true,
-          },
-        });
-      });
-    },
+export async function getPaymentById(id: string): Promise<PaymentWithRelations | undefined> {
+  return appDrizzle.query.payments.findFirst({
+    where: { id },
+    with: { contact: true, sponsorship: true, order: true },
+  });
+}
 
-    async getPaymentsForFarm(farmId: string): Promise<PaymentWithRelations[]> {
-      return rlsDb.rls(async (tx) => {
-        return tx.query.payments.findMany({
-          with: {
-            contact: true,
-            sponsorship: true,
-            order: true,
-          },
-          where: { farmId },
-        });
-      });
-    },
+export async function getPaymentsForFarm(farmId: string): Promise<PaymentWithRelations[]> {
+  return appDrizzle.query.payments.findMany({
+    where: { farmId },
+    with: { contact: true, sponsorship: true, order: true },
+  });
+}
 
-    async getPaymentsForContact(contactId: string): Promise<Omit<PaymentWithRelations, "contact">[]> {
-      return rlsDb.rls(async (tx) => {
-        return tx.query.payments.findMany({
-          with: {
-            sponsorship: true,
-            order: true,
-          },
-          where: { contactId },
-        });
-      });
-    },
+export async function getPaymentsForContact(contactId: string): Promise<Omit<PaymentWithRelations, "contact">[]> {
+  return appDrizzle.query.payments.findMany({
+    where: { contactId },
+    with: { sponsorship: true, order: true },
+  });
+}
 
-    async getPaymentsForOrder(orderId: string): Promise<Payment[]> {
-      return rlsDb.rls(async (tx) => {
-        return tx.select().from(payments).where(eq(payments.orderId, orderId));
-      });
-    },
+export async function getPaymentsForOrder(orderId: string): Promise<Payment[]> {
+  return appDrizzle.select().from(payments).where(eq(payments.orderId, orderId));
+}
 
-    async updatePayment(id: string, data: PaymentUpdateInput): Promise<Payment> {
-      return rlsDb.rls(async (tx) => {
-        const [payment] = await tx.update(payments).set(data).where(eq(payments.id, id)).returning();
-        return payment;
-      });
-    },
+export async function updatePayment(id: string, data: PaymentUpdateInput): Promise<Payment> {
+  const [payment] = await appDrizzle.update(payments).set(data).where(eq(payments.id, id)).returning();
+  return payment;
+}
 
-    async getPaymentsForSponsorship(sponsorshipId: string): Promise<Payment[]> {
-      return rlsDb.rls(async (tx) => {
-        return tx.select().from(payments).where(eq(payments.sponsorshipId, sponsorshipId));
-      });
-    },
+export async function getPaymentsForSponsorship(sponsorshipId: string): Promise<Payment[]> {
+  return appDrizzle.select().from(payments).where(eq(payments.sponsorshipId, sponsorshipId));
+}
 
-    async deletePayment(id: string): Promise<void> {
-      return rlsDb.rls(async (tx) => {
-        await tx.delete(payments).where(eq(payments.id, id));
-      });
-    },
-  };
+export async function deletePayment(id: string): Promise<void> {
+  await appDrizzle.delete(payments).where(eq(payments.id, id));
 }

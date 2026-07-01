@@ -1,93 +1,23 @@
--- Setup script for test database (runs on supabase/postgres image before migrations)
-
--- Create app roles for RLS-aware connections (APP_DATABASE_URL)
-DO $$
-BEGIN
-  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'app') THEN
-    CREATE ROLE app WITH LOGIN PASSWORD 'postgres';
-  END IF;
-  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'rls_client') THEN
-    CREATE ROLE rls_client WITH LOGIN PASSWORD 'rls' NOINHERIT;
-  END IF;
-END $$;
-
--- Grant authenticated role so these can SET ROLE authenticated
-GRANT authenticated TO app;
-GRANT authenticated TO rls_client;
-GRANT anon TO rls_client;
-
--- Grant schema access to authenticated role
-GRANT USAGE ON SCHEMA public TO authenticated;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO authenticated;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO authenticated;
-
--- Ensure search_path includes extensions (for PostGIS, pg_trgm)
-ALTER ROLE app SET search_path TO public, extensions;
-ALTER ROLE rls_client SET search_path TO "$user", public, extensions;
-ALTER ROLE authenticated SET search_path TO public, extensions;
-
--- Enable PostGIS and pg_trgm, then set search_path so geometry type is visible
-CREATE EXTENSION IF NOT EXISTS postgis SCHEMA extensions;
+-- Standalone test DB setup: enable required extensions before migrations run
+CREATE EXTENSION IF NOT EXISTS postgis;
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
-SET search_path TO public, extensions;
 
--- Create federal_farm_plots table (normally populated by ogr2ogr, but migrations reference it)
-CREATE TABLE IF NOT EXISTS public.federal_farm_plots (
-  id integer PRIMARY KEY,
-  farm_id text NOT NULL,
-  local_id text,
-  usage integer NOT NULL,
-  size integer NOT NULL,
-  cut_date date,
-  canton text NOT NULL,
-  geometry geometry(MultiPolygon,4326) NOT NULL
-);
-CREATE INDEX IF NOT EXISTS "federal_farm_plots_geometries_idx" ON federal_farm_plots USING gist (geometry);
+-- Ensure SRID 4326 (WGS84) and 2056 (Swiss LV95) are in spatial_ref_sys.
+-- The postgis/postgis image sometimes ships with an empty spatial_ref_sys
+-- when the extension was pre-installed at image build time rather than via the
+-- normal initdb hook. These INSERTs are no-ops if the rows already exist.
+INSERT INTO spatial_ref_sys (srid, auth_name, auth_srid, proj4text, srtext)
+VALUES (
+  4326, 'EPSG', 4326,
+  '+proj=longlat +datum=WGS84 +no_defs',
+  'GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]],AUTHORITY["EPSG","6326"]],PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],UNIT["degree",0.0174532925199433,AUTHORITY["EPSG","9122"]],AUTHORITY["EPSG","4326"]]'
+)
+ON CONFLICT (srid) DO NOTHING;
 
--- App-specific function: farm_id() reads from pg session setting
-CREATE OR REPLACE FUNCTION public.farm_id() RETURNS uuid AS $$
-  SELECT NULLIF(current_setting('request.farm_id', true), '')::uuid;
-$$ LANGUAGE sql STABLE SET search_path = '';
-
--- Trigger: auto-create profile row when GoTrue inserts into auth.users
-CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS trigger
-SET search_path = ''
-AS $$
-BEGIN
-  INSERT INTO public.profiles (id, email, full_name)
-  VALUES (NEW.id, NEW.email, NEW.raw_user_meta_data->>'full_name');
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
-CREATE OR REPLACE FUNCTION public.update_profile()
-RETURNS trigger
-SET search_path = ''
-AS $$
-BEGIN
-  UPDATE public.profiles
-  SET (email, full_name) = (NEW.email, NEW.raw_user_meta_data->>'full_name')
-  WHERE id = NEW.id;
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- Wire the trigger (function body resolves profiles at runtime, after migrations)
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_trigger WHERE tgname = 'on_auth_user_created'
-  ) THEN
-    CREATE TRIGGER on_auth_user_created
-      AFTER INSERT ON auth.users
-      FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
-  END IF;
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_trigger WHERE tgname = 'update_profile'
-  ) THEN
-    CREATE TRIGGER update_profile
-      AFTER UPDATE ON auth.users
-      FOR EACH ROW EXECUTE PROCEDURE public.update_profile();
-  END IF;
-END $$;
+INSERT INTO spatial_ref_sys (srid, auth_name, auth_srid, proj4text, srtext)
+VALUES (
+  2056, 'EPSG', 2056,
+  '+proj=somerc +lat_0=46.9524055555556 +lon_0=7.43958333333333 +k_0=1 +x_0=2600000 +y_0=1200000 +ellps=bessel +towgs84=674.374,15.056,405.346,0,0,0,0 +units=m +no_defs',
+  'PROJCS["CH1903+ / LV95",GEOGCS["CH1903+",DATUM["CH1903+",SPHEROID["Bessel 1841",6377397.155,299.1528128,AUTHORITY["EPSG","7004"]],TOWGS84[674.374,15.056,405.346,0,0,0,0],AUTHORITY["EPSG","6150"]],PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],UNIT["degree",0.0174532925199433,AUTHORITY["EPSG","9122"]],AUTHORITY["EPSG","4150"]],PROJECTION["Hotine_Oblique_Mercator_Azimuth_Center"],PARAMETER["latitude_of_center",46.9524055555556],PARAMETER["longitude_of_center",7.43958333333333],PARAMETER["azimuth",90],PARAMETER["rectified_grid_angle",90],PARAMETER["scale_factor",1],PARAMETER["false_easting",2600000],PARAMETER["false_northing",1200000],UNIT["metre",1,AUTHORITY["EPSG","9001"]],AXIS["Easting",EAST],AXIS["Northing",NORTH],AUTHORITY["EPSG","2056"]]'
+)
+ON CONFLICT (srid) DO NOTHING;

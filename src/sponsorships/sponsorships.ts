@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
-import { RlsDb } from "../db/db";
-import { sponsorships, payments, farmIdColumnValue } from "../db/schema";
+import { appDrizzle } from "../db/db";
+import { sponsorships, payments } from "../db/schema";
 import { Animal } from "../animals/animals";
 import { Contact } from "../contacts/contacts";
 import { Payment } from "../payments/payments";
@@ -17,122 +17,78 @@ export type SponsorshipWithRelations = Sponsorship & {
   payments: Payment[];
 };
 
-export function sponsorshipsApi(rlsDb: RlsDb) {
-  return {
-    async createSponsorship(sponsorshipInput: SponsorshipCreateInput): Promise<Sponsorship> {
-      return rlsDb.rls(async (tx) => {
-        const [sponsorship] = await tx
-          .insert(sponsorships)
-          .values({ ...farmIdColumnValue, ...sponsorshipInput })
-          .returning();
-        return sponsorship;
-      });
-    },
+export async function createSponsorship(
+  sponsorshipInput: SponsorshipCreateInput,
+  farmId: string
+): Promise<Sponsorship> {
+  const [sponsorship] = await appDrizzle
+    .insert(sponsorships)
+    .values({ farmId, ...sponsorshipInput })
+    .returning();
+  return sponsorship;
+}
 
-    async getSponsorshipById(id: string): Promise<SponsorshipWithRelations | undefined> {
-      return rlsDb.rls(async (tx) => {
-        return tx.query.sponsorships.findFirst({
-          where: { id },
-          with: {
-            sponsorshipProgram: true,
-            animal: {
-              with: {
-                earTag: true,
-              },
-            },
-            contact: true,
-            payments: true,
-          },
-        });
-      });
+export async function getSponsorshipById(id: string): Promise<SponsorshipWithRelations | undefined> {
+  return appDrizzle.query.sponsorships.findFirst({
+    where: { id },
+    with: {
+      sponsorshipProgram: true,
+      animal: { with: { earTag: true } },
+      contact: true,
+      payments: true,
     },
+  });
+}
 
-    async getSponsorshipsForFarm(farmId: string, onlyActive: boolean): Promise<SponsorshipWithRelations[]> {
-      return rlsDb.rls(async (tx) => {
-        return tx.query.sponsorships.findMany({
-          with: {
-            sponsorshipProgram: true,
-            animal: {
-              with: {
-                earTag: true,
-              },
-            },
-            contact: true,
-            payments: true,
-          },
-          where: onlyActive
-            ? {
-                farmId,
-                endDate: { OR: [{ gte: new Date() }, { isNull: true }] },
-              }
-            : { farmId },
-        });
-      });
+export async function getSponsorshipsForFarm(farmId: string, onlyActive: boolean): Promise<SponsorshipWithRelations[]> {
+  return appDrizzle.query.sponsorships.findMany({
+    with: {
+      sponsorshipProgram: true,
+      animal: { with: { earTag: true } },
+      contact: true,
+      payments: true,
     },
+    where: onlyActive ? { farmId, endDate: { OR: [{ gte: new Date() }, { isNull: true }] } } : { farmId },
+  });
+}
 
-    async getSponsorshipsForContact(
-      contactId: string,
-      onlyActive: boolean
-    ): Promise<Array<Omit<SponsorshipWithRelations, "contact">>> {
-      return rlsDb.rls(async (tx) => {
-        return tx.query.sponsorships.findMany({
-          with: {
-            sponsorshipProgram: true,
-            animal: {
-              with: {
-                earTag: true,
-              },
-            },
-            payments: true,
-          },
-          where: onlyActive
-            ? {
-                contactId: contactId,
-                endDate: { OR: [{ gte: new Date() }, { isNull: true }] },
-              }
-            : { contactId: contactId },
-        });
-      });
+export async function getSponsorshipsForContact(
+  contactId: string,
+  onlyActive: boolean
+): Promise<Array<Omit<SponsorshipWithRelations, "contact">>> {
+  return appDrizzle.query.sponsorships.findMany({
+    with: {
+      sponsorshipProgram: true,
+      animal: { with: { earTag: true } },
+      payments: true,
     },
+    where: onlyActive ? { contactId, endDate: { OR: [{ gte: new Date() }, { isNull: true }] } } : { contactId },
+  });
+}
 
-    async getSponsorshipsForAnimal(
-      animalId: string,
-      onlyActive: boolean
-    ): Promise<Array<Omit<SponsorshipWithRelations, "animal">>> {
-      return rlsDb.rls(async (tx) => {
-        return tx.query.sponsorships.findMany({
-          with: {
-            sponsorshipProgram: true,
-            contact: true,
-            payments: true,
-          },
-          where: onlyActive
-            ? {
-                animalId: animalId,
-                endDate: { OR: [{ gte: new Date() }, { isNull: true }] },
-              }
-            : { animalId: animalId },
-        });
-      });
+export async function getSponsorshipsForAnimal(
+  animalId: string,
+  onlyActive: boolean
+): Promise<Array<Omit<SponsorshipWithRelations, "animal">>> {
+  return appDrizzle.query.sponsorships.findMany({
+    with: {
+      sponsorshipProgram: true,
+      contact: true,
+      payments: true,
     },
+    where: onlyActive ? { animalId, endDate: { OR: [{ gte: new Date() }, { isNull: true }] } } : { animalId },
+  });
+}
 
-    async getPaymentsForSponsorship(sponsorshipId: string): Promise<Payment[]> {
-      return rlsDb.rls(async (tx) => {
-        return tx.select().from(payments).where(eq(payments.sponsorshipId, sponsorshipId));
-      });
-    },
+export async function getPaymentsForSponsorship(sponsorshipId: string): Promise<Payment[]> {
+  return appDrizzle.select().from(payments).where(eq(payments.sponsorshipId, sponsorshipId));
+}
 
-    async updateSponsorship(id: string, data: SponsorshipUpdateInput): Promise<Sponsorship> {
-      return rlsDb.rls(async (tx) => {
-        const [sponsorship] = await tx.update(sponsorships).set(data).where(eq(sponsorships.id, id)).returning();
-        return sponsorship;
-      });
-    },
+export async function updateSponsorship(id: string, data: SponsorshipUpdateInput): Promise<Sponsorship> {
+  const [sponsorship] = await appDrizzle.update(sponsorships).set(data).where(eq(sponsorships.id, id)).returning();
+  return sponsorship;
+}
 
-    async deleteSponsorship(id: string): Promise<void> {
-      return rlsDb.rls(async (tx) => {
-        await tx.delete(sponsorships).where(eq(sponsorships.id, id));
-      });
-    },
-  };
+export async function deleteSponsorship(id: string): Promise<void> {
+  await appDrizzle.delete(sponsorships).where(eq(sponsorships.id, id));
 }

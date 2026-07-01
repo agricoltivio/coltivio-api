@@ -2,6 +2,20 @@ import createHttpError from "http-errors";
 import { z } from "zod";
 import { cropCategorySchema } from "../db/schema";
 import { permissionFarmEndpoint } from "../endpoint-factory";
+import {
+  createCrop,
+  createCropFamily,
+  cropFamilyInUse,
+  cropInUse,
+  deleteCrop,
+  deleteCropFamily,
+  getCropById,
+  getCropFamiliesForFarm,
+  getCropFamilyById,
+  getCropsForFarm,
+  updateCrop,
+  updateCropFamily,
+} from "./crops";
 
 const cropsRead = permissionFarmEndpoint("field_calendar", "read");
 const cropsWrite = permissionFarmEndpoint("field_calendar", "write");
@@ -46,8 +60,8 @@ export const getCropByIdEndpoint = cropsRead.build({
   method: "get",
   input: z.object({ cropId: z.string() }),
   output: cropSchema,
-  handler: async ({ input, ctx: { crops } }) => {
-    const crop = await crops.getCropById(input.cropId);
+  handler: async ({ input }) => {
+    const crop = await getCropById(input.cropId);
     if (!crop) {
       throw createHttpError(404, "Crop not found");
     }
@@ -62,8 +76,8 @@ export const getFarmCropsEndpoint = cropsRead.build({
     result: z.array(cropSchema),
     count: z.number(),
   }),
-  handler: async ({ ctx: { crops, farmId } }) => {
-    const result = await crops.geCropsForFarm(farmId);
+  handler: async ({ ctx: { farmId } }) => {
+    const result = await getCropsForFarm(farmId);
     return {
       result,
       count: result.length,
@@ -75,8 +89,8 @@ export const createCropEndpoint = cropsWrite.build({
   method: "post",
   input: createCropSchema,
   output: cropSchema,
-  handler: async ({ input, ctx: { crops } }) => {
-    return crops.createCrop(input);
+  handler: async ({ input, ctx: { farmId } }) => {
+    return createCrop(input, farmId);
   },
 });
 
@@ -86,8 +100,8 @@ export const updateCropEndpoint = cropsWrite.build({
     cropId: z.string(),
   }),
   output: cropSchema,
-  handler: async ({ input, ctx: { crops } }) => {
-    return crops.updateCrop(input.cropId, input);
+  handler: async ({ input }) => {
+    return updateCrop(input.cropId, input);
   },
 });
 
@@ -95,8 +109,8 @@ export const deleteCropEndpoint = cropsWrite.build({
   method: "delete",
   input: z.object({ cropId: z.string() }),
   output: z.object({}),
-  handler: async ({ input: { cropId }, ctx: { crops } }) => {
-    await crops.deleteCrop(cropId);
+  handler: async ({ input: { cropId } }) => {
+    await deleteCrop(cropId);
     return {};
   },
 });
@@ -105,9 +119,9 @@ export const cropInUseEndpoint = cropsRead.build({
   method: "get",
   input: z.object({ cropId: z.string() }),
   output: z.object({ inUse: z.boolean() }),
-  handler: async ({ input, ctx: { crops } }) => {
+  handler: async ({ input }) => {
     return {
-      inUse: await crops.cropInUse(input.cropId),
+      inUse: await cropInUse(input.cropId),
     };
   },
 });
@@ -124,8 +138,8 @@ export const getCropFamilyByIdEndpoint = cropsRead.build({
   method: "get",
   input: z.object({ familyId: z.string() }),
   output: cropFamilySchema,
-  handler: async ({ input, ctx: { crops } }) => {
-    const family = await crops.getCropFamilyById(input.familyId);
+  handler: async ({ input }) => {
+    const family = await getCropFamilyById(input.familyId);
     if (!family) {
       throw createHttpError(404, "Crop family not found");
     }
@@ -140,8 +154,8 @@ export const getFarmCropFamiliesEndpoint = cropsRead.build({
     result: z.array(cropFamilySchema),
     count: z.number(),
   }),
-  handler: async ({ ctx: { crops } }) => {
-    const result = await crops.getCropFamiliesForFarm();
+  handler: async ({ ctx: { farmId } }) => {
+    const result = await getCropFamiliesForFarm(farmId);
     return {
       result,
       count: result.length,
@@ -153,8 +167,8 @@ export const createCropFamilyEndpoint = cropsWrite.build({
   method: "post",
   input: createCropFamilySchema,
   output: cropFamilySchema,
-  handler: async ({ input, ctx: { crops } }) => {
-    return crops.createCropFamily(input);
+  handler: async ({ input, ctx: { farmId } }) => {
+    return createCropFamily(input, farmId);
   },
 });
 
@@ -164,8 +178,8 @@ export const updateCropFamilyEndpoint = cropsWrite.build({
     familyId: z.string(),
   }),
   output: cropFamilySchema,
-  handler: async ({ input, ctx: { crops } }) => {
-    return crops.updateCropFamily(input.familyId, input);
+  handler: async ({ input }) => {
+    return updateCropFamily(input.familyId, input);
   },
 });
 
@@ -173,8 +187,8 @@ export const deleteCropFamilyEndpoint = cropsWrite.build({
   method: "delete",
   input: z.object({ familyId: z.string() }),
   output: z.object({}),
-  handler: async ({ input: { familyId }, ctx: { crops } }) => {
-    await crops.deleteCropFamily(familyId);
+  handler: async ({ input: { familyId } }) => {
+    await deleteCropFamily(familyId);
     return {};
   },
 });
@@ -183,9 +197,9 @@ export const cropFamilyInUseEndpoint = cropsRead.build({
   method: "get",
   input: z.object({ familyId: z.string() }),
   output: z.object({ inUse: z.boolean() }),
-  handler: async ({ input, ctx: { crops } }) => {
+  handler: async ({ input }) => {
     return {
-      inUse: await crops.cropFamilyInUse(input.familyId),
+      inUse: await cropFamilyInUse(input.familyId),
     };
   },
 });

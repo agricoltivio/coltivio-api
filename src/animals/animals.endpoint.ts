@@ -13,10 +13,37 @@ import {
 } from "../db/schema";
 import { earTagSchema } from "../ear-tags/ear-tags.endpoint";
 import { permissionFarmEndpoint } from "../endpoint-factory";
+import { treatmentSchema } from "../treatments/treatments.endpoint";
+import {
+  getAnimalById,
+  getAnimalsForFarm,
+  createAnimal,
+  updateAnimal,
+  updateAnimals,
+  batchUpdateAnimals,
+  deleteAnimal,
+  deleteAnimals,
+  setCustomOutdoorJournalCategories,
+  getChildrenOfAnimal,
+  getFamilyTree,
+  importFromExcel,
+  parseImportPreview,
+  commitImport,
+  getOutdoorJournal,
+  getHerdsForFarm,
+  getHerdById,
+  createHerd,
+  updateHerd,
+  deleteHerd,
+  getOutdoorSchedulesForHerd,
+  getOutdoorScheduleById,
+  createOutdoorSchedule,
+  updateOutdoorSchedule,
+  deleteOutdoorSchedule,
+} from "./animals";
 
 const animalsRead = permissionFarmEndpoint("animals", "read");
 const animalsWrite = permissionFarmEndpoint("animals", "write");
-import { treatmentSchema } from "../treatments/treatments.endpoint";
 
 export const animalSchema = z.object({
   id: z.string(),
@@ -143,8 +170,8 @@ export const getAnimalByIdEndpoint = animalsRead.build({
   method: "get",
   input: z.object({ animalId: z.string() }),
   output: animalWithRelationsSchema,
-  handler: async ({ input, ctx: { animals } }) => {
-    const animal = await animals.getAnimalById(input.animalId);
+  handler: async ({ input }) => {
+    const animal = await getAnimalById(input.animalId);
     if (!animal) {
       throw createHttpError(404, "Animal not found");
     }
@@ -170,8 +197,8 @@ export const getFarmAnimalsEndpoint = animalsRead.build({
     ),
     count: z.number(),
   }),
-  handler: async ({ input, ctx: { animals, farmId } }) => {
-    const result = await animals.getAnimalsForFarm(farmId, input.onlyLiving, input.animalTypes);
+  handler: async ({ input, ctx: { farmId } }) => {
+    const result = await getAnimalsForFarm(farmId, input.onlyLiving, input.animalTypes);
     return {
       result,
       count: result.length,
@@ -183,8 +210,8 @@ export const createAnimalEndpoint = animalsWrite.build({
   method: "post",
   input: createAnimalSchema,
   output: animalSchema,
-  handler: async ({ input, ctx: { animals } }) => {
-    return animals.createAnimal(input);
+  handler: async ({ input, ctx: { farmId } }) => {
+    return createAnimal(input, farmId);
   },
 });
 
@@ -194,9 +221,9 @@ export const updateAnimalEndpoint = animalsWrite.build({
     animalId: z.string(),
   }),
   output: animalSchema,
-  handler: async ({ input, ctx: { animals } }) => {
+  handler: async ({ input, ctx: { farmId } }) => {
     const { animalId, ...data } = input;
-    return animals.updateAnimal(animalId, data);
+    return updateAnimal(animalId, data, farmId);
   },
 });
 
@@ -213,8 +240,8 @@ export const updateAnimalsEndpoint = animalsWrite.build({
     result: z.array(animalSchema),
     count: z.number(),
   }),
-  handler: async ({ input, ctx: { animals } }) => {
-    const result = await animals.updateAnimals(input.animals);
+  handler: async ({ input, ctx: { farmId } }) => {
+    const result = await updateAnimals(input.animals, farmId);
     return {
       result,
       count: result.length,
@@ -240,9 +267,8 @@ export const batchUpdateAnimalsEndpoint = animalsWrite.build({
     result: z.array(animalSchema),
     count: z.number(),
   }),
-  handler: async ({ input, ctx: { animals } }) => {
-    console.log(input.data);
-    const result = await animals.batchUpdateAnimals(input.animalIds, input.data);
+  handler: async ({ input }) => {
+    const result = await batchUpdateAnimals(input.animalIds, input.data);
     return {
       result,
       count: result.length,
@@ -254,8 +280,8 @@ export const deleteAnimalEndpoint = animalsWrite.build({
   method: "delete",
   input: z.object({ animalId: z.string() }),
   output: z.object({}),
-  handler: async ({ input: { animalId }, ctx: { animals } }) => {
-    await animals.deleteAnimal(animalId);
+  handler: async ({ input: { animalId } }) => {
+    await deleteAnimal(animalId);
     return {};
   },
 });
@@ -264,8 +290,8 @@ export const deleteAnimalsEndpoint = animalsWrite.build({
   method: "delete",
   input: z.object({ animalIds: z.array(z.string()) }),
   output: z.object({}),
-  handler: async ({ input: { animalIds }, ctx: { animals } }) => {
-    await animals.deleteAnimals(animalIds);
+  handler: async ({ input: { animalIds } }) => {
+    await deleteAnimals(animalIds);
     return {};
   },
 });
@@ -285,8 +311,8 @@ export const setCustomOutdoorJournalCategoriesEndpoint = animalsWrite.build({
   output: z.object({
     result: z.array(customOutdoorJournalCategorySchema),
   }),
-  handler: async ({ input, ctx: { animals } }) => {
-    const result = await animals.setCustomOutdoorJournalCategories(input.animalId, input.entries);
+  handler: async ({ input, ctx: { farmId } }) => {
+    const result = await setCustomOutdoorJournalCategories(input.animalId, input.entries, farmId);
     return { result };
   },
 });
@@ -298,8 +324,8 @@ export const getAnimalChildrenEndpoint = animalsRead.build({
     result: z.array(animalSchema),
     count: z.number(),
   }),
-  handler: async ({ input, ctx: { animals } }) => {
-    const result = await animals.getChildrenOfAnimal(input.animalId);
+  handler: async ({ input }) => {
+    const result = await getChildrenOfAnimal(input.animalId);
     return {
       result,
       count: result.length,
@@ -329,8 +355,8 @@ export const getFamilyTreeEndpoint = animalsRead.build({
     nodes: z.array(familyTreeNodeSchema),
     edges: z.array(familyTreeEdgeSchema),
   }),
-  handler: async ({ input, ctx: { animals, farmId } }) => {
-    return animals.getFamilyTree(farmId, input.type);
+  handler: async ({ input, ctx: { farmId } }) => {
+    return getFamilyTree(farmId, input.type);
   },
 });
 
@@ -362,9 +388,9 @@ export const importAnimalsFromExcelEndpoint = animalsWrite.build({
     skipped: z.array(skippedRowSchema),
     summary: importSummarySchema,
   }),
-  handler: async ({ input, ctx: { animals, farmId, preferredLanguage } }) => {
+  handler: async ({ input, ctx: { farmId, preferredLanguage } }) => {
     const { file, type, skipHeaderRow } = input;
-    return animals.importFromExcel(file.data, type, skipHeaderRow, farmId, preferredLanguage);
+    return importFromExcel(file.data, type, skipHeaderRow, farmId, preferredLanguage);
   },
 });
 
@@ -398,8 +424,8 @@ export const previewAnimalImportEndpoint = animalsWrite.build({
   output: z.object({
     rows: z.array(parsedImportRowSchema),
   }),
-  handler: async ({ input, ctx: { animals, farmId, preferredLanguage } }) => {
-    const rows = await animals.parseImportPreview(input.file.data, input.skipHeaderRow, farmId, preferredLanguage);
+  handler: async ({ input, ctx: { farmId, preferredLanguage } }) => {
+    const rows = await parseImportPreview(input.file.data, input.skipHeaderRow, farmId, preferredLanguage);
     return { rows };
   },
 });
@@ -429,8 +455,8 @@ export const commitAnimalImportEndpoint = animalsWrite.build({
     merged: z.number(),
     skipped: z.array(z.object({ index: z.number(), reason: z.string() })),
   }),
-  handler: async ({ input, ctx: { animals, farmId } }) => {
-    return animals.commitImport(input.rows, input.type, farmId);
+  handler: async ({ input, ctx: { farmId } }) => {
+    return commitImport(input.rows, input.type, farmId);
   },
 });
 
@@ -450,8 +476,8 @@ export const getOutdoorJournalEndpoint = animalsRead.build({
     entries: z.array(outdoorJournalEntrySchema),
     uncategorizedAnimals: z.array(animalSchema),
   }),
-  handler: async ({ input, ctx: { animals, farmId } }) => {
-    return animals.getOutdoorJournal(farmId, input.fromDate, input.toDate);
+  handler: async ({ input, ctx: { farmId } }) => {
+    return getOutdoorJournal(farmId, input.fromDate, input.toDate);
   },
 });
 
@@ -464,8 +490,8 @@ export const getFarmHerdsEndpoint = animalsRead.build({
     result: z.array(herdWithRelationsSchema),
     count: z.number(),
   }),
-  handler: async ({ ctx: { animals, farmId } }) => {
-    const result = await animals.getHerdsForFarm(farmId);
+  handler: async ({ ctx: { farmId } }) => {
+    const result = await getHerdsForFarm(farmId);
     return { result, count: result.length };
   },
 });
@@ -474,9 +500,9 @@ export const createHerdEndpoint = animalsWrite.build({
   method: "post",
   input: createHerdSchema,
   output: herdSchema,
-  handler: async ({ input, ctx: { animals } }) => {
+  handler: async ({ input, ctx: { farmId } }) => {
     const { animalIds, outdoorSchedules, ...herdData } = input;
-    return animals.createHerd(herdData, animalIds, outdoorSchedules);
+    return createHerd(herdData, animalIds, farmId, outdoorSchedules);
   },
 });
 
@@ -484,8 +510,8 @@ export const getHerdByIdEndpoint = animalsRead.build({
   method: "get",
   input: z.object({ herdId: z.string() }),
   output: herdWithRelationsSchema,
-  handler: async ({ input, ctx: { animals } }) => {
-    const herd = await animals.getHerdById(input.herdId);
+  handler: async ({ input }) => {
+    const herd = await getHerdById(input.herdId);
     if (!herd) {
       throw createHttpError(404, "Herd not found");
     }
@@ -497,9 +523,9 @@ export const updateHerdEndpoint = animalsWrite.build({
   method: "patch",
   input: updateHerdSchema.extend({ herdId: z.string() }),
   output: herdSchema,
-  handler: async ({ input, ctx: { animals } }) => {
+  handler: async ({ input, ctx: { farmId } }) => {
     const { herdId, animalIds, outdoorSchedules, ...data } = input;
-    return animals.updateHerd(herdId, data, animalIds, outdoorSchedules);
+    return updateHerd(herdId, data, farmId, animalIds, outdoorSchedules);
   },
 });
 
@@ -507,8 +533,8 @@ export const deleteHerdEndpoint = animalsWrite.build({
   method: "delete",
   input: z.object({ herdId: z.string() }),
   output: z.object({}),
-  handler: async ({ input: { herdId }, ctx: { animals } }) => {
-    await animals.deleteHerd(herdId);
+  handler: async ({ input: { herdId } }) => {
+    await deleteHerd(herdId);
     return {};
   },
 });
@@ -522,8 +548,8 @@ export const getHerdOutdoorSchedulesEndpoint = animalsRead.build({
     result: z.array(outdoorScheduleSchema),
     count: z.number(),
   }),
-  handler: async ({ input, ctx: { animals } }) => {
-    const result = await animals.getOutdoorSchedulesForHerd(input.herdId);
+  handler: async ({ input }) => {
+    const result = await getOutdoorSchedulesForHerd(input.herdId);
     return { result, count: result.length };
   },
 });
@@ -532,9 +558,9 @@ export const createOutdoorScheduleEndpoint = animalsWrite.build({
   method: "post",
   input: createOutdoorScheduleSchema.extend({ herdId: z.string() }),
   output: outdoorScheduleSchema,
-  handler: async ({ input, ctx: { animals } }) => {
+  handler: async ({ input, ctx: { farmId } }) => {
     const { herdId, ...data } = input;
-    return animals.createOutdoorSchedule(herdId, data);
+    return createOutdoorSchedule(herdId, data, farmId);
   },
 });
 
@@ -542,8 +568,8 @@ export const getOutdoorScheduleByIdEndpoint = animalsRead.build({
   method: "get",
   input: z.object({ outdoorScheduleId: z.string() }),
   output: outdoorScheduleSchema,
-  handler: async ({ input, ctx: { animals } }) => {
-    const schedule = await animals.getOutdoorScheduleById(input.outdoorScheduleId);
+  handler: async ({ input }) => {
+    const schedule = await getOutdoorScheduleById(input.outdoorScheduleId);
     if (!schedule) {
       throw createHttpError(404, "Outdoor schedule not found");
     }
@@ -557,9 +583,9 @@ export const updateOutdoorScheduleEndpoint = animalsWrite.build({
     outdoorScheduleId: z.string(),
   }),
   output: outdoorScheduleSchema,
-  handler: async ({ input, ctx: { animals } }) => {
+  handler: async ({ input, ctx: { farmId } }) => {
     const { outdoorScheduleId, ...data } = input;
-    return animals.updateOutdoorSchedule(outdoorScheduleId, data);
+    return updateOutdoorSchedule(outdoorScheduleId, data, farmId);
   },
 });
 
@@ -567,8 +593,8 @@ export const deleteOutdoorScheduleEndpoint = animalsWrite.build({
   method: "delete",
   input: z.object({ outdoorScheduleId: z.string() }),
   output: z.object({}),
-  handler: async ({ input: { outdoorScheduleId }, ctx: { animals } }) => {
-    await animals.deleteOutdoorSchedule(outdoorScheduleId);
+  handler: async ({ input: { outdoorScheduleId } }) => {
+    await deleteOutdoorSchedule(outdoorScheduleId);
     return {};
   },
 });
