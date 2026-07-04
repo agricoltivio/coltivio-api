@@ -936,7 +936,7 @@ export const wikiEntryImages = pgTable(
   "wiki_entry_images",
   {
     id: uuid().primaryKey().defaultRandom(),
-    entryId: uuid().notNull(),
+    entryId: uuid().notNull().references(() => wikiEntries.id, { onDelete: "cascade" }),
     storagePath: text().notNull(),
     altText: text(),
     uploadedBy: uuid().references(() => profiles.id, { onDelete: "set null" }),
@@ -1055,7 +1055,7 @@ export const plotJournalImages = pgTable(
   "plot_journal_images",
   {
     id: uuid().primaryKey().defaultRandom(),
-    journalEntryId: uuid().notNull(),
+    journalEntryId: uuid().notNull().references(() => plotJournalEntries.id, { onDelete: "cascade" }),
     storagePath: text().notNull(),
     createdAt: timestamp().notNull().defaultNow(),
   },
@@ -1086,7 +1086,7 @@ export const animalJournalImages = pgTable(
   "animal_journal_images",
   {
     id: uuid().primaryKey().defaultRandom(),
-    journalEntryId: uuid().notNull(),
+    journalEntryId: uuid().notNull().references(() => animalJournalEntries.id, { onDelete: "cascade" }),
     storagePath: text().notNull(),
     createdAt: timestamp().notNull().defaultNow(),
   },

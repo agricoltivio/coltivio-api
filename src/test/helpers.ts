@@ -36,14 +36,18 @@ export async function createTestUser(email: string, password: string) {
     const body = await createRes.text();
     throw new Error(`Failed to create test user: ${body}`);
   }
-  const { data: { id: userId } } = (await createRes.json()) as { data: { id: string } };
+  const {
+    data: { id: userId },
+  } = (await createRes.json()) as { data: { id: string } };
 
   const loginRes = await request("POST", "/v1/auth/login", { email, password });
   if (!loginRes.ok) {
     const body = await loginRes.text();
     throw new Error(`Failed to log in test user: ${body}`);
   }
-  const { data: { token: jwt } } = (await loginRes.json()) as { data: { token: string } };
+  const {
+    data: { token: jwt },
+  } = (await loginRes.json()) as { data: { token: string } };
 
   return { jwt, userId };
 }

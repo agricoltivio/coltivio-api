@@ -1,0 +1,3 @@
+ALTER TABLE "animal_journal_images" ADD CONSTRAINT "animal_journal_images_5AaG75foYIkM_fkey" FOREIGN KEY ("journalEntryId") REFERENCES "animal_journal_entries"("id") ON DELETE CASCADE;--> statement-breakpoint
+ALTER TABLE "plot_journal_images" ADD CONSTRAINT "plot_journal_images_journalEntryId_plot_journal_entries_id_fkey" FOREIGN KEY ("journalEntryId") REFERENCES "plot_journal_entries"("id") ON DELETE CASCADE;--> statement-breakpoint
+ALTER TABLE "wiki_entry_images" ADD CONSTRAINT "wiki_entry_images_entryId_wiki_entries_id_fkey" FOREIGN KEY ("entryId") REFERENCES "wiki_entries"("id") ON DELETE CASCADE;
