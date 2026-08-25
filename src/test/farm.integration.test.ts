@@ -2,7 +2,14 @@ import { describe, it, expect, beforeEach } from "@jest/globals";
 
 import { cleanDb, createTestUser, getAdminDb, request } from "./helpers";
 import * as schema from "../db/schema";
-import { createUserWithFarm, createFarmMember } from "./test-utils";
+import {
+  createUserWithFarm,
+  createFarmMember,
+  createPlot,
+  createAnimal,
+  createCrop,
+  createCropRotation,
+} from "./test-utils";
 
 // ---------------------------------------------------------------------------
 // Farm CRUD
@@ -255,5 +262,97 @@ describe("Owner-only actions", () => {
 
     const res = await request("PATCH", `/v1/farm/members/byId/${ownerId}/role`, { role: "member" }, memberJwt);
     expect(res.status).toBe(403);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Farm Stats
+// ---------------------------------------------------------------------------
+describe("Farm Stats", () => {
+  beforeEach(cleanDb);
+
+  it("returns plot totals", async () => {
+    const { jwt } = await createUserWithFarm();
+    // Distinct, non-overlapping geometries: plots.ts auto-clips overlapping plots on insert,
+    // which would otherwise zero out one plot's stored size.
+    await createPlot(jwt, {
+      size: 10000,
+      geometry: {
+        type: "MultiPolygon",
+        coordinates: [
+          [
+            [
+              [8.0, 47.0],
+              [8.1, 47.0],
+              [8.1, 47.1],
+              [8.0, 47.1],
+              [8.0, 47.0],
+            ],
+          ],
+        ],
+      },
+    });
+    await createPlot(jwt, {
+      size: 5000,
+      geometry: {
+        type: "MultiPolygon",
+        coordinates: [
+          [
+            [
+              [9.0, 47.0],
+              [9.1, 47.0],
+              [9.1, 47.1],
+              [9.0, 47.1],
+              [9.0, 47.0],
+            ],
+          ],
+        ],
+      },
+    });
+
+    const res = await request("GET", "/v1/farm/stats", undefined, jwt);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      data: { plots: { total: number; totalAreaM2: number } };
+    };
+    expect(body.data.plots.total).toBe(2);
+    expect(body.data.plots.totalAreaM2).toBe(15000);
+  });
+
+  it("counts only living animals", async () => {
+    const { jwt } = await createUserWithFarm();
+    await createAnimal(jwt, { name: "Alive" });
+    await createAnimal(jwt, { name: "Dead", dateOfDeath: "2024-01-01" });
+
+    const res = await request("GET", "/v1/farm/stats", undefined, jwt);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      data: { animals: { totalLiving: number; byType: { type: string; count: number }[] } };
+    };
+    expect(body.data.animals.totalLiving).toBe(1);
+    expect(body.data.animals.byType).toEqual([{ type: "cow", count: 1 }]);
+  });
+
+  it("returns active crop rotations", async () => {
+    const { jwt } = await createUserWithFarm();
+    const plot = await createPlot(jwt, { size: 10000 });
+    const crop = await createCrop(jwt, { name: "SummaryWheat", category: "grain" });
+
+    const now = new Date();
+    const fromDate = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().slice(0, 10);
+    const toDate = new Date(now.getFullYear(), now.getMonth() + 1, 28).toISOString().slice(0, 10);
+    await createCropRotation(jwt, plot.id, crop.id, { fromDate, toDate });
+
+    const res = await request("GET", "/v1/farm/stats", undefined, jwt);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      data: {
+        cropRotations: { active: { cropName: string; category: string; plotCount: number; totalAreaM2: number }[] };
+      };
+    };
+    const active = body.data.cropRotations.active.find((r) => r.cropName === "SummaryWheat");
+    expect(active).toBeDefined();
+    expect(active!.plotCount).toBe(1);
+    expect(active!.totalAreaM2).toBe(10000);
   });
 });

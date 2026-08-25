@@ -1,8 +1,9 @@
 import createHttpError from "http-errors";
-import { eq, getTableColumns, sql } from "drizzle-orm";
+import { and, count, eq, getTableColumns, isNull, sql } from "drizzle-orm";
 import { TFunction } from "i18next";
 import {} from "../crop-rotations/crop-rotations";
 import { mapCodesToCrops, UNKNOWN_CROP_CODE } from "../crops/codeToCropsMapper";
+import { AnimalType, computeActiveCropRotations } from "../dashboard/dashboard";
 import { RlsDb } from "../db/db";
 import * as tables from "../db/schema";
 import { MultiPolygon, Point } from "../geo/geojson";
@@ -21,12 +22,64 @@ export type FarmCreateInput = {
   location: Point;
 };
 
+export interface FarmStats {
+  plots: { total: number; totalAreaM2: number };
+  animals: { totalLiving: number; byType: { type: AnimalType; count: number }[] };
+  cropRotations: {
+    active: { cropName: string; category: string; plotCount: number; totalAreaM2: number }[];
+  };
+}
+
 export function farmsApi(rlsDb: RlsDb, t: TFunction) {
   return {
     async getFarmById(farmId: string) {
       return rlsDb.rls(async (tx) => {
         const [farm] = await tx.select(farmSelectColumns).from(tables.farms).where(eq(tables.farms.id, farmId));
         return farm;
+      });
+    },
+    async getFarmStats(farmId: string): Promise<FarmStats> {
+      return rlsDb.rls(async (tx) => {
+        const [[plotsAgg], livingAnimalsByType, activeCropRotations] = await Promise.all([
+          tx
+            .select({
+              count: count(),
+              totalAreaM2: sql<number>`COALESCE(SUM(${tables.plots.size}), 0)`,
+            })
+            .from(tables.plots)
+            .where(eq(tables.plots.farmId, farmId)),
+
+          tx
+            .select({ type: tables.animals.type, count: count() })
+            .from(tables.animals)
+            .where(and(eq(tables.animals.farmId, farmId), isNull(tables.animals.dateOfDeath)))
+            .groupBy(tables.animals.type),
+
+          tx.query.cropRotations.findMany({
+            where: { farmId },
+            with: {
+              crop: { with: { family: true } },
+              recurrence: true,
+              plot: { columns: { size: true } },
+            },
+          }),
+        ]);
+
+        const totalLivingAnimals = livingAnimalsByType.reduce((sum, row) => sum + row.count, 0);
+
+        return {
+          plots: {
+            total: plotsAgg?.count ?? 0,
+            totalAreaM2: Number(plotsAgg?.totalAreaM2 ?? 0),
+          },
+          animals: {
+            totalLiving: totalLivingAnimals,
+            byType: livingAnimalsByType.map((r) => ({ type: r.type, count: r.count })),
+          },
+          cropRotations: {
+            active: computeActiveCropRotations(activeCropRotations),
+          },
+        };
       });
     },
     async createFarm(userId: string, farm: FarmCreateInput) {

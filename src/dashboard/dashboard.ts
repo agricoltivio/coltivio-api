@@ -55,7 +55,7 @@ export interface FieldEvent {
 
 import { Crop } from "../crops/crops";
 
-type CropRotationWithCropAndRecurrence = typeof tables.cropRotations.$inferSelect & {
+export type CropRotationWithCropAndRecurrence = typeof tables.cropRotations.$inferSelect & {
   crop: Crop;
   recurrence: typeof tables.cropRotationYearlyRecurrences.$inferSelect | null;
   plot: Pick<typeof tables.plots.$inferSelect, "size">;
@@ -63,7 +63,7 @@ type CropRotationWithCropAndRecurrence = typeof tables.cropRotations.$inferSelec
 
 // Expand recurrences and group active rotations by crop name + category.
 // Cannot be done at DB level because recurrences shift the original fromDate/toDate forward by N years.
-function computeActiveCropRotations(
+export function computeActiveCropRotations(
   rotations: CropRotationWithCropAndRecurrence[]
 ): { cropName: string; category: string; plotCount: number; totalAreaM2: number }[] {
   const today = new Date();

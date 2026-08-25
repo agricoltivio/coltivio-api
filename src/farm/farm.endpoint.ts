@@ -1,5 +1,6 @@
 import createHttpError from "http-errors";
 import { z } from "zod";
+import { animalTypeSchema } from "../db/schema";
 import { authenticatedEndpointFactory, farmEndpointFactory } from "../endpoint-factory";
 
 const pointSchema = z.object({
@@ -77,6 +78,31 @@ export const updateFarmEndpoint = farmEndpointFactory.build({
       ctx.membership.getFarmMembershipStatus(ctx.farmId),
     ]);
     return { ...farm, membership: { status } };
+  },
+});
+
+const farmStatsSchema = z.object({
+  plots: z.object({
+    total: z.number(),
+    totalAreaM2: z.number(),
+  }),
+  animals: z.object({
+    totalLiving: z.number(),
+    byType: z.array(z.object({ type: animalTypeSchema, count: z.number() })),
+  }),
+  cropRotations: z.object({
+    active: z.array(
+      z.object({ cropName: z.string(), category: z.string(), plotCount: z.number(), totalAreaM2: z.number() })
+    ),
+  }),
+});
+
+export const getFarmStatsEndpoint = farmEndpointFactory.build({
+  method: "get",
+  input: z.object({}),
+  output: farmStatsSchema,
+  handler: async ({ ctx }) => {
+    return ctx.farms.getFarmStats(ctx.farmId);
   },
 });
 

@@ -84,7 +84,13 @@ import {
   getTreatmentByIdEndpoint,
   updateTreatmentEndpoint,
 } from "./treatments/treatments.endpoint";
-import { createFarmEndpoint, deleteFarmEndpoint, getFarmEndpoint, updateFarmEndpoint } from "./farm/farm.endpoint";
+import {
+  createFarmEndpoint,
+  deleteFarmEndpoint,
+  getFarmEndpoint,
+  getFarmStatsEndpoint,
+  updateFarmEndpoint,
+} from "./farm/farm.endpoint";
 import {
   listFarmInvitesEndpoint,
   createFarmInviteEndpoint,
@@ -377,6 +383,7 @@ export const routing: Routing = {
       },
       dashboard: getDashboardStatsEndpoint,
       fieldEvents: getFieldEventsEndpoint,
+      stats: getFarmStatsEndpoint,
       invites: {
         "": { get: listFarmInvitesEndpoint, post: createFarmInviteEndpoint },
         accept: { post: acceptFarmInviteEndpoint },
