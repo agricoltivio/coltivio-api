@@ -52,6 +52,7 @@ export type CropProtectionApplication = typeof cropProtectionApplications.$infer
 
 interface AppliedCropProtection {
   totalAmount: number;
+  totalProducedUnits: number;
   productName: string;
   unit: CropProtectionUnit;
 }
@@ -279,7 +280,10 @@ function mapToMonthlySummary(
     [key: string]: {
       month: number;
       year: number;
-      appliedCropProtections: Record<string, { totalAmount: number; unit: CropProtectionUnit; productName: string }>;
+      appliedCropProtections: Record<
+        string,
+        { totalAmount: number; totalProducedUnits: number; unit: CropProtectionUnit; productName: string }
+      >;
     };
   }>((acc, application) => {
     const date = application.dateTime;
@@ -295,6 +299,7 @@ function mapToMonthlySummary(
         appliedCropProtections: {
           [product.id]: {
             totalAmount: application.numberOfUnits * application.amountPerUnit,
+            totalProducedUnits: application.numberOfUnits,
             unit: application.product.unit,
             productName: product.name,
           },
@@ -303,11 +308,13 @@ function mapToMonthlySummary(
     } else if (!acc[key].appliedCropProtections[product.id]) {
       acc[key].appliedCropProtections[product.id] = {
         totalAmount: application.numberOfUnits * application.amountPerUnit,
+        totalProducedUnits: application.numberOfUnits,
         unit: application.product.unit,
         productName: product.name,
       };
     } else {
       acc[key].appliedCropProtections[product.id].totalAmount += application.numberOfUnits * application.amountPerUnit;
+      acc[key].appliedCropProtections[product.id].totalProducedUnits += application.numberOfUnits;
     }
     return acc;
   }, {});

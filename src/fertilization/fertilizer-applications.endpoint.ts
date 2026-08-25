@@ -160,6 +160,7 @@ const fertilizerApplicationSummaryResponseSchema = z.object({
       appliedFertilizers: z.array(
         z.object({
           totalAmount: z.number(),
+          totalProducedUnits: z.number(),
           fertilizerName: z.string(),
           unit: fertilizerUnitSchema,
         })

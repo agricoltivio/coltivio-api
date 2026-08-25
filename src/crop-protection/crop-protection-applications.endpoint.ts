@@ -201,6 +201,7 @@ const cropProtectionApplicationSummaryResponseSchema = z.object({
       appliedCropProtections: z.array(
         z.object({
           totalAmount: z.number(),
+          totalProducedUnits: z.number(),
           productName: z.string(),
           unit: cropProtectionUnitSchema,
         })

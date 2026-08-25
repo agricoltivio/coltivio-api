@@ -63,6 +63,7 @@ type FertilizerApplication = Omit<typeof fertilizerApplications.$inferSelect, "g
 
 interface AppliedFertilizer {
   totalAmount: number;
+  totalProducedUnits: number;
   fertilizerName: string;
   unit: FertilizerUnit;
 }
@@ -307,7 +308,10 @@ export function fertilizerApplicationsApi(rlsDb: RlsDb) {
       [key: string]: {
         month: number;
         year: number;
-        appliedFertilizers: Record<string, { totalAmount: number; unit: FertilizerUnit; fertilizerName: string }>;
+        appliedFertilizers: Record<
+          string,
+          { totalAmount: number; totalProducedUnits: number; unit: FertilizerUnit; fertilizerName: string }
+        >;
       };
     }>((acc, application) => {
       const date = application.date;
@@ -323,6 +327,7 @@ export function fertilizerApplicationsApi(rlsDb: RlsDb) {
           appliedFertilizers: {
             [fertilizerName]: {
               totalAmount: 0,
+              totalProducedUnits: 0,
               unit: application.fertilizer.unit,
               fertilizerName,
             },
@@ -332,12 +337,14 @@ export function fertilizerApplicationsApi(rlsDb: RlsDb) {
       if (!acc[key].appliedFertilizers[fertilizerName]) {
         acc[key].appliedFertilizers[fertilizerName] = {
           totalAmount: application.numberOfUnits * application.amountPerUnit,
+          totalProducedUnits: application.numberOfUnits,
           unit: application.fertilizer.unit,
           fertilizerName,
         };
       } else {
         acc[key].appliedFertilizers[fertilizerName].totalAmount +=
           application.numberOfUnits * application.amountPerUnit;
+        acc[key].appliedFertilizers[fertilizerName].totalProducedUnits += application.numberOfUnits;
       }
       return acc;
     }, {});

@@ -191,6 +191,34 @@ describe("Crop Protection Applications CRUD", () => {
     const body = (await res.json()) as { data: { inUse: boolean } };
     expect(body.data.inUse).toBe(true);
   });
+
+  it("returns summary for farm", async () => {
+    const { jwt } = await createUserWithFarm();
+    const plot = await createPlot(jwt);
+    const product = await createCropProtectionProduct(jwt, { name: "SummaryProduct", unit: "kg" });
+    await createCropProtectionApplication(jwt, plot.id, product.id, {
+      dateTime: "2025-06-15T08:00:00Z",
+      amountPerUnit: 2.5,
+      numberOfUnits: 10,
+    });
+
+    const res = await request("GET", "/v1/cropProtectionApplications/summaries", undefined, jwt);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      data: {
+        monthlyApplications: {
+          appliedCropProtections: { productName: string; totalAmount: number; totalProducedUnits: number }[];
+        }[];
+      };
+    };
+    expect(body.data.monthlyApplications).toBeDefined();
+    const applied = body.data.monthlyApplications
+      .flatMap((month) => month.appliedCropProtections)
+      .find((entry) => entry.productName === "SummaryProduct");
+    expect(applied).toBeDefined();
+    expect(applied!.totalAmount).toBe(25);
+    expect(applied!.totalProducedUnits).toBe(10);
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -166,15 +166,24 @@ describe("Fertilizer Applications CRUD", () => {
   it("returns summary for farm", async () => {
     const { jwt } = await createUserWithFarm();
     const plot = await createPlot(jwt);
-    const fert = await createFertilizer(jwt);
-    await createFertilizerApplication(jwt, plot.id, fert.id);
+    const fert = await createFertilizer(jwt, { name: "SummaryFert" });
+    await createFertilizerApplication(jwt, plot.id, fert.id, { numberOfUnits: 3 });
 
     const res = await request("GET", "/v1/fertilizerApplications/summaries", undefined, jwt);
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
-      data: { monthlyApplications: unknown[] };
+      data: {
+        monthlyApplications: {
+          appliedFertilizers: { fertilizerName: string; totalAmount: number; totalProducedUnits: number }[];
+        }[];
+      };
     };
     expect(body.data.monthlyApplications).toBeDefined();
+    const applied = body.data.monthlyApplications
+      .flatMap((month) => month.appliedFertilizers)
+      .find((entry) => entry.fertilizerName === "SummaryFert");
+    expect(applied).toBeDefined();
+    expect(applied!.totalProducedUnits).toBe(3);
   });
 });
 
