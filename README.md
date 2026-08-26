@@ -84,6 +84,27 @@ yarn start
 
 API docs available at http://localhost:8000/docs.
 
+## Stripe (local webhooks)
+
+Membership billing uses Stripe. To receive webhook events locally you need the [Stripe CLI](https://stripe.com/docs/stripe-cli) forwarding events to your running server.
+
+1. Install the CLI: `brew install stripe/stripe-cli/stripe`
+2. Make sure `STRIPE_SECRET_KEY` in `.env` is a **test-mode** key (`sk_test_...`), and `STRIPE_MEMBERSHIP_PRICE_ID_YEARLY`/`STRIPE_MEMBERSHIP_PRICE_ID_MANUAL` point to test-mode prices.
+3. Start the server (`yarn start`), then in a separate terminal:
+
+   ```bash
+   stripe listen --forward-to localhost:8000/v1/webhooks/stripe
+   ```
+
+4. Copy the `whsec_...` secret it prints into `STRIPE_WEBHOOK_SECRET` in `.env` and restart the server. This secret changes every time you restart `stripe listen`.
+5. Trigger test events, e.g.:
+
+   ```bash
+   stripe trigger checkout.session.completed
+   ```
+
+   Events are routed through `POST /v1/webhooks/stripe` to `membership.handleWebhookEvent()`.
+
 ## Testing
 
 Tests use Docker testcontainers (Postgres + GoTrue) — no local Supabase required.

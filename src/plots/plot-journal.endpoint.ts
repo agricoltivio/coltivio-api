@@ -1,9 +1,9 @@
 import { ez } from "express-zod-api";
 import { z } from "zod";
-import { permissionMembershipEndpoint } from "../endpoint-factory";
+import { permissionFarmEndpoint } from "../endpoint-factory";
 
-const plotsRead = permissionMembershipEndpoint("field_calendar", "read");
-const plotsWrite = permissionMembershipEndpoint("field_calendar", "write");
+const plotsRead = permissionFarmEndpoint("field_calendar", "read");
+const plotsWrite = permissionFarmEndpoint("field_calendar", "write");
 
 const journalImageSchema = z.object({
   id: z.string(),

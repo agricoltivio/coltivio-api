@@ -79,54 +79,6 @@ export const farmEndpointFactory = authenticatedEndpointFactory.addMiddleware(
   })
 );
 
-// Factory for endpoints that require an active farm membership (includes trial)
-export const membershipEndpointFactory = farmEndpointFactory.addMiddleware(
-  new Middleware({
-    input: z.object({}),
-    handler: async ({ ctx }) => {
-      const active = await ctx.membership.isActive(ctx.farmId);
-      if (!active) throw createHttpError(403, "Active membership required");
-      return {};
-    },
-  })
-);
-
-// Factory for endpoints that require a paid membership (excludes trial — read-only for trial users)
-export const paidMembershipEndpointFactory = farmEndpointFactory.addMiddleware(
-  new Middleware({
-    input: z.object({}),
-    handler: async ({ ctx }) => {
-      const paid = await ctx.membership.isPaidMember(ctx.farmId);
-      if (!paid) throw createHttpError(403, "Paid membership required");
-      return {};
-    },
-  })
-);
-
-// Factories for endpoints that require membership but NOT a farm (e.g. the platform-wide forum).
-// Membership is checked per-user rather than per-farm.
-export const userMembershipEndpointFactory = authenticatedEndpointFactory.addMiddleware(
-  new Middleware({
-    input: z.object({}),
-    handler: async ({ ctx }) => {
-      const active = await ctx.membership.isActiveUser(ctx.user.id);
-      if (!active) throw createHttpError(403, "Active membership required");
-      return {};
-    },
-  })
-);
-
-export const userPaidMembershipEndpointFactory = authenticatedEndpointFactory.addMiddleware(
-  new Middleware({
-    input: z.object({}),
-    handler: async ({ ctx }) => {
-      const paid = await ctx.membership.isPaidUser(ctx.user.id);
-      if (!paid) throw createHttpError(403, "Paid membership required");
-      return {};
-    },
-  })
-);
-
 // Factory for endpoints that are exclusively for farm owners (not members).
 export const ownerOnlyEndpointFactory = farmEndpointFactory.addMiddleware(
   new Middleware({
@@ -145,42 +97,6 @@ export const ownerOnlyEndpointFactory = farmEndpointFactory.addMiddleware(
 // Owners bypass the permission check; "none" blocks all access; "write" required for mutations.
 export function permissionFarmEndpoint(feature: FarmPermissionFeature, access: "read" | "write") {
   return farmEndpointFactory.addMiddleware(
-    new Middleware({
-      input: z.object({}),
-      handler: async ({ ctx }) => {
-        if (ctx.user.farmRole === "owner") return {};
-        const userAccess = await ctx.farmPermissions.getFeatureAccess(ctx.user.id, feature);
-        if (userAccess === "none") throw createHttpError(403, `Access denied for: ${feature}`);
-        if (access === "write" && userAccess !== "write")
-          throw createHttpError(403, `Write access required for: ${feature}`);
-        return {};
-      },
-    })
-  );
-}
-
-// Returns a factory that requires active membership (includes trial) + feature permission.
-// Use for premium features (contacts, orders, tasks, etc.) that require a subscription.
-// Owners bypass the permission check; "none" blocks all access; "write" required for mutations.
-export function permissionMembershipEndpoint(feature: FarmPermissionFeature, access: "read" | "write") {
-  return membershipEndpointFactory.addMiddleware(
-    new Middleware({
-      input: z.object({}),
-      handler: async ({ ctx }) => {
-        if (ctx.user.farmRole === "owner") return {};
-        const userAccess = await ctx.farmPermissions.getFeatureAccess(ctx.user.id, feature);
-        if (userAccess === "none") throw createHttpError(403, `Access denied for: ${feature}`);
-        if (access === "write" && userAccess !== "write")
-          throw createHttpError(403, `Write access required for: ${feature}`);
-        return {};
-      },
-    })
-  );
-}
-
-// Returns a factory that requires paid membership + feature permission.
-export function permissionPaidMembershipEndpoint(feature: FarmPermissionFeature, access: "read" | "write") {
-  return paidMembershipEndpointFactory.addMiddleware(
     new Middleware({
       input: z.object({}),
       handler: async ({ ctx }) => {

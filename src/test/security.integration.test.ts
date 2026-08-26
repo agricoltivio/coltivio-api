@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from "@jest/globals";
 import { eq } from "drizzle-orm";
 import { profiles } from "../db/schema";
 import { cleanDb, createTestUser, getAdminDb, getAdminSql, rawRequest, request, signTestJwt } from "./helpers";
-import { membershipPayments, userTrials } from "../db/schema";
+import { membershipPayments } from "../db/schema";
 
 const JWT_SECRET = "super-secret-jwt-token-with-at-least-32-characters-long";
 
@@ -648,43 +648,26 @@ describe("Token/session edge cases", () => {
 // ---------------------------------------------------------------------------
 // Membership gating
 // ---------------------------------------------------------------------------
-describe("Membership gating", () => {
+describe("Membership gating removed", () => {
   beforeEach(cleanDb);
 
-  it("user without membership cannot access membershipEndpointFactory endpoints", async () => {
+  it("user without any membership/trial can read via permissionFarmEndpoint", async () => {
     const { jwt } = await createUserWithFarmNoMembership("nomem1@test.com");
-    // GET /v1/contacts uses permissionMembershipEndpoint("contacts", "read")
+    // GET /v1/contacts uses permissionFarmEndpoint("commerce", "read") — no subscription required
     const res = await request("GET", "/v1/contacts", undefined, jwt);
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
   });
 
-  it("user without membership cannot write via permissionMembershipEndpoint", async () => {
+  it("user without any membership/trial can write via permissionFarmEndpoint", async () => {
     const { jwt } = await createUserWithFarmNoMembership("nomem2@test.com");
-    // POST /v1/contacts uses permissionMembershipEndpoint("contacts", "write")
+    // POST /v1/contacts uses permissionFarmEndpoint("commerce", "write") — no subscription required
     const res = await request("POST", "/v1/contacts", { firstName: "Hans", lastName: "Muster", labels: [] }, jwt);
-    expect(res.status).toBe(403);
-  });
-
-  it("user with trial membership can access membershipEndpointFactory endpoints", async () => {
-    const { jwt, userId } = await createUserWithFarmNoMembership("trial1@test.com");
-    const db = getAdminDb();
-    const trialEnd = new Date();
-    trialEnd.setDate(trialEnd.getDate() + 15);
-    await db.insert(userTrials).values({ userId, endsAt: trialEnd });
-
-    const res = await request("GET", "/v1/contacts", undefined, jwt);
     expect(res.status).toBe(200);
   });
 
-  it("user with paid membership can access membershipEndpointFactory endpoints", async () => {
-    const { jwt } = await createUserWithFarm("paid1@test.com");
-    const res = await request("GET", "/v1/contacts", undefined, jwt);
-    expect(res.status).toBe(200);
-  });
-
-  it("farmEndpointFactory read endpoints do not require membership", async () => {
+  it("user without any membership/trial can access farmEndpointFactory endpoints", async () => {
     const { jwt } = await createUserWithFarmNoMembership("nomem3@test.com");
-    // GET /v1/plots uses farmEndpointFactory (no membership needed for reads)
+    // GET /v1/plots uses farmEndpointFactory (no membership needed)
     const res = await request("GET", "/v1/plots", undefined, jwt);
     expect(res.status).toBe(200);
   });

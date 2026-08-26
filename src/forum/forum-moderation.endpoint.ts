@@ -1,10 +1,10 @@
 import createHttpError from "http-errors";
 import { z } from "zod";
-import { membershipEndpointFactory } from "../endpoint-factory";
+import { farmEndpointFactory } from "../endpoint-factory";
 
 // ─── Set thread status (open / closed) ───────────────────────────────────────
 
-export const setForumThreadStatusEndpoint = membershipEndpointFactory.build({
+export const setForumThreadStatusEndpoint = farmEndpointFactory.build({
   method: "post",
   input: z.object({
     threadId: z.string(),
@@ -26,7 +26,7 @@ export const setForumThreadStatusEndpoint = membershipEndpointFactory.build({
 
 // ─── Pin / unpin thread ───────────────────────────────────────────────────────
 
-export const pinForumThreadEndpoint = membershipEndpointFactory.build({
+export const pinForumThreadEndpoint = farmEndpointFactory.build({
   method: "post",
   input: z.object({
     threadId: z.string(),
