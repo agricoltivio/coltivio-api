@@ -29,7 +29,6 @@ const updateUserSchema = z
   .object({
     fullName: z.string().optional(),
     emailVerified: z.boolean().optional(),
-    farmId: z.string().optional(),
   })
   .partial();
 

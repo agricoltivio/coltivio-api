@@ -3,7 +3,7 @@
 const UNLIMITED_TRIAL = process.env.UNLIMITED_TRIAL === "true";
 
 import Stripe from "stripe";
-import { eq, and, gt, inArray } from "drizzle-orm";
+import { eq, and, gt } from "drizzle-orm";
 import createHttpError from "http-errors";
 import { RlsDb } from "../db/db";
 import { getStripe, STRIPE_API_VERSION } from "../stripe/stripe";
@@ -127,34 +127,6 @@ export function membershipApi(db: RlsDb) {
   }
 
   return {
-    // A farm is active if any of its members has an active trial or succeeded payment
-    async isActive(farmId: string): Promise<boolean> {
-      if (UNLIMITED_TRIAL) return true;
-      const userIds = await getUserIdsForFarm(farmId);
-      if (userIds.length === 0) return false;
-
-      const now = new Date();
-      const activeTrial = await db.admin.query.userTrials.findFirst({
-        where: { userId: { in: userIds }, endsAt: { gt: now } },
-      });
-      if (activeTrial) return true;
-
-      // A user who explicitly cancelled (Austritt) is out immediately — no grace period.
-      const active = await db.admin
-        .select({ id: membershipPayments.id })
-        .from(membershipPayments)
-        .where(
-          and(
-            inArray(membershipPayments.userId, userIds),
-            eq(membershipPayments.status, "succeeded"),
-            eq(membershipPayments.cancelledByUser, false),
-            gt(membershipPayments.periodEnd, new Date(now.getTime() - GRACE_PERIOD_MS))
-          )
-        )
-        .limit(1);
-      return active.length > 0;
-    },
-
     async getFarmMembershipStatus(farmId: string): Promise<FarmMembershipStatus> {
       if (UNLIMITED_TRIAL) return "trial";
       const userIds = await getUserIdsForFarm(farmId);
@@ -170,28 +142,6 @@ export function membershipApi(db: RlsDb) {
         where: { userId: { in: userIds }, endsAt: { gt: now } },
       });
       return trial ? "trial" : "none";
-    },
-
-    // Paid membership only — excludes trial. Use for write-gated operations.
-    async isPaidMember(farmId: string): Promise<boolean> {
-      if (UNLIMITED_TRIAL) return true;
-      const userIds = await getUserIdsForFarm(farmId);
-      if (userIds.length === 0) return false;
-
-      const now = new Date();
-      const active = await db.admin
-        .select({ id: membershipPayments.id })
-        .from(membershipPayments)
-        .where(
-          and(
-            inArray(membershipPayments.userId, userIds),
-            eq(membershipPayments.status, "succeeded"),
-            eq(membershipPayments.cancelledByUser, false),
-            gt(membershipPayments.periodEnd, new Date(now.getTime() - GRACE_PERIOD_MS))
-          )
-        )
-        .limit(1);
-      return active.length > 0;
     },
 
     // User-scoped active check (trial OR paid). Used for forum which is not farm-scoped.

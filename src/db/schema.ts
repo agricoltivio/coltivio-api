@@ -1888,8 +1888,7 @@ export const wikiModerators = pgTable.withRLS(
   ]
 );
 
-// Platform-wide forum threads (not farm-scoped); any authenticated user can read,
-// membership-gated writes are enforced at app layer via membershipEndpointFactory
+// Platform-wide forum threads (not farm-scoped); any authenticated user can read and write
 export const forumThreads = pgTable.withRLS(
   "forum_threads",
   {
