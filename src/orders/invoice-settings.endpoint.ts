@@ -1,8 +1,8 @@
 import { z } from "zod";
 import createHttpError from "http-errors";
-import { membershipEndpointFactory, permissionMembershipEndpoint } from "../endpoint-factory";
+import { farmEndpointFactory, permissionFarmEndpoint } from "../endpoint-factory";
 
-const ordersWrite = permissionMembershipEndpoint("commerce", "write");
+const ordersWrite = permissionFarmEndpoint("commerce", "write");
 import { InvoiceSettings } from "./invoice-settings";
 
 export const invoiceSettingsSchema = z.object({
@@ -50,7 +50,7 @@ function toSettingsResponse(row: InvoiceSettings): InvoiceSettingsResponse {
   return { ...rest, hasLogo: logoData !== null };
 }
 
-export const getInvoiceSettingsEndpoint = membershipEndpointFactory.build({
+export const getInvoiceSettingsEndpoint = farmEndpointFactory.build({
   method: "get",
   input: z.object({}),
   output: z.object({ result: z.array(invoiceSettingsSchema) }),

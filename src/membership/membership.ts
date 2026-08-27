@@ -94,42 +94,39 @@ export function membershipApi(db: RlsDb) {
     return farmProfiles.map((p) => p.id);
   }
 
-  // Reconciles a local userSubscriptions row against Stripe before mutating it. A missed
-  // customer.subscription.deleted webhook can leave the row pointing at a subscription Stripe
-  // already fully canceled there — Stripe rejects any cancel_at_period_end update on those
-  // ("A canceled subscription can only update its cancellation_details and metadata"), so check
-  // first and clean up the stale row rather than letting that error bubble up.
-  async function getLiveSubscription(
-    userId: string,
-    subscription: { stripeSubscriptionId: string }
-  ): Promise<Stripe.Subscription | null> {
-    const stripeSubscription = await getStripe().subscriptions.retrieve(subscription.stripeSubscriptionId);
-    if (stripeSubscription.status === "canceled") {
-      await db.admin.delete(userSubscriptions).where(eq(userSubscriptions.userId, userId));
-      return null;
-    }
-    return stripeSubscription;
-  }
-
-  // There's at most one userSubscriptions row per user (unique on userId, upserted on create), so
-  // if it's still live on Stripe it's always the current subscription. Reconciles a stale row
-  // (Stripe already fully canceled it there, e.g. a missed customer.subscription.deleted webhook)
-  // by cleaning it up rather than surfacing it.
-  async function getLiveUserSubscription(userId: string) {
-    const subscription = await db.admin.query.userSubscriptions.findFirst({ where: { userId } });
-    if (!subscription) return undefined;
-    const liveSubscription = await getLiveSubscription(userId, subscription);
-    return liveSubscription ? { row: subscription, live: liveSubscription } : undefined;
+  // There's at most one userSubscriptions row per user (unique on userId, upserted on create).
+  // Trusted as-is — kept in sync by customer.subscription.updated/deleted webhooks, the same way
+  // membershipPayments is trusted without re-checking Stripe on every read.
+  async function getUserSubscriptionRow(userId: string) {
+    return db.admin.query.userSubscriptions.findFirst({ where: { userId } });
   }
 
   // Only one payment mechanism can be active at a time: a second subscription, or a manual
-  // top-up, is blocked while an existing subscription is still live — even if auto-renew has
-  // already been disabled on it (it's still live, and still billing-relevant, until its period
-  // actually ends). Switching from subscription to manual (or starting a fresh subscription)
-  // requires waiting for the current one to actually end. This keeps the single userSubscriptions
-  // row always accurate and rules out ever double-charging or losing track of a subscription.
+  // top-up, is blocked while an existing subscription row exists — even if auto-renew has already
+  // been disabled on it (it's still live, and still billing-relevant, until its period actually
+  // ends). Switching from subscription to manual (or starting a fresh subscription) requires
+  // waiting for the current one to actually end.
   async function hasLiveSubscription(userId: string): Promise<boolean> {
-    return (await getLiveUserSubscription(userId)) !== undefined;
+    return (await getUserSubscriptionRow(userId)) !== undefined;
+  }
+
+  // Applies a Stripe subscription update. If Stripe rejects it, don't assume why — verify the
+  // subscription's actual state first. Only if Stripe confirms it's genuinely canceled there (e.g.
+  // a missed customer.subscription.deleted webhook left this row stale) do we clean up the local
+  // row and report it gone; any other error is a real failure and gets rethrown untouched.
+  async function updateSubscriptionOrHeal(
+    userId: string,
+    stripeSubscriptionId: string,
+    params: Stripe.SubscriptionUpdateParams
+  ): Promise<Stripe.Subscription | null> {
+    try {
+      return await getStripe().subscriptions.update(stripeSubscriptionId, params);
+    } catch (err) {
+      const current = await getStripe().subscriptions.retrieve(stripeSubscriptionId);
+      if (current.status !== "canceled") throw err;
+      await db.admin.delete(userSubscriptions).where(eq(userSubscriptions.userId, userId));
+      return null;
+    }
   }
 
   // Looks at the user's prior succeeded payment (if any) to work out both the new periodEnd and
@@ -170,7 +167,7 @@ export function membershipApi(db: RlsDb) {
       return trial ? "trial" : "none";
     },
 
-    // User-scoped active check (trial OR paid). Used for forum which is not farm-scoped.
+    // User-scoped active check (trial OR paid).
     async isActiveUser(userId: string): Promise<boolean> {
       if (UNLIMITED_TRIAL) return true;
       const now = new Date();
@@ -460,38 +457,21 @@ export function membershipApi(db: RlsDb) {
         where: { userId, status: "succeeded" },
         orderBy: { periodEnd: "desc" },
       });
-      const current = await getLiveUserSubscription(userId);
+      const subscription = await getUserSubscriptionRow(userId);
 
-      if (!current) {
-        // One-time payment user (or a stale row for an already-canceled Stripe subscription) —
-        // just clear the cancelled flag, no Stripe interaction needed
-        if (latestPayment) {
-          await db.admin
-            .update(membershipPayments)
-            .set({ cancelledByUser: false })
-            .where(eq(membershipPayments.id, latestPayment.id));
+      // One-time payment user, or a subscription that turns out to be stale (already canceled on
+      // Stripe, e.g. a missed customer.subscription.deleted webhook) — just clear the cancelled
+      // flag, no Stripe subscription to touch.
+      const updated = subscription
+        ? await updateSubscriptionOrHeal(userId, subscription.stripeSubscriptionId, { cancel_at_period_end: false })
+        : null;
 
-          const profile = await db.admin.query.profiles.findFirst({ where: { id: userId } });
-          if (profile) {
-            await sendReactivationEmail({
-              email: profile.email,
-              fullName: profile.fullName,
-              locale: profile.locale,
-              periodEnd: latestPayment.periodEnd,
-            });
-          }
-        }
-        return { cancelAtPeriodEnd: false };
+      if (updated) {
+        await db.admin
+          .update(userSubscriptions)
+          .set({ cancelAtPeriodEnd: false })
+          .where(eq(userSubscriptions.userId, userId));
       }
-
-      await getStripe().subscriptions.update(current.row.stripeSubscriptionId, {
-        cancel_at_period_end: false,
-      });
-
-      await db.admin
-        .update(userSubscriptions)
-        .set({ cancelAtPeriodEnd: false })
-        .where(eq(userSubscriptions.userId, userId));
 
       if (latestPayment) {
         await db.admin
@@ -520,14 +500,14 @@ export function membershipApi(db: RlsDb) {
         orderBy: { periodEnd: "desc" },
       });
 
-      const current = await getLiveUserSubscription(userId);
+      const subscription = await getUserSubscriptionRow(userId);
 
       const trial = await db.admin.query.userTrials.findFirst({ where: { userId } });
 
       return {
         lastPeriodEnd: latestPayment?.periodEnd ?? null,
-        cancelAtPeriodEnd: current?.live.cancel_at_period_end ?? false,
-        autoRenewing: current !== undefined,
+        cancelAtPeriodEnd: subscription?.cancelAtPeriodEnd ?? false,
+        autoRenewing: subscription !== undefined,
         trialEnd: trial?.endsAt ?? null,
         cancelledByUser: latestPayment?.cancelledByUser ?? false,
       };
@@ -540,16 +520,18 @@ export function membershipApi(db: RlsDb) {
         orderBy: { periodEnd: "desc" },
       });
 
-      const current = await getLiveUserSubscription(userId);
+      const subscription = await getUserSubscriptionRow(userId);
 
-      if (current) {
-        await getStripe().subscriptions.update(current.row.stripeSubscriptionId, {
+      if (subscription) {
+        const updated = await updateSubscriptionOrHeal(userId, subscription.stripeSubscriptionId, {
           cancel_at_period_end: true,
         });
-        await db.admin
-          .update(userSubscriptions)
-          .set({ cancelAtPeriodEnd: true })
-          .where(eq(userSubscriptions.userId, userId));
+        if (updated) {
+          await db.admin
+            .update(userSubscriptions)
+            .set({ cancelAtPeriodEnd: true })
+            .where(eq(userSubscriptions.userId, userId));
+        }
       }
 
       if (latestPayment) {
@@ -579,12 +561,14 @@ export function membershipApi(db: RlsDb) {
     // their current paid period naturally runs out — no cancellation email, cancelledByUser
     // stays false so the expiry-reminder cron still nudges them before it lapses.
     async disableAutoRenew(userId: string): Promise<{ cancelAtPeriodEnd: boolean }> {
-      const current = await getLiveUserSubscription(userId);
-      if (!current) throw createHttpError(400, "No auto-renewing subscription to disable");
+      const subscription = await getUserSubscriptionRow(userId);
+      if (!subscription) throw createHttpError(400, "No auto-renewing subscription to disable");
 
-      await getStripe().subscriptions.update(current.row.stripeSubscriptionId, {
+      const updated = await updateSubscriptionOrHeal(userId, subscription.stripeSubscriptionId, {
         cancel_at_period_end: true,
       });
+      if (!updated) throw createHttpError(400, "No auto-renewing subscription to disable");
+
       await db.admin
         .update(userSubscriptions)
         .set({ cancelAtPeriodEnd: true })

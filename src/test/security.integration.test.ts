@@ -3,7 +3,6 @@ import { eq } from "drizzle-orm";
 import { profiles } from "../db/schema";
 import { cleanDb, createTestUser, getAdminDb, getAdminSql, rawRequest, request, signTestJwt } from "./helpers";
 import { membershipPayments } from "../db/schema";
-import { createFarmMember } from "./test-utils";
 
 const JWT_SECRET = "super-secret-jwt-token-with-at-least-32-characters-long";
 
@@ -647,37 +646,22 @@ describe("Token/session edge cases", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Membership gating
+// Membership gating — only the forum is membership-gated; everything else
+// (commerce endpoints, core ag features) just needs farm membership + permission.
 // ---------------------------------------------------------------------------
 describe("Membership gating", () => {
   beforeEach(cleanDb);
 
-  it("user without any membership/trial cannot read commerce endpoints (permissionMembershipEndpoint)", async () => {
+  it("user without any membership/trial can read commerce endpoints (permissionFarmEndpoint, not membership-gated)", async () => {
     const { jwt } = await createUserWithFarmNoMembership("nomem1@test.com");
     const res = await request("GET", "/v1/contacts", undefined, jwt);
-    expect(res.status).toBe(403);
-  });
-
-  it("user without any membership/trial cannot write commerce endpoints (permissionMembershipEndpoint)", async () => {
-    const { jwt } = await createUserWithFarmNoMembership("nomem2@test.com");
-    const res = await request("POST", "/v1/contacts", { firstName: "Hans", lastName: "Muster", labels: [] }, jwt);
-    expect(res.status).toBe(403);
-  });
-
-  it("user with own active membership can read and write commerce endpoints", async () => {
-    const { jwt } = await createUserWithFarm("hasmem@test.com");
-    const res = await request("POST", "/v1/contacts", { firstName: "Hans", lastName: "Muster", labels: [] }, jwt);
     expect(res.status).toBe(200);
   });
 
-  it("farm member without their own membership cannot access commerce endpoints, even if the owner has one", async () => {
-    const { jwt: ownerJwt } = await createUserWithFarm("owner-with-mem@test.com");
-    const { jwt: memberJwt } = await createFarmMember(ownerJwt, "member-no-mem@test.com", {
-      withActiveMembership: false,
-    });
-    // Membership is per-user, not per-farm — the owner's payment doesn't cover other members.
-    const res = await request("GET", "/v1/contacts", undefined, memberJwt);
-    expect(res.status).toBe(403);
+  it("user without any membership/trial can write commerce endpoints (permissionFarmEndpoint, not membership-gated)", async () => {
+    const { jwt } = await createUserWithFarmNoMembership("nomem2@test.com");
+    const res = await request("POST", "/v1/contacts", { firstName: "Hans", lastName: "Muster", labels: [] }, jwt);
+    expect(res.status).toBe(200);
   });
 
   it("user without any membership/trial can access farmEndpointFactory endpoints (not membership-gated)", async () => {

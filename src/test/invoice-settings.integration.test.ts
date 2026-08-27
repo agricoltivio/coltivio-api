@@ -27,7 +27,7 @@ describe("Invoice Settings", () => {
   // ---------------------------------------------------------------------------
 
   it("GET returns empty array when no settings exist", async () => {
-    const { jwt } = await createUserWithFarm({}, "is1@test.com", { withActiveMembership: true });
+    const { jwt } = await createUserWithFarm({}, "is1@test.com");
     const res = await request("GET", BASE, undefined, jwt);
     expect(res.status).toBe(200);
     const body = (await res.json()) as { data: { result: SettingsRow[] } };
@@ -35,7 +35,7 @@ describe("Invoice Settings", () => {
   });
 
   it("GET returns all settings for the farm", async () => {
-    const { jwt } = await createUserWithFarm({}, "is2@test.com", { withActiveMembership: true });
+    const { jwt } = await createUserWithFarm({}, "is2@test.com");
     await createSettings(jwt, { name: "Meat" });
     await createSettings(jwt, { name: "Dairy" });
 
@@ -51,7 +51,7 @@ describe("Invoice Settings", () => {
   // ---------------------------------------------------------------------------
 
   it("POST creates settings with name and returns it", async () => {
-    const { jwt } = await createUserWithFarm({}, "is3@test.com", { withActiveMembership: true });
+    const { jwt } = await createUserWithFarm({}, "is3@test.com");
     const row = await createSettings(jwt, { name: "Invoices A", senderName: "My Farm", paymentTermsDays: 14 });
 
     expect(row.name).toBe("Invoices A");
@@ -62,14 +62,14 @@ describe("Invoice Settings", () => {
   });
 
   it("POST allows multiple settings per farm", async () => {
-    const { jwt } = await createUserWithFarm({}, "is4@test.com", { withActiveMembership: true });
+    const { jwt } = await createUserWithFarm({}, "is4@test.com");
     const a = await createSettings(jwt, { name: "A" });
     const b = await createSettings(jwt, { name: "B" });
     expect(a.id).not.toBe(b.id);
   });
 
   it("POST rejects duplicate name within same farm", async () => {
-    const { jwt } = await createUserWithFarm({}, "is5@test.com", { withActiveMembership: true });
+    const { jwt } = await createUserWithFarm({}, "is5@test.com");
     await createSettings(jwt, { name: "Same" });
     const res = await request("POST", BASE, { name: "Same" }, jwt);
     expect(res.status).not.toBe(200);
@@ -80,7 +80,7 @@ describe("Invoice Settings", () => {
   // ---------------------------------------------------------------------------
 
   it("PUT updates name and fields", async () => {
-    const { jwt } = await createUserWithFarm({}, "is6@test.com", { withActiveMembership: true });
+    const { jwt } = await createUserWithFarm({}, "is6@test.com");
     const row = await createSettings(jwt, { name: "Old" });
 
     const res = await request("PUT", `${BASE}/${row.id}`, { id: row.id, name: "New", senderName: "Updated" }, jwt);
@@ -91,7 +91,7 @@ describe("Invoice Settings", () => {
   });
 
   it("GET list reflects update", async () => {
-    const { jwt } = await createUserWithFarm({}, "is7@test.com", { withActiveMembership: true });
+    const { jwt } = await createUserWithFarm({}, "is7@test.com");
     const row = await createSettings(jwt, { name: "Before" });
     await request("PUT", `${BASE}/${row.id}`, { id: row.id, name: "After" }, jwt);
 
@@ -105,7 +105,7 @@ describe("Invoice Settings", () => {
   // ---------------------------------------------------------------------------
 
   it("DELETE removes the settings row", async () => {
-    const { jwt } = await createUserWithFarm({}, "is8@test.com", { withActiveMembership: true });
+    const { jwt } = await createUserWithFarm({}, "is8@test.com");
     const row = await createSettings(jwt, { name: "ToDelete" });
 
     const delRes = await request("DELETE", `${BASE}/${row.id}`, { id: row.id }, jwt);
@@ -117,7 +117,7 @@ describe("Invoice Settings", () => {
   });
 
   it("DELETE one of multiple only removes the targeted row", async () => {
-    const { jwt } = await createUserWithFarm({}, "is9@test.com", { withActiveMembership: true });
+    const { jwt } = await createUserWithFarm({}, "is9@test.com");
     const a = await createSettings(jwt, { name: "Keep" });
     const b = await createSettings(jwt, { name: "Remove" });
 
@@ -134,7 +134,7 @@ describe("Invoice Settings", () => {
   // ---------------------------------------------------------------------------
 
   it("PUT /:id/logo sets hasLogo=true", async () => {
-    const { jwt } = await createUserWithFarm({}, "is10@test.com", { withActiveMembership: true });
+    const { jwt } = await createUserWithFarm({}, "is10@test.com");
     const row = await createSettings(jwt, { name: "WithLogo" });
 
     // 1x1 white PNG in base64
@@ -146,7 +146,7 @@ describe("Invoice Settings", () => {
   });
 
   it("DELETE /:id/logo sets hasLogo=false", async () => {
-    const { jwt } = await createUserWithFarm({}, "is11@test.com", { withActiveMembership: true });
+    const { jwt } = await createUserWithFarm({}, "is11@test.com");
     const row = await createSettings(jwt, { name: "LogoThenDelete" });
 
     const png1x1 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwADhQGAWjR9awAAAABJRU5ErkJggg==";
@@ -165,8 +165,8 @@ describe("Invoice Settings", () => {
   // ---------------------------------------------------------------------------
 
   it("farm A cannot see farm B settings", async () => {
-    const { jwt: jwtA } = await createUserWithFarm({}, "isA@test.com", { withActiveMembership: true });
-    const { jwt: jwtB } = await createUserWithFarm({}, "isB@test.com", { withActiveMembership: true });
+    const { jwt: jwtA } = await createUserWithFarm({}, "isA@test.com");
+    const { jwt: jwtB } = await createUserWithFarm({}, "isB@test.com");
     await createSettings(jwtA, { name: "FarmA Settings" });
 
     const res = await request("GET", BASE, undefined, jwtB);

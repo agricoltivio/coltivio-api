@@ -4,10 +4,10 @@ import { z } from "zod";
 import { animalSchema } from "../animals/animals.endpoint";
 import { contactSchema } from "../contacts/contacts.endpoint";
 import { preferredCommunicationSchema } from "../db/schema";
-import { permissionMembershipEndpoint } from "../endpoint-factory";
+import { permissionFarmEndpoint } from "../endpoint-factory";
 
-const sponsorshipsRead = permissionMembershipEndpoint("commerce", "read");
-const sponsorshipsWrite = permissionMembershipEndpoint("commerce", "write");
+const sponsorshipsRead = permissionFarmEndpoint("commerce", "read");
+const sponsorshipsWrite = permissionFarmEndpoint("commerce", "write");
 import { paymentSchema } from "../payments/payment-schema";
 import { paymentMethodSchema } from "../db/schema";
 import { sponsorshipProgramSchema } from "./sponsorship-programs.endpoint";
