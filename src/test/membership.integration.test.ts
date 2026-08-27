@@ -202,9 +202,13 @@ function buildStripeMock(opts: {
     },
     paymentIntents: {
       retrieve: jest.fn().mockImplementation(async () => paymentIntent),
+      create: jest.fn().mockImplementation(async () => ({ ...paymentIntent, client_secret: "pi_secret_test" })),
     },
     setupIntents: {
       retrieve: jest.fn().mockImplementation(async () => setupIntent),
+    },
+    ephemeralKeys: {
+      create: jest.fn().mockImplementation(async () => ({ secret: "ek_secret_test" })),
     },
     customers: {
       create: jest.fn().mockImplementation(async () => ({ id: "cus_test" })),
@@ -320,6 +324,15 @@ function makeSubscriptionDeletedEvent(subId: string): Stripe.Event {
     type: "customer.subscription.deleted",
     data: {
       object: { id: subId },
+    },
+  } as unknown as Stripe.Event;
+}
+
+function makePaymentIntentSucceededEvent(userId: string, paymentIntent: Stripe.PaymentIntent): Stripe.Event {
+  return {
+    type: "payment_intent.succeeded",
+    data: {
+      object: { ...paymentIntent, metadata: { userId, type: "membership" } },
     },
   } as unknown as Stripe.Event;
 }
@@ -482,9 +495,9 @@ describe("checkout.session.completed — manual payment", () => {
     expect(emailSpy.mock.calls[0]?.[0]?.subject).toContain("Willkommen");
   });
 
-  it("manual renewal sends reactivation email", async () => {
+  it("manual renewal after the membership lapsed sends reactivation ('welcome back') email", async () => {
     const { userId } = await createTestUser("b2@test.com", "password123");
-    await insertPayment(userId, daysFromNow(10), { stripePaymentId: "pi_b2_prior" });
+    await insertPayment(userId, daysAgo(5), { stripePaymentId: "pi_b2_prior" });
     const api = membershipApi(adminOnlyDb);
 
     const pi = makePaymentIntent({ id: "pi_b2_new", payment_method: null });
@@ -494,6 +507,56 @@ describe("checkout.session.completed — manual payment", () => {
 
     expect(emailSpy).toHaveBeenCalledTimes(1);
     expect(emailSpy.mock.calls[0]?.[0]?.subject).toContain("zurück");
+  });
+
+  it("manual renewal while still active sends a renewal email, not 'welcome back'", async () => {
+    const { userId } = await createTestUser("b2b@test.com", "password123");
+    await insertPayment(userId, daysFromNow(10), { stripePaymentId: "pi_b2b_prior" });
+    const api = membershipApi(adminOnlyDb);
+
+    const pi = makePaymentIntent({ id: "pi_b2b_new", payment_method: null });
+    mockGetStripe.mockReturnValue(buildStripeMock({ paymentIntent: pi, paymentMethod: null }));
+
+    await api.handleWebhookEvent(makeCheckoutPaymentEvent(userId, "pi_b2b_new"));
+
+    expect(emailSpy).toHaveBeenCalledTimes(1);
+    expect(emailSpy.mock.calls[0]?.[0]?.subject).toContain("erneuert");
+  });
+
+  it("early renewal (still in current period) stacks the new year on top of the remaining time", async () => {
+    const { userId } = await createTestUser("b4@test.com", "password123");
+    const currentPeriodEnd = daysFromNow(10);
+    await insertPayment(userId, currentPeriodEnd, { stripePaymentId: "pi_b4_prior" });
+    const api = membershipApi(adminOnlyDb);
+
+    const pi = makePaymentIntent({ id: "pi_b4_new", payment_method: null });
+    mockGetStripe.mockReturnValue(buildStripeMock({ paymentIntent: pi, paymentMethod: null }));
+
+    await api.handleWebhookEvent(makeCheckoutPaymentEvent(userId, "pi_b4_new"));
+
+    const db = getAdminDb();
+    const newPayment = await db.query.membershipPayments.findFirst({ where: { stripePaymentId: "pi_b4_new" } });
+    const expectedEnd = new Date(currentPeriodEnd);
+    expectedEnd.setFullYear(expectedEnd.getFullYear() + 1);
+    expect(newPayment!.periodEnd.getTime()).toBeCloseTo(expectedEnd.getTime(), -3);
+  });
+
+  it("renewal after the period already lapsed resets from today (no stacking across a gap)", async () => {
+    const { userId } = await createTestUser("b5@test.com", "password123");
+    await insertPayment(userId, daysAgo(30), { stripePaymentId: "pi_b5_prior" });
+    const api = membershipApi(adminOnlyDb);
+
+    const pi = makePaymentIntent({ id: "pi_b5_new", payment_method: null });
+    mockGetStripe.mockReturnValue(buildStripeMock({ paymentIntent: pi, paymentMethod: null }));
+
+    await api.handleWebhookEvent(makeCheckoutPaymentEvent(userId, "pi_b5_new"));
+
+    const db = getAdminDb();
+    const newPayment = await db.query.membershipPayments.findFirst({ where: { stripePaymentId: "pi_b5_new" } });
+    const expectedEnd = new Date();
+    expectedEnd.setFullYear(expectedEnd.getFullYear() + 1);
+    const diffMs = Math.abs(newPayment!.periodEnd.getTime() - expectedEnd.getTime());
+    expect(diffMs).toBeLessThan(5 * 60 * 1000);
   });
 
   it("Twint payment (no card) sends email without card info", async () => {
@@ -513,6 +576,48 @@ describe("checkout.session.completed — manual payment", () => {
     expect(payment!.cardLast4).toBeNull();
     expect(payment!.cardBrand).toBeNull();
     expect(payment!.paymentMethodType).toBe("twint");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// B2. payment_intent.succeeded — manual payment (native PaymentSheet)
+// ---------------------------------------------------------------------------
+describe("payment_intent.succeeded — manual payment (native)", () => {
+  it("first manual payment inserts row and sends welcome email", async () => {
+    const { userId } = await createTestUser("b6@test.com", "password123");
+    const api = membershipApi(adminOnlyDb);
+
+    const pm = makePaymentMethod({ id: "pm_b6", card: { last4: "0006", brand: "visa", exp_month: 1, exp_year: 2030 } });
+    mockGetStripe.mockReturnValue(buildStripeMock({ paymentMethod: pm }));
+
+    const pi = makePaymentIntent({ id: "pi_b6", payment_method: "pm_b6", amount: 29000, currency: "chf" });
+    await api.handleWebhookEvent(makePaymentIntentSucceededEvent(userId, pi));
+
+    const db = getAdminDb();
+    const payment = await db.query.membershipPayments.findFirst({ where: { userId, status: "succeeded" } });
+    expect(payment).toBeDefined();
+    expect(payment!.amount).toBe(29000);
+    expect(emailSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("early renewal (still in current period) stacks the new year on top of the remaining time", async () => {
+    const { userId } = await createTestUser("b7@test.com", "password123");
+    const currentPeriodEnd = daysFromNow(10);
+    await insertPayment(userId, currentPeriodEnd, { stripePaymentId: "pi_b7_prior" });
+    const api = membershipApi(adminOnlyDb);
+
+    mockGetStripe.mockReturnValue(buildStripeMock({ paymentMethod: null }));
+    const pi = makePaymentIntent({ id: "pi_b7_new", payment_method: null, amount: 29000, currency: "chf" });
+    await api.handleWebhookEvent(makePaymentIntentSucceededEvent(userId, pi));
+
+    const db = getAdminDb();
+    const newPayment = await db.query.membershipPayments.findFirst({ where: { stripePaymentId: "pi_b7_new" } });
+    const expectedEnd = new Date(currentPeriodEnd);
+    expectedEnd.setFullYear(expectedEnd.getFullYear() + 1);
+    expect(newPayment!.periodEnd.getTime()).toBeCloseTo(expectedEnd.getTime(), -3);
+
+    expect(emailSpy).toHaveBeenCalledTimes(1);
+    expect(emailSpy.mock.calls[0]?.[0]?.subject).toContain("erneuert");
   });
 });
 
@@ -895,6 +1000,71 @@ describe("createSubscriptionCheckout", () => {
       "STRIPE_MEMBERSHIP_PRICE_ID_YEARLY"
     );
   });
+
+  it("rejects when the user already has a live subscription", async () => {
+    const { userId } = await createTestUser("i3b@test.com", "password123");
+    await insertSubscription(userId, "sub_i3b");
+    mockGetStripe.mockReturnValue(buildStripeMock({ subscription: makeStripeSubscription({ id: "sub_i3b" }) }));
+    const api = membershipApi(adminOnlyDb);
+
+    await expect(api.createSubscriptionCheckout(userId, "de", "https://s.com", "https://c.com")).rejects.toThrow(
+      "active subscription"
+    );
+  });
+
+  it("rejects even when auto-renew has already been disabled on the existing subscription", async () => {
+    const { userId } = await createTestUser("i3c@test.com", "password123");
+    await insertSubscription(userId, "sub_i3c");
+    mockGetStripe.mockReturnValue(
+      buildStripeMock({ subscription: makeStripeSubscription({ id: "sub_i3c", cancel_at_period_end: true }) })
+    );
+    const api = membershipApi(adminOnlyDb);
+
+    await expect(api.createSubscriptionCheckout(userId, "de", "https://s.com", "https://c.com")).rejects.toThrow(
+      "active subscription"
+    );
+  });
+
+  it("stays blocked by a stale row until an explicit action self-heals it (no proactive Stripe check)", async () => {
+    // createSubscriptionCheckout only checks whether a local row exists — it doesn't ask Stripe
+    // whether it's still genuinely live. A stale row (Stripe already canceled it) still blocks
+    // until something that actually mutates the subscription (disableAutoRenew here) verifies
+    // against Stripe and cleans it up.
+    const { userId } = await createTestUser("i3e@test.com", "password123");
+    await insertSubscription(userId, "sub_i3e");
+    const api = membershipApi(adminOnlyDb);
+
+    mockGetStripe.mockReturnValue(
+      buildStripeMock({ subscription: makeStripeSubscription({ id: "sub_i3e", status: "canceled" }) })
+    );
+    await expect(api.createSubscriptionCheckout(userId, "de", "https://s.com", "https://c.com")).rejects.toThrow(
+      "active subscription"
+    );
+
+    const stripeMock = buildStripeMock({ subscription: makeStripeSubscription({ id: "sub_i3e", status: "canceled" }) });
+    jest.mocked(stripeMock.subscriptions.update).mockRejectedValueOnce(new Error("canceled subscription"));
+    mockGetStripe.mockReturnValue(stripeMock);
+    await expect(api.disableAutoRenew(userId)).rejects.toThrow();
+
+    mockGetStripe.mockReturnValue(buildStripeMock({ checkoutSessionUrl: "https://checkout.stripe.com/sub2" }));
+    const { url } = await api.createSubscriptionCheckout(userId, "de", "https://s.com", "https://c.com");
+    expect(url).toBe("https://checkout.stripe.com/sub2");
+  });
+});
+
+describe("createSubscriptionIntent", () => {
+  beforeEach(() => {
+    process.env.STRIPE_MEMBERSHIP_PRICE_ID_YEARLY = "price_yearly_test";
+  });
+
+  it("rejects when the user already has a live subscription", async () => {
+    const { userId } = await createTestUser("i3d@test.com", "password123");
+    await insertSubscription(userId, "sub_i3d");
+    mockGetStripe.mockReturnValue(buildStripeMock({ subscription: makeStripeSubscription({ id: "sub_i3d" }) }));
+    const api = membershipApi(adminOnlyDb);
+
+    await expect(api.createSubscriptionIntent(userId)).rejects.toThrow("active subscription");
+  });
 });
 
 describe("createManualCheckout", () => {
@@ -930,6 +1100,71 @@ describe("createManualCheckout", () => {
       "STRIPE_MEMBERSHIP_PRICE_ID_MANUAL"
     );
   });
+
+  it("rejects when the user has a live subscription", async () => {
+    const { userId } = await createTestUser("i6@test.com", "password123");
+    await insertSubscription(userId, "sub_i6");
+    const api = membershipApi(adminOnlyDb);
+    mockGetStripe.mockReturnValue(buildStripeMock({ subscription: makeStripeSubscription({ id: "sub_i6" }) }));
+
+    await expect(api.createManualCheckout(userId, "de", "https://s.com", "https://c.com")).rejects.toThrow(
+      "active subscription"
+    );
+  });
+
+  it("rejects even when auto-renew has already been disabled — must wait for it to actually end", async () => {
+    const { userId } = await createTestUser("i6b@test.com", "password123");
+    await insertSubscription(userId, "sub_i6b");
+    const api = membershipApi(adminOnlyDb);
+    mockGetStripe.mockReturnValue(
+      buildStripeMock({ subscription: makeStripeSubscription({ id: "sub_i6b", cancel_at_period_end: true }) })
+    );
+
+    await expect(api.createManualCheckout(userId, "de", "https://s.com", "https://c.com")).rejects.toThrow(
+      "active subscription"
+    );
+  });
+
+  it("stays blocked by a stale row until an explicit action self-heals it", async () => {
+    const { userId } = await createTestUser("i7@test.com", "password123");
+    await insertSubscription(userId, "sub_i7");
+    const api = membershipApi(adminOnlyDb);
+
+    mockGetStripe.mockReturnValue(
+      buildStripeMock({ subscription: makeStripeSubscription({ id: "sub_i7", status: "canceled" }) })
+    );
+    await expect(api.createManualCheckout(userId, "de", "https://s.com", "https://c.com")).rejects.toThrow(
+      "active subscription"
+    );
+
+    const stripeMock = buildStripeMock({ subscription: makeStripeSubscription({ id: "sub_i7", status: "canceled" }) });
+    jest.mocked(stripeMock.subscriptions.update).mockRejectedValueOnce(new Error("canceled subscription"));
+    mockGetStripe.mockReturnValue(stripeMock);
+    await expect(api.disableAutoRenew(userId)).rejects.toThrow();
+
+    const db = getAdminDb();
+    const sub = await db.query.userSubscriptions.findFirst({ where: { userId } });
+    expect(sub).toBeUndefined();
+
+    mockGetStripe.mockReturnValue(buildStripeMock({ checkoutSessionUrl: "https://checkout.stripe.com/manual" }));
+    const { url } = await api.createManualCheckout(userId, "de", "https://s.com", "https://c.com");
+    expect(url).toBe("https://checkout.stripe.com/manual");
+  });
+});
+
+describe("createManualIntent", () => {
+  beforeEach(() => {
+    process.env.STRIPE_MEMBERSHIP_PRICE_ID_MANUAL = "price_manual_test";
+  });
+
+  it("rejects when the user has a live subscription", async () => {
+    const { userId } = await createTestUser("i8@test.com", "password123");
+    await insertSubscription(userId, "sub_i8");
+    const api = membershipApi(adminOnlyDb);
+    mockGetStripe.mockReturnValue(buildStripeMock({ subscription: makeStripeSubscription({ id: "sub_i8" }) }));
+
+    await expect(api.createManualIntent(userId)).rejects.toThrow("active subscription");
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -960,17 +1195,31 @@ describe("getStatus / getPayments", () => {
     expect(status.cancelAtPeriodEnd).toBe(false);
   });
 
-  it("orphaned subscription row (unrelated to latest payment) — autoRenewing is false", async () => {
-    // e.g. user originally subscribed, that subscription lapsed/was replaced, and their latest
-    // succeeded payment was actually a one-time (manual) checkout with no stripeSubscriptionId.
+  it("reports a stale row as autoRenewing (no proactive Stripe check — self-heals only on a mutating action)", async () => {
+    // getStatus is a pure DB read now — it trusts userSubscriptions without asking Stripe, the
+    // same way it already trusts membershipPayments. A row left behind by a missed
+    // customer.subscription.deleted webhook shows as auto-renewing until something that mutates
+    // it (cancel/disable/reactivate) verifies against Stripe and cleans it up.
     const { userId } = await createTestUser("i2b@test.com", "password123");
     await insertPayment(userId, daysFromNow(365), { stripePaymentId: "pi_i2b" }); // no stripeSubscriptionId
-    await insertSubscription(userId, "sub_i2b_orphaned");
+    await insertSubscription(userId, "sub_i2b_stale");
     const api = membershipApi(adminOnlyDb);
 
     const status = await api.getStatus(userId);
-    expect(status.autoRenewing).toBe(false);
-    expect(status.cancelAtPeriodEnd).toBe(false);
+    expect(status.autoRenewing).toBe(true);
+  });
+
+  it("reports cancelAtPeriodEnd from the local row, no Stripe call", async () => {
+    const { userId } = await createTestUser("i2c@test.com", "password123");
+    await insertPayment(userId, daysFromNow(10), { stripePaymentId: "pi_i2c_sub", stripeSubscriptionId: "sub_i2c" });
+    await insertSubscription(userId, "sub_i2c");
+    const db = getAdminDb();
+    await db.update(userSubscriptions).set({ cancelAtPeriodEnd: true }).where(eq(userSubscriptions.userId, userId));
+    const api = membershipApi(adminOnlyDb);
+
+    const status = await api.getStatus(userId);
+    expect(status.autoRenewing).toBe(true);
+    expect(status.cancelAtPeriodEnd).toBe(true);
   });
 
   it("getPayments returns payments ordered by createdAt desc", async () => {
@@ -1177,17 +1426,26 @@ describe("full timeline — three cron stages in one pass", () => {
 // ---------------------------------------------------------------------------
 // N0. Grace period suppressed for cancelledByUser
 // ---------------------------------------------------------------------------
-describe("grace period: cancelled users lose it", () => {
-  it('getFarmMembershipStatus — cancelled payment still in period = "none" (Austritt is immediate)', async () => {
+describe("grace period: cancelled users keep access until periodEnd, but no grace beyond it", () => {
+  it('getFarmMembershipStatus — cancelled payment still in period = "active" (access lasts until periodEnd)', async () => {
     const { farmId, userId } = await createUserWithFarm({}, "n0h@test.com");
     await insertPayment(userId, daysFromNow(1));
     const db = getAdminDb();
     await db.update(membershipPayments).set({ cancelledByUser: true }).where(eq(membershipPayments.userId, userId));
     const api = membershipApi(adminOnlyDb);
-    expect(await api.getFarmMembershipStatus(farmId)).toBe("none");
+    expect(await api.getFarmMembershipStatus(farmId)).toBe("active");
   });
 
-  it("isActiveUser — cancelled payment 5 days ago = false", async () => {
+  it("isActiveUser — cancelled payment still in period (periodEnd tomorrow) = true", async () => {
+    const { userId } = await createTestUser("n0i@test.com", "password123");
+    await insertPayment(userId, daysFromNow(1));
+    const db = getAdminDb();
+    await db.update(membershipPayments).set({ cancelledByUser: true }).where(eq(membershipPayments.userId, userId));
+    const api = membershipApi(adminOnlyDb);
+    expect(await api.isActiveUser(userId)).toBe(true);
+  });
+
+  it("isActiveUser — cancelled payment 5 days past periodEnd = false (no grace for cancelled)", async () => {
     const { userId } = await createTestUser("n0e@test.com", "password123");
     await insertPayment(userId, daysAgo(5));
     const db = getAdminDb();
@@ -1196,13 +1454,20 @@ describe("grace period: cancelled users lose it", () => {
     expect(await api.isActiveUser(userId)).toBe(false);
   });
 
-  it("isPaidUser — cancelled payment 5 days ago = false", async () => {
+  it("isPaidUser — cancelled payment 5 days past periodEnd = false (no grace for cancelled)", async () => {
     const { userId } = await createTestUser("n0f@test.com", "password123");
     await insertPayment(userId, daysAgo(5));
     const db = getAdminDb();
     await db.update(membershipPayments).set({ cancelledByUser: true }).where(eq(membershipPayments.userId, userId));
     const api = membershipApi(adminOnlyDb);
     expect(await api.isPaidUser(userId)).toBe(false);
+  });
+
+  it("isActiveUser — non-cancelled payment 5 days past periodEnd (in grace) = true", async () => {
+    const { userId } = await createTestUser("n0j@test.com", "password123");
+    await insertPayment(userId, daysAgo(5));
+    const api = membershipApi(adminOnlyDb);
+    expect(await api.isActiveUser(userId)).toBe(true);
   });
 
   it("isActiveUser — cancelled but active trial = true (trial unaffected)", async () => {
@@ -1299,26 +1564,48 @@ describe("cancelSubscription", () => {
     await expect(api.cancelSubscription(userId)).resolves.toEqual({ cancelAtPeriodEnd: true });
   });
 
-  it("stale local row for an already-Stripe-canceled subscription — cleans up instead of erroring", async () => {
+  it("stale local row for an already-Stripe-canceled subscription — self-heals instead of erroring", async () => {
     const { userId } = await createTestUser("n5@test.com", "password123");
     await insertPayment(userId, daysFromNow(30), { stripeSubscriptionId: "sub_n5" });
     await insertSubscription(userId, "sub_n5");
     const stripeMock = buildStripeMock({
       subscription: makeStripeSubscription({ id: "sub_n5", status: "canceled" }),
     });
+    jest.mocked(stripeMock.subscriptions.update).mockRejectedValueOnce(new Error("canceled subscription"));
     mockGetStripe.mockReturnValue(stripeMock);
     const api = membershipApi(adminOnlyDb);
 
     await expect(api.cancelSubscription(userId)).resolves.toEqual({ cancelAtPeriodEnd: true });
 
-    // Should not have tried to update an already-canceled Stripe subscription
-    expect(jest.mocked(stripeMock.subscriptions.update)).not.toHaveBeenCalled();
+    // The update was attempted (no proactive check) and, once it failed, Stripe was asked to
+    // confirm the subscription is genuinely canceled before the local row was cleaned up.
+    expect(jest.mocked(stripeMock.subscriptions.update)).toHaveBeenCalledTimes(1);
+    expect(jest.mocked(stripeMock.subscriptions.retrieve)).toHaveBeenCalledWith("sub_n5");
 
     const db = getAdminDb();
     const subscriptionRow = await db.query.userSubscriptions.findFirst({ where: { userId } });
     expect(subscriptionRow).toBeUndefined();
     const payment = await db.query.membershipPayments.findFirst({ where: { userId, status: "succeeded" } });
     expect(payment!.cancelledByUser).toBe(true);
+  });
+
+  it("rethrows a genuine Stripe error without touching the local row (verified via retrieve, not assumed)", async () => {
+    const { userId } = await createTestUser("n5b@test.com", "password123");
+    await insertPayment(userId, daysFromNow(30), { stripeSubscriptionId: "sub_n5b" });
+    await insertSubscription(userId, "sub_n5b");
+    const stripeMock = buildStripeMock({
+      subscription: makeStripeSubscription({ id: "sub_n5b" }), // still live per Stripe
+    });
+    jest.mocked(stripeMock.subscriptions.update).mockRejectedValueOnce(new Error("some other Stripe error"));
+    mockGetStripe.mockReturnValue(stripeMock);
+    const api = membershipApi(adminOnlyDb);
+
+    await expect(api.cancelSubscription(userId)).rejects.toThrow("some other Stripe error");
+
+    const db = getAdminDb();
+    const subscriptionRow = await db.query.userSubscriptions.findFirst({ where: { userId } });
+    expect(subscriptionRow).toBeDefined();
+    expect(subscriptionRow!.cancelAtPeriodEnd).toBe(false);
   });
 });
 
@@ -1384,6 +1671,26 @@ describe("reactivateSubscription", () => {
     const payment = await db.query.membershipPayments.findFirst({ where: { userId, status: "succeeded" } });
     expect(payment!.cancelledByUser).toBe(false);
   });
+
+  it("falls back to the one-time-payment path for a stale (already Stripe-canceled) subscription row", async () => {
+    const { userId } = await createTestUser("o4@test.com", "password123");
+    await insertPayment(userId, daysFromNow(30), { stripeSubscriptionId: "sub_o4" });
+    await insertSubscription(userId, "sub_o4");
+    const db = getAdminDb();
+    await db.update(membershipPayments).set({ cancelledByUser: true }).where(eq(membershipPayments.userId, userId));
+    const stripeMock = buildStripeMock({ subscription: makeStripeSubscription({ id: "sub_o4", status: "canceled" }) });
+    jest.mocked(stripeMock.subscriptions.update).mockRejectedValueOnce(new Error("canceled subscription"));
+    mockGetStripe.mockReturnValue(stripeMock);
+    const api = membershipApi(adminOnlyDb);
+
+    const result = await api.reactivateSubscription(userId);
+
+    expect(result).toEqual({ cancelAtPeriodEnd: false });
+    const subscriptionRow = await db.query.userSubscriptions.findFirst({ where: { userId } });
+    expect(subscriptionRow).toBeUndefined();
+    const payment = await db.query.membershipPayments.findFirst({ where: { userId, status: "succeeded" } });
+    expect(payment!.cancelledByUser).toBe(false);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -1444,17 +1751,25 @@ describe("disableAutoRenew", () => {
     await expect(api.disableAutoRenew(userId)).rejects.toThrow();
   });
 
-  it("throws for a one-time payer with an unrelated orphaned subscription row", async () => {
-    // Reported bug: user's latest payment is a one-time (manual) checkout with no
-    // stripeSubscriptionId, but they still have a leftover userSubscriptions row from an
-    // earlier, unrelated subscription — this must not be treated as their current subscription.
+  it("throws for a stale (already Stripe-canceled) subscription row, after verifying and cleaning it up", async () => {
+    // A missed customer.subscription.deleted webhook left a userSubscriptions row behind after
+    // Stripe already fully canceled it — the update attempt fails, Stripe confirms it's actually
+    // canceled, and the stale row is cleaned up rather than surfacing a raw Stripe error.
     const { userId } = await createTestUser("o2e@test.com", "password123");
     await insertPayment(userId, daysFromNow(30)); // no stripeSubscriptionId — one-time payment
-    await insertSubscription(userId, "sub_o2e_orphaned");
-    mockGetStripe.mockReturnValue(buildStripeMock({}));
+    await insertSubscription(userId, "sub_o2e_stale");
+    const stripeMock = buildStripeMock({
+      subscription: makeStripeSubscription({ id: "sub_o2e_stale", status: "canceled" }),
+    });
+    jest.mocked(stripeMock.subscriptions.update).mockRejectedValueOnce(new Error("canceled subscription"));
+    mockGetStripe.mockReturnValue(stripeMock);
     const api = membershipApi(adminOnlyDb);
 
-    await expect(api.disableAutoRenew(userId)).rejects.toThrow();
+    await expect(api.disableAutoRenew(userId)).rejects.toThrow("No auto-renewing subscription to disable");
+
+    const db = getAdminDb();
+    const subscriptionRow = await db.query.userSubscriptions.findFirst({ where: { userId } });
+    expect(subscriptionRow).toBeUndefined();
   });
 });
 
