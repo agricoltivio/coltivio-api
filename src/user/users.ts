@@ -5,7 +5,7 @@ import { supabase } from "../supabase/supabase";
 import { getStripe } from "../stripe/stripe";
 
 export type NewUser = typeof profiles.$inferInsert;
-export type UpdatedUser = Partial<NewUser>;
+export type UpdatedUser = Omit<Partial<NewUser>, "farmId">;
 export type User = typeof profiles.$inferSelect;
 
 export function usersApi(authDb: RlsDb) {
