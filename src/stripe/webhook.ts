@@ -27,8 +27,11 @@ export const stripeWebhookHandler: RequestHandler = async (req, res) => {
     if (
       event.type.startsWith("checkout.session") ||
       event.type.startsWith("customer.subscription") ||
-      event.type.startsWith("invoice")
+      event.type.startsWith("invoice") ||
+      event.type === "payment_intent.succeeded" ||
+      event.type === "setup_intent.succeeded"
     ) {
+      // Internally no-ops for events it doesn't recognize as its own (e.g. metadata.type mismatch)
       await membership.handleWebhookEvent(event);
     }
 
@@ -38,6 +41,14 @@ export const stripeWebhookHandler: RequestHandler = async (req, res) => {
       (event.data.object as Stripe.Checkout.Session).metadata?.type === "donation"
     ) {
       await donations.handleDonationWebhook(event.data.object as Stripe.Checkout.Session);
+    }
+
+    // Native (PaymentSheet) donation PaymentIntent completed
+    if (
+      event.type === "payment_intent.succeeded" &&
+      (event.data.object as Stripe.PaymentIntent).metadata?.type === "donation"
+    ) {
+      await donations.handleDonationPaymentIntentWebhook(event.data.object as Stripe.PaymentIntent);
     }
 
     res.json({ received: true });

@@ -442,8 +442,8 @@
     "cancellation": {
       "subject": "Votre adhésion Coltivio a été résiliée",
       "greeting": "Bonjour {{name}}",
-      "intro": "Nous avons bien reçu votre résiliation. Votre adhésion reste active jusqu'au {{date}} — vous bénéficiez encore d'un accès complet à toutes les fonctionnalités jusqu'à cette date.",
-      "reactivate_hint": "Si vous changez d'avis, vous pouvez réactiver votre adhésion à tout moment dans les paramètres.",
+      "intro": "Nous avons bien reçu votre résiliation, qui prend effet immédiatement. Vous avez déjà payé jusqu'au {{date}} — vous pouvez annuler votre résiliation jusqu'à cette date.",
+      "reactivate_hint": "Si vous changez d'avis, vous pouvez annuler votre résiliation dans l'application.",
       "cta": "Réactiver l'adhésion"
     }
   },

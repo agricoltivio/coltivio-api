@@ -442,8 +442,8 @@
     "cancellation": {
       "subject": "Your Coltivio membership has been cancelled",
       "greeting": "Hello {{name}}",
-      "intro": "We have received your cancellation. Your membership remains active until {{date}} — you still have full access to all features until then.",
-      "reactivate_hint": "If you change your mind, you can reactivate your membership at any time in the settings.",
+      "intro": "We have received your cancellation. Your resignation takes effect immediately. You've already paid through {{date}} — you can withdraw your resignation until then.",
+      "reactivate_hint": "If you change your mind, you can withdraw your resignation in the app.",
       "cta": "Reactivate membership"
     }
   },

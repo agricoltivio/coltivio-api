@@ -330,12 +330,16 @@ import {
   createManualCheckoutEndpoint,
   getMembershipStatusEndpoint,
   cancelMembershipEndpoint,
+  disableAutoRenewEndpoint,
   getMembershipPaymentsEndpoint,
   createPaymentMethodSetupEndpoint,
   reactivateMembershipEndpoint,
   startTrialEndpoint,
+  createSubscriptionIntentEndpoint,
+  createManualIntentEndpoint,
+  createPaymentMethodIntentEndpoint,
 } from "./membership/membership.endpoint";
-import { createDonationCheckoutEndpoint } from "./donations/donations.endpoint";
+import { createDonationCheckoutEndpoint, createDonationIntentEndpoint } from "./donations/donations.endpoint";
 import {
   listForumThreadsEndpoint,
   createForumThreadEndpoint,
@@ -1030,16 +1034,25 @@ export const routing: Routing = {
         manual: { post: createManualCheckoutEndpoint },
       },
       status: { get: getMembershipStatusEndpoint },
-      paymentMethod: { post: createPaymentMethodSetupEndpoint },
+      paymentMethod: {
+        post: createPaymentMethodSetupEndpoint,
+        intent: { post: createPaymentMethodIntentEndpoint },
+      },
       subscription: {
         delete: cancelMembershipEndpoint,
         post: reactivateMembershipEndpoint,
+        intent: { post: createSubscriptionIntentEndpoint },
+        autoRenew: { delete: disableAutoRenewEndpoint },
+      },
+      manual: {
+        intent: { post: createManualIntentEndpoint },
       },
       payments: { get: getMembershipPaymentsEndpoint },
       trial: { post: startTrialEndpoint },
     },
     donations: {
       checkout: { post: createDonationCheckoutEndpoint },
+      intent: { post: createDonationIntentEndpoint },
     },
     auth: {
       handoff: { post: createHandoffTokenEndpoint },

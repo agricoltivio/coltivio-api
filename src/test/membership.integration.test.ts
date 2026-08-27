@@ -147,6 +147,7 @@ function makeStripeInvoice(overrides: Record<string, unknown> = {}): Stripe.Invo
 function makePaymentMethod(overrides: Record<string, unknown> = {}): Stripe.PaymentMethod {
   return {
     id: "pm_default",
+    type: "card",
     card: {
       last4: "4242",
       brand: "visa",
@@ -499,7 +500,7 @@ describe("checkout.session.completed — manual payment", () => {
     const { userId } = await createTestUser("b3@test.com", "password123");
     const api = membershipApi(adminOnlyDb);
 
-    const pm = { id: "pm_b3", card: null } as unknown as Stripe.PaymentMethod;
+    const pm = { id: "pm_b3", type: "twint", card: null } as unknown as Stripe.PaymentMethod;
     const pi = makePaymentIntent({ id: "pi_b3", payment_method: "pm_b3" });
     mockGetStripe.mockReturnValue(buildStripeMock({ paymentMethod: pm, paymentIntent: pi }));
 
@@ -511,6 +512,7 @@ describe("checkout.session.completed — manual payment", () => {
     const payment = await db.query.membershipPayments.findFirst({ where: { userId } });
     expect(payment!.cardLast4).toBeNull();
     expect(payment!.cardBrand).toBeNull();
+    expect(payment!.paymentMethodType).toBe("twint");
   });
 });
 
@@ -518,7 +520,7 @@ describe("checkout.session.completed — manual payment", () => {
 // C. invoice.payment_succeeded
 // ---------------------------------------------------------------------------
 describe("invoice.payment_succeeded", () => {
-  it("subscription_create — inserts payment but sends no email", async () => {
+  it("subscription_create — inserts payment and sends welcome email (native PaymentSheet subscription, no Checkout Session)", async () => {
     const { userId } = await createTestUser("c1@test.com", "password123");
     await insertSubscription(userId, "sub_c1");
     const api = membershipApi(adminOnlyDb);
@@ -533,6 +535,28 @@ describe("invoice.payment_succeeded", () => {
     const db = getAdminDb();
     const payment = await db.query.membershipPayments.findFirst({ where: { userId } });
     expect(payment).toBeDefined();
+    expect(emailSpy).toHaveBeenCalledTimes(1);
+    expect(emailSpy.mock.calls[0]?.[0]?.subject).toContain("Willkommen");
+  });
+
+  it("subscription_create — already recorded via checkout.session.completed — no duplicate email", async () => {
+    const { userId } = await createTestUser("c1b@test.com", "password123");
+    await insertSubscription(userId, "sub_c1b");
+    // Simulates checkout.session.completed's subscription branch having already inserted this
+    // same invoice (Checkout Session flow, as opposed to the native PaymentSheet flow above).
+    await insertPayment(userId, daysFromNow(365), {
+      stripePaymentId: "in_c1b",
+      stripeSubscriptionId: "sub_c1b",
+    });
+    const api = membershipApi(adminOnlyDb);
+
+    const sub = makeStripeSubscription({ id: "sub_c1b" });
+    mockGetStripe.mockReturnValue(buildStripeMock({ subscription: sub }));
+
+    await api.handleWebhookEvent(
+      makeInvoiceSucceededEvent("sub_c1b", "in_c1b", { billing_reason: "subscription_create" })
+    );
+
     expect(emailSpy).not.toHaveBeenCalled();
   });
 
@@ -998,13 +1022,26 @@ describe("getStatus / getPayments", () => {
   it("subscription + payment reflects correct fields", async () => {
     const { userId } = await createTestUser("i2@test.com", "password123");
     const periodEnd = daysFromNow(365);
-    await insertPayment(userId, periodEnd, { stripePaymentId: "pi_i2" });
+    await insertPayment(userId, periodEnd, { stripePaymentId: "pi_i2", stripeSubscriptionId: "sub_i2" });
     await insertSubscription(userId, "sub_i2");
     const api = membershipApi(adminOnlyDb);
 
     const status = await api.getStatus(userId);
     expect(status.lastPeriodEnd?.getTime()).toBeCloseTo(periodEnd.getTime(), -3);
     expect(status.autoRenewing).toBe(true);
+    expect(status.cancelAtPeriodEnd).toBe(false);
+  });
+
+  it("orphaned subscription row (unrelated to latest payment) — autoRenewing is false", async () => {
+    // e.g. user originally subscribed, that subscription lapsed/was replaced, and their latest
+    // succeeded payment was actually a one-time (manual) checkout with no stripeSubscriptionId.
+    const { userId } = await createTestUser("i2b@test.com", "password123");
+    await insertPayment(userId, daysFromNow(365), { stripePaymentId: "pi_i2b" }); // no stripeSubscriptionId
+    await insertSubscription(userId, "sub_i2b_orphaned");
+    const api = membershipApi(adminOnlyDb);
+
+    const status = await api.getStatus(userId);
+    expect(status.autoRenewing).toBe(false);
     expect(status.cancelAtPeriodEnd).toBe(false);
   });
 
@@ -1222,13 +1259,22 @@ describe("grace period: cancelled users lose it", () => {
     expect(await api.isActive(farmId)).toBe(false);
   });
 
-  it("isActive — cancelled payment still in period (periodEnd tomorrow) = true", async () => {
+  it("isActive — cancelled payment still in period (periodEnd tomorrow) = false (Austritt is immediate)", async () => {
     const { farmId, userId } = await createUserWithFarm({}, "n0b@test.com");
     await insertPayment(userId, daysFromNow(1));
     const db = getAdminDb();
     await db.update(membershipPayments).set({ cancelledByUser: true }).where(eq(membershipPayments.userId, userId));
     const api = membershipApi(adminOnlyDb);
-    expect(await api.isActive(farmId)).toBe(true);
+    expect(await api.isActive(farmId)).toBe(false);
+  });
+
+  it('getFarmMembershipStatus — cancelled payment still in period = "none" (Austritt is immediate)', async () => {
+    const { farmId, userId } = await createUserWithFarm({}, "n0h@test.com");
+    await insertPayment(userId, daysFromNow(1));
+    const db = getAdminDb();
+    await db.update(membershipPayments).set({ cancelledByUser: true }).where(eq(membershipPayments.userId, userId));
+    const api = membershipApi(adminOnlyDb);
+    expect(await api.getFarmMembershipStatus(farmId)).toBe("none");
   });
 
   it("isActive — non-cancelled payment 5 days ago (in grace) = true", async () => {
@@ -1358,6 +1404,28 @@ describe("cancelSubscription", () => {
 
     await expect(api.cancelSubscription(userId)).resolves.toEqual({ cancelAtPeriodEnd: true });
   });
+
+  it("stale local row for an already-Stripe-canceled subscription — cleans up instead of erroring", async () => {
+    const { userId } = await createTestUser("n5@test.com", "password123");
+    await insertPayment(userId, daysFromNow(30), { stripeSubscriptionId: "sub_n5" });
+    await insertSubscription(userId, "sub_n5");
+    const stripeMock = buildStripeMock({
+      subscription: makeStripeSubscription({ id: "sub_n5", status: "canceled" }),
+    });
+    mockGetStripe.mockReturnValue(stripeMock);
+    const api = membershipApi(adminOnlyDb);
+
+    await expect(api.cancelSubscription(userId)).resolves.toEqual({ cancelAtPeriodEnd: true });
+
+    // Should not have tried to update an already-canceled Stripe subscription
+    expect(jest.mocked(stripeMock.subscriptions.update)).not.toHaveBeenCalled();
+
+    const db = getAdminDb();
+    const subscriptionRow = await db.query.userSubscriptions.findFirst({ where: { userId } });
+    expect(subscriptionRow).toBeUndefined();
+    const payment = await db.query.membershipPayments.findFirst({ where: { userId, status: "succeeded" } });
+    expect(payment!.cancelledByUser).toBe(true);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -1421,6 +1489,78 @@ describe("reactivateSubscription", () => {
 
     const payment = await db.query.membershipPayments.findFirst({ where: { userId, status: "succeeded" } });
     expect(payment!.cancelledByUser).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// O2. disableAutoRenew — lightweight, no Austritt
+// ---------------------------------------------------------------------------
+describe("disableAutoRenew", () => {
+  it("sets cancelAtPeriodEnd on the subscription without touching cancelledByUser", async () => {
+    const { userId } = await createTestUser("o2a@test.com", "password123");
+    await insertSubscription(userId, "sub_o2a");
+    await insertPayment(userId, daysFromNow(30), { stripeSubscriptionId: "sub_o2a" });
+    const stripeMock = buildStripeMock({});
+    mockGetStripe.mockReturnValue(stripeMock);
+    const api = membershipApi(adminOnlyDb);
+
+    const result = await api.disableAutoRenew(userId);
+
+    expect(result).toEqual({ cancelAtPeriodEnd: true });
+    expect(jest.mocked(stripeMock.subscriptions.update)).toHaveBeenCalledWith(
+      "sub_o2a",
+      expect.objectContaining({ cancel_at_period_end: true })
+    );
+    const db = getAdminDb();
+    const sub = await db.query.userSubscriptions.findFirst({ where: { userId } });
+    expect(sub!.cancelAtPeriodEnd).toBe(true);
+    const payment = await db.query.membershipPayments.findFirst({ where: { userId, status: "succeeded" } });
+    expect(payment!.cancelledByUser).toBe(false);
+  });
+
+  it("does not send an email", async () => {
+    const { userId } = await createTestUser("o2b@test.com", "password123");
+    await insertSubscription(userId, "sub_o2b");
+    await insertPayment(userId, daysFromNow(30), { stripeSubscriptionId: "sub_o2b" });
+    mockGetStripe.mockReturnValue(buildStripeMock({}));
+    const api = membershipApi(adminOnlyDb);
+
+    await api.disableAutoRenew(userId);
+
+    expect(emailSpy).not.toHaveBeenCalled();
+  });
+
+  it("member stays active (isActive) while the disabled period is still running", async () => {
+    const { farmId, userId } = await createUserWithFarm({}, "o2c@test.com");
+    await insertSubscription(userId, "sub_o2c");
+    await insertPayment(userId, daysFromNow(30), { stripeSubscriptionId: "sub_o2c" });
+    mockGetStripe.mockReturnValue(buildStripeMock({}));
+    const api = membershipApi(adminOnlyDb);
+
+    await api.disableAutoRenew(userId);
+
+    expect(await api.isActive(farmId)).toBe(true);
+  });
+
+  it("throws for a user with no subscription (one-time payer)", async () => {
+    const { userId } = await createTestUser("o2d@test.com", "password123");
+    await insertPayment(userId, daysFromNow(30));
+    const api = membershipApi(adminOnlyDb);
+
+    await expect(api.disableAutoRenew(userId)).rejects.toThrow();
+  });
+
+  it("throws for a one-time payer with an unrelated orphaned subscription row", async () => {
+    // Reported bug: user's latest payment is a one-time (manual) checkout with no
+    // stripeSubscriptionId, but they still have a leftover userSubscriptions row from an
+    // earlier, unrelated subscription — this must not be treated as their current subscription.
+    const { userId } = await createTestUser("o2e@test.com", "password123");
+    await insertPayment(userId, daysFromNow(30)); // no stripeSubscriptionId — one-time payment
+    await insertSubscription(userId, "sub_o2e_orphaned");
+    mockGetStripe.mockReturnValue(buildStripeMock({}));
+    const api = membershipApi(adminOnlyDb);
+
+    await expect(api.disableAutoRenew(userId)).rejects.toThrow();
   });
 });
 

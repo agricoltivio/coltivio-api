@@ -442,8 +442,8 @@
     "cancellation": {
       "subject": "Deine Coltivio-Mitgliedschaft wurde gekündigt",
       "greeting": "Hallo {{name}}",
-      "intro": "Wir haben deine Kündigung erhalten. Deine Mitgliedschaft bleibt bis zum {{date}} aktiv — bis dahin hast du weiterhin vollen Zugriff auf alle Funktionen.",
-      "reactivate_hint": "Wenn du es dir anders überlegst, kannst du deine Mitgliedschaft jederzeit in den Einstellungen wieder aktivieren.",
+      "intro": "Wir haben deine Kündigung erhalten. Dein Austritt ist mit sofortiger Wirkung wirksam. Du hast bereits bis zum {{date}} bezahlt — bis dahin kannst du deinen Austritt jederzeit widerrufen.",
+      "reactivate_hint": "Wenn du es dir anders überlegst, kannst du deinen Austritt in der App widerrufen.",
       "cta": "Mitgliedschaft reaktivieren"
     }
   },

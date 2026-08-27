@@ -3,10 +3,10 @@
 const UNLIMITED_TRIAL = process.env.UNLIMITED_TRIAL === "true";
 
 import Stripe from "stripe";
-import { eq, and, or, gt, inArray } from "drizzle-orm";
+import { eq, and, gt, inArray } from "drizzle-orm";
 import createHttpError from "http-errors";
 import { RlsDb } from "../db/db";
-import { getStripe } from "../stripe/stripe";
+import { getStripe, STRIPE_API_VERSION } from "../stripe/stripe";
 import {
   profiles,
   userSubscriptions,
@@ -43,17 +43,27 @@ type CardDetails = {
   cardBrand: string | null;
   cardExpMonth: number | null;
   cardExpYear: number | null;
+  paymentMethodType: string | null;
+};
+
+const emptyCardDetails: CardDetails = {
+  cardLast4: null,
+  cardBrand: null,
+  cardExpMonth: null,
+  cardExpYear: null,
+  paymentMethodType: null,
 };
 
 async function getCardDetailsFromPaymentMethod(paymentMethodId: string | null): Promise<CardDetails> {
-  if (!paymentMethodId) return { cardLast4: null, cardBrand: null, cardExpMonth: null, cardExpYear: null };
+  if (!paymentMethodId) return emptyCardDetails;
   const pm = await getStripe().paymentMethods.retrieve(paymentMethodId);
-  if (!pm.card) return { cardLast4: null, cardBrand: null, cardExpMonth: null, cardExpYear: null };
+  if (!pm.card) return { ...emptyCardDetails, paymentMethodType: pm.type };
   return {
     cardLast4: pm.card.last4,
     cardBrand: pm.card.brand,
     cardExpMonth: pm.card.exp_month,
     cardExpYear: pm.card.exp_year,
+    paymentMethodType: pm.type,
   };
 }
 
@@ -84,6 +94,38 @@ export function membershipApi(db: RlsDb) {
     return farmProfiles.map((p) => p.id);
   }
 
+  // Reconciles a local userSubscriptions row against Stripe before mutating it. A missed
+  // customer.subscription.deleted webhook can leave the row pointing at a subscription Stripe
+  // already fully canceled there — Stripe rejects any cancel_at_period_end update on those
+  // ("A canceled subscription can only update its cancellation_details and metadata"), so check
+  // first and clean up the stale row rather than letting that error bubble up.
+  async function getLiveSubscription(
+    userId: string,
+    subscription: { stripeSubscriptionId: string }
+  ): Promise<Stripe.Subscription | null> {
+    const stripeSubscription = await getStripe().subscriptions.retrieve(subscription.stripeSubscriptionId);
+    if (stripeSubscription.status === "canceled") {
+      await db.admin.delete(userSubscriptions).where(eq(userSubscriptions.userId, userId));
+      return null;
+    }
+    return stripeSubscription;
+  }
+
+  // userSubscriptions is keyed by userId, but a user can have an orphaned row there that has
+  // nothing to do with their current membership — e.g. they originally subscribed, that lapsed
+  // or was replaced, and their latest succeeded payment was actually a one-time (manual)
+  // checkout with no stripeSubscriptionId at all. Only treat a subscription as "current" if it's
+  // the one that produced the latest succeeded payment.
+  async function getCurrentSubscription(
+    userId: string,
+    latestPayment: { stripeSubscriptionId: string | null } | undefined
+  ) {
+    if (!latestPayment?.stripeSubscriptionId) return undefined;
+    return db.admin.query.userSubscriptions.findFirst({
+      where: { stripeSubscriptionId: latestPayment.stripeSubscriptionId },
+    });
+  }
+
   return {
     // A farm is active if any of its members has an active trial or succeeded payment
     async isActive(farmId: string): Promise<boolean> {
@@ -97,7 +139,7 @@ export function membershipApi(db: RlsDb) {
       });
       if (activeTrial) return true;
 
-      // Cancelled users lose grace period — their access ends at periodEnd
+      // A user who explicitly cancelled (Austritt) is out immediately — no grace period.
       const active = await db.admin
         .select({ id: membershipPayments.id })
         .from(membershipPayments)
@@ -105,13 +147,8 @@ export function membershipApi(db: RlsDb) {
           and(
             inArray(membershipPayments.userId, userIds),
             eq(membershipPayments.status, "succeeded"),
-            or(
-              and(
-                eq(membershipPayments.cancelledByUser, false),
-                gt(membershipPayments.periodEnd, new Date(now.getTime() - GRACE_PERIOD_MS))
-              ),
-              and(eq(membershipPayments.cancelledByUser, true), gt(membershipPayments.periodEnd, now))
-            )
+            eq(membershipPayments.cancelledByUser, false),
+            gt(membershipPayments.periodEnd, new Date(now.getTime() - GRACE_PERIOD_MS))
           )
         )
         .limit(1);
@@ -125,7 +162,7 @@ export function membershipApi(db: RlsDb) {
 
       const now = new Date();
       const active = await db.admin.query.membershipPayments.findFirst({
-        where: { userId: { in: userIds }, status: "succeeded", periodEnd: { gt: now } },
+        where: { userId: { in: userIds }, status: "succeeded", periodEnd: { gt: now }, cancelledByUser: false },
       });
       if (active) return "active";
 
@@ -149,13 +186,8 @@ export function membershipApi(db: RlsDb) {
           and(
             inArray(membershipPayments.userId, userIds),
             eq(membershipPayments.status, "succeeded"),
-            or(
-              and(
-                eq(membershipPayments.cancelledByUser, false),
-                gt(membershipPayments.periodEnd, new Date(now.getTime() - GRACE_PERIOD_MS))
-              ),
-              and(eq(membershipPayments.cancelledByUser, true), gt(membershipPayments.periodEnd, now))
-            )
+            eq(membershipPayments.cancelledByUser, false),
+            gt(membershipPayments.periodEnd, new Date(now.getTime() - GRACE_PERIOD_MS))
           )
         )
         .limit(1);
@@ -178,13 +210,8 @@ export function membershipApi(db: RlsDb) {
           and(
             eq(membershipPayments.userId, userId),
             eq(membershipPayments.status, "succeeded"),
-            or(
-              and(
-                eq(membershipPayments.cancelledByUser, false),
-                gt(membershipPayments.periodEnd, new Date(now.getTime() - GRACE_PERIOD_MS))
-              ),
-              and(eq(membershipPayments.cancelledByUser, true), gt(membershipPayments.periodEnd, now))
-            )
+            eq(membershipPayments.cancelledByUser, false),
+            gt(membershipPayments.periodEnd, new Date(now.getTime() - GRACE_PERIOD_MS))
           )
         )
         .limit(1);
@@ -202,13 +229,8 @@ export function membershipApi(db: RlsDb) {
           and(
             eq(membershipPayments.userId, userId),
             eq(membershipPayments.status, "succeeded"),
-            or(
-              and(
-                eq(membershipPayments.cancelledByUser, false),
-                gt(membershipPayments.periodEnd, new Date(now.getTime() - GRACE_PERIOD_MS))
-              ),
-              and(eq(membershipPayments.cancelledByUser, true), gt(membershipPayments.periodEnd, now))
-            )
+            eq(membershipPayments.cancelledByUser, false),
+            gt(membershipPayments.periodEnd, new Date(now.getTime() - GRACE_PERIOD_MS))
           )
         )
         .limit(1);
@@ -322,17 +344,118 @@ export function membershipApi(db: RlsDb) {
       return { url: session.url! };
     },
 
-    async reactivateSubscription(userId: string): Promise<{ cancelAtPeriodEnd: boolean }> {
-      const subscription = await db.admin.query.userSubscriptions.findFirst({
-        where: { userId },
+    // Native PaymentSheet equivalent of createSubscriptionCheckout — returns a client secret
+    // instead of a hosted checkout URL, for the mobile app's in-app payment UI.
+    async createSubscriptionIntent(
+      userId: string
+    ): Promise<{ paymentIntentClientSecret: string; customerId: string; ephemeralKeySecret: string }> {
+      const priceId = process.env.STRIPE_MEMBERSHIP_PRICE_ID_YEARLY;
+      if (!priceId) throw new Error("STRIPE_MEMBERSHIP_PRICE_ID_YEARLY env var not set");
+
+      const customerId = await getOrCreateStripeCustomer(userId);
+      const ephemeralKey = await getStripe().ephemeralKeys.create(
+        { customer: customerId },
+        { apiVersion: STRIPE_API_VERSION }
+      );
+
+      // If an active trial exists, delay billing until it ends — same as createSubscriptionCheckout
+      const now = new Date();
+      const activeTrial = await db.admin.query.userTrials.findFirst({
+        where: { userId, endsAt: { gt: now } },
       });
 
-      if (!subscription) {
-        // One-time payment user — just clear the cancelled flag, no Stripe interaction needed
-        const latestPayment = await db.admin.query.membershipPayments.findFirst({
-          where: { userId, status: "succeeded" },
-          orderBy: { periodEnd: "desc" },
+      const subscription = await getStripe().subscriptions.create({
+        customer: customerId,
+        items: [{ price: priceId }],
+        payment_behavior: "default_incomplete",
+        payment_settings: { save_default_payment_method: "on_subscription" },
+        expand: ["latest_invoice.confirmation_secret"],
+        trial_end: activeTrial ? Math.floor(activeTrial.endsAt.getTime() / 1000) : undefined,
+        metadata: { type: "membership", userId },
+      });
+
+      // Register the subscription locally right away rather than waiting for a webhook — there's
+      // no checkout.session.completed event for this native flow, and invoice.payment_succeeded
+      // (renewals) looks this row up by stripeSubscriptionId.
+      await db.admin
+        .insert(userSubscriptions)
+        .values({ userId, stripeSubscriptionId: subscription.id, cancelAtPeriodEnd: false })
+        .onConflictDoUpdate({
+          target: userSubscriptions.userId,
+          set: { stripeSubscriptionId: subscription.id, cancelAtPeriodEnd: false },
         });
+
+      const invoice = subscription.latest_invoice as Stripe.Invoice;
+      const clientSecret = invoice.confirmation_secret?.client_secret;
+      if (!clientSecret) throw new Error(`Subscription ${subscription.id}'s invoice has no confirmation_secret`);
+
+      return { paymentIntentClientSecret: clientSecret, customerId, ephemeralKeySecret: ephemeralKey.secret! };
+    },
+
+    // Native PaymentSheet equivalent of createManualCheckout (one-time payment, Twint-eligible).
+    async createManualIntent(
+      userId: string
+    ): Promise<{ paymentIntentClientSecret: string; customerId: string; ephemeralKeySecret: string }> {
+      const priceId = process.env.STRIPE_MEMBERSHIP_PRICE_ID_MANUAL;
+      if (!priceId) throw new Error("STRIPE_MEMBERSHIP_PRICE_ID_MANUAL env var not set");
+
+      const price = await getStripe().prices.retrieve(priceId);
+      if (!price.unit_amount) throw new Error(`Price ${priceId} has no unit_amount`);
+
+      const customerId = await getOrCreateStripeCustomer(userId);
+      const ephemeralKey = await getStripe().ephemeralKeys.create(
+        { customer: customerId },
+        { apiVersion: STRIPE_API_VERSION }
+      );
+
+      const paymentIntent = await getStripe().paymentIntents.create({
+        amount: price.unit_amount,
+        currency: price.currency,
+        customer: customerId,
+        payment_method_types: ["card", "twint"],
+        metadata: { type: "membership", userId },
+      });
+
+      return {
+        paymentIntentClientSecret: paymentIntent.client_secret!,
+        customerId,
+        ephemeralKeySecret: ephemeralKey.secret!,
+      };
+    },
+
+    // Native PaymentSheet equivalent of createPaymentMethodSetup.
+    async createPaymentMethodIntent(
+      userId: string
+    ): Promise<{ setupIntentClientSecret: string; customerId: string; ephemeralKeySecret: string }> {
+      const customerId = await getOrCreateStripeCustomer(userId);
+      const ephemeralKey = await getStripe().ephemeralKeys.create(
+        { customer: customerId },
+        { apiVersion: STRIPE_API_VERSION }
+      );
+
+      const setupIntent = await getStripe().setupIntents.create({
+        customer: customerId,
+        metadata: { type: "payment_method_setup", userId },
+      });
+
+      return {
+        setupIntentClientSecret: setupIntent.client_secret!,
+        customerId,
+        ephemeralKeySecret: ephemeralKey.secret!,
+      };
+    },
+
+    async reactivateSubscription(userId: string): Promise<{ cancelAtPeriodEnd: boolean }> {
+      const latestPayment = await db.admin.query.membershipPayments.findFirst({
+        where: { userId, status: "succeeded" },
+        orderBy: { periodEnd: "desc" },
+      });
+      const subscription = await getCurrentSubscription(userId, latestPayment);
+      const liveSubscription = subscription ? await getLiveSubscription(userId, subscription) : null;
+
+      if (!liveSubscription) {
+        // One-time payment user (or a stale row for an already-canceled Stripe subscription) —
+        // just clear the cancelled flag, no Stripe interaction needed
         if (latestPayment) {
           await db.admin
             .update(membershipPayments)
@@ -352,7 +475,8 @@ export function membershipApi(db: RlsDb) {
         return { cancelAtPeriodEnd: false };
       }
 
-      await getStripe().subscriptions.update(subscription.stripeSubscriptionId, {
+      // liveSubscription is non-null here only if subscription was too — same underlying id.
+      await getStripe().subscriptions.update(subscription!.stripeSubscriptionId, {
         cancel_at_period_end: false,
       });
 
@@ -361,10 +485,6 @@ export function membershipApi(db: RlsDb) {
         .set({ cancelAtPeriodEnd: false })
         .where(eq(userSubscriptions.userId, userId));
 
-      const latestPayment = await db.admin.query.membershipPayments.findFirst({
-        where: { userId, status: "succeeded" },
-        orderBy: { periodEnd: "desc" },
-      });
       if (latestPayment) {
         await db.admin
           .update(membershipPayments)
@@ -392,9 +512,7 @@ export function membershipApi(db: RlsDb) {
         orderBy: { periodEnd: "desc" },
       });
 
-      const subscription = await db.admin.query.userSubscriptions.findFirst({
-        where: { userId },
-      });
+      const subscription = await getCurrentSubscription(userId, latestPayment);
 
       const trial = await db.admin.query.userTrials.findFirst({ where: { userId } });
 
@@ -408,12 +526,17 @@ export function membershipApi(db: RlsDb) {
     },
 
     async cancelSubscription(userId: string): Promise<{ cancelAtPeriodEnd: boolean }> {
-      const subscription = await db.admin.query.userSubscriptions.findFirst({
-        where: { userId },
+      // Mark the latest succeeded payment so the expiry cron skips this user
+      const latestPayment = await db.admin.query.membershipPayments.findFirst({
+        where: { userId, status: "succeeded" },
+        orderBy: { periodEnd: "desc" },
       });
 
-      if (subscription) {
-        await getStripe().subscriptions.update(subscription.stripeSubscriptionId, {
+      const subscription = await getCurrentSubscription(userId, latestPayment);
+      const liveSubscription = subscription ? await getLiveSubscription(userId, subscription) : null;
+
+      if (liveSubscription) {
+        await getStripe().subscriptions.update(subscription!.stripeSubscriptionId, {
           cancel_at_period_end: true,
         });
         await db.admin
@@ -422,11 +545,6 @@ export function membershipApi(db: RlsDb) {
           .where(eq(userSubscriptions.userId, userId));
       }
 
-      // Mark the latest succeeded payment so the expiry cron skips this user
-      const latestPayment = await db.admin.query.membershipPayments.findFirst({
-        where: { userId, status: "succeeded" },
-        orderBy: { periodEnd: "desc" },
-      });
       if (latestPayment) {
         await db.admin
           .update(membershipPayments)
@@ -444,6 +562,31 @@ export function membershipApi(db: RlsDb) {
           });
         }
       }
+
+      return { cancelAtPeriodEnd: true };
+    },
+
+    // Lightweight alternative to cancelSubscription: stops the subscription from renewing
+    // without it being a formal Vereins-Austritt. Unlike cancelSubscription, the member stays
+    // active (isActive/isPaidMember only key off cancelledByUser, not cancelAtPeriodEnd) until
+    // their current paid period naturally runs out — no cancellation email, cancelledByUser
+    // stays false so the expiry-reminder cron still nudges them before it lapses.
+    async disableAutoRenew(userId: string): Promise<{ cancelAtPeriodEnd: boolean }> {
+      const latestPayment = await db.admin.query.membershipPayments.findFirst({
+        where: { userId, status: "succeeded" },
+        orderBy: { periodEnd: "desc" },
+      });
+      const subscription = await getCurrentSubscription(userId, latestPayment);
+      const liveSubscription = subscription ? await getLiveSubscription(userId, subscription) : null;
+      if (!liveSubscription) throw createHttpError(400, "No auto-renewing subscription to disable");
+
+      await getStripe().subscriptions.update(subscription!.stripeSubscriptionId, {
+        cancel_at_period_end: true,
+      });
+      await db.admin
+        .update(userSubscriptions)
+        .set({ cancelAtPeriodEnd: true })
+        .where(eq(userSubscriptions.userId, userId));
 
       return { cancelAtPeriodEnd: true };
     },
@@ -511,7 +654,11 @@ export function membershipApi(db: RlsDb) {
               where: { userId, status: "succeeded" },
             }));
 
-            await db.admin
+            // Gate the email on whether this insert actually happened (not a conflict no-op) —
+            // this same underlying invoice can also reach us via invoice.payment_succeeded
+            // (Stripe sends both events for a subscription's first invoice), so this insert may
+            // already have happened by the time either handler runs.
+            const inserted = await db.admin
               .insert(membershipPayments)
               .values({
                 userId,
@@ -523,29 +670,32 @@ export function membershipApi(db: RlsDb) {
                 periodEnd,
                 ...cardDetails,
               })
-              .onConflictDoNothing();
+              .onConflictDoNothing()
+              .returning({ id: membershipPayments.id });
 
-            const profile = await db.admin.query.profiles.findFirst({ where: { id: userId } });
-            if (profile) {
-              if (isFirstMembership) {
-                await sendNewMembershipEmail({
-                  email: profile.email,
-                  fullName: profile.fullName,
-                  locale: profile.locale,
-                  amount: stripeInvoice.amount_paid,
-                  periodEnd,
-                  cardBrand: cardDetails.cardBrand,
-                  cardLast4: cardDetails.cardLast4,
-                  // Trial checkout ($0): show trial info instead of receipt
-                  trialEnd: stripeInvoice.amount_paid === 0 ? periodEnd : undefined,
-                });
-              } else {
-                await sendReactivationEmail({
-                  email: profile.email,
-                  fullName: profile.fullName,
-                  locale: profile.locale,
-                  periodEnd,
-                });
+            if (inserted.length > 0) {
+              const profile = await db.admin.query.profiles.findFirst({ where: { id: userId } });
+              if (profile) {
+                if (isFirstMembership) {
+                  await sendNewMembershipEmail({
+                    email: profile.email,
+                    fullName: profile.fullName,
+                    locale: profile.locale,
+                    amount: stripeInvoice.amount_paid,
+                    periodEnd,
+                    cardBrand: cardDetails.cardBrand,
+                    cardLast4: cardDetails.cardLast4,
+                    // Trial checkout ($0): show trial info instead of receipt
+                    trialEnd: stripeInvoice.amount_paid === 0 ? periodEnd : undefined,
+                  });
+                } else {
+                  await sendReactivationEmail({
+                    email: profile.email,
+                    fullName: profile.fullName,
+                    locale: profile.locale,
+                    periodEnd,
+                  });
+                }
               }
             }
           }
@@ -573,7 +723,9 @@ export function membershipApi(db: RlsDb) {
 
           if (session.amount_total == null) throw new Error(`Missing amount_total on session ${session.id}`);
           const amount = session.amount_total;
-          await db.admin
+          // Gate the email on whether this insert actually happened — the same PaymentIntent
+          // also fires payment_intent.succeeded (handled below), which could process first.
+          const inserted = await db.admin
             .insert(membershipPayments)
             .values({
               userId,
@@ -584,27 +736,30 @@ export function membershipApi(db: RlsDb) {
               periodEnd,
               ...cardDetails,
             })
-            .onConflictDoNothing();
+            .onConflictDoNothing()
+            .returning({ id: membershipPayments.id });
 
-          const profile = await db.admin.query.profiles.findFirst({ where: { id: userId } });
-          if (profile) {
-            if (isFirstMembership) {
-              await sendNewMembershipEmail({
-                email: profile.email,
-                fullName: profile.fullName,
-                locale: profile.locale,
-                amount,
-                periodEnd,
-                cardBrand: cardDetails.cardBrand,
-                cardLast4: cardDetails.cardLast4,
-              });
-            } else {
-              await sendReactivationEmail({
-                email: profile.email,
-                fullName: profile.fullName,
-                locale: profile.locale,
-                periodEnd,
-              });
+          if (inserted.length > 0) {
+            const profile = await db.admin.query.profiles.findFirst({ where: { id: userId } });
+            if (profile) {
+              if (isFirstMembership) {
+                await sendNewMembershipEmail({
+                  email: profile.email,
+                  fullName: profile.fullName,
+                  locale: profile.locale,
+                  amount,
+                  periodEnd,
+                  cardBrand: cardDetails.cardBrand,
+                  cardLast4: cardDetails.cardLast4,
+                });
+              } else {
+                await sendReactivationEmail({
+                  email: profile.email,
+                  fullName: profile.fullName,
+                  locale: profile.locale,
+                  periodEnd,
+                });
+              }
             }
           }
         }
@@ -631,7 +786,16 @@ export function membershipApi(db: RlsDb) {
             : (stripeSubscription.default_payment_method?.id ?? null);
         const cardDetails = await getCardDetailsFromPaymentMethod(pmId);
 
-        await db.admin
+        // Was this the very first successful payment for this user, before this insert? Needed to
+        // pick the right email below, for both the "creation" and "cycle" branches.
+        const isFirstMembership = !(await db.admin.query.membershipPayments.findFirst({
+          where: { userId: sub.userId, status: "succeeded" },
+        }));
+
+        // Gate emails on whether this insert actually happened — for a subscription created via
+        // the (still-supported) Checkout Session flow, checkout.session.completed's subscription
+        // branch already inserted this same invoice, so this becomes a safe no-op here.
+        const inserted = await db.admin
           .insert(membershipPayments)
           .values({
             userId: sub.userId,
@@ -643,10 +807,37 @@ export function membershipApi(db: RlsDb) {
             periodEnd,
             ...cardDetails,
           })
-          .onConflictDoNothing();
+          .onConflictDoNothing()
+          .returning({ id: membershipPayments.id });
 
-        // Only send email for recurring cycle payments — subscription_create is handled by checkout.session.completed
-        if (invoice.billing_reason === "subscription_cycle") {
+        if (inserted.length === 0) {
+          // Already recorded by another handler for this same invoice — nothing left to do.
+        } else if (invoice.billing_reason === "subscription_create") {
+          // The only event for a natively-created subscription's first invoice (no Checkout
+          // Session involved) — mirrors checkout.session.completed's subscription-mode welcome email.
+          const profile = await db.admin.query.profiles.findFirst({ where: { id: sub.userId } });
+          if (profile) {
+            if (isFirstMembership) {
+              await sendNewMembershipEmail({
+                email: profile.email,
+                fullName: profile.fullName,
+                locale: profile.locale,
+                amount: invoice.amount_paid,
+                periodEnd,
+                cardBrand: cardDetails.cardBrand,
+                cardLast4: cardDetails.cardLast4,
+                trialEnd: invoice.amount_paid === 0 ? periodEnd : undefined,
+              });
+            } else {
+              await sendReactivationEmail({
+                email: profile.email,
+                fullName: profile.fullName,
+                locale: profile.locale,
+                periodEnd,
+              });
+            }
+          }
+        } else if (invoice.billing_reason === "subscription_cycle") {
           const profile = await db.admin.query.profiles.findFirst({ where: { id: sub.userId } });
           if (profile) {
             // If the only previous payment was $0 (trial checkout), this is the first real charge
@@ -741,6 +932,80 @@ export function membershipApi(db: RlsDb) {
         await db.admin
           .delete(userSubscriptions)
           .where(eq(userSubscriptions.stripeSubscriptionId, stripeSubscription.id));
+      } else if (event.type === "payment_intent.succeeded") {
+        // Native (PaymentSheet) equivalent of the checkout.session.completed "payment" branch —
+        // a standalone one-time membership PaymentIntent created via createManualIntent. Guarded
+        // on our own metadata.type so a subscription invoice's own PaymentIntent (which also
+        // fires this event, but never carries this metadata) is correctly ignored here.
+        const paymentIntent = event.data.object as Stripe.PaymentIntent;
+        const metadata = paymentIntent.metadata;
+        if (metadata?.type !== "membership" || !metadata.userId) return;
+        const userId = metadata.userId;
+
+        const pmId =
+          typeof paymentIntent.payment_method === "string"
+            ? paymentIntent.payment_method
+            : (paymentIntent.payment_method?.id ?? null);
+        const cardDetails = await getCardDetailsFromPaymentMethod(pmId);
+
+        const periodEnd = new Date();
+        periodEnd.setFullYear(periodEnd.getFullYear() + 1);
+
+        const isFirstMembership = !(await db.admin.query.membershipPayments.findFirst({
+          where: { userId, status: "succeeded" },
+        }));
+
+        const inserted = await db.admin
+          .insert(membershipPayments)
+          .values({
+            userId,
+            stripePaymentId: paymentIntent.id,
+            amount: paymentIntent.amount,
+            currency: paymentIntent.currency,
+            status: "succeeded",
+            periodEnd,
+            ...cardDetails,
+          })
+          .onConflictDoNothing()
+          .returning({ id: membershipPayments.id });
+
+        if (inserted.length > 0) {
+          const profile = await db.admin.query.profiles.findFirst({ where: { id: userId } });
+          if (profile) {
+            if (isFirstMembership) {
+              await sendNewMembershipEmail({
+                email: profile.email,
+                fullName: profile.fullName,
+                locale: profile.locale,
+                amount: paymentIntent.amount,
+                periodEnd,
+                cardBrand: cardDetails.cardBrand,
+                cardLast4: cardDetails.cardLast4,
+              });
+            } else {
+              await sendReactivationEmail({
+                email: profile.email,
+                fullName: profile.fullName,
+                locale: profile.locale,
+                periodEnd,
+              });
+            }
+          }
+        }
+      } else if (event.type === "setup_intent.succeeded") {
+        // Native (PaymentSheet) equivalent of the checkout.session.completed "setup" branch —
+        // attach the newly-collected card as the subscription's default payment method.
+        const setupIntent = event.data.object as Stripe.SetupIntent;
+        const metadata = setupIntent.metadata;
+        if (metadata?.type !== "payment_method_setup" || !metadata.userId) return;
+        const userId = metadata.userId;
+
+        const sub = await db.admin.query.userSubscriptions.findFirst({ where: { userId } });
+        if (sub && setupIntent.payment_method) {
+          await getStripe().subscriptions.update(sub.stripeSubscriptionId, {
+            default_payment_method: setupIntent.payment_method as string,
+          });
+        }
       }
     },
   };

@@ -15,6 +15,7 @@ const membershipPaymentSchema = z.object({
   cardBrand: z.string().nullable(),
   cardExpMonth: z.number().nullable(),
   cardExpYear: z.number().nullable(),
+  paymentMethodType: z.string().nullable(),
   createdAt: z.date(),
 });
 
@@ -66,6 +67,43 @@ export const createPaymentMethodSetupEndpoint = authenticatedEndpointFactory.bui
   },
 });
 
+const paymentSheetOutput = z.object({
+  paymentIntentClientSecret: z.string(),
+  customerId: z.string(),
+  ephemeralKeySecret: z.string(),
+});
+
+export const createSubscriptionIntentEndpoint = authenticatedEndpointFactory.build({
+  method: "post",
+  input: z.object({}),
+  output: paymentSheetOutput,
+  handler: async ({ ctx }) => {
+    return ctx.membership.createSubscriptionIntent(ctx.user.id);
+  },
+});
+
+export const createManualIntentEndpoint = authenticatedEndpointFactory.build({
+  method: "post",
+  input: z.object({}),
+  output: paymentSheetOutput,
+  handler: async ({ ctx }) => {
+    return ctx.membership.createManualIntent(ctx.user.id);
+  },
+});
+
+export const createPaymentMethodIntentEndpoint = authenticatedEndpointFactory.build({
+  method: "post",
+  input: z.object({}),
+  output: z.object({
+    setupIntentClientSecret: z.string(),
+    customerId: z.string(),
+    ephemeralKeySecret: z.string(),
+  }),
+  handler: async ({ ctx }) => {
+    return ctx.membership.createPaymentMethodIntent(ctx.user.id);
+  },
+});
+
 export const reactivateMembershipEndpoint = authenticatedEndpointFactory.build({
   method: "post",
   input: z.object({}),
@@ -90,6 +128,15 @@ export const cancelMembershipEndpoint = authenticatedEndpointFactory.build({
   output: z.object({ cancelAtPeriodEnd: z.boolean() }),
   handler: async ({ ctx }) => {
     return ctx.membership.cancelSubscription(ctx.user.id);
+  },
+});
+
+export const disableAutoRenewEndpoint = authenticatedEndpointFactory.build({
+  method: "delete",
+  input: z.object({}),
+  output: z.object({ cancelAtPeriodEnd: z.boolean() }),
+  handler: async ({ ctx }) => {
+    return ctx.membership.disableAutoRenew(ctx.user.id);
   },
 });
 

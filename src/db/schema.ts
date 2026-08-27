@@ -273,6 +273,7 @@ export const membershipPayments = pgTable.withRLS(
     cardBrand: text(),
     cardExpMonth: integer(),
     cardExpYear: integer(),
+    paymentMethodType: text(), // Stripe PaymentMethod.type, e.g. "card", "twint"
     cancelledByUser: boolean().notNull().default(false),
     createdAt: timestamp({ mode: "date" }).defaultNow().notNull(),
   },

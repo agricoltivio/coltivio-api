@@ -25,3 +25,15 @@ export const createDonationCheckoutEndpoint = publicEndpointFactory.build({
     );
   },
 });
+
+export const createDonationIntentEndpoint = publicEndpointFactory.build({
+  method: "post",
+  input: z.object({
+    amount: z.number().int().min(100),
+    email: z.email(),
+  }),
+  output: z.object({ paymentIntentClientSecret: z.string() }),
+  handler: async ({ input, ctx }) => {
+    return api.createDonationIntent(input.amount, input.email, undefined, ctx.preferredLanguage);
+  },
+});
