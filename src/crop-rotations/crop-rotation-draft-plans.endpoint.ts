@@ -1,10 +1,10 @@
 import { ez } from "express-zod-api";
 import createHttpError from "http-errors";
 import { z } from "zod";
-import { permissionMembershipEndpoint } from "../endpoint-factory";
+import { permissionFarmEndpoint } from "../endpoint-factory";
 
-const cropRotationsRead = permissionMembershipEndpoint("field_calendar", "read");
-const cropRotationsWrite = permissionMembershipEndpoint("field_calendar", "write");
+const cropRotationsRead = permissionFarmEndpoint("field_calendar", "read");
+const cropRotationsWrite = permissionFarmEndpoint("field_calendar", "write");
 import { cropRotationSchema, cropRotationWithRecurrenceSchema } from "./crop-rotations.endpoint";
 
 const draftPlanSchema = z.object({

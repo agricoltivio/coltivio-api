@@ -2,10 +2,10 @@ import createHttpError from "http-errors";
 import { ez } from "express-zod-api";
 import { z } from "zod";
 import { frequencySchema, taskLinkTypeSchema, taskStatusSchema, weekdaySchema } from "../db/schema";
-import { permissionMembershipEndpoint } from "../endpoint-factory";
+import { permissionFarmEndpoint } from "../endpoint-factory";
 
-const tasksRead = permissionMembershipEndpoint("tasks", "read");
-const tasksWrite = permissionMembershipEndpoint("tasks", "write");
+const tasksRead = permissionFarmEndpoint("tasks", "read");
+const tasksWrite = permissionFarmEndpoint("tasks", "write");
 
 // ─── Output schemas ───────────────────────────────────────────────────────────
 

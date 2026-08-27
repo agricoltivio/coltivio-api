@@ -1,7 +1,7 @@
 import { expect } from "@jest/globals";
 import merge from "lodash/merge";
 import { createTestUser, getAdminDb, request } from "./helpers";
-import { membershipPayments } from "../db/schema";
+import { membershipPayments, userTrials } from "../db/schema";
 import type { FarmPermissionFeature } from "../db/schema";
 
 export type InvitePermission = { feature: FarmPermissionFeature; access: "none" | "read" | "write" };
@@ -126,6 +126,29 @@ async function insertActiveMembership(userId: string) {
     status: "succeeded",
     periodEnd,
   });
+}
+
+/**
+ * Creates a user (no farm) with a paid membership — used for user-scoped
+ * membership checks like the platform-wide forum.
+ */
+export async function createUserWithPaidMembership(email: string) {
+  const { jwt, userId } = await createTestUser(email, "password123");
+  await insertActiveMembership(userId);
+  return { jwt, userId };
+}
+
+/**
+ * Creates a user (no farm) with an active trial only — used to exercise the
+ * "active but not paid" branch of user-scoped membership checks.
+ */
+export async function createUserWithTrial(email: string) {
+  const { jwt, userId } = await createTestUser(email, "password123");
+  const db = getAdminDb();
+  const endsAt = new Date();
+  endsAt.setDate(endsAt.getDate() + 30);
+  await db.insert(userTrials).values({ userId, endsAt });
+  return { jwt, userId };
 }
 
 export async function createUserWithFarm(

@@ -1,7 +1,7 @@
 import createHttpError from "http-errors";
 import { z } from "zod";
 import { forumThreadStatusSchema, forumThreadTypeSchema } from "../db/schema";
-import { authenticatedEndpointFactory } from "../endpoint-factory";
+import { userMembershipEndpointFactory, userPaidMembershipEndpointFactory } from "../endpoint-factory";
 
 // ─── Shared output schemas ────────────────────────────────────────────────────
 
@@ -36,7 +36,7 @@ export const forumReplySchema = z.object({
 
 // ─── List threads ─────────────────────────────────────────────────────────────
 
-export const listForumThreadsEndpoint = authenticatedEndpointFactory.build({
+export const listForumThreadsEndpoint = userMembershipEndpointFactory.build({
   method: "get",
   input: z.object({
     type: forumThreadTypeSchema.optional(),
@@ -63,7 +63,7 @@ export const listForumThreadsEndpoint = authenticatedEndpointFactory.build({
 
 // ─── Create thread ────────────────────────────────────────────────────────────
 
-export const createForumThreadEndpoint = authenticatedEndpointFactory.build({
+export const createForumThreadEndpoint = userPaidMembershipEndpointFactory.build({
   method: "post",
   input: z.object({
     title: z.string().min(1),
@@ -82,7 +82,7 @@ export const createForumThreadEndpoint = authenticatedEndpointFactory.build({
 
 // ─── Get thread by ID ─────────────────────────────────────────────────────────
 
-export const getForumThreadByIdEndpoint = authenticatedEndpointFactory.build({
+export const getForumThreadByIdEndpoint = userMembershipEndpointFactory.build({
   method: "get",
   input: z.object({ threadId: z.string() }),
   output: forumThreadSchema,
@@ -95,7 +95,7 @@ export const getForumThreadByIdEndpoint = authenticatedEndpointFactory.build({
 
 // ─── Update thread ────────────────────────────────────────────────────────────
 
-export const updateForumThreadEndpoint = authenticatedEndpointFactory.build({
+export const updateForumThreadEndpoint = userPaidMembershipEndpointFactory.build({
   method: "patch",
   input: z.object({
     threadId: z.string(),
@@ -115,7 +115,7 @@ export const updateForumThreadEndpoint = authenticatedEndpointFactory.build({
 
 // ─── Delete thread (owner or moderator) ──────────────────────────────────────
 
-export const deleteForumThreadEndpoint = authenticatedEndpointFactory.build({
+export const deleteForumThreadEndpoint = userPaidMembershipEndpointFactory.build({
   method: "delete",
   input: z.object({ threadId: z.string() }),
   output: z.object({}),
@@ -133,7 +133,7 @@ export const deleteForumThreadEndpoint = authenticatedEndpointFactory.build({
 
 // ─── List replies ─────────────────────────────────────────────────────────────
 
-export const listForumRepliesEndpoint = authenticatedEndpointFactory.build({
+export const listForumRepliesEndpoint = userMembershipEndpointFactory.build({
   method: "get",
   input: z.object({ threadId: z.string() }),
   output: z.object({
@@ -148,7 +148,7 @@ export const listForumRepliesEndpoint = authenticatedEndpointFactory.build({
 
 // ─── Add reply ────────────────────────────────────────────────────────────────
 
-export const addForumReplyEndpoint = authenticatedEndpointFactory.build({
+export const addForumReplyEndpoint = userPaidMembershipEndpointFactory.build({
   method: "post",
   input: z.object({
     threadId: z.string(),
@@ -166,7 +166,7 @@ export const addForumReplyEndpoint = authenticatedEndpointFactory.build({
 
 // ─── Update reply ─────────────────────────────────────────────────────────────
 
-export const updateForumReplyEndpoint = authenticatedEndpointFactory.build({
+export const updateForumReplyEndpoint = userPaidMembershipEndpointFactory.build({
   method: "patch",
   input: z.object({
     replyId: z.string(),
@@ -180,7 +180,7 @@ export const updateForumReplyEndpoint = authenticatedEndpointFactory.build({
 
 // ─── Delete reply (owner or moderator) ───────────────────────────────────────
 
-export const deleteForumReplyEndpoint = authenticatedEndpointFactory.build({
+export const deleteForumReplyEndpoint = userPaidMembershipEndpointFactory.build({
   method: "delete",
   input: z.object({ replyId: z.string() }),
   output: z.object({}),
