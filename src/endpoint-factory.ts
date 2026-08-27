@@ -79,6 +79,56 @@ export const farmEndpointFactory = authenticatedEndpointFactory.addMiddleware(
   })
 );
 
+// Factories for endpoints that require membership but NOT a farm (e.g. the platform-wide forum).
+// Membership is checked per-user rather than per-farm.
+export const userMembershipEndpointFactory = authenticatedEndpointFactory.addMiddleware(
+  new Middleware({
+    input: z.object({}),
+    handler: async ({ ctx }) => {
+      const active = await ctx.membership.isActiveUser(ctx.user.id);
+      if (!active) throw createHttpError(403, "Active membership required");
+      return {};
+    },
+  })
+);
+
+export const userPaidMembershipEndpointFactory = authenticatedEndpointFactory.addMiddleware(
+  new Middleware({
+    input: z.object({}),
+    handler: async ({ ctx }) => {
+      const paid = await ctx.membership.isPaidUser(ctx.user.id);
+      if (!paid) throw createHttpError(403, "Paid membership required");
+      return {};
+    },
+  })
+);
+
+// Factory for endpoints that require the requesting user to have an active membership
+// (trial or paid) themselves. Being on a farm with another paying member is not enough —
+// membership is always checked against ctx.user.id, never the farm as a whole.
+export const membershipEndpointFactory = farmEndpointFactory.addMiddleware(
+  new Middleware({
+    input: z.object({}),
+    handler: async ({ ctx }) => {
+      const active = await ctx.membership.isActiveUser(ctx.user.id);
+      if (!active) throw createHttpError(403, "Active membership required");
+      return {};
+    },
+  })
+);
+
+// Same as membershipEndpointFactory but requires a paid membership (excludes trial).
+export const paidMembershipEndpointFactory = farmEndpointFactory.addMiddleware(
+  new Middleware({
+    input: z.object({}),
+    handler: async ({ ctx }) => {
+      const paid = await ctx.membership.isPaidUser(ctx.user.id);
+      if (!paid) throw createHttpError(403, "Paid membership required");
+      return {};
+    },
+  })
+);
+
 // Factory for endpoints that are exclusively for farm owners (not members).
 export const ownerOnlyEndpointFactory = farmEndpointFactory.addMiddleware(
   new Middleware({
@@ -97,6 +147,43 @@ export const ownerOnlyEndpointFactory = farmEndpointFactory.addMiddleware(
 // Owners bypass the permission check; "none" blocks all access; "write" required for mutations.
 export function permissionFarmEndpoint(feature: FarmPermissionFeature, access: "read" | "write") {
   return farmEndpointFactory.addMiddleware(
+    new Middleware({
+      input: z.object({}),
+      handler: async ({ ctx }) => {
+        if (ctx.user.farmRole === "owner") return {};
+        const userAccess = await ctx.farmPermissions.getFeatureAccess(ctx.user.id, feature);
+        if (userAccess === "none") throw createHttpError(403, `Access denied for: ${feature}`);
+        if (access === "write" && userAccess !== "write")
+          throw createHttpError(403, `Write access required for: ${feature}`);
+        return {};
+      },
+    })
+  );
+}
+
+// Returns a factory that requires the requesting user's own active membership + feature permission.
+// Use for premium features (contacts, orders, sponsorships, etc.) that require a subscription.
+// Owners bypass the permission check (but not the membership check); "none" blocks all access;
+// "write" required for mutations.
+export function permissionMembershipEndpoint(feature: FarmPermissionFeature, access: "read" | "write") {
+  return membershipEndpointFactory.addMiddleware(
+    new Middleware({
+      input: z.object({}),
+      handler: async ({ ctx }) => {
+        if (ctx.user.farmRole === "owner") return {};
+        const userAccess = await ctx.farmPermissions.getFeatureAccess(ctx.user.id, feature);
+        if (userAccess === "none") throw createHttpError(403, `Access denied for: ${feature}`);
+        if (access === "write" && userAccess !== "write")
+          throw createHttpError(403, `Write access required for: ${feature}`);
+        return {};
+      },
+    })
+  );
+}
+
+// Returns a factory that requires the requesting user's own paid membership + feature permission.
+export function permissionPaidMembershipEndpoint(feature: FarmPermissionFeature, access: "read" | "write") {
+  return paidMembershipEndpointFactory.addMiddleware(
     new Middleware({
       input: z.object({}),
       handler: async ({ ctx }) => {

@@ -3,7 +3,7 @@
 const UNLIMITED_TRIAL = process.env.UNLIMITED_TRIAL === "true";
 
 import Stripe from "stripe";
-import { eq, and } from "drizzle-orm";
+import { eq, and, or, gt } from "drizzle-orm";
 import createHttpError from "http-errors";
 import { RlsDb } from "../db/db";
 import { getStripe } from "../stripe/stripe";
@@ -34,6 +34,9 @@ export type MembershipStatus = {
 export type FarmMembershipStatus = "none" | "trial" | "active";
 
 // Annual membership amount in CHF cents (used for manual/one-time checkout)
+
+// Grace period: 10 days after periodEnd, users retain access
+const GRACE_PERIOD_MS = 10 * 24 * 60 * 60 * 1000;
 
 type CardDetails = {
   cardLast4: string | null;
@@ -97,6 +100,59 @@ export function membershipApi(db: RlsDb) {
         where: { userId: { in: userIds }, endsAt: { gt: now } },
       });
       return trial ? "trial" : "none";
+    },
+
+    // User-scoped active check (trial OR paid). Used for forum which is not farm-scoped.
+    async isActiveUser(userId: string): Promise<boolean> {
+      if (UNLIMITED_TRIAL) return true;
+      const now = new Date();
+      const activeTrial = await db.admin.query.userTrials.findFirst({
+        where: { userId, endsAt: { gt: now } },
+      });
+      if (activeTrial) return true;
+
+      const active = await db.admin
+        .select({ id: membershipPayments.id })
+        .from(membershipPayments)
+        .where(
+          and(
+            eq(membershipPayments.userId, userId),
+            eq(membershipPayments.status, "succeeded"),
+            or(
+              and(
+                eq(membershipPayments.cancelledByUser, false),
+                gt(membershipPayments.periodEnd, new Date(now.getTime() - GRACE_PERIOD_MS))
+              ),
+              and(eq(membershipPayments.cancelledByUser, true), gt(membershipPayments.periodEnd, now))
+            )
+          )
+        )
+        .limit(1);
+      return active.length > 0;
+    },
+
+    // User-scoped paid-only check (excludes trial). Used for forum write operations.
+    async isPaidUser(userId: string): Promise<boolean> {
+      if (UNLIMITED_TRIAL) return true;
+      const now = new Date();
+      const active = await db.admin
+        .select({ id: membershipPayments.id })
+        .from(membershipPayments)
+        .where(
+          and(
+            eq(membershipPayments.userId, userId),
+            eq(membershipPayments.status, "succeeded"),
+            or(
+              and(
+                eq(membershipPayments.cancelledByUser, false),
+                gt(membershipPayments.periodEnd, new Date(now.getTime() - GRACE_PERIOD_MS))
+              ),
+              and(eq(membershipPayments.cancelledByUser, true), gt(membershipPayments.periodEnd, now))
+            )
+          )
+        )
+        .limit(1);
+      return active.length > 0;
     },
 
     async startTrial(userId: string): Promise<{ trialEnd: Date }> {

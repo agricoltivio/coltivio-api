@@ -1,8 +1,8 @@
 import { z } from "zod";
 import createHttpError from "http-errors";
-import { farmEndpointFactory } from "../endpoint-factory";
+import { membershipEndpointFactory } from "../endpoint-factory";
 
-export const downloadInvoiceEndpoint = farmEndpointFactory.build({
+export const downloadInvoiceEndpoint = membershipEndpointFactory.build({
   method: "post",
   input: z.object({ orderId: z.string(), settingsId: z.string() }),
   output: z.object({ base64: z.string(), fileName: z.string() }),
@@ -18,7 +18,7 @@ export const downloadInvoiceEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const downloadInvoicesBatchEndpoint = farmEndpointFactory.build({
+export const downloadInvoicesBatchEndpoint = membershipEndpointFactory.build({
   method: "post",
   input: z.object({
     orderIds: z.array(z.string()).min(1).max(100),

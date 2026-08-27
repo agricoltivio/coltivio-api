@@ -6,10 +6,10 @@ import { contactSchema } from "../contacts/contacts.endpoint";
 import { paymentSchema } from "../payments/payment-schema";
 import { paymentMethodSchema } from "../db/schema";
 import { productSchema } from "../products/products.endpoint";
-import { permissionFarmEndpoint } from "../endpoint-factory";
+import { permissionMembershipEndpoint } from "../endpoint-factory";
 
-const ordersRead = permissionFarmEndpoint("commerce", "read");
-const ordersWrite = permissionFarmEndpoint("commerce", "write");
+const ordersRead = permissionMembershipEndpoint("commerce", "read");
+const ordersWrite = permissionMembershipEndpoint("commerce", "write");
 
 export const orderSchema = z.object({
   id: z.string(),

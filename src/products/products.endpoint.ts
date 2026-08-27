@@ -1,10 +1,10 @@
 import createHttpError from "http-errors";
 import { z } from "zod";
 import { productCategorySchema, productUnitSchema } from "../db/schema";
-import { permissionFarmEndpoint } from "../endpoint-factory";
+import { permissionMembershipEndpoint } from "../endpoint-factory";
 
-const productsRead = permissionFarmEndpoint("commerce", "read");
-const productsWrite = permissionFarmEndpoint("commerce", "write");
+const productsRead = permissionMembershipEndpoint("commerce", "read");
+const productsWrite = permissionMembershipEndpoint("commerce", "write");
 
 export const productSchema = z.object({
   id: z.string(),

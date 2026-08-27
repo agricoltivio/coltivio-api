@@ -1,9 +1,9 @@
 import createHttpError from "http-errors";
 import { z } from "zod";
-import { permissionFarmEndpoint } from "../endpoint-factory";
+import { permissionMembershipEndpoint } from "../endpoint-factory";
 
-const sponsorshipProgramsRead = permissionFarmEndpoint("commerce", "read");
-const sponsorshipsWrite = permissionFarmEndpoint("commerce", "write");
+const sponsorshipProgramsRead = permissionMembershipEndpoint("commerce", "read");
+const sponsorshipsWrite = permissionMembershipEndpoint("commerce", "write");
 
 export const sponsorshipProgramSchema = z.object({
   id: z.string(),

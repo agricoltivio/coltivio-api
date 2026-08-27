@@ -1,10 +1,10 @@
 import createHttpError from "http-errors";
 import { z } from "zod";
 import { preferredCommunicationSchema } from "../db/schema";
-import { permissionFarmEndpoint } from "../endpoint-factory";
+import { permissionMembershipEndpoint } from "../endpoint-factory";
 
-const contactsRead = permissionFarmEndpoint("commerce", "read");
-const contactsWrite = permissionFarmEndpoint("commerce", "write");
+const contactsRead = permissionMembershipEndpoint("commerce", "read");
+const contactsWrite = permissionMembershipEndpoint("commerce", "write");
 import { paymentSchema } from "../payments/payment-schema";
 import { sponsorshipWithRelationsSchema } from "../sponsorships/sponsorships.endpoint";
 import { orderSchema } from "../orders/orders.endpoint";
