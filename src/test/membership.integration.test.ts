@@ -1177,17 +1177,26 @@ describe("full timeline — three cron stages in one pass", () => {
 // ---------------------------------------------------------------------------
 // N0. Grace period suppressed for cancelledByUser
 // ---------------------------------------------------------------------------
-describe("grace period: cancelled users lose it", () => {
-  it('getFarmMembershipStatus — cancelled payment still in period = "none" (Austritt is immediate)', async () => {
+describe("grace period: cancelled users keep access until periodEnd, but no grace beyond it", () => {
+  it('getFarmMembershipStatus — cancelled payment still in period = "active" (access lasts until periodEnd)', async () => {
     const { farmId, userId } = await createUserWithFarm({}, "n0h@test.com");
     await insertPayment(userId, daysFromNow(1));
     const db = getAdminDb();
     await db.update(membershipPayments).set({ cancelledByUser: true }).where(eq(membershipPayments.userId, userId));
     const api = membershipApi(adminOnlyDb);
-    expect(await api.getFarmMembershipStatus(farmId)).toBe("none");
+    expect(await api.getFarmMembershipStatus(farmId)).toBe("active");
   });
 
-  it("isActiveUser — cancelled payment 5 days ago = false", async () => {
+  it("isActiveUser — cancelled payment still in period (periodEnd tomorrow) = true", async () => {
+    const { userId } = await createTestUser("n0i@test.com", "password123");
+    await insertPayment(userId, daysFromNow(1));
+    const db = getAdminDb();
+    await db.update(membershipPayments).set({ cancelledByUser: true }).where(eq(membershipPayments.userId, userId));
+    const api = membershipApi(adminOnlyDb);
+    expect(await api.isActiveUser(userId)).toBe(true);
+  });
+
+  it("isActiveUser — cancelled payment 5 days past periodEnd = false (no grace for cancelled)", async () => {
     const { userId } = await createTestUser("n0e@test.com", "password123");
     await insertPayment(userId, daysAgo(5));
     const db = getAdminDb();
@@ -1196,13 +1205,20 @@ describe("grace period: cancelled users lose it", () => {
     expect(await api.isActiveUser(userId)).toBe(false);
   });
 
-  it("isPaidUser — cancelled payment 5 days ago = false", async () => {
+  it("isPaidUser — cancelled payment 5 days past periodEnd = false (no grace for cancelled)", async () => {
     const { userId } = await createTestUser("n0f@test.com", "password123");
     await insertPayment(userId, daysAgo(5));
     const db = getAdminDb();
     await db.update(membershipPayments).set({ cancelledByUser: true }).where(eq(membershipPayments.userId, userId));
     const api = membershipApi(adminOnlyDb);
     expect(await api.isPaidUser(userId)).toBe(false);
+  });
+
+  it("isActiveUser — non-cancelled payment 5 days past periodEnd (in grace) = true", async () => {
+    const { userId } = await createTestUser("n0j@test.com", "password123");
+    await insertPayment(userId, daysAgo(5));
+    const api = membershipApi(adminOnlyDb);
+    expect(await api.isActiveUser(userId)).toBe(true);
   });
 
   it("isActiveUser — cancelled but active trial = true (trial unaffected)", async () => {

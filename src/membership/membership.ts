@@ -3,7 +3,7 @@
 const UNLIMITED_TRIAL = process.env.UNLIMITED_TRIAL === "true";
 
 import Stripe from "stripe";
-import { eq, and, gt } from "drizzle-orm";
+import { eq, and, or, gt } from "drizzle-orm";
 import createHttpError from "http-errors";
 import { RlsDb } from "../db/db";
 import { getStripe, STRIPE_API_VERSION } from "../stripe/stripe";
@@ -134,7 +134,7 @@ export function membershipApi(db: RlsDb) {
 
       const now = new Date();
       const active = await db.admin.query.membershipPayments.findFirst({
-        where: { userId: { in: userIds }, status: "succeeded", periodEnd: { gt: now }, cancelledByUser: false },
+        where: { userId: { in: userIds }, status: "succeeded", periodEnd: { gt: now } },
       });
       if (active) return "active";
 
@@ -160,8 +160,15 @@ export function membershipApi(db: RlsDb) {
           and(
             eq(membershipPayments.userId, userId),
             eq(membershipPayments.status, "succeeded"),
-            eq(membershipPayments.cancelledByUser, false),
-            gt(membershipPayments.periodEnd, new Date(now.getTime() - GRACE_PERIOD_MS))
+            // Non-cancelled: grace period beyond periodEnd. Cancelled (Austritt): access only
+            // until periodEnd, no grace — but not cut off early either, they paid for that period.
+            or(
+              and(
+                eq(membershipPayments.cancelledByUser, false),
+                gt(membershipPayments.periodEnd, new Date(now.getTime() - GRACE_PERIOD_MS))
+              ),
+              and(eq(membershipPayments.cancelledByUser, true), gt(membershipPayments.periodEnd, now))
+            )
           )
         )
         .limit(1);
@@ -179,8 +186,13 @@ export function membershipApi(db: RlsDb) {
           and(
             eq(membershipPayments.userId, userId),
             eq(membershipPayments.status, "succeeded"),
-            eq(membershipPayments.cancelledByUser, false),
-            gt(membershipPayments.periodEnd, new Date(now.getTime() - GRACE_PERIOD_MS))
+            or(
+              and(
+                eq(membershipPayments.cancelledByUser, false),
+                gt(membershipPayments.periodEnd, new Date(now.getTime() - GRACE_PERIOD_MS))
+              ),
+              and(eq(membershipPayments.cancelledByUser, true), gt(membershipPayments.periodEnd, now))
+            )
           )
         )
         .limit(1);
