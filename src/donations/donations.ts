@@ -18,7 +18,7 @@ export function donationsApi(db: RlsDb) {
 
       const session = await getStripe().checkout.sessions.create({
         mode: "payment",
-        payment_method_types: ["card"],
+        payment_method_types: ["card", "twint"],
         customer_email: email,
         line_items: [
           {
@@ -56,7 +56,7 @@ export function donationsApi(db: RlsDb) {
         amount,
         currency: "chf",
         receipt_email: email,
-        payment_method_types: ["card"],
+        payment_method_types: ["card", "twint"],
         metadata: {
           type: "donation",
           userId: userId ?? "",
