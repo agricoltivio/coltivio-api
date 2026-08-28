@@ -271,9 +271,14 @@
   "treatment_report": {
     "file_name": "Treatment journal {{fromDate}} - {{toDate}}",
     "title": "Treatment journal {{fromDate}} - {{toDate}}",
+    "groups": {
+      "treatment": "Treatment",
+      "withdrawal_period": "Withdrawal period",
+      "release_date": "Release date"
+    },
     "columns": {
-      "treatment_start": "Treatment start",
-      "treatment_end": "Treatment end",
+      "start": "Start",
+      "end": "End",
       "animal": "Animal",
       "treatment_reason": "Treatment reason",
       "drug": "Veterinary drug",
@@ -281,13 +286,10 @@
       "is_antibiotic": "Antibiotic",
       "critical_antibiotic": "Critical antibiotic",
       "antibiogram": "Antibiogram",
-      "withdrawal_milk": "Withdrawal period milk",
-      "withdrawal_meat": "Withdrawal period meat",
-      "withdrawal_organs": "Withdrawal period organs",
-      "release_date_milk": "Release date milk",
-      "release_date_meat": "Release date meat",
-      "release_date_organs": "Release date organs",
-      "drug_origin": "Drug origin"
+      "drug_origin": "Drug origin",
+      "milk": "Milk",
+      "meat": "Meat",
+      "organs": "Organs"
     }
   },
   "drug_dose_units": {
@@ -468,5 +470,8 @@
     "piece": "piece",
     "bunch": "bunch",
     "liter": "liter"
+  },
+  "animals_report": {
+    "file_name": "Animal report {{fromDate}} - {{toDate}}"
   }
 }

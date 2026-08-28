@@ -271,9 +271,14 @@
   "treatment_report": {
     "file_name": "Journal des traitements {{fromDate}} - {{toDate}}",
     "title": "Journal des traitements {{fromDate}} - {{toDate}}",
+    "groups": {
+      "treatment": "Traitement",
+      "withdrawal_period": "Délai d'attente",
+      "release_date": "Date de libération"
+    },
     "columns": {
-      "treatment_start": "Début du traitement",
-      "treatment_end": "Fin du traitement",
+      "start": "Début",
+      "end": "Fin",
       "animal": "Animal",
       "treatment_reason": "Motif du traitement",
       "drug": "Médicament vétérinaire",
@@ -281,13 +286,10 @@
       "is_antibiotic": "Antibiotique",
       "critical_antibiotic": "Antibiotique critique",
       "antibiogram": "Antibiogramme",
-      "withdrawal_milk": "Délai d'attente lait",
-      "withdrawal_meat": "Délai d'attente viande",
-      "withdrawal_organs": "Délai d'attente organes",
-      "release_date_milk": "Date de libération lait",
-      "release_date_meat": "Date de libération viande",
-      "release_date_organs": "Date de libération organes",
-      "drug_origin": "Origine du médicament"
+      "drug_origin": "Origine du médicament",
+      "milk": "Lait",
+      "meat": "Viande",
+      "organs": "Organes"
     }
   },
   "drug_dose_units": {
@@ -468,5 +470,8 @@
     "piece": "pièce",
     "bunch": "botte",
     "liter": "litre"
+  },
+  "animals_report": {
+    "file_name": "Rapport animaux {{fromDate}} - {{toDate}}"
   }
 }

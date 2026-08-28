@@ -284,6 +284,7 @@ import {
 import { sendFieldCalendarReport, downloadFieldCalendarReport } from "./reports/field-calendar-reports.endpoint";
 import { downloadTreatmentReport } from "./reports/treatment-reports.endpoint";
 import { downloadOutdoorJournalReport } from "./reports/outdoor-journal-reports.endpoint";
+import { downloadAnimalsReport } from "./reports/animals-reports.endpoint";
 import { healthEndpoint } from "./chore/chore.endpoint";
 import { verifyCaptchaEndpoint } from "./captcha/turnstile.endpoint";
 import {
@@ -705,6 +706,9 @@ export const routing: Routing = {
       },
       outdoorjournal: {
         download: downloadOutdoorJournalReport,
+      },
+      animals: {
+        download: downloadAnimalsReport,
       },
     },
     animals: {

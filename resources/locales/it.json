@@ -271,9 +271,14 @@
   "treatment_report": {
     "file_name": "Registro trattamenti {{fromDate}} - {{toDate}}",
     "title": "Registro trattamenti {{fromDate}} - {{toDate}}",
+    "groups": {
+      "treatment": "Trattamento",
+      "withdrawal_period": "Periodo di attesa",
+      "release_date": "Data di rilascio"
+    },
     "columns": {
-      "treatment_start": "Inizio trattamento",
-      "treatment_end": "Fine trattamento",
+      "start": "Inizio",
+      "end": "Fine",
       "animal": "Animale",
       "treatment_reason": "Motivo del trattamento",
       "drug": "Medicinale veterinario",
@@ -281,13 +286,10 @@
       "is_antibiotic": "Antibiotico",
       "critical_antibiotic": "Antibiotico critico",
       "antibiogram": "Antibiogramma",
-      "withdrawal_milk": "Periodo di attesa latte",
-      "withdrawal_meat": "Periodo di attesa carne",
-      "withdrawal_organs": "Periodo di attesa organi",
-      "release_date_milk": "Data di rilascio latte",
-      "release_date_meat": "Data di rilascio carne",
-      "release_date_organs": "Data di rilascio organi",
-      "drug_origin": "Origine del medicinale"
+      "drug_origin": "Origine del medicinale",
+      "milk": "Latte",
+      "meat": "Carne",
+      "organs": "Organi"
     }
   },
   "drug_dose_units": {
@@ -468,5 +470,8 @@
     "piece": "pezzo",
     "bunch": "mazzo",
     "liter": "litro"
+  },
+  "animals_report": {
+    "file_name": "Rapporto animali {{fromDate}} - {{toDate}}"
   }
 }
