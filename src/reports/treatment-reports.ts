@@ -2,6 +2,7 @@ import ExcelJS from "exceljs";
 import { TFunction } from "i18next";
 import { AnimalType } from "../animals/animals";
 import { RlsDb } from "../db/db";
+import { writeTreatmentTable } from "./treatment-report-sheet";
 
 export function treatmentReportsApi(rlsDb: RlsDb, t: TFunction, locale: string = "de") {
   return {
@@ -29,7 +30,7 @@ export function treatmentReportsApi(rlsDb: RlsDb, t: TFunction, locale: string =
         });
 
         // Flatten treatments into rows grouped by animal type
-        const rowsByType = new Map<AnimalType, any[][]>();
+        const rowsByType = new Map<AnimalType, (string | number)[][]>();
 
         for (const treatment of treatments) {
           for (const at of treatment.animalTreatments) {
@@ -92,29 +93,10 @@ export function treatmentReportsApi(rlsDb: RlsDb, t: TFunction, locale: string =
         }
 
         const workbook = new ExcelJS.Workbook();
-        const columns = [
-          { name: t("treatment_report.columns.treatment_start") },
-          { name: t("treatment_report.columns.treatment_end") },
-          { name: t("treatment_report.columns.animal") },
-          { name: t("treatment_report.columns.treatment_reason") },
-          { name: t("treatment_report.columns.drug") },
-          { name: t("treatment_report.columns.dose") },
-          { name: t("treatment_report.columns.is_antibiotic") },
-          { name: t("treatment_report.columns.critical_antibiotic") },
-          { name: t("treatment_report.columns.antibiogram") },
-          { name: t("treatment_report.columns.withdrawal_milk") },
-          { name: t("treatment_report.columns.withdrawal_meat") },
-          { name: t("treatment_report.columns.withdrawal_organs") },
-          { name: t("treatment_report.columns.release_date_milk") },
-          { name: t("treatment_report.columns.release_date_meat") },
-          { name: t("treatment_report.columns.release_date_organs") },
-          { name: t("treatment_report.columns.drug_origin") },
-        ];
 
         // Process requested types, or all types that have data
         const typesToProcess = animalTypes && animalTypes.length > 0 ? animalTypes : Array.from(rowsByType.keys());
 
-        let tableIndex = 0;
         for (const type of typesToProcess) {
           const rows = rowsByType.get(type);
           if (!rows || rows.length === 0) continue;
@@ -130,15 +112,7 @@ export function treatmentReportsApi(rlsDb: RlsDb, t: TFunction, locale: string =
           sheet.getCell(`A${rowIndex}`).font = { bold: true, size: 18 };
           rowIndex += 3;
 
-          sheet.addTable({
-            name: `treatments_${type}_${tableIndex}`,
-            ref: `A${rowIndex}`,
-            headerRow: true,
-            style: { showRowStripes: true },
-            columns,
-            rows,
-          });
-          tableIndex++;
+          writeTreatmentTable(sheet, rowIndex, rows, t);
         }
 
         const fileName = `${t("treatment_report.file_name", { fromDate: fromDate.toLocaleDateString(locale), toDate: toDate.toLocaleDateString(locale) })}.xlsx`;

@@ -32,6 +32,7 @@ import { TFunction } from "i18next";
 import { fieldCalendarReportsApi } from "../reports/field-calendar-reports";
 import { treatmentReportsApi } from "../reports/treatment-reports";
 import { outdoorJournalReportsApi } from "../reports/outdoor-journal-reports";
+import { animalsReportsApi } from "../reports/animals-reports";
 import { wikiApi } from "../wiki/wiki";
 import { wikiModerationApi } from "../wiki/wiki-moderation";
 import { forumApi } from "../forum/forum";
@@ -62,6 +63,7 @@ export function sessionApi(db: RlsDb, t: TFunction, locale: string) {
     fieldCalendarReports: fieldCalendarReportsApi(db, t, locale),
     treatmentReports: treatmentReportsApi(db, t, locale),
     outdoorJournalReports: outdoorJournalReportsApi(db, t, locale),
+    animalsReports: animalsReportsApi(db, t, locale),
     animals: animalsApi(db, t),
     animalJournal: animalJournalApi(db),
     plotJournal: plotJournalApi(db),

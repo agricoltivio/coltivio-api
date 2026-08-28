@@ -5,7 +5,7 @@ import { sql } from "drizzle-orm";
 import postgres from "postgres";
 import { SupabaseToken } from "../supabase/supabase";
 
-type Transaction = Parameters<Parameters<typeof clientDrizzle.transaction>[0]>[0];
+export type Transaction = Parameters<Parameters<typeof clientDrizzle.transaction>[0]>[0];
 
 const client = postgres(process.env.APP_DATABASE_URL!, { prepare: false });
 const adminClient = postgres(process.env.DATABASE_URL!, { prepare: false });
