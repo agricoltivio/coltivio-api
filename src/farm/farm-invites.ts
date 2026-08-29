@@ -25,11 +25,14 @@ export function farmInvitesApi(rlsDb: RlsDb, t: TFunction) {
     ): Promise<FarmInvite> {
       return rlsDb.rls(async (tx) => {
         // Reject if a profile with that email already belongs to this farm
-        const existingMember = await tx.query.profiles.findFirst({
-          where: { email, farmId },
-        });
-        if (existingMember) {
-          throw createHttpError(409, "User is already a member of this farm");
+        const existingProfile = await tx.query.profiles.findFirst({ where: { email } });
+        if (existingProfile) {
+          const existingMembership = await tx.query.farmMembers.findFirst({
+            where: { farmId, userId: existingProfile.id },
+          });
+          if (existingMembership) {
+            throw createHttpError(409, "User is already a member of this farm");
+          }
         }
 
         const code = crypto.randomBytes(4).toString("hex").toUpperCase();
@@ -54,7 +57,7 @@ export function farmInvitesApi(rlsDb: RlsDb, t: TFunction) {
       });
     },
 
-    async acceptInvite(code: string, user: User): Promise<User> {
+    async acceptInvite(code: string, user: User): Promise<User & { farmId: string; farmRole: "owner" | "member" }> {
       return rlsDb.admin.transaction(async (tx) => {
         const invite = await tx.query.farmInvites.findFirst({
           where: { code },
@@ -73,16 +76,15 @@ export function farmInvitesApi(rlsDb: RlsDb, t: TFunction) {
         if (user.email !== invite.email) {
           throw createHttpError(403, "This invite was sent to a different email address");
         }
-        if (user.farmId !== null) {
-          throw createHttpError(409, "You already belong to a farm");
+        const existingMembership = await tx.query.farmMembers.findFirst({
+          where: { farmId: invite.farmId, userId: user.id },
+        });
+        if (existingMembership) {
+          throw createHttpError(409, "You are already a member of this farm");
         }
 
         // Assign user to the farm with the role specified on the invite
-        const [updatedProfile] = await tx
-          .update(tables.profiles)
-          .set({ farmId: invite.farmId, farmRole: invite.role })
-          .where(eq(tables.profiles.id, user.id))
-          .returning();
+        await tx.insert(tables.farmMembers).values({ farmId: invite.farmId, userId: user.id, role: invite.role });
 
         await tx
           .update(tables.farmInvites)
@@ -104,7 +106,7 @@ export function farmInvitesApi(rlsDb: RlsDb, t: TFunction) {
           }))
         );
 
-        return updatedProfile;
+        return { ...user, farmId: invite.farmId, farmRole: invite.role };
       });
     },
 

@@ -95,13 +95,7 @@ export function farmsApi(rlsDb: RlsDb, t: TFunction) {
           .returning(farmSelectColumns);
 
         // assign user to farm as owner
-        await tx
-          .update(tables.profiles)
-          .set({
-            farmId: createdFarm.id,
-            farmRole: "owner",
-          })
-          .where(eq(tables.profiles.id, userId));
+        await tx.insert(tables.farmMembers).values({ farmId: createdFarm.id, userId, role: "owner" });
 
         if (!farm.federalId) {
           await tx
@@ -205,10 +199,32 @@ export function farmsApi(rlsDb: RlsDb, t: TFunction) {
         return createdFarm;
       });
     },
-    async getFarmUsers(farmId: string): Promise<User[]> {
+    async getFarmUsers(farmId: string): Promise<(User & { farmId: string; farmRole: "owner" | "member" })[]> {
       return rlsDb.rls(async (tx) => {
-        return tx.select().from(tables.profiles).where(eq(tables.profiles.farmId, farmId));
+        const rows = await tx
+          .select({ ...getTableColumns(tables.profiles), farmRole: tables.farmMembers.role })
+          .from(tables.farmMembers)
+          .innerJoin(tables.profiles, eq(tables.farmMembers.userId, tables.profiles.id))
+          .where(eq(tables.farmMembers.farmId, farmId));
+        return rows.map((row) => ({ ...row, farmId }));
       });
+    },
+    async listFarmsForUser(userId: string) {
+      // Bypasses RLS deliberately, hard-scoped to the authenticated caller's own id (never
+      // client input): the farms table's own RLS policy only allows seeing the currently-active
+      // farm, which would otherwise hide the user's other farms from this exact query.
+      return rlsDb.admin
+        .select({ ...farmSelectColumns, role: tables.farmMembers.role })
+        .from(tables.farmMembers)
+        .innerJoin(tables.farms, eq(tables.farmMembers.farmId, tables.farms.id))
+        .where(eq(tables.farmMembers.userId, userId));
+    },
+    async getFarmMember(farmId: string, userId: string) {
+      const [member] = await rlsDb.admin
+        .select()
+        .from(tables.farmMembers)
+        .where(and(eq(tables.farmMembers.farmId, farmId), eq(tables.farmMembers.userId, userId)));
+      return member;
     },
     async updateFarm(farmId: string, data: Partial<FarmCreateInput>) {
       return rlsDb.rls(async (tx) => {
@@ -231,59 +247,68 @@ export function farmsApi(rlsDb: RlsDb, t: TFunction) {
     },
     async kickMember(targetUserId: string, callerUserId: string, farmId: string) {
       return rlsDb.admin.transaction(async (tx) => {
-        const farmMembers = await tx.query.profiles.findMany({ where: { farmId } });
+        const members = await tx.query.farmMembers.findMany({ where: { farmId } });
 
-        const caller = farmMembers.find((p) => p.id === callerUserId);
-        if (!caller || caller.farmRole !== "owner") {
+        const caller = members.find((m) => m.userId === callerUserId);
+        if (!caller || caller.role !== "owner") {
           throw createHttpError(403, "Only farm owners can kick members");
         }
 
-        const target = farmMembers.find((p) => p.id === targetUserId);
+        const target = members.find((m) => m.userId === targetUserId);
         if (!target) {
           throw createHttpError(404, "Member not found in this farm");
         }
 
-        if (target.farmRole === "owner") {
-          const ownerCount = farmMembers.filter((p) => p.farmRole === "owner").length;
+        if (target.role === "owner") {
+          const ownerCount = members.filter((m) => m.role === "owner").length;
           if (ownerCount <= 1) {
             throw createHttpError(400, "Cannot remove the only owner");
           }
         }
 
         await tx
-          .update(tables.profiles)
-          .set({ farmId: null, farmRole: null })
-          .where(eq(tables.profiles.id, targetUserId));
+          .delete(tables.farmMembers)
+          .where(and(eq(tables.farmMembers.farmId, farmId), eq(tables.farmMembers.userId, targetUserId)));
+
+        // Also clean up this user's permissions for this farm, so a stale grant/deny can't
+        // resurface if they're invited back to the same farm later.
+        await tx
+          .delete(tables.farmMemberPermissions)
+          .where(
+            and(eq(tables.farmMemberPermissions.farmId, farmId), eq(tables.farmMemberPermissions.userId, targetUserId))
+          );
       });
     },
     async changeMemberRole(targetUserId: string, callerId: string, farmId: string, newRole: "owner" | "member") {
       return rlsDb.admin.transaction(async (tx) => {
-        const farmMembers = await tx.query.profiles.findMany({ where: { farmId } });
+        const members = await tx.query.farmMembers.findMany({ where: { farmId } });
 
-        const caller = farmMembers.find((p) => p.id === callerId);
-        if (!caller || caller.farmRole !== "owner") {
+        const caller = members.find((m) => m.userId === callerId);
+        if (!caller || caller.role !== "owner") {
           throw createHttpError(403, "Only farm owners can change member roles");
         }
 
-        const target = farmMembers.find((p) => p.id === targetUserId);
+        const target = members.find((m) => m.userId === targetUserId);
         if (!target) {
           throw createHttpError(404, "Member not found in this farm");
         }
 
-        if (newRole === "member" && target.farmRole === "owner") {
-          const ownerCount = farmMembers.filter((p) => p.farmRole === "owner").length;
+        if (newRole === "member" && target.role === "owner") {
+          const ownerCount = members.filter((m) => m.role === "owner").length;
           if (ownerCount <= 1) {
             throw createHttpError(400, "Cannot demote the only owner");
           }
         }
 
-        const [updatedProfile] = await tx
-          .update(tables.profiles)
-          .set({ farmRole: newRole })
-          .where(eq(tables.profiles.id, targetUserId))
+        const [updatedMember] = await tx
+          .update(tables.farmMembers)
+          .set({ role: newRole })
+          .where(and(eq(tables.farmMembers.farmId, farmId), eq(tables.farmMembers.userId, targetUserId)))
           .returning();
 
-        return updatedProfile;
+        const [updatedProfile] = await tx.select().from(tables.profiles).where(eq(tables.profiles.id, targetUserId));
+
+        return { ...updatedProfile, farmId, farmRole: updatedMember.role };
       });
     },
   };

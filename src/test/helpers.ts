@@ -90,7 +90,13 @@ export async function cleanDb() {
 /**
  * Fetch wrapper that prepends the test server base URL.
  */
-export async function request(method: string, path: string, body?: Record<string, unknown>, jwt?: string) {
+export async function request(
+  method: string,
+  path: string,
+  body?: Record<string, unknown>,
+  jwt?: string,
+  farmId?: string
+) {
   const baseUrl = process.env.SERVER_URL!;
   const url = `${baseUrl}${path}`;
 
@@ -99,6 +105,9 @@ export async function request(method: string, path: string, body?: Record<string
   };
   if (jwt) {
     headers["Authorization"] = `Bearer ${jwt}`;
+  }
+  if (farmId) {
+    headers["x-farm-id"] = farmId;
   }
 
   return fetch(url, {

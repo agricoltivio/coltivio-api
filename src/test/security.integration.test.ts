@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach } from "@jest/globals";
-import { eq } from "drizzle-orm";
-import { profiles } from "../db/schema";
+import { farmMembers } from "../db/schema";
 import { cleanDb, createTestUser, getAdminDb, getAdminSql, rawRequest, request, signTestJwt } from "./helpers";
 import { membershipPayments } from "../db/schema";
 
@@ -305,7 +304,7 @@ describe("Profile access control", () => {
     const { jwt: jwtB, userId: userBId } = await createTestUser("member@test.com", "password123");
     // Link user B to user A's farm via admin DB
     const db = getAdminDb();
-    await db.update(profiles).set({ farmId: userA.farmId }).where(eq(profiles.id, userBId));
+    await db.insert(farmMembers).values({ farmId: userA.farmId, userId: userBId, role: "member" });
 
     // User A reads User B's profile
     const res = await request("GET", `/v1/users/byId/${userBId}`, undefined, userA.jwt);
@@ -361,12 +360,10 @@ describe("Authorization boundaries", () => {
     expect(res.status).toBe(200);
   });
 
-  it("user with farm cannot create a second farm", async () => {
+  it("user with a farm can create a second farm", async () => {
     const user = await createUserWithFarm("has-farm@test.com");
     const res = await request("POST", "/v1/farm", { ...TEST_FARM, name: "Second Farm" }, user.jwt);
-    expect(res.status).toBe(400);
-    const body = (await res.json()) as { error: string };
-    expect(body.error).toContain("already has a farm");
+    expect(res.status).toBe(200);
   });
 
   it("healthcheck is public", async () => {

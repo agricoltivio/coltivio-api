@@ -33,11 +33,11 @@ describe("Farm CRUD", () => {
     expect(farms).toHaveLength(1);
     expect(farms[0].name).toBe("Test Farm");
 
-    // Verify profile linked to farm
-    const profile = await db.query.profiles.findFirst({
-      where: { id: userId },
+    // Verify profile linked to farm as owner
+    const membership = await db.query.farmMembers.findFirst({
+      where: { userId, farmId: farms[0].id },
     });
-    expect(profile?.farmId).toBe(farms[0].id);
+    expect(membership?.role).toBe("owner");
   });
 
   it("retrieves the farm for an authenticated member", async () => {

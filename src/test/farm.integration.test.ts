@@ -42,7 +42,7 @@ describe("Farm CRUD", () => {
     expect(body.data.location.coordinates).toEqual([8.5, 47.3]);
   });
 
-  it("rejects creating a second farm for same user", async () => {
+  it("allows creating a second farm for the same user", async () => {
     const { jwt } = await createUserWithFarm({}, undefined, { withActiveMembership: true });
     const res = await request(
       "POST",
@@ -54,12 +54,12 @@ describe("Farm CRUD", () => {
       },
       jwt
     );
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(200);
 
-    // Verify DB: still only one farm
+    // Verify DB: now two farms, both owned by the same user
     const db = getAdminDb();
     const farms = await db.query.farms.findMany({});
-    expect(farms).toHaveLength(1);
+    expect(farms).toHaveLength(2);
   });
 
   it("updates a farm", async () => {
@@ -203,8 +203,8 @@ describe("Farm Invites", () => {
     const { userId: memberId } = await createFarmMember(ownerJwt, "member@test.com", { role: "member" });
 
     const db = getAdminDb();
-    const profile = await db.query.profiles.findFirst({ where: { id: memberId } });
-    expect(profile?.farmRole).toBe("member");
+    const membership = await db.query.farmMembers.findFirst({ where: { userId: memberId } });
+    expect(membership?.role).toBe("member");
   });
 
   it("accepted invite with owner role sets the invitee as owner", async () => {
@@ -212,8 +212,8 @@ describe("Farm Invites", () => {
     const { userId: coOwnerId } = await createFarmMember(ownerJwt, "coowner@test.com", { role: "owner" });
 
     const db = getAdminDb();
-    const profile = await db.query.profiles.findFirst({ where: { id: coOwnerId } });
-    expect(profile?.farmRole).toBe("owner");
+    const membership = await db.query.farmMembers.findFirst({ where: { userId: coOwnerId } });
+    expect(membership?.role).toBe("owner");
   });
 
   it("non-owner cannot create invites", async () => {

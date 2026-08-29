@@ -1,4 +1,4 @@
-import { and, defineRelations, eq, isNotNull, or, sql } from "drizzle-orm";
+import { and, defineRelations, eq, or, sql } from "drizzle-orm";
 import {
   boolean,
   customType,
@@ -102,8 +102,6 @@ export const profiles = pgTable.withRLS(
     fullName: text(),
     emailVerified: boolean().notNull().default(false),
     locale: text().notNull().default("de"),
-    farmId: uuid().references(() => farms.id, { onDelete: "set null" }),
-    farmRole: farmRoleEnum(),
     stripeCustomerId: text(),
   },
   (table) => [
@@ -128,7 +126,10 @@ export const profiles = pgTable.withRLS(
       as: "permissive",
       to: authenticatedRole,
       for: "select",
-      using: or(and(isNotNull(table.farmId), eq(table.farmId, currentFarmId)), eq(selectAuthUid, table.id)),
+      using: or(
+        sql`EXISTS (SELECT 1 FROM farm_members WHERE farm_id = ${currentFarmId} AND user_id = ${table.id})`,
+        eq(selectAuthUid, table.id)
+      ),
     }),
   ]
 );
@@ -170,6 +171,35 @@ export const farms = pgTable.withRLS(
       to: authenticatedRole,
       for: "delete",
       using: eq(currentFarmId, table.id),
+    }),
+  ]
+);
+
+// Many-to-many membership: a user can belong to multiple farms, with a role per farm.
+// No insert/update/delete policy for authenticatedRole — all mutations go through db.admin
+// from vetted server-side logic (farms.ts / farm-invites.ts). Unlike profiles.farmId/farmRole
+// before it, a user can never write their own membership row directly.
+export const farmMembers = pgTable.withRLS(
+  "farm_members",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    farmId: uuid()
+      .notNull()
+      .references(() => farms.id, { onDelete: "cascade" }),
+    userId: uuid()
+      .notNull()
+      .references(() => profiles.id, { onDelete: "cascade" }),
+    role: farmRoleEnum().notNull().default("member"),
+    createdAt: timestamp({ mode: "date" }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique("farm_members_farm_user_unique").on(table.farmId, table.userId),
+    index("farm_members_user_id_idx").on(table.userId),
+    pgPolicy("user can read own memberships and farm co-members", {
+      as: "permissive",
+      to: authenticatedRole,
+      for: "select",
+      using: or(eq(table.userId, selectAuthUid), eq(table.farmId, currentFarmId)),
     }),
   ]
 );
@@ -2168,7 +2198,7 @@ export const farmMemberPermissions = pgTable.withRLS(
     access: text().$type<"none" | "read" | "write">().notNull().default("none"),
   },
   (table) => [
-    unique("farm_member_permissions_user_feature_unique").on(table.userId, table.feature),
+    unique("farm_member_permissions_farm_user_feature_unique").on(table.farmId, table.userId, table.feature),
     pgPolicy("farm members can read permissions", {
       as: "permissive",
       to: authenticatedRole,
@@ -2304,6 +2334,7 @@ const tables = {
   federalFarmPlots,
   profiles,
   farms,
+  farmMembers,
   parcels,
   cropRotations,
   cropRotationRecurrences: cropRotationYearlyRecurrences,
@@ -2378,10 +2409,7 @@ const tables = {
 // Define all relations using the new Drizzle v1 API
 export const relations = defineRelations(tables, (r) => ({
   profiles: {
-    farm: r.one.farms({
-      from: r.profiles.farmId,
-      to: r.farms.id,
-    }), // optional - farmId can be null
+    memberships: r.many.farmMembers(),
     handoffTokens: r.many.handoffTokens(),
   },
   handoffTokens: {
@@ -2391,12 +2419,24 @@ export const relations = defineRelations(tables, (r) => ({
     }),
   },
   farms: {
-    users: r.many.profiles(),
+    members: r.many.farmMembers(),
     parcels: r.many.parcels(),
     plots: r.many.plots(),
     harvests: r.many.harvests(),
     fertilizerApplications: r.many.fertilizerApplications(),
     invites: r.many.farmInvites(),
+  },
+  farmMembers: {
+    farm: r.one.farms({
+      from: r.farmMembers.farmId,
+      to: r.farms.id,
+      optional: false,
+    }),
+    user: r.one.profiles({
+      from: r.farmMembers.userId,
+      to: r.profiles.id,
+      optional: false,
+    }),
   },
   userSubscriptions: {
     user: r.one.profiles({

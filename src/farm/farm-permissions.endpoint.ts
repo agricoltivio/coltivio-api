@@ -39,7 +39,7 @@ export const resetMemberPermissionEndpoint = ownerOnlyEndpointFactory.build({
   input: z.object({ userId: z.string(), feature: farmPermissionFeatureSchema }),
   output: z.object({}),
   handler: async ({ input, ctx }) => {
-    await ctx.farmPermissions.resetFeatureAccess(input.userId, input.feature);
+    await ctx.farmPermissions.resetFeatureAccess(input.userId, ctx.farmId, input.feature);
     return {};
   },
 });

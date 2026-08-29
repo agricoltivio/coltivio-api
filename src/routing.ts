@@ -89,6 +89,7 @@ import {
   deleteFarmEndpoint,
   getFarmEndpoint,
   getFarmStatsEndpoint,
+  listMyFarmsEndpoint,
   updateFarmEndpoint,
 } from "./farm/farm.endpoint";
 import {
@@ -378,6 +379,9 @@ export const routing: Routing = {
     },
     captcha: {
       verify: verifyCaptchaEndpoint,
+    },
+    farms: {
+      "": { get: listMyFarmsEndpoint },
     },
     farm: {
       "": {
