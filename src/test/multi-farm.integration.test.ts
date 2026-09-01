@@ -13,7 +13,7 @@ async function inviteExistingUserToFarm(
   farmId: string,
   role: "owner" | "member" = "member"
 ) {
-  const inviteRes = await request("POST", "/v1/farm/invites", { email: targetEmail, role }, ownerJwt);
+  const inviteRes = await request("POST", "/v1/farm/invites", { email: targetEmail, role }, ownerJwt, farmId);
   expect(inviteRes.status).toBe(200);
 
   const db = getAdminDb();

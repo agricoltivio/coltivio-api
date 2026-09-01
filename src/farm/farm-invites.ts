@@ -97,14 +97,28 @@ export function farmInvitesApi(rlsDb: RlsDb, t: TFunction) {
           invite.permissions.map((p) => [p.feature as FarmPermissionFeature, p.access as "none" | "read" | "write"])
         );
         const allFeatures = tables.farmPermissionFeatureEnum.enumValues;
-        await tx.insert(tables.farmMemberPermissions).values(
-          allFeatures.map((feature) => ({
-            userId: user.id,
-            farmId: invite.farmId,
-            feature,
-            access: (grantMap.get(feature) ?? "none") as "none" | "read" | "write",
-          }))
-        );
+        // Upsert (not plain insert): defense in depth against a stray pre-existing row for this
+        // (farmId, userId, feature) — e.g. left over from before a farm's owner is required to
+        // target only current members when granting permissions — colliding with the unique
+        // constraint and turning a normal invite-accept into an unhandled 500.
+        await tx
+          .insert(tables.farmMemberPermissions)
+          .values(
+            allFeatures.map((feature) => ({
+              userId: user.id,
+              farmId: invite.farmId,
+              feature,
+              access: (grantMap.get(feature) ?? "none") as "none" | "read" | "write",
+            }))
+          )
+          .onConflictDoUpdate({
+            target: [
+              tables.farmMemberPermissions.farmId,
+              tables.farmMemberPermissions.userId,
+              tables.farmMemberPermissions.feature,
+            ],
+            set: { access: sql`excluded.access` },
+          });
 
         return { ...user, farmId: invite.farmId, farmRole: invite.role };
       });

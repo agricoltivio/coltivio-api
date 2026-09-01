@@ -1,3 +1,4 @@
+import createHttpError from "http-errors";
 import { z } from "zod";
 import { farmEndpointFactory, ownerOnlyEndpointFactory } from "../endpoint-factory";
 import { farmPermissionFeatureSchema } from "../db/schema";
@@ -29,6 +30,10 @@ export const setMemberPermissionEndpoint = ownerOnlyEndpointFactory.build({
   }),
   output: z.object({}),
   handler: async ({ input, ctx }) => {
+    const member = await ctx.farms.getFarmMember(ctx.farmId, input.userId);
+    if (!member) {
+      throw createHttpError(404, "Member not found in this farm");
+    }
     await ctx.farmPermissions.setFeatureAccess(input.userId, ctx.farmId, input.feature, input.access);
     return {};
   },
@@ -39,6 +44,10 @@ export const resetMemberPermissionEndpoint = ownerOnlyEndpointFactory.build({
   input: z.object({ userId: z.string(), feature: farmPermissionFeatureSchema }),
   output: z.object({}),
   handler: async ({ input, ctx }) => {
+    const member = await ctx.farms.getFarmMember(ctx.farmId, input.userId);
+    if (!member) {
+      throw createHttpError(404, "Member not found in this farm");
+    }
     await ctx.farmPermissions.resetFeatureAccess(input.userId, ctx.farmId, input.feature);
     return {};
   },

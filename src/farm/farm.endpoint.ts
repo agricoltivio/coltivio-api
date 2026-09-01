@@ -127,6 +127,12 @@ export const deleteFarmEndpoint = farmEndpointFactory.build({
     if (ctx.farmRole !== "owner") {
       throw createHttpError(403, "Only farm owners can delete the farm");
     }
+    if (input.deleteAccount) {
+      // Checked before anything is deleted: if this would strand another farm you solely own,
+      // fail cleanly with neither the farm nor the account touched, rather than deleting this
+      // farm and only then discovering the account can't follow.
+      await ctx.users.assertCanDeleteAccount(ctx.user.id, ctx.farmId);
+    }
     await ctx.farms.deleteFarm(ctx.farmId);
     if (input.deleteAccount) {
       await ctx.users.deleteUser(ctx.user.id);

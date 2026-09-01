@@ -62,7 +62,7 @@ export const getUserProfileByIdEndpoint = farmEndpointFactory.build({
       ctx.wikiModeration.isModerator(input.userId),
       ctx.farms.getFarmMember(ctx.farmId, input.userId),
     ]);
-    if (!user || !member) {
+    if (!member) {
       throw createHttpError(404, "User not found");
     }
     return { ...user, farmId: ctx.farmId, farmRole: member.role, isWikiModerator };

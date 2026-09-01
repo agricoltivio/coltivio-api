@@ -317,13 +317,7 @@ describe("Profile access control", () => {
 
     // User A tries to read User B's profile
     const res = await request("GET", `/v1/users/byId/${userB.userId}`, undefined, userA.jwt);
-    // Should be 404 or empty due to RLS
-    expect([404, 500].includes(res.status) || res.status === 200).toBe(true);
-    if (res.status === 200) {
-      // If 200, the response should NOT contain user B's data
-      const body = (await res.json()) as { data: { id: string } | null };
-      expect(body.data?.id).not.toBe(userB.userId);
-    }
+    expect(res.status).toBe(404);
   });
 
   it("PATCH /v1/me always uses ctx.user.id, never input", async () => {
