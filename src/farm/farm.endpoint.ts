@@ -58,10 +58,21 @@ export const createFarmEndpoint = authenticatedEndpointFactory.build({
   input: createFarmSchema,
   output: farmBaseSchema,
   handler: async ({ input, ctx }) => {
-    if (ctx.user.farmId != null) {
-      throw createHttpError(400, "User already has a farm");
-    }
     return ctx.farms.createFarm(ctx.user.id, input);
+  },
+});
+
+const myFarmSchema = farmBaseSchema.pick({ id: true, name: true, address: true }).extend({
+  role: z.enum(["owner", "member"]),
+});
+
+export const listMyFarmsEndpoint = authenticatedEndpointFactory.build({
+  method: "get",
+  input: z.object({}),
+  output: z.object({ result: z.array(myFarmSchema), count: z.number() }),
+  handler: async ({ ctx }) => {
+    const result = await ctx.farms.listFarmsForUser(ctx.user.id);
+    return { result, count: result.length };
   },
 });
 
@@ -70,7 +81,7 @@ export const updateFarmEndpoint = farmEndpointFactory.build({
   input: updateFarmSchema,
   output: farmSchema,
   handler: async ({ input, ctx }) => {
-    if (ctx.user.farmRole !== "owner") {
+    if (ctx.farmRole !== "owner") {
       throw createHttpError(403, "Only farm owners can update farm settings");
     }
     const [farm, status] = await Promise.all([
@@ -113,8 +124,14 @@ export const deleteFarmEndpoint = farmEndpointFactory.build({
   }),
   output: z.object({}),
   handler: async ({ input, ctx }) => {
-    if (ctx.user.farmRole !== "owner") {
+    if (ctx.farmRole !== "owner") {
       throw createHttpError(403, "Only farm owners can delete the farm");
+    }
+    if (input.deleteAccount) {
+      // Checked before anything is deleted: if this would strand another farm you solely own,
+      // fail cleanly with neither the farm nor the account touched, rather than deleting this
+      // farm and only then discovering the account can't follow.
+      await ctx.users.assertCanDeleteAccount(ctx.user.id, ctx.farmId);
     }
     await ctx.farms.deleteFarm(ctx.farmId);
     if (input.deleteAccount) {

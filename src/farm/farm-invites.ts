@@ -25,11 +25,14 @@ export function farmInvitesApi(rlsDb: RlsDb, t: TFunction) {
     ): Promise<FarmInvite> {
       return rlsDb.rls(async (tx) => {
         // Reject if a profile with that email already belongs to this farm
-        const existingMember = await tx.query.profiles.findFirst({
-          where: { email, farmId },
-        });
-        if (existingMember) {
-          throw createHttpError(409, "User is already a member of this farm");
+        const existingProfile = await tx.query.profiles.findFirst({ where: { email } });
+        if (existingProfile) {
+          const existingMembership = await tx.query.farmMembers.findFirst({
+            where: { farmId, userId: existingProfile.id },
+          });
+          if (existingMembership) {
+            throw createHttpError(409, "User is already a member of this farm");
+          }
         }
 
         const code = crypto.randomBytes(4).toString("hex").toUpperCase();
@@ -54,7 +57,7 @@ export function farmInvitesApi(rlsDb: RlsDb, t: TFunction) {
       });
     },
 
-    async acceptInvite(code: string, user: User): Promise<User> {
+    async acceptInvite(code: string, user: User): Promise<User & { farmId: string; farmRole: "owner" | "member" }> {
       return rlsDb.admin.transaction(async (tx) => {
         const invite = await tx.query.farmInvites.findFirst({
           where: { code },
@@ -73,16 +76,15 @@ export function farmInvitesApi(rlsDb: RlsDb, t: TFunction) {
         if (user.email !== invite.email) {
           throw createHttpError(403, "This invite was sent to a different email address");
         }
-        if (user.farmId !== null) {
-          throw createHttpError(409, "You already belong to a farm");
+        const existingMembership = await tx.query.farmMembers.findFirst({
+          where: { farmId: invite.farmId, userId: user.id },
+        });
+        if (existingMembership) {
+          throw createHttpError(409, "You are already a member of this farm");
         }
 
         // Assign user to the farm with the role specified on the invite
-        const [updatedProfile] = await tx
-          .update(tables.profiles)
-          .set({ farmId: invite.farmId, farmRole: invite.role })
-          .where(eq(tables.profiles.id, user.id))
-          .returning();
+        await tx.insert(tables.farmMembers).values({ farmId: invite.farmId, userId: user.id, role: invite.role });
 
         await tx
           .update(tables.farmInvites)
@@ -95,16 +97,30 @@ export function farmInvitesApi(rlsDb: RlsDb, t: TFunction) {
           invite.permissions.map((p) => [p.feature as FarmPermissionFeature, p.access as "none" | "read" | "write"])
         );
         const allFeatures = tables.farmPermissionFeatureEnum.enumValues;
-        await tx.insert(tables.farmMemberPermissions).values(
-          allFeatures.map((feature) => ({
-            userId: user.id,
-            farmId: invite.farmId,
-            feature,
-            access: (grantMap.get(feature) ?? "none") as "none" | "read" | "write",
-          }))
-        );
+        // Upsert (not plain insert): defense in depth against a stray pre-existing row for this
+        // (farmId, userId, feature) — e.g. left over from before a farm's owner is required to
+        // target only current members when granting permissions — colliding with the unique
+        // constraint and turning a normal invite-accept into an unhandled 500.
+        await tx
+          .insert(tables.farmMemberPermissions)
+          .values(
+            allFeatures.map((feature) => ({
+              userId: user.id,
+              farmId: invite.farmId,
+              feature,
+              access: (grantMap.get(feature) ?? "none") as "none" | "read" | "write",
+            }))
+          )
+          .onConflictDoUpdate({
+            target: [
+              tables.farmMemberPermissions.farmId,
+              tables.farmMemberPermissions.userId,
+              tables.farmMemberPermissions.feature,
+            ],
+            set: { access: sql`excluded.access` },
+          });
 
-        return updatedProfile;
+        return { ...user, farmId: invite.farmId, farmRole: invite.role };
       });
     },
 

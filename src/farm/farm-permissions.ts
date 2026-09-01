@@ -8,8 +8,14 @@ export type { FarmPermissionFeature };
 export class FarmPermissions {
   constructor(private db: RlsDb) {}
 
-  async getFeatureAccess(userId: string, feature: FarmPermissionFeature): Promise<"none" | "read" | "write"> {
-    const row = await this.db.rls((tx) => tx.query.farmMemberPermissions.findFirst({ where: { userId, feature } }));
+  async getFeatureAccess(
+    userId: string,
+    farmId: string,
+    feature: FarmPermissionFeature
+  ): Promise<"none" | "read" | "write"> {
+    const row = await this.db.rls((tx) =>
+      tx.query.farmMemberPermissions.findFirst({ where: { farmId, userId, feature } })
+    );
     return (row?.access as "none" | "read" | "write") ?? "none";
   }
 
@@ -27,15 +33,25 @@ export class FarmPermissions {
       .insert(tables.farmMemberPermissions)
       .values({ userId, farmId, feature, access })
       .onConflictDoUpdate({
-        target: [tables.farmMemberPermissions.userId, tables.farmMemberPermissions.feature],
+        target: [
+          tables.farmMemberPermissions.farmId,
+          tables.farmMemberPermissions.userId,
+          tables.farmMemberPermissions.feature,
+        ],
         set: { access },
       });
   }
 
-  async resetFeatureAccess(userId: string, feature: FarmPermissionFeature): Promise<void> {
+  async resetFeatureAccess(userId: string, farmId: string, feature: FarmPermissionFeature): Promise<void> {
     await this.db.admin
       .delete(tables.farmMemberPermissions)
-      .where(and(eq(tables.farmMemberPermissions.userId, userId), eq(tables.farmMemberPermissions.feature, feature)));
+      .where(
+        and(
+          eq(tables.farmMemberPermissions.farmId, farmId),
+          eq(tables.farmMemberPermissions.userId, userId),
+          eq(tables.farmMemberPermissions.feature, feature)
+        )
+      );
   }
 }
 

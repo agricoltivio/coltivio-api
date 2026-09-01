@@ -89,6 +89,7 @@ import {
   deleteFarmEndpoint,
   getFarmEndpoint,
   getFarmStatsEndpoint,
+  listMyFarmsEndpoint,
   updateFarmEndpoint,
 } from "./farm/farm.endpoint";
 import {
@@ -126,6 +127,7 @@ import {
   getMyUserProfileEndpoint,
   getUserProfileByIdEndpoint,
   kickFarmMemberEndpoint,
+  leaveFarmEndpoint,
   updateUserProfileEndpoint,
 } from "./user/users.endpoint";
 import {
@@ -379,6 +381,9 @@ export const routing: Routing = {
     captcha: {
       verify: verifyCaptchaEndpoint,
     },
+    farms: {
+      "": { get: listMyFarmsEndpoint },
+    },
     farm: {
       "": {
         post: createFarmEndpoint,
@@ -397,6 +402,7 @@ export const routing: Routing = {
         },
       },
       members: {
+        me: { delete: leaveFarmEndpoint },
         byId: {
           ":userId": {
             "": { delete: kickFarmMemberEndpoint },

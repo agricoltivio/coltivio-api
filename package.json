@@ -17,6 +17,7 @@
     "docker:up": "docker-compose up -d",
     "docker:down": "docker-compose down",
     "test": "jest -i",
+    "stripe:dev": "stripe listen --forward-to localhost:8000/v1/webhooks/stripe",
     "generate:api-types": "ts-node ./scripts/generate-openapi-docs.ts",
     "db:reset": "supabase db reset --no-seed && psql postgresql://postgres:postgres@127.0.0.1:54322/postgres -f scripts/setup-test-db.sql && yarn db:migrate && bash scripts/seed-auth.sh",
     "db:seed": "ts-node ./src/db/seed.ts",

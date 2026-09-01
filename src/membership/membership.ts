@@ -86,12 +86,12 @@ export function membershipApi(db: RlsDb) {
     return customer.id;
   }
 
-  // Fetch all userIds who are members of the given farm (via profiles.farmId)
+  // Fetch all userIds who are members of the given farm
   async function getUserIdsForFarm(farmId: string): Promise<string[]> {
-    const farmProfiles = await db.admin.query.profiles.findMany({
+    const members = await db.admin.query.farmMembers.findMany({
       where: { farmId },
     });
-    return farmProfiles.map((p) => p.id);
+    return members.map((m) => m.userId);
   }
 
   // There's at most one userSubscriptions row per user (unique on userId, upserted on create).
@@ -223,19 +223,11 @@ export function membershipApi(db: RlsDb) {
     },
 
     async startTrial(userId: string): Promise<{ trialEnd: Date }> {
-      const profile = await db.admin.query.profiles.findFirst({ where: { id: userId } });
-
-      // If the user belongs to a farm, check that no user in that farm has ever had a trial
-      if (profile?.farmId) {
-        const farmUserIds = await getUserIdsForFarm(profile.farmId);
-        const farmTrial = await db.admin.query.userTrials.findFirst({
-          where: { userId: { in: farmUserIds } },
-        });
-        if (farmTrial) throw createHttpError(409, "Trial already used for this farm");
-      } else {
-        const existing = await db.admin.query.userTrials.findFirst({ where: { userId } });
-        if (existing) throw createHttpError(409, "Trial already used for this user");
-      }
+      // Trial eligibility is per-user (userTrials.userId is unique) — a user can now belong to
+      // multiple farms, so a farm-wide "one trial per farm" rule no longer has a well-defined
+      // single farm to check against.
+      const existing = await db.admin.query.userTrials.findFirst({ where: { userId } });
+      if (existing) throw createHttpError(409, "Trial already used for this user");
 
       const endsAt = new Date();
       endsAt.setDate(endsAt.getDate() + 30);

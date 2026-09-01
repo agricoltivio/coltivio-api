@@ -38,12 +38,13 @@ Every request flows through `express-zod-api`. Endpoints are defined as `Endpoin
 
 **Endpoint factories** (`src/endpoint-factory.ts`) — use the right one:
 - `publicEndpointFactory` — no auth
-- `authenticatedEndpointFactory` — Supabase JWT required; `ctx` gets `user`, `token`, and all session APIs
-- `farmEndpointFactory` — authenticated + `ctx.user.farmId` must exist; `ctx` also gets `farmId`
-- `membershipEndpointFactory` — farm + active membership (includes trial)
-- `paidMembershipEndpointFactory` — farm + paid membership only
+- `authenticatedEndpointFactory` — Supabase JWT required; `ctx` gets `user`, `token`, `farmContext`, and all session APIs
+- `farmEndpointFactory` — authenticated + a farm must be resolved; `ctx` also gets `farmId`/`farmRole`
+- `ownerOnlyEndpointFactory` — farm + caller's role on that farm must be `owner`
 - `userMembershipEndpointFactory` / `userPaidMembershipEndpointFactory` — user-scoped (no farm required)
 - `adminApiKeyEndpointFactory` — static `x-admin-api-key` header, used for internal admin ops
+
+A user can belong to multiple farms (`farm_members` join table, many-to-many with a per-farm role). Which farm a request operates on is resolved per-request in `supabaseAuthMiddleware`, never cached: the `x-farm-id` header if present (validated against `farm_members`, 403 if not a member), otherwise auto-defaulted when the user has exactly one farm, otherwise ambiguous (`farmEndpointFactory` 400s asking for the header). `profiles` no longer has `farmId`/`farmRole` columns.
 
 ### Session API
 
@@ -69,7 +70,7 @@ For complex WHERE with OR/AND, use `tx.select().from(table).where(eq(...))`.
 
 All tables in `src/db/schema.ts` — includes enums, relations (via `defineRelations`), and exported Zod schemas. Relations are defined at the bottom. Zod enums exported as `export const xSchema = z.enum(xEnum.enumValues)`.
 
-RLS: all tables use `pgTable.withRLS()` with pgPolicy. Farm-scoped inserts need `farmId: ctx.farmId` (resolved from `farm_id()` SQL function via session config).
+RLS: all tables use `pgTable.withRLS()` with pgPolicy. Farm-scoped inserts need `farmId: ctx.farmId` (resolved from `farm_id()` SQL function via session config, itself set from the per-request farm resolution described above — `farm_id()` and the RLS policies only ever see a single farm id per request, regardless of how many farms the user belongs to).
 
 ### Module structure
 

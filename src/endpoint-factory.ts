@@ -45,13 +45,56 @@ export const supabaseAuthMiddleware = new Middleware({
       await adminDrizzle.update(tables.profiles).set({ locale: requestLocale }).where(eq(tables.profiles.id, user.id));
       user.locale = requestLocale;
     }
+
+    const farmContext = await resolveFarmContext(request.headers["x-farm-id"], user.id);
+
     return {
       token,
       user,
-      ...sessionApi(rlsDb(token, user.farmId), request.t, request.headers["accept-language"] ?? "de"),
+      farmContext,
+      ...sessionApi(rlsDb(token, farmContext.farmId), request.t, request.headers["accept-language"] ?? "de"),
     };
   },
 });
+
+export type FarmContext = {
+  farmId: string | null;
+  farmRole: "owner" | "member" | null;
+  // true when the user belongs to 2+ farms and didn't specify which one via the x-farm-id header
+  ambiguous: boolean;
+};
+
+const uuidSchema = z.string().uuid();
+
+// Resolves which farm a request operates on. Never trusts the header blindly — it's always
+// checked against farm_members. Falls back to auto-selecting the user's only farm when the
+// header is omitted, which is what keeps every existing single-farm client working unchanged.
+async function resolveFarmContext(farmIdHeader: string | string[] | undefined, userId: string): Promise<FarmContext> {
+  const requestedFarmId = typeof farmIdHeader === "string" ? farmIdHeader : undefined;
+  if (requestedFarmId !== undefined && !uuidSchema.safeParse(requestedFarmId).success) {
+    throw createHttpError(400, "Invalid x-farm-id header");
+  }
+
+  const memberships = await adminDrizzle.query.farmMembers.findMany({ where: { userId } });
+
+  if (requestedFarmId) {
+    const match = memberships.find((m) => m.farmId === requestedFarmId);
+    if (!match) {
+      throw createHttpError(403, "You are not a member of the specified farm");
+    }
+    return { farmId: match.farmId, farmRole: match.role, ambiguous: false };
+  }
+
+  if (memberships.length === 1) {
+    return { farmId: memberships[0].farmId, farmRole: memberships[0].role, ambiguous: false };
+  }
+
+  if (memberships.length > 1) {
+    return { farmId: null, farmRole: null, ambiguous: true };
+  }
+
+  return { farmId: null, farmRole: null, ambiguous: false };
+}
 
 const sentryEndpointFactory = new EndpointsFactory(sentryResultHandler);
 
@@ -71,10 +114,13 @@ export const farmEndpointFactory = authenticatedEndpointFactory.addMiddleware(
   new Middleware({
     input: z.object({}),
     handler: async ({ input: {}, request: _request, logger: _logger, ctx }) => {
-      if (!ctx.user.farmId) {
+      if (ctx.farmContext.ambiguous) {
+        throw createHttpError(400, "You belong to multiple farms; specify the X-Farm-Id header");
+      }
+      if (!ctx.farmContext.farmId) {
         throw createHttpError(400, "User has no farm");
       }
-      return { farmId: ctx.user.farmId };
+      return { farmId: ctx.farmContext.farmId, farmRole: ctx.farmContext.farmRole };
     },
   })
 );
@@ -108,7 +154,7 @@ export const ownerOnlyEndpointFactory = farmEndpointFactory.addMiddleware(
   new Middleware({
     input: z.object({}),
     handler: async ({ ctx }) => {
-      if (ctx.user.farmRole !== "owner") {
+      if (ctx.farmRole !== "owner") {
         throw createHttpError(403, "Only farm owners can perform this action");
       }
       return {};
@@ -124,8 +170,8 @@ export function permissionFarmEndpoint(feature: FarmPermissionFeature, access: "
     new Middleware({
       input: z.object({}),
       handler: async ({ ctx }) => {
-        if (ctx.user.farmRole === "owner") return {};
-        const userAccess = await ctx.farmPermissions.getFeatureAccess(ctx.user.id, feature);
+        if (ctx.farmRole === "owner") return {};
+        const userAccess = await ctx.farmPermissions.getFeatureAccess(ctx.user.id, ctx.farmId, feature);
         if (userAccess === "none") throw createHttpError(403, `Access denied for: ${feature}`);
         if (access === "write" && userAccess !== "write")
           throw createHttpError(403, `Write access required for: ${feature}`);
