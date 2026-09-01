@@ -7,6 +7,10 @@ import { plotJournalStorage } from "../supabase/supabase";
 
 const SIGNED_URL_EXPIRY_SECONDS = 3600;
 
+// Shape produced by requestSignedImageUrl: "<entryUuid>/<randomUuid>.<ext>". Validating the
+// whole path (rather than only its prefix) keeps traversal segments out of the storage key.
+const STORAGE_PATH_PATTERN = /^[0-9a-f-]{36}\/[0-9a-f-]{36}\.[a-z0-9]{1,5}$/i;
+
 export type PlotJournalImage = {
   id: string;
   journalEntryId: string;
@@ -125,11 +129,24 @@ export function plotJournalApi(db: RlsDb) {
     });
   }
 
+  async function assertEntryInCurrentFarm(journalEntryId: string): Promise<void> {
+    const entry = await db.rls((tx) => tx.query.plotJournalEntries.findFirst({ where: { id: journalEntryId } }));
+    if (!entry) {
+      throw createHttpError(404, "Journal entry not found");
+    }
+  }
+
   async function requestSignedImageUrl(
     journalEntryId: string,
     filename: string
   ): Promise<{ signedUrl: string; path: string }> {
-    const ext = filename.split(".").pop() ?? "bin";
+    await assertEntryInCurrentFarm(journalEntryId);
+
+    // The extension comes from a client-supplied filename, so normalise it here rather than
+    // letting an arbitrary string into the storage key. Expo's asset.fileName is optional, so
+    // a filename with no extension is a normal case and falls back to "bin".
+    const rawExt = filename.split(".").pop() ?? "";
+    const ext = /^[a-z0-9]{1,5}$/i.test(rawExt) ? rawExt.toLowerCase() : "bin";
     const path = `${journalEntryId}/${uuidv4()}.${ext}`;
 
     const { data, error } = await plotJournalStorage.createSignedUploadUrl(path);
@@ -140,11 +157,16 @@ export function plotJournalApi(db: RlsDb) {
   }
 
   async function registerImage(journalEntryId: string, storagePath: string): Promise<PlotJournalImage> {
-    if (!storagePath.startsWith(`${journalEntryId}/`)) {
+    await assertEntryInCurrentFarm(journalEntryId);
+
+    // Path must be scoped to the journal entry folder and match the shape we hand out
+    if (!STORAGE_PATH_PATTERN.test(storagePath) || !storagePath.startsWith(`${journalEntryId}/`)) {
       throw createHttpError(400, "Invalid storage path for this journal entry");
     }
 
-    const [image] = await db.admin.insert(plotJournalImages).values({ journalEntryId, storagePath }).returning();
+    const [image] = await db.rls((tx) =>
+      tx.insert(plotJournalImages).values({ journalEntryId, storagePath }).returning()
+    );
 
     const { data, error } = await plotJournalStorage.createSignedUrl(image.storagePath, SIGNED_URL_EXPIRY_SECONDS);
     if (error || !data) {

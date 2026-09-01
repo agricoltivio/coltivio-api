@@ -219,6 +219,96 @@ describe("Plot Journal — farm isolation", () => {
 describe("Plot Journal — image registration", () => {
   beforeEach(cleanDb);
 
+  it("farm B cannot request a signed upload URL for farm A's journal entry", async () => {
+    const { jwt: jwtA } = await createUserWithFarm({}, "a@test.com", { withActiveMembership: true });
+    const { jwt: jwtB } = await createUserWithFarm({}, "b@test.com", { withActiveMembership: true });
+
+    const plotA = await createPlot(jwtA);
+    const entryA = await createJournalEntry(jwtA, plotA.id);
+
+    const res = await request(
+      "POST",
+      "/v1/plots/journal/images/signedUrl",
+      { journalEntryId: entryA.id, filename: "evil.jpg" },
+      jwtB
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it("farm B cannot register an image against farm A's journal entry", async () => {
+    const { jwt: jwtA } = await createUserWithFarm({}, "a@test.com", { withActiveMembership: true });
+    const { jwt: jwtB } = await createUserWithFarm({}, "b@test.com", { withActiveMembership: true });
+
+    const plotA = await createPlot(jwtA);
+    const entryA = await createJournalEntry(jwtA, plotA.id);
+
+    const res = await request(
+      "POST",
+      "/v1/plots/journal/images",
+      { journalEntryId: entryA.id, storagePath: `${entryA.id}/11111111-1111-4111-8111-111111111111.jpg` },
+      jwtB
+    );
+    expect(res.status).toBe(404);
+
+    // No row may have been written for farm A's entry
+    const db = getAdminDb();
+    const images = await db.query.plotJournalImages.findMany({
+      where: { journalEntryId: entryA.id as string },
+    });
+    expect(images).toHaveLength(0);
+  });
+
+  it("rejects a storage path whose extension is not a normal file extension", async () => {
+    const { jwt } = await createUserWithFarm({}, "test@test.com", { withActiveMembership: true });
+    const plot = await createPlot(jwt);
+    const entry = await createJournalEntry(jwt, plot.id);
+
+    // requestSignedImageUrl normalises the extension, so a path like this can never come
+    // from the server — a client sending one is constructing the path itself.
+    const res = await request(
+      "POST",
+      "/v1/plots/journal/images",
+      { journalEntryId: entry.id, storagePath: `${entry.id}/33333333-3333-4333-8333-333333333333.image_1756713600000` },
+      jwt
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("rejects a storage path containing traversal segments", async () => {
+    const { jwt } = await createUserWithFarm({}, "test@test.com", { withActiveMembership: true });
+    const plot = await createPlot(jwt);
+    const entry = await createJournalEntry(jwt, plot.id);
+
+    const res = await request(
+      "POST",
+      "/v1/plots/journal/images",
+      { journalEntryId: entry.id, storagePath: `${entry.id}/../../wiki-images/evil.jpg` },
+      jwt
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("registers an image on the caller's own journal entry", async () => {
+    const { jwt } = await createUserWithFarm({}, "test@test.com", { withActiveMembership: true });
+    const plot = await createPlot(jwt);
+    const entry = await createJournalEntry(jwt, plot.id);
+    const storagePath = `${entry.id}/22222222-2222-4222-8222-222222222222.jpg`;
+
+    const res = await request("POST", "/v1/plots/journal/images", { journalEntryId: entry.id, storagePath }, jwt);
+    // Storage is not available in the test environment, so the signed-URL step after the
+    // insert may fail — what matters is that the ownership guard let the request through
+    // and the row was written under RLS.
+    expect(res.status).not.toBe(404);
+    expect(res.status).not.toBe(400);
+
+    const db = getAdminDb();
+    const images = await db.query.plotJournalImages.findMany({
+      where: { journalEntryId: entry.id as string },
+    });
+    expect(images).toHaveLength(1);
+    expect(images[0].storagePath).toBe(storagePath);
+  });
+
   it("rejects registerImage with path not scoped to the journal entry", async () => {
     const { jwt } = await createUserWithFarm({}, "test@test.com", { withActiveMembership: true });
     const plot = await createPlot(jwt);
