@@ -140,3 +140,7 @@ __generated__
 # Supabase scratch queries
 supabase/snippets/
 
+# Database backups — contain real user data, never commit
+backup_data_*.sql
+backups/
+

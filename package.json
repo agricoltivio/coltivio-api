@@ -25,6 +25,7 @@
     "db:generate": "yarn drizzle-kit generate",
     "db:migrate": "yarn drizzle-kit migrate",
     "db:backup": "supabase db dump --data-only --exclude=public.federal_farm_plots -f backup_data_$(date +%Y%m%d).sql",
+    "db:backup:prod": "bash scripts/backup-prod-db.sh",
     "fix": "ts-node ./to_geojson.ts",
     "lint": "eslint src --fix",
     "format": "prettier --write \"src/**/*.ts\"",
