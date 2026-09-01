@@ -246,4 +246,40 @@ describe("Multi-farm support", () => {
     });
     expect(res.status).toBe(400);
   });
+
+  it("a plain member can leave a farm on their own, keeping their other farms intact", async () => {
+    const owner = await createUserWithFarm({ name: "Farm A" }, "leavemembera@test.com");
+    const { jwt: memberJwt, userId: memberId } = await createUserWithFarm({ name: "Farm B" }, "leavememberb@test.com");
+    await inviteExistingUserToFarm(owner.jwt, "leavememberb@test.com", memberJwt, owner.farmId, "member");
+    await grantMemberWriteAccess(owner.jwt, memberId, "animals");
+
+    const leaveRes = await request("DELETE", "/v1/farm/members/me", undefined, memberJwt, owner.farmId);
+    expect(leaveRes.status).toBe(200);
+
+    const db = getAdminDb();
+    const memberships = await db.query.farmMembers.findMany({ where: { userId: memberId } });
+    expect(memberships).toHaveLength(1);
+    expect(memberships[0].farmId).not.toBe(owner.farmId); // still in their own Farm B
+
+    const permissions = await db.query.farmMemberPermissions.findMany({
+      where: { farmId: owner.farmId, userId: memberId },
+    });
+    expect(permissions).toHaveLength(0);
+  });
+
+  it("an owner can leave a farm when another owner remains", async () => {
+    const ownerA = await createUserWithFarm({ name: "Farm A" }, "leaveownera@test.com");
+    const { jwt: ownerBJwt, userId: ownerBId } = await createTestUser("leaveownerb@test.com", "password123");
+    await inviteExistingUserToFarm(ownerA.jwt, "leaveownerb@test.com", ownerBJwt, ownerA.farmId, "owner");
+
+    const leaveRes = await request("DELETE", "/v1/farm/members/me", undefined, ownerA.jwt, ownerA.farmId);
+    expect(leaveRes.status).toBe(200);
+
+    const db = getAdminDb();
+    expect(await db.query.farmMembers.findFirst({ where: { userId: ownerA.userId } })).toBeUndefined();
+    const remaining = await db.query.farmMembers.findFirst({ where: { userId: ownerBId } });
+    expect(remaining?.role).toBe("owner");
+    // The farm itself is untouched, just ownerA's membership is gone.
+    expect(await db.query.farms.findFirst({ where: { id: ownerA.farmId } })).toBeDefined();
+  });
 });

@@ -279,6 +279,37 @@ export function farmsApi(rlsDb: RlsDb, t: TFunction) {
           );
       });
     },
+    // Self-service removal: unlike kickMember, any current member (not just owners) can call
+    // this on themselves — the only restriction is the same "don't strand the farm" rule that
+    // already applies to kick/demote.
+    async leaveFarm(userId: string, farmId: string) {
+      return rlsDb.admin.transaction(async (tx) => {
+        const members = await tx.query.farmMembers.findMany({ where: { farmId } });
+
+        const self = members.find((m) => m.userId === userId);
+        if (!self) {
+          throw createHttpError(404, "You are not a member of this farm");
+        }
+
+        if (self.role === "owner") {
+          const ownerCount = members.filter((m) => m.role === "owner").length;
+          if (ownerCount <= 1) {
+            throw createHttpError(
+              400,
+              "You are the only owner of this farm — transfer ownership or delete the farm instead of leaving"
+            );
+          }
+        }
+
+        await tx
+          .delete(tables.farmMembers)
+          .where(and(eq(tables.farmMembers.farmId, farmId), eq(tables.farmMembers.userId, userId)));
+
+        await tx
+          .delete(tables.farmMemberPermissions)
+          .where(and(eq(tables.farmMemberPermissions.farmId, farmId), eq(tables.farmMemberPermissions.userId, userId)));
+      });
+    },
     async changeMemberRole(targetUserId: string, callerId: string, farmId: string, newRole: "owner" | "member") {
       return rlsDb.admin.transaction(async (tx) => {
         const members = await tx.query.farmMembers.findMany({ where: { farmId } });

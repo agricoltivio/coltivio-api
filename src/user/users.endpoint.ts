@@ -112,6 +112,16 @@ export const deleteUserProfileEndpoint = authenticatedEndpointFactory.build({
   },
 });
 
+export const leaveFarmEndpoint = farmEndpointFactory.build({
+  method: "delete",
+  input: z.object({}),
+  output: z.object({}),
+  handler: async ({ ctx }) => {
+    await ctx.farms.leaveFarm(ctx.user.id, ctx.farmId);
+    return {};
+  },
+});
+
 export const kickFarmMemberEndpoint = farmEndpointFactory.build({
   method: "delete",
   input: z.object({ userId: z.string() }),

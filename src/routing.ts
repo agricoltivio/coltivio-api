@@ -127,6 +127,7 @@ import {
   getMyUserProfileEndpoint,
   getUserProfileByIdEndpoint,
   kickFarmMemberEndpoint,
+  leaveFarmEndpoint,
   updateUserProfileEndpoint,
 } from "./user/users.endpoint";
 import {
@@ -401,6 +402,7 @@ export const routing: Routing = {
         },
       },
       members: {
+        me: { delete: leaveFarmEndpoint },
         byId: {
           ":userId": {
             "": { delete: kickFarmMemberEndpoint },

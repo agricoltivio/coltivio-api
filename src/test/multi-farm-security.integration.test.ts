@@ -268,6 +268,16 @@ describe("Multi-farm security", () => {
     expect(res.status).toBe(400);
   });
 
+  it("the only owner of a farm cannot leave it", async () => {
+    const owner = await createUserWithFarm({ name: "Farm A" }, "onlyownerleave@test.com");
+    const res = await request("DELETE", "/v1/farm/members/me", undefined, owner.jwt, owner.farmId);
+    expect(res.status).toBe(400);
+
+    const db = getAdminDb();
+    const membership = await db.query.farmMembers.findFirst({ where: { userId: owner.userId } });
+    expect(membership).toBeDefined();
+  });
+
   // ---------------------------------------------------------------------------
   // Deleting your account through one farm's "delete farm + account" flow must not be able to
   // strand or orphan a completely different farm you also own.
