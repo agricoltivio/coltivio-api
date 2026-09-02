@@ -43,7 +43,11 @@ max_client_conn = 100
 
 [db.seed]
 # If enabled, seeds the database after migrations during a db reset.
-enabled = true
+# Disabled: seed.sql depends on tables created by Drizzle migrations (not
+# Supabase migrations, which are empty), so auto-seed runs too early and fails
+# on `federal_farm_plots`. seed.sql is loaded by scripts/seed-auth.sh in
+# `yarn db:reset` instead, after migrations + with the user UUID substituted.
+enabled = false
 # Specifies an ordered list of seed files to load during db reset.
 # Supports glob patterns relative to supabase directory. For example:
 # sql_paths = ['./seeds/*.sql', '../project-src/seeds/*-load-testing.sql']

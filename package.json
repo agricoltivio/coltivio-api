@@ -19,7 +19,7 @@
     "test": "jest -i",
     "stripe:dev": "stripe listen --forward-to localhost:8000/v1/webhooks/stripe",
     "generate:api-types": "ts-node ./scripts/generate-openapi-docs.ts",
-    "db:reset": "supabase db reset --no-seed && psql postgresql://postgres:postgres@127.0.0.1:54322/postgres -f scripts/setup-test-db.sql && yarn db:migrate && bash scripts/seed-auth.sh",
+    "db:reset": "supabase db reset --no-seed && psql postgresql://postgres:postgres@127.0.0.1:54322/postgres -f scripts/setup-test-db.sql && yarn db:migrate && node scripts/seed-auth.mjs",
     "db:seed": "ts-node ./src/db/seed.ts",
     "db:push": "npx drizzle-kit push",
     "db:generate": "yarn drizzle-kit generate",
@@ -65,6 +65,7 @@
     "postgres": "^3.4.8",
     "shpjs": "^6.1.0",
     "stripe": "^20.4.1",
+    "supabase": "^2.103.0",
     "ts-node": "^10.9.2",
     "uuid": "^13.0.0",
     "zod": "^4.3.5"
