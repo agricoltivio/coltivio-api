@@ -60,8 +60,10 @@ export const supabaseAuthMiddleware = new Middleware({
 export type FarmContext = {
   farmId: string | null;
   farmRole: "owner" | "member" | null;
-  // true when the user belongs to 2+ farms and didn't specify which one via the x-farm-id header
-  ambiguous: boolean;
+  // why no farm could be resolved; null when a farm was resolved or the user simply has no farms.
+  // "ambiguous": belongs to 2+ farms and didn't specify which one via the x-farm-id header.
+  // "not_a_member": the header named a farm they don't belong to (typically stale client state).
+  unresolved: "ambiguous" | "not_a_member" | null;
 };
 
 const uuidSchema = z.string().uuid();
@@ -69,8 +71,15 @@ const uuidSchema = z.string().uuid();
 // Resolves which farm a request operates on. Never trusts the header blindly — it's always
 // checked against farm_members. Falls back to auto-selecting the user's only farm when the
 // header is omitted, which is what keeps every existing single-farm client working unchanged.
+//
+// This only *reports* an unresolvable farm, it doesn't reject: rejecting here would run for every
+// authenticated request and leave a client with a stale x-farm-id deadlocked — unable to call
+// /v1/farms to find out which farms it does belong to. farmEndpointFactory does the rejecting,
+// since it's the only layer that actually needs a farm. Note there is still no silent fallback to
+// a different farm: an unresolvable header yields farmId null, so RLS sees no farm at all.
 async function resolveFarmContext(farmIdHeader: string | string[] | undefined, userId: string): Promise<FarmContext> {
   const requestedFarmId = typeof farmIdHeader === "string" ? farmIdHeader : undefined;
+  // A non-UUID header is a broken client rather than stale state, so it still fails loudly.
   if (requestedFarmId !== undefined && !uuidSchema.safeParse(requestedFarmId).success) {
     throw createHttpError(400, "Invalid x-farm-id header");
   }
@@ -80,20 +89,20 @@ async function resolveFarmContext(farmIdHeader: string | string[] | undefined, u
   if (requestedFarmId) {
     const match = memberships.find((m) => m.farmId === requestedFarmId);
     if (!match) {
-      throw createHttpError(403, "You are not a member of the specified farm");
+      return { farmId: null, farmRole: null, unresolved: "not_a_member" };
     }
-    return { farmId: match.farmId, farmRole: match.role, ambiguous: false };
+    return { farmId: match.farmId, farmRole: match.role, unresolved: null };
   }
 
   if (memberships.length === 1) {
-    return { farmId: memberships[0].farmId, farmRole: memberships[0].role, ambiguous: false };
+    return { farmId: memberships[0].farmId, farmRole: memberships[0].role, unresolved: null };
   }
 
   if (memberships.length > 1) {
-    return { farmId: null, farmRole: null, ambiguous: true };
+    return { farmId: null, farmRole: null, unresolved: "ambiguous" };
   }
 
-  return { farmId: null, farmRole: null, ambiguous: false };
+  return { farmId: null, farmRole: null, unresolved: null };
 }
 
 const sentryEndpointFactory = new EndpointsFactory(sentryResultHandler);
@@ -114,7 +123,10 @@ export const farmEndpointFactory = authenticatedEndpointFactory.addMiddleware(
   new Middleware({
     input: z.object({}),
     handler: async ({ input: {}, request: _request, logger: _logger, ctx }) => {
-      if (ctx.farmContext.ambiguous) {
+      if (ctx.farmContext.unresolved === "not_a_member") {
+        throw createHttpError(403, "You are not a member of the specified farm");
+      }
+      if (ctx.farmContext.unresolved === "ambiguous") {
         throw createHttpError(400, "You belong to multiple farms; specify the X-Farm-Id header");
       }
       if (!ctx.farmContext.farmId) {
