@@ -61,6 +61,8 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+-- Keeps profiles in sync with auth.users. A changed address invalidates the verification,
+-- so the client never needs write access to email_verified.
 CREATE OR REPLACE FUNCTION public.update_profile()
 RETURNS trigger
 SET search_path = ''
@@ -69,6 +71,13 @@ BEGIN
   UPDATE public.profiles
   SET (email, full_name) = (NEW.email, NEW.raw_user_meta_data->>'full_name')
   WHERE id = NEW.id;
+
+  IF NEW.email IS DISTINCT FROM OLD.email THEN
+    UPDATE public.profiles
+    SET email_verified = false, verification_email_sent_at = NULL
+    WHERE id = NEW.id;
+  END IF;
+
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

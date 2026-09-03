@@ -28,7 +28,7 @@ const myProfileSchema = userSchema.extend({
 const updateUserSchema = z
   .object({
     fullName: z.string().optional(),
-    emailVerified: z.boolean().optional(),
+    newsletterConsent: z.boolean().optional(),
   })
   .partial();
 
@@ -94,8 +94,12 @@ export const updateUserProfileEndpoint = authenticatedEndpointFactory.build({
   input: updateUserSchema,
   output: userSchema,
   handler: async ({ input, ctx }) => {
+    const { newsletterConsent, ...profileInput } = input;
+    if (newsletterConsent !== undefined) {
+      await ctx.users.setNewsletterConsent(ctx.user.id, newsletterConsent);
+    }
     const [user, isWikiModerator] = await Promise.all([
-      ctx.users.updateUser(ctx.user.id, input),
+      ctx.users.updateUser(ctx.user.id, profileInput),
       ctx.wikiModeration.isModerator(ctx.user.id),
     ]);
     return { ...user, farmId: ctx.farmContext.farmId, farmRole: ctx.farmContext.farmRole, isWikiModerator };

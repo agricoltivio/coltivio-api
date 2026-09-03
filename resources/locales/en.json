@@ -458,6 +458,31 @@
     "product_name": "Donation to Coltivio",
     "amount": "Amount"
   },
+  "verification_email": {
+    "subject": "Confirm your email address",
+    "subtitle": "from AgriColtivio",
+    "greeting": "Hello {{name}}",
+    "intro": "Good to have you on board. Please confirm your email address so we can reach you with questions about your farm and get your account back to you if you ever forget your password.",
+    "cta": "Confirm email",
+    "expiry_note": "The link is valid for 14 days.",
+    "ignore_note": "If you did not sign up for Coltivio, you can ignore this email."
+  },
+  "welcome_email": {
+    "subject": "Welcome to Coltivio",
+    "subtitle": "from AgriColtivio",
+    "greeting": "Hello {{name}}",
+    "intro": "Your email address is confirmed. Coltivio is now fully open to you: fields and field calendar, livestock and treatment journal, tasks and your wiki, all recorded out on the farm instead of at the computer in the evening.",
+    "verein_title": "An association stands behind the app",
+    "verein_body": "Coltivio is developed and run by the association AgriColtivio, a non-profit association under Swiss law based in Braggio in the Calanca valley. The association is politically independent and pursues no commercial interests of its own. Coltivio is funded by member contributions and donations. No investor expecting a return, and nobody making a business out of your data.",
+    "open_source": "The source code is open, and your data is stored on servers in the EU.",
+    "membership_title": "Become a member",
+    "membership_body": "As a member you have a say at the general meeting on where the software goes. You reach us directly with questions about the app, your farm or the next inspection, and the meeting point in the web app is open to you, where you exchange with other farmers.",
+    "membership_price": "Membership costs CHF 75 per year.",
+    "membership_cta": "Become a member",
+    "contact": "If you have questions, reach us at",
+    "unsubscribe_question": "No further emails wanted?",
+    "unsubscribe_cta": "Unsubscribe here"
+  },
   "farm_invite": {
     "subject": "You've been invited to join {{farmName}} on Coltivio",
     "body": "You've been invited to join <strong>{{farmName}}</strong> on Coltivio.",

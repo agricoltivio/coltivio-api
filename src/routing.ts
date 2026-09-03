@@ -357,6 +357,11 @@ import {
 import { setForumThreadStatusEndpoint, pinForumThreadEndpoint } from "./forum/forum-moderation.endpoint";
 import { createHandoffTokenEndpoint, exchangeHandoffTokenEndpoint } from "./auth/handoff.endpoint";
 import {
+  resendVerificationEmailEndpoint,
+  unsubscribeEndpoint,
+  verifyEmailEndpoint,
+} from "./user/user-verification.endpoint";
+import {
   listMemberPermissionsEndpoint,
   setMemberPermissionEndpoint,
   resetMemberPermissionEndpoint,
@@ -431,6 +436,7 @@ export const routing: Routing = {
         patch: updateUserProfileEndpoint,
         get: getMyUserProfileEndpoint,
       },
+      "verification-email": { post: resendVerificationEmailEndpoint },
     },
     // parcels: {
     //   "": {
@@ -1067,6 +1073,8 @@ export const routing: Routing = {
     auth: {
       handoff: { post: createHandoffTokenEndpoint },
       exchange: { post: exchangeHandoffTokenEndpoint },
+      "verify-email": { post: verifyEmailEndpoint },
+      unsubscribe: { post: unsubscribeEndpoint },
     },
     forum: {
       threads: {
