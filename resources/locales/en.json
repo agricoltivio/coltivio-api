@@ -377,28 +377,21 @@
     "amount": "Amount",
     "contact_question": "If you have any questions, reach out to us at",
     "contact_newsletter": "Subscribe to our newsletter at",
-    "forum_cta": "Visit the Forum to connect with other members and like-minded farmers.",
     "new": {
       "subject": "Welcome to AgriColtivio – your Membership is active",
       "subject_trial": "Welcome to AgriColtivio – your Membership is set up",
       "greeting": "Hello {{name}}",
-      "welcome": "Welcome to AgriColtivio – the association behind Coltivio. Your farm now has full access to all features of the App and the WebApp.",
-      "features_title": "Your benefits",
-      "app_label": "App",
-      "webapp_label": "Web App",
-      "app_features": [
-        "Tasks with animal or field assignment and automatic checklist",
-        "Invite multiple users and plan together",
-        "Use images in wiki entries"
-      ],
-      "webapp_features": [
-        "All app features in the browser",
-        "Manage contacts",
-        "Record orders and track payments",
-        "Manage animal sponsorships"
-      ],
+      "welcome": "Welcome to AgriColtivio, the association behind Coltivio. Good to have you with us.",
       "receipt_title": "Your payment confirmation",
-      "trial_billing_info": "Your trial runs until {{date}}. You will only be charged once the trial period ends."
+      "trial_billing_info": "Your trial runs until {{date}}. You will only be charged once the trial period ends.",
+      "carried_by_members": "Coltivio is funded by member contributions and donations. No investor expecting a return, and nobody making a business out of your data. You are supporting open and fair agriculture in Switzerland.",
+      "benefits_title": "As a member",
+      "benefits": [
+        "A vote at the general meeting: you help decide where Coltivio goes",
+        "Personal support with questions about the app, your farm or the next inspection",
+        "Access to the meeting point, where you exchange with other farmers",
+        "Insight into the finances: the annual report and accounts go to the members every year"
+      ]
     },
     "first_payment": {
       "subject": "Your Membership has been charged",
@@ -456,13 +449,14 @@
     "intro": "Thank you for your donation! You are supporting open and fair agriculture in Switzerland.",
     "receipt_title": "Donation confirmation",
     "product_name": "Donation to Coltivio",
-    "amount": "Amount"
+    "amount": "Amount",
+    "subtitle": "from AgriColtivio"
   },
   "verification_email": {
     "subject": "Confirm your email address",
     "subtitle": "from AgriColtivio",
     "greeting": "Hello {{name}}",
-    "intro": "Good to have you on board. Please confirm your email address so we can reach you with questions about your farm and get your account back to you if you ever forget your password.",
+    "intro": "Good to have you on board. Please confirm your email address so we can reach you with questions about your farm and so you can reset your password if you ever forget it.",
     "cta": "Confirm email",
     "expiry_note": "The link is valid for 14 days.",
     "ignore_note": "If you did not sign up for Coltivio, you can ignore this email."

@@ -152,6 +152,26 @@ describe("Verification token exchange", () => {
     expect(emailSpy).not.toHaveBeenCalled();
   });
 
+  // Two clicks landing at the same moment used to produce two welcome mails, because both
+  // requests read the token and the profile before either had written anything back.
+  it("sends only one welcome email when the token is exchanged twice at once", async () => {
+    const { jwt, userId } = await newUser();
+    await createFarm(jwt);
+    await flushBackgroundEmail();
+    const token = await latestToken(userId);
+    emailSpy.mockClear();
+
+    const [first, second] = await Promise.all([
+      request("POST", "/v1/auth/verify-email", { token: token.token }),
+      request("POST", "/v1/auth/verify-email", { token: token.token }),
+    ]);
+
+    expect([first.status, second.status].sort()).toEqual([200, 410]);
+
+    const welcomeMails = emailSpy.mock.calls.filter((call) => call[0].subject === "Willkommen bei Coltivio");
+    expect(welcomeMails).toHaveLength(1);
+  });
+
   it("rejects an expired token", async () => {
     const { jwt, userId } = await newUser();
     await createFarm(jwt);

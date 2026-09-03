@@ -1,7 +1,8 @@
 import { expect } from "@jest/globals";
 import merge from "lodash/merge";
 import { createTestUser, getAdminDb, request } from "./helpers";
-import { membershipPayments, userTrials } from "../db/schema";
+import { eq } from "drizzle-orm";
+import { membershipPayments, profiles, userTrials } from "../db/schema";
 import type { FarmPermissionFeature } from "../db/schema";
 
 export type InvitePermission = { feature: FarmPermissionFeature; access: "none" | "read" | "write" };
@@ -157,6 +158,12 @@ export async function createUserWithFarm(
   opts: { withActiveMembership?: boolean } = {}
 ) {
   const { jwt, userId } = await createTestUser(email, "password123");
+
+  // Creating the first farm triggers the verification email. Established test users are treated
+  // as verified, so that mail does not land in front of whatever a test is actually asserting.
+  // Tests that cover the verification flow itself create their farm directly.
+  await getAdminDb().update(profiles).set({ emailVerified: true }).where(eq(profiles.id, userId));
+
   const farmData = merge({}, DEFAULT_FARM, data);
   const res = await request("POST", "/v1/farm", farmData, jwt);
   const body = (await res.json()) as { data: { id: string } };

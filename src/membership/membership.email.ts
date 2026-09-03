@@ -16,7 +16,7 @@ function cardLine(label: string, brand: string | null, last4: string | null): st
   if (!brand || !last4) return "";
   const brandLabel = brand.charAt(0).toUpperCase() + brand.slice(1);
   return `<tr>
-    <td style="padding:4px 0;color:#6b7280;font-size:14px;">${label}</td>
+    <td style="padding:4px 0;color:#5f6b6d;font-size:14px;">${label}</td>
     <td style="padding:4px 0;font-size:14px;text-align:right;">${brandLabel} ****${last4}</td>
   </tr>`;
 }
@@ -34,42 +34,40 @@ function receiptHtml(
   cardLast4: string | null
 ): string {
   return `
-    <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:20px 24px;margin-bottom:28px;">
+    <div style="background:#F4FAFB;border:1px solid #dde7e9;border-radius:10px;padding:20px 24px;margin-bottom:28px;">
       <table width="100%" cellpadding="0" cellspacing="0">
         <tr>
-          <td style="padding:4px 0;color:#6b7280;font-size:14px;">${t("membership_email.product_name")}</td>
+          <td style="padding:4px 0;color:#5f6b6d;font-size:14px;">${t("membership_email.product_name")}</td>
           <td style="padding:4px 0;font-size:14px;text-align:right;">${t("membership_email.product_name")}</td>
         </tr>
         <tr>
-          <td style="padding:4px 0;color:#6b7280;font-size:14px;">${t("membership_email.valid_until")}</td>
+          <td style="padding:4px 0;color:#5f6b6d;font-size:14px;">${t("membership_email.valid_until")}</td>
           <td style="padding:4px 0;font-size:14px;text-align:right;">${formatDate(periodEnd, locale)}</td>
         </tr>
         ${cardLine(t("membership_email.payment_method"), cardBrand, cardLast4)}
-        <tr><td colspan="2" style="padding:12px 0 4px;"><hr style="border:none;border-top:1px solid #e5e7eb;margin:0;"></td></tr>
+        <tr><td colspan="2" style="padding:12px 0 4px;"><hr style="border:none;border-top:1px solid #dde7e9;margin:0;"></td></tr>
         <tr>
-          <td style="padding:4px 0;font-size:15px;font-weight:600;color:#111827;">${t("membership_email.amount")}</td>
-          <td style="padding:4px 0;font-size:15px;font-weight:700;color:#16a34a;text-align:right;">${formatCHF(amount, locale)}</td>
+          <td style="padding:4px 0;font-size:15px;font-weight:600;color:#212123;">${t("membership_email.amount")}</td>
+          <td style="padding:4px 0;font-size:15px;font-weight:700;color:#2a5159;text-align:right;">${formatCHF(amount, locale)}</td>
         </tr>
       </table>
     </div>`;
 }
 
+// One list of what the membership actually is: a say in the software and support for keeping a
+// non-profit tool running. Not a feature unlock, the app is free for everyone.
 function welcomeBody(t: TFunction, _locale: string): string {
-  const appFeatures = t("membership_email.new.app_features", { returnObjects: true }) as string[];
-  const webappFeatures = t("membership_email.new.webapp_features", { returnObjects: true }) as string[];
+  const benefits = t("membership_email.new.benefits", { returnObjects: true }) as string[];
   return `
-    <p style="margin:0 0 24px;font-size:15px;color:#4b5563;line-height:1.6;">${t("membership_email.new.welcome")}</p>
+    <p style="margin:0 0 16px;font-size:15px;color:#212123;line-height:1.65;">${t("membership_email.new.welcome")}</p>
+    <p style="margin:0 0 24px;font-size:15px;color:#212123;line-height:1.65;">${t("membership_email.new.carried_by_members")}</p>
 
-    <p style="margin:0 0 12px;font-size:15px;font-weight:600;color:#111827;">${t("membership_email.new.features_title")}</p>
-    <p style="margin:0 0 6px;font-size:13px;font-weight:600;color:#374151;text-transform:uppercase;letter-spacing:.5px;">${t("membership_email.new.app_label")}</p>
-    <ul style="margin:0 0 16px;padding-left:20px;color:#4b5563;font-size:14px;line-height:1.7;">${featureList(appFeatures)}</ul>
-    <p style="margin:0 0 6px;font-size:13px;font-weight:600;color:#374151;text-transform:uppercase;letter-spacing:.5px;">${t("membership_email.new.webapp_label")}</p>
-    <ul style="margin:0 0 24px;padding-left:20px;color:#4b5563;font-size:14px;line-height:1.7;">${featureList(webappFeatures)}</ul>
+    <p style="margin:0 0 12px;font-size:15px;font-weight:600;color:#2a5159;">${t("membership_email.new.benefits_title")}</p>
+    <ul style="margin:0 0 24px;padding-left:20px;color:#212123;font-size:14px;line-height:1.8;">${featureList(benefits)}</ul>
 
-    <p style="margin:0 0 16px;font-size:14px;color:#4b5563;line-height:1.6;">${t("membership_email.forum_cta")}</p>
-    <p style="margin:0;font-size:13px;color:#6b7280;line-height:1.6;">
-      ${t("membership_email.contact_question")} <a href="mailto:info@coltivio.ch" style="color:#16a34a;text-decoration:none;">info@coltivio.ch</a>.
-      ${t("membership_email.contact_newsletter")} <a href="https://coltivio.ch" style="color:#16a34a;text-decoration:none;">coltivio.ch</a>.
+    <p style="margin:0;font-size:13px;color:#5f6b6d;line-height:1.6;">
+      ${t("membership_email.contact_question")} <a href="mailto:info@coltivio.ch" style="color:#2a5159;text-decoration:none;">info@coltivio.ch</a>.
+      ${t("membership_email.contact_newsletter")} <a href="https://coltivio.ch" style="color:#2a5159;text-decoration:none;">coltivio.ch</a>.
     </p>`;
 }
 
@@ -92,18 +90,18 @@ export async function sendNewMembershipEmail(params: MembershipEmailParams): Pro
   const isTrial = trialEnd !== undefined;
 
   const bottomBlock = isTrial
-    ? `<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:16px 20px;margin-top:24px;">
-        <p style="margin:0;font-size:14px;color:#15803d;line-height:1.6;">
+    ? `<div style="background:#F4FAFB;border:1px solid #72aea2;border-radius:10px;padding:16px 20px;margin-top:24px;">
+        <p style="margin:0;font-size:14px;color:#2a5159;line-height:1.6;">
           ${t("membership_email.new.trial_billing_info", { date: formatDate(trialEnd, locale) })}
         </p>
       </div>`
-    : `<p style="margin:24px 0 10px;font-size:14px;font-weight:600;color:#111827;">${t("membership_email.new.receipt_title")}</p>
+    : `<p style="margin:24px 0 10px;font-size:14px;font-weight:600;color:#212123;">${t("membership_email.new.receipt_title")}</p>
        ${receiptHtml(t, amount, periodEnd, locale, cardBrand, cardLast4)}`;
 
   const html = baseLayout(
     t("membership_email.subtitle"),
     `
-    <h1 style="margin:0 0 20px;font-size:24px;font-weight:700;color:#111827;">${t("membership_email.new.greeting", { name })}</h1>
+    <h1 style="margin:0 0 20px;font-size:24px;font-weight:700;color:#212123;">${t("membership_email.new.greeting", { name })}</h1>
     ${welcomeBody(t, locale)}
     ${bottomBlock}
   `
@@ -120,6 +118,10 @@ export async function sendNewMembershipEmail(params: MembershipEmailParams): Pro
       t("membership_email.new.greeting", { name }),
       "",
       t("membership_email.new.welcome"),
+      t("membership_email.new.carried_by_members"),
+      "",
+      t("membership_email.new.benefits_title"),
+      ...(t("membership_email.new.benefits", { returnObjects: true }) as string[]).map((item) => `- ${item}`),
       "",
       isTrial
         ? t("membership_email.new.trial_billing_info", { date: formatDate(trialEnd, locale) })
@@ -136,9 +138,9 @@ export async function sendFirstPaymentEmail(params: MembershipEmailParams): Prom
   const html = baseLayout(
     t("membership_email.subtitle"),
     `
-    <h1 style="margin:0 0 8px;font-size:24px;font-weight:700;color:#111827;">${t("membership_email.first_payment.greeting", { name })}</h1>
-    <p style="margin:0 0 24px;font-size:15px;color:#4b5563;line-height:1.6;">${t("membership_email.first_payment.intro")}</p>
-    <p style="margin:0 0 10px;font-size:14px;font-weight:600;color:#111827;">${t("membership_email.first_payment.receipt_title")}</p>
+    <h1 style="margin:0 0 8px;font-size:24px;font-weight:700;color:#212123;">${t("membership_email.first_payment.greeting", { name })}</h1>
+    <p style="margin:0 0 24px;font-size:15px;color:#212123;line-height:1.6;">${t("membership_email.first_payment.intro")}</p>
+    <p style="margin:0 0 10px;font-size:14px;font-weight:600;color:#212123;">${t("membership_email.first_payment.receipt_title")}</p>
     ${receiptHtml(t, amount, periodEnd, locale, cardBrand, cardLast4)}
   `
   );
@@ -167,9 +169,9 @@ export async function sendRenewalEmail(params: MembershipEmailParams): Promise<v
   const html = baseLayout(
     t("membership_email.subtitle"),
     `
-    <h1 style="margin:0 0 8px;font-size:24px;font-weight:700;color:#111827;">${t("membership_email.renewal.greeting", { name })}</h1>
-    <p style="margin:0 0 24px;font-size:15px;color:#4b5563;line-height:1.6;">${t("membership_email.renewal.intro")}</p>
-    <p style="margin:0 0 10px;font-size:14px;font-weight:600;color:#111827;">${t("membership_email.renewal.receipt_title")}</p>
+    <h1 style="margin:0 0 8px;font-size:24px;font-weight:700;color:#212123;">${t("membership_email.renewal.greeting", { name })}</h1>
+    <p style="margin:0 0 24px;font-size:15px;color:#212123;line-height:1.6;">${t("membership_email.renewal.intro")}</p>
+    <p style="margin:0 0 10px;font-size:14px;font-weight:600;color:#212123;">${t("membership_email.renewal.receipt_title")}</p>
     ${receiptHtml(t, amount, periodEnd, locale, cardBrand, cardLast4)}
   `
   );
@@ -213,8 +215,8 @@ export async function sendPaymentFailedEmail(params: ExpiryEmailParams): Promise
   const html = baseLayout(
     t("membership_email.subtitle"),
     `
-    <h1 style="margin:0 0 16px;font-size:24px;font-weight:700;color:#111827;">${t("membership_email.payment_failed.greeting", { name })}</h1>
-    <p style="margin:0 0 24px;font-size:15px;color:#4b5563;line-height:1.6;">${t("membership_email.payment_failed.intro", { date: formatDate(periodEnd, locale) })}</p>
+    <h1 style="margin:0 0 16px;font-size:24px;font-weight:700;color:#212123;">${t("membership_email.payment_failed.greeting", { name })}</h1>
+    <p style="margin:0 0 24px;font-size:15px;color:#212123;line-height:1.6;">${t("membership_email.payment_failed.intro", { date: formatDate(periodEnd, locale) })}</p>
     ${ctaButton(renewUrl, t("membership_email.payment_failed.cta"))}
   `
   );
@@ -242,8 +244,8 @@ export async function sendExpiryReminderEmail(params: ExpiryEmailParams): Promis
   const html = baseLayout(
     t("membership_email.subtitle"),
     `
-    <h1 style="margin:0 0 16px;font-size:24px;font-weight:700;color:#111827;">${t("membership_email.expiry_reminder.greeting", { name })}</h1>
-    <p style="margin:0 0 24px;font-size:15px;color:#4b5563;line-height:1.6;">${t("membership_email.expiry_reminder.intro", { date: formatDate(periodEnd, locale) })}</p>
+    <h1 style="margin:0 0 16px;font-size:24px;font-weight:700;color:#212123;">${t("membership_email.expiry_reminder.greeting", { name })}</h1>
+    <p style="margin:0 0 24px;font-size:15px;color:#212123;line-height:1.6;">${t("membership_email.expiry_reminder.intro", { date: formatDate(periodEnd, locale) })}</p>
     ${ctaButton(renewUrl, t("membership_email.expiry_reminder.cta"))}
   `
   );
@@ -271,8 +273,8 @@ export async function sendAccessLostEmail(params: ExpiryEmailParams): Promise<vo
   const html = baseLayout(
     t("membership_email.subtitle"),
     `
-    <h1 style="margin:0 0 16px;font-size:24px;font-weight:700;color:#111827;">${t("membership_email.access_lost.greeting", { name })}</h1>
-    <p style="margin:0 0 24px;font-size:15px;color:#4b5563;line-height:1.6;">${t("membership_email.access_lost.intro", { date: formatDate(periodEnd, locale) })}</p>
+    <h1 style="margin:0 0 16px;font-size:24px;font-weight:700;color:#212123;">${t("membership_email.access_lost.greeting", { name })}</h1>
+    <p style="margin:0 0 24px;font-size:15px;color:#212123;line-height:1.6;">${t("membership_email.access_lost.intro", { date: formatDate(periodEnd, locale) })}</p>
     ${ctaButton(renewUrl, t("membership_email.access_lost.cta"))}
   `
   );
@@ -300,9 +302,9 @@ export async function sendMembershipEndedEmail(params: ExpiryEmailParams): Promi
   const html = baseLayout(
     t("membership_email.subtitle"),
     `
-    <h1 style="margin:0 0 16px;font-size:24px;font-weight:700;color:#111827;">${t("membership_email.membership_ended.greeting", { name })}</h1>
-    <p style="margin:0 0 24px;font-size:15px;color:#4b5563;line-height:1.6;">${t("membership_email.membership_ended.intro")}</p>
-    <a href="${renewUrl}" style="font-size:14px;color:#16a34a;text-decoration:underline;">${t("membership_email.membership_ended.cta")}</a>
+    <h1 style="margin:0 0 16px;font-size:24px;font-weight:700;color:#212123;">${t("membership_email.membership_ended.greeting", { name })}</h1>
+    <p style="margin:0 0 24px;font-size:15px;color:#212123;line-height:1.6;">${t("membership_email.membership_ended.intro")}</p>
+    <a href="${renewUrl}" style="font-size:14px;color:#2a5159;text-decoration:underline;">${t("membership_email.membership_ended.cta")}</a>
   `
   );
 
@@ -337,9 +339,9 @@ export async function sendCancellationEmail(params: CancellationEmailParams): Pr
   const html = baseLayout(
     t("membership_email.subtitle"),
     `
-    <h1 style="margin:0 0 16px;font-size:24px;font-weight:700;color:#111827;">${t("membership_email.cancellation.greeting", { name })}</h1>
-    <p style="margin:0 0 16px;font-size:15px;color:#4b5563;line-height:1.6;">${t("membership_email.cancellation.intro", { date: formatDate(periodEnd, locale) })}</p>
-    <p style="margin:0 0 24px;font-size:14px;color:#6b7280;line-height:1.6;">${t("membership_email.cancellation.reactivate_hint")}</p>
+    <h1 style="margin:0 0 16px;font-size:24px;font-weight:700;color:#212123;">${t("membership_email.cancellation.greeting", { name })}</h1>
+    <p style="margin:0 0 16px;font-size:15px;color:#212123;line-height:1.6;">${t("membership_email.cancellation.intro", { date: formatDate(periodEnd, locale) })}</p>
+    <p style="margin:0 0 24px;font-size:14px;color:#5f6b6d;line-height:1.6;">${t("membership_email.cancellation.reactivate_hint")}</p>
     ${ctaButton(reactivateUrl, t("membership_email.cancellation.cta"))}
   `
   );
@@ -369,8 +371,8 @@ export async function sendReactivationEmail(params: ReactivationEmailParams): Pr
   const html = baseLayout(
     t("membership_email.subtitle"),
     `
-    <h1 style="margin:0 0 8px;font-size:24px;font-weight:700;color:#111827;">${t("membership_email.reactivation.greeting", { name })}</h1>
-    <p style="margin:0;font-size:15px;color:#4b5563;line-height:1.6;">
+    <h1 style="margin:0 0 8px;font-size:24px;font-weight:700;color:#212123;">${t("membership_email.reactivation.greeting", { name })}</h1>
+    <p style="margin:0;font-size:15px;color:#212123;line-height:1.6;">
       ${t("membership_email.reactivation.intro", { date: formatDate(periodEnd, locale) })}
     </p>
   `

@@ -84,19 +84,29 @@ export async function verifyEmailToken(token: string): Promise<{ url: string }> 
   if (row.usedAt) throw createHttpError(410, "Verification token already used");
   if (row.expiresAt < new Date()) throw createHttpError(400, "Verification token expired");
 
-  await adminDrizzle
+  // Claim the token in one conditional statement. Two requests arriving together both pass the
+  // read-only checks above, and each would then send its own welcome mail.
+  const [claimedToken] = await adminDrizzle
     .update(emailVerificationTokens)
     .set({ usedAt: new Date() })
-    .where(eq(emailVerificationTokens.id, row.id));
+    .where(and(eq(emailVerificationTokens.id, row.id), isNull(emailVerificationTokens.usedAt)))
+    .returning({ id: emailVerificationTokens.id });
+  if (!claimedToken) throw createHttpError(410, "Verification token already used");
 
   const profile = await adminDrizzle.query.profiles.findFirst({ where: { id: row.userId } });
   if (!profile) throw createHttpError(500, "User profile not found");
 
   await adminDrizzle.update(profiles).set({ emailVerified: true }).where(eq(profiles.id, profile.id));
 
-  if (!profile.welcomeEmailSentAt) {
-    await adminDrizzle.update(profiles).set({ welcomeEmailSentAt: new Date() }).where(eq(profiles.id, profile.id));
+  // Same reasoning: the timestamp is claimed conditionally, only the winner sends the mail.
+  // Covers a second valid token for the same account too, not just a double click.
+  const [claimedWelcome] = await adminDrizzle
+    .update(profiles)
+    .set({ welcomeEmailSentAt: new Date() })
+    .where(and(eq(profiles.id, profile.id), isNull(profiles.welcomeEmailSentAt)))
+    .returning({ id: profiles.id });
 
+  if (claimedWelcome) {
     await sendWelcomeEmail({
       email: profile.email,
       fullName: profile.fullName,

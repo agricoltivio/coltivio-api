@@ -377,28 +377,21 @@
     "amount": "Betrag",
     "contact_question": "Bei Fragen erreichst du uns unter",
     "contact_newsletter": "Abonniere unseren Newsletter auf",
-    "forum_cta": "Besuche den Treffpunkt und tausche dich mit anderen Mitgliedern und Gleichgesinnten aus.",
     "new": {
       "subject": "Willkommen bei AgriColtivio – deine Mitgliedschaft ist aktiv",
       "subject_trial": "Willkommen bei AgriColtivio – deine Mitgliedschaft ist eingerichtet",
       "greeting": "Hallo {{name}}",
-      "welcome": "Herzlich willkommen bei AgriColtivio – dem Verein hinter Coltivio. Dein Betrieb hat vollen Zugriff auf alle Funktionen der App und der Web-App.",
-      "features_title": "Deine Vorteile",
-      "app_label": "App",
-      "webapp_label": "Web App",
-      "app_features": [
-        "Aufgaben mit Tier- oder Flächenzuweisung und automatischer Checkliste",
-        "Mehrere Benutzer einladen und gemeinsam planen",
-        "Bilder in Wiki-Einträgen verwenden"
-      ],
-      "webapp_features": [
-        "Alle App-Funktionen im Browser",
-        "Kontakte verwalten",
-        "Bestellungen erfassen und Zahlung verfolgen",
-        "Tierpatenschaften verwalten"
-      ],
+      "welcome": "Herzlich willkommen bei AgriColtivio, dem Verein hinter Coltivio. Schön, dass du dabei bist.",
       "receipt_title": "Deine Zahlungsbestätigung",
-      "trial_billing_info": "Deine Testphase läuft bis zum {{date}}. Du wirst erst nach Ablauf der Testphase belastet."
+      "trial_billing_info": "Deine Testphase läuft bis zum {{date}}. Du wirst erst nach Ablauf der Testphase belastet.",
+      "carried_by_members": "Coltivio wird von den Beiträgen der Mitglieder und von Spenden getragen. Kein Investor, der eine Rendite erwartet, und niemand, der aus deinen Daten ein Geschäft macht. Du unterstützt damit eine offene und faire Landwirtschaft in der Schweiz.",
+      "benefits_title": "Als Mitglied",
+      "benefits": [
+        "Stimmrecht an der Mitgliederversammlung: du bestimmst mit, wohin sich Coltivio entwickelt",
+        "Persönlicher Support bei Fragen zur App, zum Betrieb oder zur nächsten Kontrolle",
+        "Zugang zum Treffpunkt, wo du dich mit anderen Bäuerinnen und Bauern austauschst",
+        "Einblick in die Finanzen: Jahresbericht und Jahresrechnung gehen jedes Jahr an die Mitglieder"
+      ]
     },
     "first_payment": {
       "subject": "Deine Mitgliedschaft wurde abgerechnet",
@@ -456,13 +449,14 @@
     "intro": "Vielen Dank für deine Spende! Du unterstützt damit eine offene und faire Landwirtschaft in der Schweiz.",
     "receipt_title": "Bestätigung deiner Spende",
     "product_name": "Spende an Coltivio",
-    "amount": "Betrag"
+    "amount": "Betrag",
+    "subtitle": "von AgriColtivio"
   },
   "verification_email": {
     "subject": "Bestätige deine E-Mail-Adresse",
     "subtitle": "von AgriColtivio",
     "greeting": "Hallo {{name}}",
-    "intro": "Schön, bist du dabei. Bestätige kurz deine E-Mail-Adresse, damit wir dich bei Fragen zum Betrieb erreichen und dir dein Konto zurückgeben können, falls du dein Passwort einmal vergisst.",
+    "intro": "Schön, bist du dabei. Bestätige kurz deine E-Mail-Adresse, damit wir dich bei Fragen zum Betrieb erreichen können und du dein Passwort zurücksetzen kannst, falls du es einmal vergisst.",
     "cta": "E-Mail bestätigen",
     "expiry_note": "Der Link ist 14 Tage gültig.",
     "ignore_note": "Falls du dich nicht bei Coltivio registriert hast, kannst du dieses Mail ignorieren."
