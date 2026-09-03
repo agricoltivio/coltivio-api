@@ -98,8 +98,10 @@ export const updateUserProfileEndpoint = authenticatedEndpointFactory.build({
     if (newsletterConsent !== undefined) {
       await ctx.users.setNewsletterConsent(ctx.user.id, newsletterConsent);
     }
+    // Drizzle rejects an empty update set, so a consent-only PATCH just reads the profile back
+    const hasProfileChanges = Object.keys(profileInput).length > 0;
     const [user, isWikiModerator] = await Promise.all([
-      ctx.users.updateUser(ctx.user.id, profileInput),
+      hasProfileChanges ? ctx.users.updateUser(ctx.user.id, profileInput) : ctx.users.getUserById(ctx.user.id),
       ctx.wikiModeration.isModerator(ctx.user.id),
     ]);
     return { ...user, farmId: ctx.farmContext.farmId, farmRole: ctx.farmContext.farmRole, isWikiModerator };
