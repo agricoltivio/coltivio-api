@@ -9,6 +9,7 @@ import { cleanDb, createTestUser, getAdminDb, request } from "./helpers";
 import { emailVerificationTokens } from "../db/schema";
 import * as brevo from "../brevo/brevo";
 import { clientDrizzle } from "../db/db";
+import { sendVerificationEmailIfNeeded, verifyEmailToken } from "../user/user-verification";
 
 // Email helpers call getFixedT(locale), so i18next must be initialised in the worker
 beforeAll(async () => {
@@ -26,6 +27,9 @@ beforeAll(async () => {
   }
 });
 
+// The HTTP server runs in Jest's main process, these tests in a worker, so a spy installed here
+// never sees a mail sent by an endpoint. Requests are therefore asserted on status codes and on
+// what ends up in the database; mail content is asserted by calling the sender in this process.
 let emailSpy: jest.SpiedFunction<typeof brevo.txEmailApi.sendTransacEmail>;
 let contactSpy: jest.SpiedFunction<typeof brevo.upsertNewsletterContact>;
 
@@ -56,111 +60,118 @@ const farmBody = {
   location: { type: "Point", coordinates: [9.12, 46.3] },
 };
 
+// Creating a farm is POST /v1/farm; /v1/farms is the GET-only list of the caller's farms
 async function createFarm(jwt: string, name = farmBody.name) {
-  // Creating a farm is POST /v1/farm; /v1/farms is the GET-only list of the caller's farms
   const res = await request("POST", "/v1/farm", { ...farmBody, name }, jwt);
   expect(res.status).toBe(200);
   return res;
 }
 
-// The endpoint fires the email without awaiting it, so give it a tick to land on the spy
-async function flushBackgroundEmail() {
-  for (let i = 0; i < 40; i++) {
-    if (emailSpy.mock.calls.length > 0) return;
-    await new Promise((resolve) => setTimeout(resolve, 50));
-  }
+async function tokensFor(userId: string) {
+  return getAdminDb().select().from(emailVerificationTokens).where(eq(emailVerificationTokens.userId, userId));
 }
 
-async function latestToken(userId: string) {
-  const db = getAdminDb();
-  const rows = await db.select().from(emailVerificationTokens).where(eq(emailVerificationTokens.userId, userId));
-  return rows[rows.length - 1];
+async function profileFor(userId: string) {
+  const profile = await getAdminDb().query.profiles.findFirst({ where: { id: userId } });
+  return profile!;
+}
+
+// The endpoint sends the mail without awaiting it, so the token row shows up a moment later
+async function waitForToken(userId: string) {
+  for (let i = 0; i < 60; i++) {
+    const rows = await tokensFor(userId);
+    if (rows.length > 0) return rows[rows.length - 1];
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  throw new Error("no verification token was created");
 }
 
 describe("Verification email trigger", () => {
-  it("sends exactly one verification email when the first farm is created", async () => {
-    const { jwt, userId, email } = await newUser();
+  it("mints exactly one token when the first farm is created", async () => {
+    const { jwt, userId } = await newUser();
 
     await createFarm(jwt);
-    await flushBackgroundEmail();
+    await waitForToken(userId);
+
+    expect(await tokensFor(userId)).toHaveLength(1);
+    const profile = await profileFor(userId);
+    expect(profile.verificationEmailSentAt).not.toBeNull();
+    expect(profile.emailVerified).toBe(false);
+  });
+
+  // The bug this feature started from: deleting a farm and creating a new one re-sent the mail
+  it("does not trigger a second mail when another farm is created", async () => {
+    const { jwt, userId } = await newUser();
+
+    await createFarm(jwt, "Erster Hof");
+    const first = await waitForToken(userId);
+
+    await createFarm(jwt, "Zweiter Hof");
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
+    const tokens = await tokensFor(userId);
+    expect(tokens).toHaveLength(1);
+    expect(tokens[0].token).toBe(first.token);
+  });
+});
+
+describe("Verification email content", () => {
+  it("addresses the user, carries the token and is idempotent", async () => {
+    const { userId, email } = await newUser();
+
+    await sendVerificationEmailIfNeeded(userId);
 
     expect(emailSpy).toHaveBeenCalledTimes(1);
     const sent = emailSpy.mock.calls[0][0];
     expect(sent.subject).toBe("Bestätige deine E-Mail-Adresse");
     expect(sent.to![0].email).toBe(email);
 
-    const token = await latestToken(userId);
-    expect(token).toBeDefined();
+    const [token] = await tokensFor(userId);
     expect(sent.htmlContent).toContain(token.token);
+    expect(sent.htmlContent).toContain("/auth/verify?token=");
 
-    const db = getAdminDb();
-    const profile = await db.query.profiles.findFirst({ where: { id: userId } });
-    expect(profile!.verificationEmailSentAt).not.toBeNull();
-    expect(profile!.emailVerified).toBe(false);
-  });
-
-  // The bug this feature started from: deleting a farm and creating a new one re-sent the mail
-  it("does not send a second email when another farm is created", async () => {
-    const { jwt } = await newUser();
-
-    await createFarm(jwt, "Erster Hof");
-    await flushBackgroundEmail();
+    // A second call is a no-op: verificationEmailSentAt is already set
+    await sendVerificationEmailIfNeeded(userId);
     expect(emailSpy).toHaveBeenCalledTimes(1);
-
-    await createFarm(jwt, "Zweiter Hof");
-    await new Promise((resolve) => setTimeout(resolve, 500));
-
-    expect(emailSpy).toHaveBeenCalledTimes(1);
+    expect(await tokensFor(userId)).toHaveLength(1);
   });
 });
 
 describe("Verification token exchange", () => {
-  it("verifies the address, sends the welcome email and returns a login url", async () => {
-    const { jwt, userId, email } = await newUser();
+  it("verifies the address and returns a login url", async () => {
+    const { jwt, userId } = await newUser();
     await createFarm(jwt);
-    await flushBackgroundEmail();
-    const token = await latestToken(userId);
-    emailSpy.mockClear();
+    const token = await waitForToken(userId);
 
     const res = await request("POST", "/v1/auth/verify-email", { token: token.token });
     expect(res.status).toBe(200);
     const body = (await res.json()) as { data: { url: string } };
     expect(body.data.url).toContain("http");
 
-    const db = getAdminDb();
-    const profile = await db.query.profiles.findFirst({ where: { id: userId } });
-    expect(profile!.emailVerified).toBe(true);
-    expect(profile!.welcomeEmailSentAt).not.toBeNull();
-
-    expect(emailSpy).toHaveBeenCalledTimes(1);
-    const welcome = emailSpy.mock.calls[0][0];
-    expect(welcome.subject).toBe("Willkommen bei Coltivio");
-    expect(welcome.to![0].email).toBe(email);
-    expect(welcome.htmlContent).toContain("Mitglied werden");
+    const profile = await profileFor(userId);
+    expect(profile.emailVerified).toBe(true);
+    expect(profile.welcomeEmailSentAt).not.toBeNull();
   });
 
-  it("rejects a reused token and sends no second welcome email", async () => {
+  it("rejects a reused token and does not send a second welcome mail", async () => {
     const { jwt, userId } = await newUser();
     await createFarm(jwt);
-    await flushBackgroundEmail();
-    const token = await latestToken(userId);
+    const token = await waitForToken(userId);
 
     await request("POST", "/v1/auth/verify-email", { token: token.token });
-    emailSpy.mockClear();
+    const sentAt = (await profileFor(userId)).welcomeEmailSentAt;
 
     const res = await request("POST", "/v1/auth/verify-email", { token: token.token });
     expect(res.status).toBe(410);
-    expect(emailSpy).not.toHaveBeenCalled();
+    expect((await profileFor(userId)).welcomeEmailSentAt).toEqual(sentAt);
   });
 
   // Two clicks landing at the same moment used to produce two welcome mails, because both
   // requests read the token and the profile before either had written anything back.
-  it("sends only one welcome email when the token is exchanged twice at once", async () => {
+  it("claims the token once when it is exchanged twice at the same time", async () => {
     const { jwt, userId } = await newUser();
     await createFarm(jwt);
-    await flushBackgroundEmail();
-    const token = await latestToken(userId);
-    emailSpy.mockClear();
+    const token = await waitForToken(userId);
 
     const [first, second] = await Promise.all([
       request("POST", "/v1/auth/verify-email", { token: token.token }),
@@ -168,19 +179,15 @@ describe("Verification token exchange", () => {
     ]);
 
     expect([first.status, second.status].sort()).toEqual([200, 410]);
-
-    const welcomeMails = emailSpy.mock.calls.filter((call) => call[0].subject === "Willkommen bei Coltivio");
-    expect(welcomeMails).toHaveLength(1);
+    expect((await profileFor(userId)).welcomeEmailSentAt).not.toBeNull();
   });
 
   it("rejects an expired token", async () => {
     const { jwt, userId } = await newUser();
     await createFarm(jwt);
-    await flushBackgroundEmail();
-    const token = await latestToken(userId);
+    const token = await waitForToken(userId);
 
-    const db = getAdminDb();
-    await db
+    await getAdminDb()
       .update(emailVerificationTokens)
       .set({ expiresAt: new Date(Date.now() - 1000) })
       .where(eq(emailVerificationTokens.id, token.id));
@@ -193,59 +200,69 @@ describe("Verification token exchange", () => {
     const res = await request("POST", "/v1/auth/verify-email", { token: "does-not-exist" });
     expect(res.status).toBe(400);
   });
+});
 
-  it("syncs the Brevo contact only when consent was given", async () => {
-    const { jwt, userId } = await newUser();
-    await createFarm(jwt);
-    await flushBackgroundEmail();
+describe("Welcome mail", () => {
+  it("is sent once, after verification, and only syncs a contact with consent", async () => {
+    const { userId, email } = await newUser();
+    await sendVerificationEmailIfNeeded(userId);
+    const [token] = await tokensFor(userId);
+    emailSpy.mockClear();
 
-    const withoutConsent = await latestToken(userId);
-    await request("POST", "/v1/auth/verify-email", { token: withoutConsent.token });
+    await verifyEmailToken(token.token);
+
+    expect(emailSpy).toHaveBeenCalledTimes(1);
+    const welcome = emailSpy.mock.calls[0][0];
+    expect(welcome.subject).toBe("Willkommen bei Coltivio");
+    expect(welcome.to![0].email).toBe(email);
+    expect(welcome.htmlContent).toContain("Mitglied werden");
+    // Consent gates the contact list only, the mail itself goes out either way
     expect(contactSpy).not.toHaveBeenCalled();
+  });
 
-    const consenting = await newUser();
-    await request("PATCH", "/v1/me", { newsletterConsent: true }, consenting.jwt);
-    await createFarm(consenting.jwt);
-    await flushBackgroundEmail();
-    const token = await latestToken(consenting.userId);
-    await request("POST", "/v1/auth/verify-email", { token: token.token });
+  it("syncs the Brevo contact when consent was given", async () => {
+    const { jwt, userId, email } = await newUser();
+    const consentRes = await request("PATCH", "/v1/me", { newsletterConsent: true }, jwt);
+    expect(consentRes.status).toBe(200);
+
+    await sendVerificationEmailIfNeeded(userId);
+    const [token] = await tokensFor(userId);
+    await verifyEmailToken(token.token);
 
     expect(contactSpy).toHaveBeenCalledTimes(1);
-    expect(contactSpy.mock.calls[0][0].email).toBe(consenting.email);
+    expect(contactSpy.mock.calls[0][0].email).toBe(email);
   });
 });
 
 describe("Resend verification email", () => {
-  it("sends a new mail and invalidates the previous token", async () => {
+  it("mints a new token and invalidates the previous one", async () => {
     const { jwt, userId } = await newUser();
     await createFarm(jwt);
-    await flushBackgroundEmail();
-    const first = await latestToken(userId);
+    const first = await waitForToken(userId);
 
-    const db = getAdminDb();
     // Step around the five minute cooldown
-    await db
+    await getAdminDb()
       .update(emailVerificationTokens)
       .set({ createdAt: new Date(Date.now() - 10 * 60 * 1000) })
       .where(eq(emailVerificationTokens.id, first.id));
-    emailSpy.mockClear();
 
     const res = await request("POST", "/v1/me/verification-email", {}, jwt);
     expect(res.status).toBe(200);
-    expect(emailSpy).toHaveBeenCalledTimes(1);
+    expect(await tokensFor(userId)).toHaveLength(2);
 
     const stale = await request("POST", "/v1/auth/verify-email", { token: first.token });
     expect(stale.status).toBe(410);
 
-    const fresh = await latestToken(userId);
+    const tokens = await tokensFor(userId);
+    const fresh = tokens.find((row) => row.token !== first.token)!;
     const ok = await request("POST", "/v1/auth/verify-email", { token: fresh.token });
     expect(ok.status).toBe(200);
   });
 
   it("rate limits repeated resends", async () => {
-    const { jwt } = await newUser();
+    const { jwt, userId } = await newUser();
     await createFarm(jwt);
-    await flushBackgroundEmail();
+    await waitForToken(userId);
 
     const res = await request("POST", "/v1/me/verification-email", {}, jwt);
     expect(res.status).toBe(429);
@@ -254,8 +271,7 @@ describe("Resend verification email", () => {
   it("refuses to resend once the address is verified", async () => {
     const { jwt, userId } = await newUser();
     await createFarm(jwt);
-    await flushBackgroundEmail();
-    const token = await latestToken(userId);
+    const token = await waitForToken(userId);
     await request("POST", "/v1/auth/verify-email", { token: token.token });
 
     const res = await request("POST", "/v1/me/verification-email", {}, jwt);
@@ -271,10 +287,9 @@ describe("emailVerified cannot be set by the client", () => {
     const res = await request("PATCH", "/v1/me", { emailVerified: true, fullName: "Test Bauer" }, jwt);
     expect(res.status).toBe(200);
 
-    const db = getAdminDb();
-    const profile = await db.query.profiles.findFirst({ where: { id: userId } });
-    expect(profile!.emailVerified).toBe(false);
-    expect(profile!.fullName).toBe("Test Bauer");
+    const profile = await profileFor(userId);
+    expect(profile.emailVerified).toBe(false);
+    expect(profile.fullName).toBe("Test Bauer");
   });
 
   it("denies a direct column update through the authenticated role", async () => {
@@ -288,8 +303,6 @@ describe("emailVerified cannot be set by the client", () => {
       })
     ).rejects.toThrow();
 
-    const db = getAdminDb();
-    const profile = await db.query.profiles.findFirst({ where: { id: userId } });
-    expect(profile!.emailVerified).toBe(false);
+    expect((await profileFor(userId)).emailVerified).toBe(false);
   });
 });
