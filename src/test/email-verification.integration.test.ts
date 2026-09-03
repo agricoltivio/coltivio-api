@@ -57,7 +57,8 @@ const farmBody = {
 };
 
 async function createFarm(jwt: string, name = farmBody.name) {
-  const res = await request("POST", "/v1/farms", { ...farmBody, name }, jwt);
+  // Creating a farm is POST /v1/farm; /v1/farms is the GET-only list of the caller's farms
+  const res = await request("POST", "/v1/farm", { ...farmBody, name }, jwt);
   expect(res.status).toBe(200);
   return res;
 }
