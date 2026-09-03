@@ -1,7 +1,7 @@
 // Shared HTML shell for all transactional emails sent through Brevo.
 // Extracted from membership.email.ts so verification and welcome mails look identical.
 
-export function baseLayout(subtitle: string, content: string, footerExtra = ""): string {
+export function baseLayout(subtitle: string, content: string): string {
   return `<!DOCTYPE html>
 <html lang="de">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
@@ -19,7 +19,6 @@ export function baseLayout(subtitle: string, content: string, footerExtra = ""):
           <p style="margin:4px 0 0;font-size:12px;color:#9ca3af;">
             <a href="mailto:info@coltivio.ch" style="color:#16a34a;text-decoration:none;">info@coltivio.ch</a>
           </p>
-          ${footerExtra}
         </td></tr>
       </table>
     </td></tr>

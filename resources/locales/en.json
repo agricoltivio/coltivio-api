@@ -479,9 +479,7 @@
     "membership_body": "As a member you have a say at the general meeting on where the software goes. You reach us directly with questions about the app, your farm or the next inspection, and the meeting point in the web app is open to you, where you exchange with other farmers.",
     "membership_price": "Membership costs CHF 75 per year.",
     "membership_cta": "Become a member",
-    "contact": "If you have questions, reach us at",
-    "unsubscribe_question": "No further emails wanted?",
-    "unsubscribe_cta": "Unsubscribe here"
+    "contact": "If you have questions, reach us at"
   },
   "farm_invite": {
     "subject": "You've been invited to join {{farmName}} on Coltivio",

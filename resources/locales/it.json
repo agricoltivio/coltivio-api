@@ -479,9 +479,7 @@
     "membership_body": "Come socio decidi all'assemblea dei soci in che direzione va il software. Ci raggiungi direttamente per domande sull'app, sull'azienda o sul prossimo controllo, e il punto d'incontro nella Web App ti è aperto per scambiare con altre contadine e altri contadini.",
     "membership_price": "L'adesione costa CHF 75 all'anno.",
     "membership_cta": "Diventa socio",
-    "contact": "Per domande ci raggiungi a",
-    "unsubscribe_question": "Non vuoi ricevere altre e-mail?",
-    "unsubscribe_cta": "Disiscriviti qui"
+    "contact": "Per domande ci raggiungi a"
   },
   "farm_invite": {
     "subject": "Sei stato invitato a unirti a {{farmName}} su Coltivio",

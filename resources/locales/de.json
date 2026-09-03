@@ -479,9 +479,7 @@
     "membership_body": "Als Mitglied bestimmst du an der Mitgliederversammlung mit, wohin sich die Software entwickelt. Du erreichst uns direkt bei Fragen zur App, zum Betrieb oder zur nächsten Kontrolle, und der Treffpunkt in der Web-App steht dir offen, wo du dich mit anderen Bäuerinnen und Bauern austauschst.",
     "membership_price": "Die Mitgliedschaft kostet CHF 75 pro Jahr.",
     "membership_cta": "Mitglied werden",
-    "contact": "Bei Fragen erreichst du uns unter",
-    "unsubscribe_question": "Keine weiteren Mails erwünscht?",
-    "unsubscribe_cta": "Hier abmelden"
+    "contact": "Bei Fragen erreichst du uns unter"
   },
   "farm_invite": {
     "subject": "Du wurdest eingeladen, {{farmName}} auf Coltivio beizutreten",

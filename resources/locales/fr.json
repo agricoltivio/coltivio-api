@@ -479,9 +479,7 @@
     "membership_body": "En tant que membre, vous décidez à l'assemblée générale de l'orientation du logiciel. Vous nous joignez directement pour vos questions sur l'application, sur l'exploitation ou sur le prochain contrôle, et le point de rencontre dans la WebApp vous est ouvert pour échanger avec d'autres paysannes et paysans.",
     "membership_price": "L'adhésion coûte CHF 75 par an.",
     "membership_cta": "Devenir membre",
-    "contact": "Pour toute question, écrivez-nous à",
-    "unsubscribe_question": "Vous ne souhaitez plus recevoir d'e-mails ?",
-    "unsubscribe_cta": "Se désabonner ici"
+    "contact": "Pour toute question, écrivez-nous à"
   },
   "farm_invite": {
     "subject": "Vous avez été invité à rejoindre {{farmName}} sur Coltivio",

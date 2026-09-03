@@ -136,8 +136,6 @@ describe("Verification token exchange", () => {
     expect(welcome.subject).toBe("Willkommen bei Coltivio");
     expect(welcome.to![0].email).toBe(email);
     expect(welcome.htmlContent).toContain("Mitglied werden");
-    // No consent, no contact list, so nothing to unsubscribe from
-    expect(welcome.htmlContent).not.toContain("/unsubscribe?token=");
   });
 
   it("rejects a reused token and sends no second welcome email", async () => {
@@ -193,12 +191,6 @@ describe("Verification token exchange", () => {
 
     expect(contactSpy).toHaveBeenCalledTimes(1);
     expect(contactSpy.mock.calls[0][0].email).toBe(consenting.email);
-
-    // With consent the welcome mail carries the unsubscribe link
-    const welcome = emailSpy.mock.calls
-      .map((call) => call[0])
-      .find((mail) => mail.subject === "Willkommen bei Coltivio" && mail.to![0].email === consenting.email)!;
-    expect(welcome.htmlContent).toContain("/unsubscribe?token=");
   });
 });
 
@@ -278,34 +270,5 @@ describe("emailVerified cannot be set by the client", () => {
     const db = getAdminDb();
     const profile = await db.query.profiles.findFirst({ where: { id: userId } });
     expect(profile!.emailVerified).toBe(false);
-  });
-});
-
-describe("Unsubscribe", () => {
-  it("clears the consent with a valid token and rejects a forged one", async () => {
-    const { jwt, userId } = await newUser();
-    await request("PATCH", "/v1/me", { newsletterConsent: true }, jwt);
-
-    const db = getAdminDb();
-    const before = await db.query.profiles.findFirst({ where: { id: userId } });
-    expect(before!.newsletterConsentAt).not.toBeNull();
-
-    const forged = await request("POST", "/v1/auth/unsubscribe", { token: `${userId}.deadbeef` });
-    expect(forged.status).toBe(400);
-
-    await createFarm(jwt);
-    await flushBackgroundEmail();
-    const token = await latestToken(userId);
-    await request("POST", "/v1/auth/verify-email", { token: token.token });
-
-    // The unsubscribe link is embedded in the welcome mail
-    const welcome = emailSpy.mock.calls.find((call) => call[0].subject === "Willkommen bei Coltivio")![0];
-    const unsubscribeToken = /unsubscribe\?token=([^"&\s]+)/.exec(welcome.htmlContent!)![1];
-
-    const res = await request("POST", "/v1/auth/unsubscribe", { token: unsubscribeToken });
-    expect(res.status).toBe(200);
-
-    const after = await db.query.profiles.findFirst({ where: { id: userId } });
-    expect(after!.newsletterConsentAt).toBeNull();
   });
 });

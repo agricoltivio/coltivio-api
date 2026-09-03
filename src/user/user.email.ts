@@ -16,7 +16,6 @@ export type WelcomeEmailParams = {
   fullName: string | null;
   locale: string;
   membershipUrl: string;
-  unsubscribeUrl?: string;
 };
 
 export async function sendVerificationEmail(params: VerificationEmailParams): Promise<void> {
@@ -54,16 +53,9 @@ export async function sendVerificationEmail(params: VerificationEmailParams): Pr
 }
 
 export async function sendWelcomeEmail(params: WelcomeEmailParams): Promise<void> {
-  const { email, fullName, locale, membershipUrl, unsubscribeUrl } = params;
+  const { email, fullName, locale, membershipUrl } = params;
   const t = i18next.getFixedT(locale);
   const name = fullName ?? email;
-
-  const footerExtra = unsubscribeUrl
-    ? `<p style="margin:10px 0 0;font-size:12px;color:#9ca3af;">
-    ${t("welcome_email.unsubscribe_question")}
-    <a href="${unsubscribeUrl}" style="color:#9ca3af;text-decoration:underline;">${t("welcome_email.unsubscribe_cta")}</a>
-  </p>`
-    : "";
 
   const html = baseLayout(
     t("welcome_email.subtitle"),
@@ -85,8 +77,7 @@ export async function sendWelcomeEmail(params: WelcomeEmailParams): Promise<void
     <p style="margin:0;font-size:13px;color:#6b7280;line-height:1.6;">
       ${t("welcome_email.contact")} <a href="mailto:info@coltivio.ch" style="color:#16a34a;text-decoration:none;">info@coltivio.ch</a>.
     </p>
-  `,
-    footerExtra
+  `
   );
 
   await txEmailApi.sendTransacEmail({
@@ -107,7 +98,6 @@ export async function sendWelcomeEmail(params: WelcomeEmailParams): Promise<void
       t("welcome_email.membership_body"),
       t("welcome_email.membership_price"),
       membershipUrl,
-      ...(unsubscribeUrl ? ["", `${t("welcome_email.unsubscribe_question")} ${unsubscribeUrl}`] : []),
     ].join("\n"),
   });
 }

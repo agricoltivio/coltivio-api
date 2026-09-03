@@ -356,11 +356,7 @@ import {
 } from "./forum/forum.endpoint";
 import { setForumThreadStatusEndpoint, pinForumThreadEndpoint } from "./forum/forum-moderation.endpoint";
 import { createHandoffTokenEndpoint, exchangeHandoffTokenEndpoint } from "./auth/handoff.endpoint";
-import {
-  resendVerificationEmailEndpoint,
-  unsubscribeEndpoint,
-  verifyEmailEndpoint,
-} from "./user/user-verification.endpoint";
+import { resendVerificationEmailEndpoint, verifyEmailEndpoint } from "./user/user-verification.endpoint";
 import {
   listMemberPermissionsEndpoint,
   setMemberPermissionEndpoint,
@@ -1074,7 +1070,6 @@ export const routing: Routing = {
       handoff: { post: createHandoffTokenEndpoint },
       exchange: { post: exchangeHandoffTokenEndpoint },
       "verify-email": { post: verifyEmailEndpoint },
-      unsubscribe: { post: unsubscribeEndpoint },
     },
     forum: {
       threads: {
