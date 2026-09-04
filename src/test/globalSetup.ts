@@ -119,6 +119,14 @@ export default async function globalSetup() {
     -- Grant table permissions to authenticated role (for RLS queries)
     GRANT ALL ON ALL TABLES IN SCHEMA public TO authenticated;
     GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO authenticated;
+
+    -- Verification state is server-side only. Without this, the "user can update own profile"
+    -- RLS policy would let any logged-in user flip email_verified through PostgREST.
+    -- A column-level REVOKE is a no-op while the table-level UPDATE grant stands, so drop that
+    -- first and grant back only the column clients may write.
+    -- Mirrors supabase/snippets/email-verification-grants.sql, which is applied in production.
+    REVOKE UPDATE ON public.profiles FROM authenticated;
+    GRANT UPDATE (full_name) ON public.profiles TO authenticated;
   `);
   await postSql.end();
 

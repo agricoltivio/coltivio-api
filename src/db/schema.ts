@@ -103,6 +103,9 @@ export const profiles = pgTable.withRLS(
     emailVerified: boolean().notNull().default(false),
     locale: text().notNull().default("de"),
     stripeCustomerId: text(),
+    verificationEmailSentAt: timestamp({ mode: "date" }),
+    welcomeEmailSentAt: timestamp({ mode: "date" }),
+    newsletterConsentAt: timestamp({ mode: "date" }),
   },
   (table) => [
     foreignKey({
@@ -341,6 +344,17 @@ export const membershipExpiryNotifications = pgTable(
 
 // Donations — no RLS, managed via db.admin only
 export const handoffTokens = pgTable.withRLS("handoff_tokens", {
+  id: uuid().primaryKey().defaultRandom(),
+  userId: uuid()
+    .notNull()
+    .references(() => profiles.id, { onDelete: "cascade" }),
+  token: text().notNull().unique(),
+  expiresAt: timestamp({ mode: "date" }).notNull(),
+  usedAt: timestamp({ mode: "date" }),
+  createdAt: timestamp({ mode: "date" }).defaultNow().notNull(),
+});
+
+export const emailVerificationTokens = pgTable.withRLS("email_verification_tokens", {
   id: uuid().primaryKey().defaultRandom(),
   userId: uuid()
     .notNull()
@@ -2403,6 +2417,7 @@ const tables = {
   membershipExpiryNotifications,
   donations,
   handoffTokens,
+  emailVerificationTokens,
   invoiceSettings,
 };
 
@@ -2411,10 +2426,17 @@ export const relations = defineRelations(tables, (r) => ({
   profiles: {
     memberships: r.many.farmMembers(),
     handoffTokens: r.many.handoffTokens(),
+    emailVerificationTokens: r.many.emailVerificationTokens(),
   },
   handoffTokens: {
     user: r.one.profiles({
       from: r.handoffTokens.userId,
+      to: r.profiles.id,
+    }),
+  },
+  emailVerificationTokens: {
+    user: r.one.profiles({
+      from: r.emailVerificationTokens.userId,
       to: r.profiles.id,
     }),
   },
