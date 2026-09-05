@@ -17,7 +17,7 @@ export const supabaseAuthMiddleware = new Middleware({
     name: "authorization",
   },
   input: z.object({}),
-  handler: async ({ input: {}, request, logger: _logger }) => {
+  handler: async ({ input: {}, request, logger }) => {
     const authorizationHeader = request.headers.authorization;
     if (!authorizationHeader) {
       throw createHttpError(401, "Invalid authorization header");
@@ -25,8 +25,34 @@ export const supabaseAuthMiddleware = new Middleware({
     const [_, jwt] = authorizationHeader.split(" ");
     const {
       data: { user: authUser },
+      error: supabaseAuthError,
     } = await supabase.auth.getUser(jwt);
     if (!authUser) {
+      // supabase.auth.getUser rejects for several distinct reasons (expired token, wrong
+      // signing key/project, malformed token, revoked session, etc). Decoding the token here
+      // (without verifying it, since that's what just failed) lets us tell those apart in logs
+      // without ever logging the raw JWT itself.
+      let decodedToken: SupabaseToken | null = null;
+      try {
+        decodedToken = jwtDecode<SupabaseToken>(jwt);
+      } catch (decodeError) {
+        logger.error("supabaseAuthMiddleware: failed to decode JWT after auth rejection", {
+          url: request.url,
+          decodeError,
+        });
+      }
+      logger.error("supabaseAuthMiddleware: supabase rejected JWT, no user found", {
+        url: request.url,
+        supabaseErrorMessage: supabaseAuthError?.message,
+        supabaseErrorStatus: supabaseAuthError?.status,
+        supabaseErrorCode: supabaseAuthError?.code,
+        tokenSub: decodedToken?.sub,
+        tokenIss: decodedToken?.iss,
+        tokenExp: decodedToken?.exp ? new Date(decodedToken.exp * 1000).toISOString() : undefined,
+        tokenIat: decodedToken?.iat ? new Date(decodedToken.iat * 1000).toISOString() : undefined,
+        tokenExpired: decodedToken?.exp ? decodedToken.exp * 1000 < Date.now() : undefined,
+        now: new Date().toISOString(),
+      });
       throw createHttpError(401, "Invalid jwt token, no user found");
     }
     const user = await adminDrizzle.query.profiles.findFirst({
