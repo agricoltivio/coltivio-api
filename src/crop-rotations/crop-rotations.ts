@@ -90,56 +90,11 @@ export function expandRecurrence(
     return [];
   }
 
-  const { until, interval } = rotation.recurrence;
-  const entries: CropRotationWithRecurrence[] = [];
-
-  // Calculate duration of the rotation (how many days it lasts)
-  const durationMs = rotation.toDate.getTime() - rotation.fromDate.getTime();
-
-  let currentDate = rotation.fromDate;
-  let iterationCount = 0;
-
-  while (true) {
-    // Check if we've exceeded the recurrence limit
-    if (until && currentDate > until) break;
-
-    // Calculate the end date for this occurrence
-    const occurrenceEnd = new Date(currentDate.getTime() + durationMs);
-
-    // Check if this occurrence is after the query range
-    if (currentDate > queryToDate) break;
-
-    // Only include if within the query range
-    if (
-      isWithinInterval(currentDate, {
-        start: queryFromDate,
-        end: queryToDate,
-      }) ||
-      isWithinInterval(occurrenceEnd, {
-        start: queryFromDate,
-        end: queryToDate,
-      }) ||
-      (currentDate <= queryFromDate && occurrenceEnd >= queryToDate)
-    ) {
-      entries.push({
-        ...rotation,
-        fromDate: currentDate,
-        toDate: occurrenceEnd,
-      });
-    }
-
-    currentDate = addYears(currentDate, interval);
-
-    iterationCount++;
-
-    // Safety check to prevent infinite loops
-    if (iterationCount > 1000) {
-      console.warn("Recurrence expansion exceeded 1000 iterations, stopping");
-      break;
-    }
-  }
-
-  return entries;
+  return expandOccurrences(rotation, queryFromDate, queryToDate).map(([fromDate, toDate]) => ({
+    ...rotation,
+    fromDate,
+    toDate,
+  }));
 }
 
 export type DateRangeWithRecurrence = {
@@ -148,29 +103,24 @@ export type DateRangeWithRecurrence = {
   recurrence?: { interval: number; until: Date | null } | null;
 };
 
-// Expand a recurring range into concrete [fromDate, toDate] occurrences within the query window.
-// For non-recurring ranges, returns the single occurrence if it overlaps the window.
+const MAX_OCCURRENCES = 1000;
+
 function expandOccurrences(range: DateRangeWithRecurrence, queryFrom: Date, queryTo: Date): [Date, Date][] {
   if (!range.recurrence) {
     return [[range.fromDate, range.toDate]];
   }
 
   const { interval, until } = range.recurrence;
-  const durationMs = range.toDate.getTime() - range.fromDate.getTime();
   const occurrences: [Date, Date][] = [];
-  let current = range.fromDate;
-  let iter = 0;
 
-  while (iter < 1000) {
-    if (until && current > until) break;
-    if (current > queryTo) break;
-    const end = new Date(current.getTime() + durationMs);
-    // Include only if this occurrence actually overlaps the query window
+  for (let n = 0; n < MAX_OCCURRENCES; n++) {
+    const start = addYears(range.fromDate, n * interval);
+    const end = addYears(range.toDate, n * interval);
+    if (until && start > until) break;
+    if (start > queryTo) break;
     if (end >= queryFrom) {
-      occurrences.push([current, end]);
+      occurrences.push([start, end]);
     }
-    current = addYears(current, interval);
-    iter++;
   }
 
   return occurrences;

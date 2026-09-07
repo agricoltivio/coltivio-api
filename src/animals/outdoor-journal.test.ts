@@ -190,6 +190,19 @@ describe("expandOutdoorSchedule", () => {
     });
   });
 
+  test("yearly recurrence spanning 29 February: occurrences keep their calendar span", () => {
+    const schedule = makeSchedule({
+      startDate: d("2023-11-01"),
+      endDate: d("2024-04-30"),
+      recurrence: makeRecurrence({ frequency: "yearly" }),
+    });
+    const ranges = expandOutdoorSchedule(schedule, d("2024-11-01"), d("2026-10-31"));
+    expect(ranges).toEqual([
+      { startDate: d("2024-11-01"), endDate: d("2025-04-30") },
+      { startDate: d("2025-11-01"), endDate: d("2026-04-30") },
+    ]);
+  });
+
   test("yearly recurrence: respects until", () => {
     const schedule = makeSchedule({
       startDate: d("2023-05-01"),

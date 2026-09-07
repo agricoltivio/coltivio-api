@@ -212,6 +212,20 @@ describe("checkRotationOverlaps - yearly recurrence", () => {
     expectNoOverlap(range("2022-11-15", "2023-03-15", { interval: 2 }), range("2021-01-10", "2021-02-28"));
   });
 
+  test("leap year: non-recurring rotation starting 1 Jan right after a yearly Jan-Dec series from 2024 ends → no overlap", () => {
+    expectNoOverlap(
+      range("2024-01-01", "2024-12-31", { interval: 1, until: "2025-12-31" }),
+      range("2026-01-01", "2026-12-31")
+    );
+  });
+
+  test("leap year: two yearly Jan-Dec series from 2024 and 2026 → overlap", () => {
+    expectOverlap(
+      range("2024-01-01", "2024-12-31", { interval: 1 }),
+      range("2026-01-01", "2026-12-31", { interval: 1 })
+    );
+  });
+
   test("multiple ranges: third overlaps first", () => {
     const a = range("2024-03-01", "2024-06-30", { interval: 1 });
     const b = range("2024-07-01", "2024-09-30", { interval: 1 });
@@ -304,6 +318,30 @@ describe("expandRecurrence", () => {
     expect(result).toHaveLength(4);
     const fromDates = result.map((r) => r.fromDate.toLocaleDateString("sv-SE"));
     expect(fromDates).toEqual(["2024-04-01", "2026-04-01", "2028-04-01", "2030-04-01"]);
+  });
+
+  test("yearly recurrence spanning 29 February: exactly one occurrence per year, ending 31 Dec", () => {
+    const rotation = makeRotation({
+      fromDate: d("2024-01-01"),
+      toDate: d("2024-12-31"),
+      recurrence: {
+        id: "rec-1",
+        farmId: "farm-1",
+        cropRotationId: "rot-1",
+        interval: 1,
+        until: null,
+      },
+    });
+    for (const year of [2025, 2026, 2027, 2028]) {
+      const result = expandRecurrence(rotation, d(`${year}-01-01`), d(`${year}-12-31`));
+      expect(result).toHaveLength(1);
+      expect(result[0].fromDate.toLocaleDateString("sv-SE")).toBe(`${year}-01-01`);
+      expect(result[0].toDate.toLocaleDateString("sv-SE")).toBe(`${year}-12-31`);
+    }
+    const original = expandRecurrence(rotation, d("2024-01-01"), d("2024-12-31"));
+    expect(original).toHaveLength(1);
+    expect(original[0].fromDate).toEqual(d("2024-01-01"));
+    expect(original[0].toDate).toEqual(d("2024-12-31"));
   });
 
   test("yearly recurrence: preserves duration of rotation", () => {
