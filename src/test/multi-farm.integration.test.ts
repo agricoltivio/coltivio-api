@@ -128,6 +128,29 @@ describe("Multi-farm support", () => {
     expect(res.status).toBe(403);
   });
 
+  it("lets a client with a stale x-farm-id recover via the non-farm endpoints", async () => {
+    const userA = await createUserWithFarm({ name: "Farm A" }, "stalefarma@test.com");
+    const userB = await createUserWithFarm({ name: "Farm B" }, "stalefarmb@test.com");
+
+    // Listing farms must work despite the bad header — this is how the client discovers a valid one.
+    const listRes = await request("GET", "/v1/farms", undefined, userA.jwt, userB.farmId);
+    expect(listRes.status).toBe(200);
+    const listBody = (await listRes.json()) as { data: { result: { id: string }[]; count: number } };
+    expect(listBody.data.count).toBe(1);
+    expect(listBody.data.result[0].id).toBe(userA.farmId);
+
+    // /me reports no farm rather than rejecting, which is the client's signal to re-select one.
+    const meRes = await request("GET", "/v1/me", undefined, userA.jwt, userB.farmId);
+    expect(meRes.status).toBe(200);
+    const meBody = (await meRes.json()) as { data: { farmId: string | null; farmRole: string | null } };
+    expect(meBody.data.farmId).toBeNull();
+    expect(meBody.data.farmRole).toBeNull();
+
+    // Farm-scoped endpoints still reject, with no fallback to the user's own farm.
+    const farmRes = await request("GET", "/v1/farm", undefined, userA.jwt, userB.farmId);
+    expect(farmRes.status).toBe(403);
+  });
+
   it("enforces per-farm role: owner on one farm, member on another", async () => {
     const ownerOfA = await createUserWithFarm({ name: "Farm A" }, "roleownera@test.com");
     const { jwt: userJwt } = await createTestUser("roleuser@test.com", "password123");
