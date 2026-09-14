@@ -73,12 +73,13 @@ export function expandOutdoorSchedule(
 
   if (recurrence.frequency === "yearly") {
     let current = schedule.startDate;
+    const originalEnd = schedule.endDate ?? schedule.startDate;
     while (iterations++ < MAX_ITERATIONS) {
       if (until && isAfter(current, until)) break;
       if (isAfter(current, queryTo)) break;
       if (occurrenceCount >= maxCount) break;
 
-      const occEnd = new Date(current.getTime() + durationMs);
+      const occEnd = addYears(originalEnd, interval * occurrenceCount);
       occurrenceCount++;
 
       // Check overlap with query range
