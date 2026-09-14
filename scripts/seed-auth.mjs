@@ -14,7 +14,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const DB_URL = "postgresql://postgres:postgres@127.0.0.1:54322/postgres";
-const PLACEHOLDER_UUID = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
+const PLACEHOLDER_UUID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const SIGNUP_URL = "http://127.0.0.1:54321/auth/v1/signup";
 const EMAIL = "farmA@test.ch";
 const PASSWORD = "123456";

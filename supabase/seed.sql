@@ -20,9 +20,9 @@
 -- =============================================================================
 -- Static UUIDs
 -- =============================================================================
--- user:       aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa
--- farm:       aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa01
--- herd:       aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa10
+-- user:       aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa
+-- farm:       aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa01
+-- herd:       aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa10
 -- ear_tags:   aa..aa30, aa..aa31, aa..aa32
 -- animals:    aa..aa20 (Flora), aa..aa21 (Bella), aa..aa22 (Bruno),
 --             aa..aa23 (Wolke), aa..aa24 (Schnee), aa..aa25 (Alina/calf)
@@ -184,7 +184,7 @@ INSERT INTO federal_farm_plots (id, farm_id, local_id, usage, size, cut_date, ca
 -- Profile already created by handle_new_user trigger (fired by Admin API)
 INSERT INTO farms (id, federal_id, tvd_id, name, address, location)
 VALUES (
-  'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa01',
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa01',
   'GR3837/ 1/105',
   'CH-1234',
   'Miadi',
@@ -193,7 +193,7 @@ VALUES (
 );
 
 INSERT INTO farm_members (farm_id, user_id, role)
-VALUES ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa01', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'owner');
+VALUES ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa01', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'owner');
 
 -- =============================================================================
 -- 3. Plots (all federal plots for this farm → plots table)
@@ -201,7 +201,7 @@ VALUES ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa01', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaa
 
 INSERT INTO plots (farm_id, name, local_id, usage, cutting_date, geometry, size)
 SELECT
-  'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa01'::uuid,
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa01'::uuid,
   'Parzelle ' || local_id,
   local_id,
   usage,
@@ -216,47 +216,47 @@ WHERE farm_id = 'GR3837/ 1/105';
 -- =============================================================================
 
 INSERT INTO herds (id, farm_id, name)
-VALUES ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa10', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa01', 'Milchkühe');
+VALUES ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa10', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa01', 'Milchkühe');
 
 INSERT INTO ear_tags (id, farm_id, number) VALUES
-  ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa30', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa01', 'CH 120.0012.3456.7'),
-  ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa31', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa01', 'CH 120.0012.3456.8'),
-  ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa32', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa01', 'CH 120.0012.3456.9');
+  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa30', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa01', 'CH 120.0012.3456.7'),
+  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa31', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa01', 'CH 120.0012.3456.8'),
+  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa32', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa01', 'CH 120.0012.3456.9');
 
 -- 2 female cows, 1 bull, 2 sheep
 INSERT INTO animals (id, farm_id, name, type, usage, sex, date_of_birth, registered, ear_tag_id, mother_id, father_id, herd_id) VALUES
-  ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa20', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa01', 'Flora',  'cow',   'milk',  'female', '2019-03-15', true,  'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa30', NULL, NULL, 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa10'),
-  ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa21', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa01', 'Bella',  'cow',   'milk',  'female', '2020-05-22', true,  'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa31', NULL, NULL, 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa10'),
-  ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa22', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa01', 'Bruno',  'cow',   'other', 'male',   '2018-09-10', true,  'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa32', NULL, NULL, 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa10'),
-  ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa23', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa01', 'Wolke',  'sheep', 'other', 'female', '2021-04-01', false, NULL, NULL, NULL, NULL),
-  ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa24', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa01', 'Schnee', 'sheep', 'other', 'female', '2022-03-18', false, NULL, NULL, NULL, NULL);
+  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa20', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa01', 'Flora',  'cow',   'milk',  'female', '2019-03-15', true,  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa30', NULL, NULL, 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa10'),
+  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa21', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa01', 'Bella',  'cow',   'milk',  'female', '2020-05-22', true,  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa31', NULL, NULL, 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa10'),
+  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa22', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa01', 'Bruno',  'cow',   'other', 'male',   '2018-09-10', true,  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa32', NULL, NULL, 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa10'),
+  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa23', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa01', 'Wolke',  'sheep', 'other', 'female', '2021-04-01', false, NULL, NULL, NULL, NULL),
+  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa24', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa01', 'Schnee', 'sheep', 'other', 'female', '2022-03-18', false, NULL, NULL, NULL, NULL);
 
 -- Calf: child of Flora (mother) and Bruno (father)
 INSERT INTO animals (id, farm_id, name, type, usage, sex, date_of_birth, registered, mother_id, father_id, herd_id)
-VALUES ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa25', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa01', 'Alina', 'cow', 'milk', 'female', '2024-02-10', false,
-  'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa20', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa22', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa10');
+VALUES ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa25', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa01', 'Alina', 'cow', 'milk', 'female', '2024-02-10', false,
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa20', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa22', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa10');
 
 INSERT INTO herd_memberships (farm_id, animal_id, herd_id, from_date) VALUES
-  ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa01', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa20', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa10', '2019-03-15'),
-  ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa01', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa21', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa10', '2020-05-22'),
-  ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa01', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa22', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa10', '2018-09-10'),
-  ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa01', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa25', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa10', '2024-02-10');
+  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa01', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa20', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa10', '2019-03-15'),
+  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa01', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa21', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa10', '2020-05-22'),
+  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa01', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa22', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa10', '2018-09-10'),
+  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa01', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa25', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa10', '2024-02-10');
 
 -- Outdoor schedule (pasture for the herd)
 INSERT INTO outdoor_shedules (id, farm_id, herd_id, start_date, end_date, type, notes)
-VALUES ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaab0', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa01',
-  'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa10', '2025-05-01', '2025-10-15', 'pasture', 'Sommerweide');
+VALUES ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaab0', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa01',
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa10', '2025-05-01', '2025-10-15', 'pasture', 'Sommerweide');
 
 -- =============================================================================
 -- 5. Crops
 -- =============================================================================
 
 INSERT INTO crop_families (id, farm_id, name, waiting_time_in_years)
-VALUES ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa55', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa01', 'Gräser', 0);
+VALUES ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa55', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa01', 'Gräser', 0);
 
 INSERT INTO crops (id, farm_id, name, category, family_id, variety, usage_codes) VALUES
-  ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa50', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa01', 'Wiesenfuchsschwanz', 'grass', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa55', NULL, '{611}'),
-  ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa51', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa01', 'Knaulgras', 'grass', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa55', 'Dactylis glomerata', '{611,612}');
+  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa50', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa01', 'Wiesenfuchsschwanz', 'grass', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa55', NULL, '{611}'),
+  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa51', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa01', 'Knaulgras', 'grass', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa55', 'Dactylis glomerata', '{611,612}');
 
 -- =============================================================================
 -- 6. Crop rotation, tillage, harvest, fertilizer, crop protection
@@ -265,14 +265,14 @@ INSERT INTO crops (id, farm_id, name, category, family_id, variety, usage_codes)
 
 -- Crop rotation on plot 377
 INSERT INTO crop_rotations (id, farm_id, plot_id, crop_id, sowing_date, from_date, to_date)
-VALUES ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa60', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa01',
-  (SELECT id FROM plots WHERE farm_id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa01' AND local_id = '377' LIMIT 1),
-  'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa50',
+VALUES ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa60', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa01',
+  (SELECT id FROM plots WHERE farm_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa01' AND local_id = '377' LIMIT 1),
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa50',
   '2025-03-15', '2025-03-15', '2025-10-31');
 
 -- Drug
 INSERT INTO drugs (id, farm_id, name, critical_antibiotic, received_from, notes)
-VALUES ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa70', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa01',
+VALUES ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa70', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa01',
   'Cobactan 2.5%', false, 'Dr. Meier, Tierklinik Engadin', 'Suspension zur Injektion');
 
 -- Treatment (for cow Flora)
@@ -280,78 +280,78 @@ INSERT INTO treatments (id, farm_id, drug_id, start_date, end_date, name, notes,
   drug_dose_unit, drug_dose_value, drug_dose_per_unit, drug_received_from,
   critical_antibiotic, antibiogram_available,
   milk_usable_date, meat_usable_date, organs_usable_date, created_by)
-VALUES ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa71', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa01',
-  'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa70',
+VALUES ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa71', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa01',
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa70',
   '2025-06-10', '2025-06-13', 'Klauenbehandlung Flora', 'Lahmheit vorne links',
   'ml', 2.0, 'kg', 'Dr. Meier, Tierklinik Engadin',
   false, false,
   '2025-06-17', '2025-06-20', '2025-06-20',
-  'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa');
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
 
 INSERT INTO animal_treatments (farm_id, animal_id, treatment_id)
-VALUES ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa01',
-  'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa20', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa71');
+VALUES ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa01',
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa20', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa71');
 
 -- Fertilizer
 INSERT INTO fertilizers (id, farm_id, name, description, type, unit)
-VALUES ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa80', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa01',
+VALUES ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa80', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa01',
   'Gülle (verdünnt)', 'Rindergülle 1:1 mit Wasser', 'organic', 'l');
 
 -- Fertilizer application on plot 377
 INSERT INTO fertilizer_applications (id, farm_id, created_by, plot_id, date, method,
   unit, amount_per_unit, number_of_units, fertilizer_id, geometry, size)
-SELECT 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa81'::uuid, 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa01'::uuid,
-  'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::uuid,
+SELECT 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa81'::uuid, 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa01'::uuid,
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'::uuid,
   p.id, '2025-04-20'::date, 'spray'::fertilization_method,
-  'load'::fertilizer_application_unit, 3000.0, 2.0, 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa80'::uuid,
+  'load'::fertilizer_application_unit, 3000.0, 2.0, 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa80'::uuid,
   p.geometry, p.size
 FROM plots p
-WHERE p.farm_id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa01' AND p.local_id = '377'
+WHERE p.farm_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa01' AND p.local_id = '377'
 LIMIT 1;
 
 -- Crop protection product
 INSERT INTO crop_protection_products (id, farm_id, name, unit, description)
-VALUES ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa90', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa01',
+VALUES ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa90', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa01',
   'Herbizid Simplex', 'l', 'Gegen Blacken und Disteln');
 
 -- Crop protection application on plot 534
 INSERT INTO crop_protection_applications (id, farm_id, created_by, plot_id, date_time,
   product_id, geometry, size, method, unit, amount_per_unit, number_of_units)
-SELECT 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa91'::uuid, 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa01'::uuid,
-  'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::uuid,
+SELECT 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa91'::uuid, 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa01'::uuid,
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'::uuid,
   p.id, '2025-05-15 08:00:00'::timestamp,
-  'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa90'::uuid,
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa90'::uuid,
   p.geometry, p.size, 'spraying'::crop_protection_application_method,
   'load'::crop_protection_application_unit, 1.5, 1.0
 FROM plots p
-WHERE p.farm_id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa01' AND p.local_id = '534'
+WHERE p.farm_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa01' AND p.local_id = '534'
 LIMIT 1;
 
 -- Tillage on plot 377
 INSERT INTO tillages (id, farm_id, created_by, plot_id, geometry, size,
   reason, action, date)
-SELECT 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa0'::uuid, 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa01'::uuid,
-  'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::uuid,
+SELECT 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa0'::uuid, 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa01'::uuid,
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'::uuid,
   p.id, p.geometry, p.size,
   'soil_loosening'::tillage_reason, 'harrowing'::tillage_action, '2025-03-10'::date
 FROM plots p
-WHERE p.farm_id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa01' AND p.local_id = '377'
+WHERE p.farm_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa01' AND p.local_id = '377'
 LIMIT 1;
 
 -- Harvest on plot 377 (1st cut)
 INSERT INTO harvests (id, farm_id, created_by, date, plot_id, crop_id,
   conservation_method, unit, kilos_per_unit, number_of_units, harvest_count,
   geometry, size)
-SELECT 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1'::uuid, 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa01'::uuid,
-  'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::uuid,
-  '2025-07-15'::date, p.id, 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa50'::uuid,
+SELECT 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1'::uuid, 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa01'::uuid,
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'::uuid,
+  '2025-07-15'::date, p.id, 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa50'::uuid,
   'dried'::conservation_method, 'square_bale'::harvest_unit, 25.0, 12.0, 1,
   p.geometry, p.size
 FROM plots p
-WHERE p.farm_id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa01' AND p.local_id = '377'
+WHERE p.farm_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa01' AND p.local_id = '377'
 LIMIT 1;
 
 
 -- Moderators
-INSERT INTO wiki_moderators (user_id) VALUES ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa');
-INSERT INTO forum_moderators (user_id) VALUES ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa');
+INSERT INTO wiki_moderators (user_id) VALUES ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+INSERT INTO forum_moderators (user_id) VALUES ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
