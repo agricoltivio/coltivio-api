@@ -192,8 +192,8 @@ VALUES (
   ST_SetSRID(ST_MakePoint(9.123461723327637, 46.307472229003906), 4326)
 );
 
-UPDATE profiles SET farm_id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa01', farm_role = 'owner'
-WHERE id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+INSERT INTO farm_members (farm_id, user_id, role)
+VALUES ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa01', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'owner');
 
 -- =============================================================================
 -- 3. Plots (all federal plots for this farm → plots table)
