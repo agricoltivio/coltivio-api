@@ -48,13 +48,14 @@ export function usersApi(authDb: RlsDb) {
 
       if (consent && profile.emailVerified) {
         await upsertNewsletterContact({
+          userId: profile.id,
           email: profile.email,
           firstName: profile.fullName,
           locale: profile.locale,
         });
       }
       if (!consent) {
-        await removeNewsletterContact(profile.email);
+        await removeNewsletterContact({ userId: profile.id, email: profile.email });
       }
     },
     // Blocks account deletion if it would leave any other farm (besides the one optionally being

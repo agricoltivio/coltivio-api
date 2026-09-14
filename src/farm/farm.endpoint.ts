@@ -1,9 +1,7 @@
 import createHttpError from "http-errors";
-import { captureException } from "@sentry/node";
 import { z } from "zod";
 import { animalTypeSchema } from "../db/schema";
 import { authenticatedEndpointFactory, farmEndpointFactory } from "../endpoint-factory";
-import { sendVerificationEmailIfNeeded } from "../user/user-verification";
 
 const pointSchema = z.object({
   type: z.literal("Point"),
@@ -60,9 +58,7 @@ export const createFarmEndpoint = authenticatedEndpointFactory.build({
   input: createFarmSchema,
   output: farmBaseSchema,
   handler: async ({ input, ctx }) => {
-    const farm = await ctx.farms.createFarm(ctx.user.id, input);
-    void sendVerificationEmailIfNeeded(ctx.user.id).catch(captureException);
-    return farm;
+    return ctx.farms.createFarm(ctx.user.id, input);
   },
 });
 

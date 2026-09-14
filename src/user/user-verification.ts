@@ -3,11 +3,10 @@ import { and, desc, eq, isNull } from "drizzle-orm";
 import createHttpError from "http-errors";
 import { adminDrizzle } from "../db/db";
 import { emailVerificationTokens, profiles } from "../db/schema";
-import { supabase } from "../supabase/supabase";
 import { upsertNewsletterContact } from "../brevo/brevo";
 import { sendVerificationEmail, sendWelcomeEmail } from "./user.email";
 
-const TOKEN_TTL_MS = 14 * 24 * 60 * 60 * 1000; // 14 days — a welcome mail may sit unread for days
+const TOKEN_TTL_MS = 14 * 24 * 60 * 60 * 1000; // 14 days, a verification mail may sit unread for days
 const RESEND_COOLDOWN_MS = 5 * 60 * 1000;
 
 const APP_URL = process.env.APP_URL ?? "https://app.coltivio.ch";
@@ -27,12 +26,15 @@ async function mintToken(userId: string): Promise<string> {
   return token;
 }
 
+// Claimed conditionally because clients fire several requests at once after login. A failed send keeps
+// the timestamp, so a Brevo outage does not turn every request into a retry.
 export async function sendVerificationEmailIfNeeded(userId: string): Promise<void> {
-  const profile = await adminDrizzle.query.profiles.findFirst({ where: { id: userId } });
+  const [profile] = await adminDrizzle
+    .update(profiles)
+    .set({ verificationEmailSentAt: new Date() })
+    .where(and(eq(profiles.id, userId), eq(profiles.emailVerified, false), isNull(profiles.verificationEmailSentAt)))
+    .returning({ email: profiles.email, fullName: profiles.fullName, locale: profiles.locale });
   if (!profile) return;
-  if (profile.emailVerified || profile.verificationEmailSentAt) return;
-
-  await adminDrizzle.update(profiles).set({ verificationEmailSentAt: new Date() }).where(eq(profiles.id, userId));
 
   const token = await mintToken(userId);
   await sendVerificationEmail({
@@ -43,6 +45,7 @@ export async function sendVerificationEmailIfNeeded(userId: string): Promise<voi
   });
 }
 
+// Earlier tokens stay valid, so the first mail still works after asking for a second one.
 export async function resendVerificationEmail(userId: string): Promise<void> {
   const profile = await adminDrizzle.query.profiles.findFirst({ where: { id: userId } });
   if (!profile) throw createHttpError(404, "User not found");
@@ -59,11 +62,6 @@ export async function resendVerificationEmail(userId: string): Promise<void> {
     throw createHttpError(429, "A verification email was sent recently. Please wait a few minutes.");
   }
 
-  await adminDrizzle
-    .update(emailVerificationTokens)
-    .set({ usedAt: new Date() })
-    .where(and(eq(emailVerificationTokens.userId, userId), isNull(emailVerificationTokens.usedAt)));
-
   if (!profile.verificationEmailSentAt) {
     await adminDrizzle.update(profiles).set({ verificationEmailSentAt: new Date() }).where(eq(profiles.id, userId));
   }
@@ -77,29 +75,38 @@ export async function resendVerificationEmail(userId: string): Promise<void> {
   });
 }
 
-export async function verifyEmailToken(token: string): Promise<{ url: string }> {
+// A repeated click on a confirmed address is not an error. On an unconfirmed one, the used token belongs
+// to an earlier address of the account.
+async function confirmedOrGone(userId: string): Promise<{ verified: true }> {
+  const profile = await adminDrizzle.query.profiles.findFirst({ where: { id: userId } });
+  if (profile?.emailVerified) return { verified: true };
+  throw createHttpError(410, "Verification token already used");
+}
+
+export async function verifyEmailToken(token: string): Promise<{ verified: true }> {
   const row = await adminDrizzle.query.emailVerificationTokens.findFirst({ where: { token } });
 
   if (!row) throw createHttpError(400, "Invalid verification token");
-  if (row.usedAt) throw createHttpError(410, "Verification token already used");
+  if (row.usedAt) return confirmedOrGone(row.userId);
   if (row.expiresAt < new Date()) throw createHttpError(400, "Verification token expired");
 
-  // Claim the token in one conditional statement. Two requests arriving together both pass the
-  // read-only checks above, and each would then send its own welcome mail.
-  const [claimedToken] = await adminDrizzle
-    .update(emailVerificationTokens)
-    .set({ usedAt: new Date() })
-    .where(and(eq(emailVerificationTokens.id, row.id), isNull(emailVerificationTokens.usedAt)))
-    .returning({ id: emailVerificationTokens.id });
-  if (!claimedToken) throw createHttpError(410, "Verification token already used");
+  // One transaction, so a concurrent exchange of the same token waits and then sees the confirmed address
+  const claimed = await adminDrizzle.transaction(async (tx) => {
+    const [claimedToken] = await tx
+      .update(emailVerificationTokens)
+      .set({ usedAt: new Date() })
+      .where(and(eq(emailVerificationTokens.id, row.id), isNull(emailVerificationTokens.usedAt)))
+      .returning({ id: emailVerificationTokens.id });
+    if (!claimedToken) return false;
+    await tx.update(profiles).set({ emailVerified: true }).where(eq(profiles.id, row.userId));
+    return true;
+  });
+  if (!claimed) return confirmedOrGone(row.userId);
 
   const profile = await adminDrizzle.query.profiles.findFirst({ where: { id: row.userId } });
   if (!profile) throw createHttpError(500, "User profile not found");
 
-  await adminDrizzle.update(profiles).set({ emailVerified: true }).where(eq(profiles.id, profile.id));
-
-  // Same reasoning: the timestamp is claimed conditionally, only the winner sends the mail.
-  // Covers a second valid token for the same account too, not just a double click.
+  // Claimed conditionally, so a second token or a confirmation after an address change does not resend it
   const [claimedWelcome] = await adminDrizzle
     .update(profiles)
     .set({ welcomeEmailSentAt: new Date() })
@@ -115,24 +122,15 @@ export async function verifyEmailToken(token: string): Promise<{ url: string }> 
     });
   }
 
+  // On every confirmation: after an address change this moves the contact to the new address
   if (profile.newsletterConsentAt) {
     await upsertNewsletterContact({
+      userId: profile.id,
       email: profile.email,
       firstName: profile.fullName,
       locale: profile.locale,
     });
   }
 
-  // Hand back a fresh magic link so the click also logs the user in, even on a device without a
-  // session. Same primitive as the handoff flow.
-  const { data, error } = await supabase.auth.admin.generateLink({
-    type: "magiclink",
-    email: profile.email,
-    options: { redirectTo: `${APP_URL}/auth/confirm` },
-  });
-  if (error || !data.properties?.action_link) {
-    throw createHttpError(500, `Failed to generate magic link: ${error?.message ?? "no action_link in response"}`);
-  }
-
-  return { url: data.properties.action_link };
+  return { verified: true };
 }

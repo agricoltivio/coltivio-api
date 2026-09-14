@@ -65,7 +65,7 @@ CREATE TRIGGER on_auth_user_created
 
 ## 5. `update_profile` trigger
 
-Syncs profile data when the auth user is updated:
+Syncs profile data when the auth user is updated. A changed address invalidates the email verification, so the next API request of that account sends a new verification mail. The migration `email_verification_grants` replaces the function body with this version, together with the column grants on `profiles`:
 
 ```sql
 CREATE OR REPLACE FUNCTION public.update_profile()
@@ -76,6 +76,13 @@ BEGIN
   UPDATE public.profiles
   SET (email, full_name) = (NEW.email, NEW.raw_user_meta_data->>'full_name')
   WHERE id = NEW.id;
+
+  IF NEW.email IS DISTINCT FROM OLD.email THEN
+    UPDATE public.profiles
+    SET email_verified = false, verification_email_sent_at = NULL
+    WHERE id = NEW.id;
+  END IF;
+
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -152,3 +159,5 @@ DATABASE_URL="<production-connection-string>" yarn db:migrate
 | `APP_DATABASE_URL` | RLS client connection (`rls_client` role) — used by the API at runtime |
 | `SUPABASE_API_URL` | Supabase API URL (for auth) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Service role key (for admin auth operations) |
+| `APP_URL` | Web app base URL, used for links in emails (e.g. `https://app.coltivio.ch`) |
+| `BREVO_LIST_ID` | Brevo contact list for the newsletter. Without it, contact sync is skipped and only logged |
