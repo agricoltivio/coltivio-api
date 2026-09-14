@@ -3,7 +3,7 @@ import { and, desc, eq, isNull } from "drizzle-orm";
 import createHttpError from "http-errors";
 import { adminDrizzle } from "../db/db";
 import { emailVerificationTokens, profiles } from "../db/schema";
-import { upsertNewsletterContact } from "../brevo/brevo";
+import { markNewsletterContactVerified } from "../brevo/brevo";
 import { sendVerificationEmail, sendWelcomeEmail } from "./user.email";
 
 const TOKEN_TTL_MS = 14 * 24 * 60 * 60 * 1000; // 14 days, a verification mail may sit unread for days
@@ -122,15 +122,8 @@ export async function verifyEmailToken(token: string): Promise<{ verified: true 
     });
   }
 
-  // On every confirmation: after an address change this moves the contact to the new address
-  if (profile.newsletterConsentAt) {
-    await upsertNewsletterContact({
-      userId: profile.id,
-      email: profile.email,
-      firstName: profile.fullName,
-      locale: profile.locale,
-    });
-  }
+  // Unconditional: without consent there is no contact, and after an address change this moves it
+  await markNewsletterContactVerified({ userId: profile.id, email: profile.email });
 
   return { verified: true };
 }

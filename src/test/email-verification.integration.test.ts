@@ -8,8 +8,9 @@ import { eq, sql } from "drizzle-orm";
 import { cleanDb, createTestUser, getAdminDb, getAdminSql, request } from "./helpers";
 import { emailVerificationTokens, profiles } from "../db/schema";
 import * as brevo from "../brevo/brevo";
-import { clientDrizzle } from "../db/db";
+import { adminOnlyDb, clientDrizzle } from "../db/db";
 import { sendVerificationEmailIfNeeded, verifyEmailToken } from "../user/user-verification";
+import { usersApi } from "../user/users";
 
 // Email helpers call getFixedT(locale), so i18next must be initialised in the worker
 beforeAll(async () => {
@@ -31,18 +32,16 @@ beforeAll(async () => {
 // never sees a mail sent by an endpoint. Requests are therefore asserted on status codes and on
 // what ends up in the database; mail content is asserted by calling the sender in this process.
 let emailSpy: jest.SpiedFunction<typeof brevo.txEmailApi.sendTransacEmail>;
-let contactSpy: jest.SpiedFunction<typeof brevo.upsertNewsletterContact>;
+let contactSpy: jest.SpiedFunction<typeof brevo.markNewsletterContactVerified>;
 
 beforeEach(async () => {
   await cleanDb();
   emailSpy = jest.spyOn(brevo.txEmailApi, "sendTransacEmail").mockImplementation(() => Promise.resolve());
-  contactSpy = jest.spyOn(brevo, "upsertNewsletterContact").mockImplementation(() => Promise.resolve());
+  contactSpy = jest.spyOn(brevo, "markNewsletterContactVerified").mockImplementation(() => Promise.resolve());
 });
 
 afterEach(() => {
-  emailSpy.mockRestore();
-  contactSpy.mockRestore();
-  jest.clearAllMocks();
+  jest.restoreAllMocks();
 });
 
 let userCounter = 0;
@@ -256,7 +255,7 @@ describe("Verification token exchange", () => {
 });
 
 describe("Welcome mail", () => {
-  it("is sent once, after verification, and only syncs a contact with consent", async () => {
+  it("is sent once, after verification, and marks the Brevo contact verified", async () => {
     const { userId, email } = await newUser();
     await sendVerificationEmailIfNeeded(userId);
     const [token] = await tokensFor(userId);
@@ -269,25 +268,19 @@ describe("Welcome mail", () => {
     expect(welcome.subject).toBe("Willkommen bei Coltivio");
     expect(welcome.to![0].email).toBe(email);
     expect(welcome.htmlContent).toContain("Mitglied werden");
-    // Consent gates the contact list only, the mail itself goes out either way
-    expect(contactSpy).not.toHaveBeenCalled();
+    expect(contactSpy).toHaveBeenCalledWith({ userId, email });
   });
 
-  it("syncs the Brevo contact when consent was given", async () => {
-    const { jwt, userId, email } = await newUser();
-    const consentRes = await request("PATCH", "/v1/me", { newsletterConsent: true }, jwt);
-    expect(consentRes.status).toBe(200);
+  it("accepts the newsletter consent of an unconfirmed account", async () => {
+    const { jwt } = await newUser();
 
-    const [token] = await waitForTokens(userId, 1);
-    await verifyEmailToken(token.token);
-
-    expect(contactSpy).toHaveBeenCalledTimes(1);
-    expect(contactSpy.mock.calls[0][0]).toEqual(expect.objectContaining({ userId, email }));
+    const res = await request("PATCH", "/v1/me", { newsletterConsent: true }, jwt);
+    expect(res.status).toBe(200);
   });
 
   it("moves the Brevo contact to a changed address once it is confirmed", async () => {
     const { jwt, userId, email } = await newUser();
-    await request("PATCH", "/v1/me", { newsletterConsent: true }, jwt);
+    await getMe(jwt);
     const [first] = await waitForTokens(userId, 1);
     await verifyEmailToken(first.token);
 
@@ -303,6 +296,26 @@ describe("Welcome mail", () => {
     expect(contactSpy.mock.calls[0][0]).toEqual(expect.objectContaining({ userId, email }));
     expect(contactSpy.mock.calls[1][0]).toEqual(expect.objectContaining({ userId, email: newEmail }));
     expect(emailSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe("Newsletter consent", () => {
+  it("puts an unconfirmed account on the Brevo list with VERIFIED false", async () => {
+    const { userId, email } = await newUser();
+    const upsertSpy = jest.spyOn(brevo, "upsertNewsletterContact").mockImplementation(() => Promise.resolve());
+
+    await usersApi(adminOnlyDb).setNewsletterConsent(userId, true);
+
+    expect(upsertSpy).toHaveBeenCalledWith(expect.objectContaining({ userId, email, verified: false }));
+  });
+
+  it("takes the contact off the list when consent is withdrawn", async () => {
+    const { userId, email } = await newUser();
+    const removeSpy = jest.spyOn(brevo, "removeNewsletterContact").mockImplementation(() => Promise.resolve());
+
+    await usersApi(adminOnlyDb).setNewsletterConsent(userId, false);
+
+    expect(removeSpy).toHaveBeenCalledWith({ userId, email });
   });
 });
 

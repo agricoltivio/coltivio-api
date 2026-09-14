@@ -1,7 +1,7 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "1767bf74-4604-40b0-94b9-df7db0b822b4",
+  "id": "95eb8672-9151-4458-9d19-cd2bac873f1a",
   "prevIds": [
     "8e7e35bc-40bc-4879-8f59-10531816b19c"
   ],
@@ -5990,19 +5990,6 @@
       "generated": null,
       "identity": null,
       "name": "welcome_email_sent_at",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "profiles"
-    },
-    {
-      "type": "timestamp",
-      "typeSchema": null,
-      "notNull": false,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "newsletter_consent_at",
       "entityType": "columns",
       "schema": "public",
       "table": "profiles"

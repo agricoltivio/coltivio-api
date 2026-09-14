@@ -4,7 +4,7 @@ import { RlsDb } from "../db/db";
 import { farmMembers, profiles } from "../db/schema";
 import { supabase } from "../supabase/supabase";
 import { getStripe } from "../stripe/stripe";
-import { removeNewsletterContact, upsertNewsletterContact } from "../brevo/brevo";
+import { deleteNewsletterContact, removeNewsletterContact, upsertNewsletterContact } from "../brevo/brevo";
 
 export type NewUser = typeof profiles.$inferInsert;
 export type UpdatedUser = Partial<NewUser>;
@@ -41,20 +41,15 @@ export function usersApi(authDb: RlsDb) {
       const profile = await authDb.admin.query.profiles.findFirst({ where: { id } });
       if (!profile) throw createHttpError(404, "User not found");
 
-      await authDb.admin
-        .update(profiles)
-        .set({ newsletterConsentAt: consent ? new Date() : null })
-        .where(eq(profiles.id, id));
-
-      if (consent && profile.emailVerified) {
+      if (consent) {
         await upsertNewsletterContact({
           userId: profile.id,
           email: profile.email,
           firstName: profile.fullName,
           locale: profile.locale,
+          verified: profile.emailVerified,
         });
-      }
-      if (!consent) {
+      } else {
         await removeNewsletterContact({ userId: profile.id, email: profile.email });
       }
     },
@@ -91,6 +86,8 @@ export function usersApi(authDb: RlsDb) {
         await tx.delete(profiles).where(eq(profiles.id, id));
         await supabase.auth.admin.deleteUser(id);
       });
+
+      await deleteNewsletterContact(id);
 
       // Delete Stripe customer to remove PII (email, name, payment methods) per GDPR
       if (profile?.stripeCustomerId) {

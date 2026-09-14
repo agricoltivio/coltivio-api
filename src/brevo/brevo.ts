@@ -1,3 +1,4 @@
+import { captureException } from "@sentry/node";
 import {
   TransactionalEmailsApi,
   TransactionalEmailsApiApiKeys,
@@ -31,6 +32,7 @@ if (API_KEY) {
   _contactsApi.setApiKey(ContactsApiApiKeys.apiKey, API_KEY);
 }
 
+// Being on this list is the newsletter consent
 const LIST_ID = process.env.BREVO_LIST_ID ? Number(process.env.BREVO_LIST_ID) : undefined;
 
 export type NewsletterContact = {
@@ -38,16 +40,27 @@ export type NewsletterContact = {
   email: string;
   firstName: string | null;
   locale: string;
+  verified: boolean;
 };
 
 // Keyed by user id (ext_id) so an address change keeps the contact, its list and its unsubscribe status.
 // The SDK cannot address contacts by ext_id.
-function updateContactByUserId(userId: string, body: Record<string, unknown>): Promise<Response> {
+function requestContactByUserId(
+  method: "PUT" | "DELETE",
+  userId: string,
+  body?: Record<string, unknown>
+): Promise<Response> {
   return fetch(`${BREVO_API_URL}/contacts/${encodeURIComponent(userId)}?identifierType=ext_id`, {
-    method: "PUT",
+    method,
     headers: { "api-key": API_KEY!, "content-type": "application/json", accept: "application/json" },
-    body: JSON.stringify(body),
+    body: body ? JSON.stringify(body) : undefined,
   });
+}
+
+async function reportFailure(action: string, email: string, res: Response): Promise<void> {
+  const message = `[brevo] failed to ${action}: ${res.status} ${await res.text()}`;
+  console.error(message, email);
+  captureException(new Error(message));
 }
 
 async function createListContact(contact: NewsletterContact, withUserId: boolean): Promise<void> {
@@ -60,6 +73,7 @@ async function createListContact(contact: NewsletterContact, withUserId: boolean
     VORNAME: contact.firstName ?? "",
     SPRACHE: contact.locale,
     QUELLE: "app",
+    VERIFIED: contact.verified,
   };
   payload.listIds = [LIST_ID!];
   payload.updateEnabled = true;
@@ -73,8 +87,13 @@ export async function upsertNewsletterContact(contact: NewsletterContact): Promi
   }
 
   try {
-    const res = await updateContactByUserId(contact.userId, {
-      attributes: { EMAIL: contact.email, VORNAME: contact.firstName ?? "", SPRACHE: contact.locale },
+    const res = await requestContactByUserId("PUT", contact.userId, {
+      attributes: {
+        EMAIL: contact.email,
+        VORNAME: contact.firstName ?? "",
+        SPRACHE: contact.locale,
+        VERIFIED: contact.verified,
+      },
       listIds: [LIST_ID],
     });
     if (res.ok) return;
@@ -93,13 +112,33 @@ export async function upsertNewsletterContact(contact: NewsletterContact): Promi
         await res.text()
       );
       await createListContact(contact, false);
-      await updateContactByUserId(contact.userId, { unlinkListIds: [LIST_ID] });
+      await requestContactByUserId("PUT", contact.userId, { unlinkListIds: [LIST_ID] });
       return;
     }
 
-    console.error("[brevo] failed to update contact", contact.email, res.status, await res.text());
+    await reportFailure("update contact", contact.email, res);
   } catch (error) {
     console.error("[brevo] failed to upsert contact", contact.email, error);
+    captureException(error);
+  }
+}
+
+export async function markNewsletterContactVerified(contact: { userId: string; email: string }): Promise<void> {
+  if (!API_KEY || LIST_ID === undefined) {
+    console.log("[brevo] contact verification skipped (no API key or BREVO_LIST_ID):", contact.email);
+    return;
+  }
+
+  try {
+    const res = await requestContactByUserId("PUT", contact.userId, {
+      attributes: { EMAIL: contact.email, VERIFIED: true },
+    });
+    // 404: the user never consented, so there is no contact
+    if (res.ok || res.status === 404) return;
+    await reportFailure("mark contact verified", contact.email, res);
+  } catch (error) {
+    console.error("[brevo] failed to mark contact verified", contact.email, error);
+    captureException(error);
   }
 }
 
@@ -110,7 +149,7 @@ export async function removeNewsletterContact(contact: { userId: string; email: 
   }
 
   try {
-    const res = await updateContactByUserId(contact.userId, { unlinkListIds: [LIST_ID] });
+    const res = await requestContactByUserId("PUT", contact.userId, { unlinkListIds: [LIST_ID] });
     if (!res.ok && res.status !== 404) {
       console.error("[brevo] failed to unlink contact", contact.email, res.status, await res.text());
     }
@@ -125,5 +164,21 @@ export async function removeNewsletterContact(contact: { userId: string; email: 
     await _contactsApi.removeContactFromList(LIST_ID, payload);
   } catch {
     // not on the list
+  }
+}
+
+export async function deleteNewsletterContact(userId: string): Promise<void> {
+  if (!API_KEY) {
+    console.log("[brevo] contact deletion skipped (no API key):", userId);
+    return;
+  }
+
+  try {
+    const res = await requestContactByUserId("DELETE", userId);
+    if (res.ok || res.status === 404) return;
+    await reportFailure("delete contact", userId, res);
+  } catch (error) {
+    console.error("[brevo] failed to delete contact", userId, error);
+    captureException(error);
   }
 }

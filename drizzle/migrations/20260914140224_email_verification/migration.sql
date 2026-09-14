@@ -10,7 +10,6 @@ CREATE TABLE "email_verification_tokens" (
 ALTER TABLE "email_verification_tokens" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 ALTER TABLE "profiles" ADD COLUMN "verification_email_sent_at" timestamp;--> statement-breakpoint
 ALTER TABLE "profiles" ADD COLUMN "welcome_email_sent_at" timestamp;--> statement-breakpoint
-ALTER TABLE "profiles" ADD COLUMN "newsletter_consent_at" timestamp;--> statement-breakpoint
 ALTER TABLE "email_verification_tokens" ADD CONSTRAINT "email_verification_tokens_user_id_profiles_id_fkey" FOREIGN KEY ("user_id") REFERENCES "profiles"("id") ON DELETE CASCADE;--> statement-breakpoint
 -- Drizzle does not model column grants. A column REVOKE is a no-op while the table grant stands.
 REVOKE UPDATE ON public.profiles FROM authenticated;--> statement-breakpoint

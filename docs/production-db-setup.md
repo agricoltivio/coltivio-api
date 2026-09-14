@@ -65,7 +65,7 @@ CREATE TRIGGER on_auth_user_created
 
 ## 5. `update_profile` trigger
 
-Syncs profile data when the auth user is updated. A changed address invalidates the email verification, so the next API request of that account sends a new verification mail. The migration `20260914111751_email_verification` replaces the function body with this version, together with the column grants on `profiles`:
+Syncs profile data when the auth user is updated. A changed address invalidates the email verification, so the next API request of that account sends a new verification mail. The migration `20260914140224_email_verification` replaces the function body with this version, together with the column grants on `profiles`:
 
 ```sql
 CREATE OR REPLACE FUNCTION public.update_profile()
@@ -160,4 +160,4 @@ DATABASE_URL="<production-connection-string>" yarn db:migrate
 | `SUPABASE_API_URL` | Supabase API URL (for auth) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Service role key (for admin auth operations) |
 | `APP_URL` | Web app base URL, used for links in emails (e.g. `https://app.coltivio.ch`) |
-| `BREVO_LIST_ID` | Brevo contact list for the newsletter. Without it, contact sync is skipped and only logged |
+| `BREVO_LIST_ID` | Brevo newsletter list. Being on it is the newsletter consent. Contacts need the attributes `VERIFIED` (boolean), `QUELLE`, `SPRACHE` and `VORNAME`. The list also holds unconfirmed app addresses, so campaigns go to segments that include the list condition. Without the variable, contact sync is skipped and only logged |

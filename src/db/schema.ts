@@ -105,7 +105,6 @@ export const profiles = pgTable.withRLS(
     stripeCustomerId: text(),
     verificationEmailSentAt: timestamp({ mode: "date" }),
     welcomeEmailSentAt: timestamp({ mode: "date" }),
-    newsletterConsentAt: timestamp({ mode: "date" }),
   },
   (table) => [
     foreignKey({
