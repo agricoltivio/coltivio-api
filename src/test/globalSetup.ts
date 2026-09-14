@@ -124,7 +124,7 @@ export default async function globalSetup() {
     -- RLS policy would let any logged-in user flip email_verified through PostgREST.
     -- A column-level REVOKE is a no-op while the table-level UPDATE grant stands, so drop that
     -- first and grant back only the column clients may write.
-    -- Repeats the email_verification_grants migration, which the GRANT ALL above undoes.
+    -- Repeats the column grants from migration email_verification, which the GRANT ALL above undoes.
     REVOKE UPDATE ON public.profiles FROM authenticated;
     GRANT UPDATE (full_name) ON public.profiles TO authenticated;
   `);

@@ -65,7 +65,7 @@ CREATE TRIGGER on_auth_user_created
 
 ## 5. `update_profile` trigger
 
-Syncs profile data when the auth user is updated. A changed address invalidates the email verification, so the next API request of that account sends a new verification mail. The migration `email_verification_grants` replaces the function body with this version, together with the column grants on `profiles`:
+Syncs profile data when the auth user is updated. A changed address invalidates the email verification, so the next API request of that account sends a new verification mail. The migration `20260914111751_email_verification` replaces the function body with this version, together with the column grants on `profiles`:
 
 ```sql
 CREATE OR REPLACE FUNCTION public.update_profile()
