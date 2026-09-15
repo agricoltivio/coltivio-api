@@ -4,6 +4,7 @@ import { RlsDb } from "../db/db";
 import { farmMembers, profiles } from "../db/schema";
 import { supabase } from "../supabase/supabase";
 import { getStripe } from "../stripe/stripe";
+import { deleteNewsletterContact, removeNewsletterContact, upsertNewsletterContact } from "../brevo/brevo";
 
 export type NewUser = typeof profiles.$inferInsert;
 export type UpdatedUser = Partial<NewUser>;
@@ -34,6 +35,23 @@ export function usersApi(authDb: RlsDb) {
         const [user] = await tx.update(profiles).set(updatedUser).where(eq(profiles.id, id)).returning();
         return user;
       });
+    },
+
+    async setNewsletterConsent(id: string, consent: boolean): Promise<void> {
+      const profile = await authDb.admin.query.profiles.findFirst({ where: { id } });
+      if (!profile) throw createHttpError(404, "User not found");
+
+      if (consent) {
+        await upsertNewsletterContact({
+          userId: profile.id,
+          email: profile.email,
+          firstName: profile.fullName,
+          locale: profile.locale,
+          verified: profile.emailVerified,
+        });
+      } else {
+        await removeNewsletterContact({ userId: profile.id, email: profile.email });
+      }
     },
     // Blocks account deletion if it would leave any other farm (besides the one optionally being
     // deleted alongside it, via excludeFarmId) with zero owners. Deleting a profile cascades to
@@ -68,6 +86,8 @@ export function usersApi(authDb: RlsDb) {
         await tx.delete(profiles).where(eq(profiles.id, id));
         await supabase.auth.admin.deleteUser(id);
       });
+
+      await deleteNewsletterContact(id);
 
       // Delete Stripe customer to remove PII (email, name, payment methods) per GDPR
       if (profile?.stripeCustomerId) {

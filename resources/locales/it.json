@@ -377,28 +377,21 @@
     "amount": "Importo",
     "contact_question": "Per domande, contattaci a",
     "contact_newsletter": "Iscriviti alla nostra newsletter su",
-    "forum_cta": "Visita il Forum per entrare in contatto con altri membri e persone con la stessa visione.",
     "new": {
       "subject": "Benvenuto ad AgriColtivio – la tua Iscrizione è attiva",
       "subject_trial": "Benvenuto ad AgriColtivio – la tua Iscrizione è configurata",
       "greeting": "Ciao {{name}}",
-      "welcome": "Benvenuto ad AgriColtivio – l'associazione dietro Coltivio. La tua azienda agricola ha pieno accesso a tutte le funzioni dell'App e della Web App.",
-      "features_title": "I tuoi vantaggi",
-      "app_label": "App",
-      "webapp_label": "Web App",
-      "app_features": [
-        "Compiti con assegnazione ad animali o superfici e lista di controllo automatica",
-        "Invita più utenti e pianifica insieme",
-        "Usa immagini nelle voci del wiki"
-      ],
-      "webapp_features": [
-        "Tutte le funzioni dell'app nel browser",
-        "Gestire i contatti",
-        "Registrare ordini e monitorare i pagamenti",
-        "Gestire le adozioni di animali"
-      ],
+      "welcome": "Benvenuto ad AgriColtivio, l'associazione dietro Coltivio. Bello averti con noi.",
       "receipt_title": "Conferma del pagamento",
-      "trial_billing_info": "Il tuo periodo di prova termina il {{date}}. Verrai addebitato solo al termine del periodo di prova."
+      "trial_billing_info": "Il tuo periodo di prova termina il {{date}}. Verrai addebitato solo al termine del periodo di prova.",
+      "carried_by_members": "Coltivio è finanziato dai contributi dei soci e dalle donazioni. Nessun investitore che si aspetta un rendimento e nessuno che faccia affari con i tuoi dati. Stai sostenendo un'agricoltura aperta e giusta in Svizzera.",
+      "benefits_title": "Come socio",
+      "benefits": [
+        "Diritto di voto all'assemblea dei soci: decidi in che direzione va Coltivio",
+        "Supporto personale per domande sull'app, sull'azienda o sul prossimo controllo",
+        "Accesso al punto d'incontro, per scambiare con altre contadine e altri contadini",
+        "Trasparenza sui conti: relazione annuale e conto annuale vanno ogni anno ai soci"
+      ]
     },
     "first_payment": {
       "subject": "La tua Iscrizione è stata addebitata",
@@ -456,7 +449,31 @@
     "intro": "Grazie per la tua donazione! Stai sostenendo un'agricoltura aperta e giusta in Svizzera.",
     "receipt_title": "Conferma della tua donazione",
     "product_name": "Donazione a Coltivio",
-    "amount": "Importo"
+    "amount": "Importo",
+    "subtitle": "da AgriColtivio"
+  },
+  "verification_email": {
+    "subject": "Conferma il tuo indirizzo e-mail",
+    "subtitle": "da AgriColtivio",
+    "greeting": "Ciao {{name}}",
+    "intro": "Bello averti con noi. Conferma il tuo indirizzo e-mail, così possiamo contattarti per domande sull'azienda e così puoi reimpostare la password se un giorno la dimentichi.",
+    "cta": "Conferma e-mail",
+    "expiry_note": "Il link è valido 14 giorni.",
+    "ignore_note": "Se non ti sei registrato a Coltivio, puoi ignorare questa e-mail."
+  },
+  "welcome_email": {
+    "subject": "Benvenuto su Coltivio",
+    "subtitle": "da AgriColtivio",
+    "greeting": "Ciao {{name}}",
+    "intro": "Il tuo indirizzo e-mail è confermato. Coltivio ora ti è completamente aperto: superfici e calendario dei campi, effettivo animali e giornale dei trattamenti, compiti e il tuo wiki, tutto registrato in azienda invece che la sera al computer.",
+    "verein_title": "Dietro l'app c'è un'associazione",
+    "verein_body": "Coltivio è sviluppato e gestito dall'associazione AgriColtivio, un'associazione di pubblica utilità di diritto svizzero con sede a Braggio, in Val Calanca. L'associazione è politicamente indipendente e non persegue interessi commerciali propri. Coltivio è finanziato dai contributi dei soci e dalle donazioni. Nessun investitore che si aspetta un rendimento e nessuno che faccia affari con i tuoi dati.",
+    "open_source": "Il codice sorgente è aperto e i tuoi dati sono su server nell'UE.",
+    "membership_title": "Diventa socio",
+    "membership_body": "Come socio decidi all'assemblea dei soci in che direzione va il software. Ci raggiungi direttamente per domande sull'app, sull'azienda o sul prossimo controllo, e il punto d'incontro nella Web App ti è aperto per scambiare con altre contadine e altri contadini.",
+    "membership_price": "L'adesione costa CHF 75 all'anno.",
+    "membership_cta": "Diventa socio",
+    "contact": "Per domande ci raggiungi a"
   },
   "farm_invite": {
     "subject": "Sei stato invitato a unirti a {{farmName}} su Coltivio",

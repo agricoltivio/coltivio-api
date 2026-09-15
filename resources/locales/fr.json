@@ -377,28 +377,21 @@
     "amount": "Montant",
     "contact_question": "Pour toute question, contactez-nous à",
     "contact_newsletter": "Abonnez-vous à notre newsletter sur",
-    "forum_cta": "Visitez le Forum pour rencontrer d'autres membres et des personnes partageant les mêmes idées.",
     "new": {
       "subject": "Bienvenue chez AgriColtivio – votre Adhésion est active",
       "subject_trial": "Bienvenue chez AgriColtivio – votre Adhésion est configurée",
       "greeting": "Bonjour {{name}}",
-      "welcome": "Bienvenue chez AgriColtivio – l'association derrière Coltivio. Votre exploitation a maintenant accès à toutes les fonctionnalités de l'App et de la WebApp.",
-      "features_title": "Vos avantages",
-      "app_label": "App",
-      "webapp_label": "WebApp",
-      "app_features": [
-        "Tâches avec attribution à des animaux ou des surfaces et liste de contrôle automatique",
-        "Inviter plusieurs utilisateurs et planifier ensemble",
-        "Utiliser des images dans les entrées du wiki"
-      ],
-      "webapp_features": [
-        "Toutes les fonctions de l'app dans le navigateur",
-        "Gérer les contacts",
-        "Enregistrer les commandes et suivre les paiements",
-        "Gérer les parrainages d'animaux"
-      ],
+      "welcome": "Bienvenue chez AgriColtivio, l'association derrière Coltivio. Ravis de vous compter parmi nous.",
       "receipt_title": "Confirmation de votre paiement",
-      "trial_billing_info": "Votre période d'essai se termine le {{date}}. Vous ne serez débité qu'à la fin de la période d'essai."
+      "trial_billing_info": "Votre période d'essai se termine le {{date}}. Vous ne serez débité qu'à la fin de la période d'essai.",
+      "carried_by_members": "Coltivio est financé par les cotisations des membres et par des dons. Aucun investisseur n'attend de rendement, et personne ne fait commerce de vos données. Vous soutenez ainsi une agriculture ouverte et équitable en Suisse.",
+      "benefits_title": "En tant que membre",
+      "benefits": [
+        "Droit de vote à l'assemblée générale : vous décidez de l'orientation de Coltivio",
+        "Support personnel pour vos questions sur l'application, sur l'exploitation ou sur le prochain contrôle",
+        "Accès au point de rencontre, pour échanger avec d'autres paysannes et paysans",
+        "Transparence des finances : le rapport annuel et les comptes sont remis aux membres chaque année"
+      ]
     },
     "first_payment": {
       "subject": "Votre Adhésion a été débitée",
@@ -456,7 +449,31 @@
     "intro": "Merci pour votre don ! Vous soutenez ainsi une agriculture ouverte et équitable en Suisse.",
     "receipt_title": "Confirmation de votre don",
     "product_name": "Don à Coltivio",
-    "amount": "Montant"
+    "amount": "Montant",
+    "subtitle": "de AgriColtivio"
+  },
+  "verification_email": {
+    "subject": "Confirmez votre adresse e-mail",
+    "subtitle": "de AgriColtivio",
+    "greeting": "Bonjour {{name}}",
+    "intro": "Ravis de vous compter parmi nous. Confirmez rapidement votre adresse e-mail pour que nous puissions vous joindre en cas de questions sur votre exploitation et pour que vous puissiez réinitialiser votre mot de passe si vous l'oubliez un jour.",
+    "cta": "Confirmer l'e-mail",
+    "expiry_note": "Le lien est valable 14 jours.",
+    "ignore_note": "Si vous ne vous êtes pas inscrit à Coltivio, vous pouvez ignorer cet e-mail."
+  },
+  "welcome_email": {
+    "subject": "Bienvenue chez Coltivio",
+    "subtitle": "de AgriColtivio",
+    "greeting": "Bonjour {{name}}",
+    "intro": "Votre adresse e-mail est confirmée. Coltivio vous est maintenant entièrement ouvert : surfaces et calendrier des champs, cheptel et journal des traitements, tâches et votre wiki, tout se saisit sur l'exploitation plutôt que le soir devant l'ordinateur.",
+    "verein_title": "Une association se tient derrière l'application",
+    "verein_body": "Coltivio est développé et exploité par l'association AgriColtivio, une association d'utilité publique de droit suisse dont le siège est à Braggio, dans le val Calanca. L'association est politiquement indépendante et ne poursuit aucun intérêt commercial propre. Coltivio est financé par les cotisations des membres et par des dons. Aucun investisseur n'attend de rendement, et personne ne fait commerce de vos données.",
+    "open_source": "Le code source est ouvert et vos données sont stockées sur des serveurs situés dans l'UE.",
+    "membership_title": "Devenir membre",
+    "membership_body": "En tant que membre, vous décidez à l'assemblée générale de l'orientation du logiciel. Vous nous joignez directement pour vos questions sur l'application, sur l'exploitation ou sur le prochain contrôle, et le point de rencontre dans la WebApp vous est ouvert pour échanger avec d'autres paysannes et paysans.",
+    "membership_price": "L'adhésion coûte CHF 75 par an.",
+    "membership_cta": "Devenir membre",
+    "contact": "Pour toute question, écrivez-nous à"
   },
   "farm_invite": {
     "subject": "Vous avez été invité à rejoindre {{farmName}} sur Coltivio",

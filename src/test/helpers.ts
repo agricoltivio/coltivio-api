@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import { GoTrueClient } from "@supabase/auth-js";
 import postgres from "postgres";
+import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import * as schema from "../db/schema";
 import { relations } from "../db/schema";
@@ -60,6 +61,13 @@ export async function createTestUser(email: string, password: string) {
 
   const { data: signInData, error: signInError } = await gotrue.signInWithPassword({ email, password });
   if (signInError) throw signInError;
+
+  // Confirmed and handled by default, otherwise the first request of every test sends a verification or
+  // welcome mail
+  await getAdminDb()
+    .update(schema.profiles)
+    .set({ emailVerified: true, verificationHandledAt: new Date() })
+    .where(eq(schema.profiles.id, createData.user.id));
 
   return {
     jwt: signInData.session!.access_token,

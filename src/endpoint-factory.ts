@@ -1,5 +1,6 @@
 import { EndpointsFactory, Middleware } from "express-zod-api";
 import createHttpError from "http-errors";
+import { captureException } from "@sentry/node";
 import { jwtDecode } from "jwt-decode";
 import { z } from "zod";
 import { sessionApi } from "./api/api";
@@ -9,6 +10,7 @@ import { supabase, SupabaseToken } from "./supabase/supabase";
 import * as tables from "./db/schema";
 import { FarmPermissionFeature } from "./db/schema";
 import { sentryResultHandler } from "./sentry";
+import { completeAddressChangeIfNeeded, sendVerificationEmailIfNeeded } from "./user/user-verification";
 
 export const supabaseAuthMiddleware = new Middleware({
   security: {
@@ -70,6 +72,12 @@ export const supabaseAuthMiddleware = new Middleware({
     if (requestLocale && user.locale !== requestLocale) {
       await adminDrizzle.update(tables.profiles).set({ locale: requestLocale }).where(eq(tables.profiles.id, user.id));
       user.locale = requestLocale;
+    }
+
+    // After the locale sync, so mails go out in the language of the requesting client
+    if (!user.verificationHandledAt) {
+      const handle = user.emailVerified ? completeAddressChangeIfNeeded : sendVerificationEmailIfNeeded;
+      void handle(user.id).catch(captureException);
     }
 
     const farmContext = await resolveFarmContext(request.headers["x-farm-id"], user.id);

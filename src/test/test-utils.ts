@@ -157,6 +157,7 @@ export async function createUserWithFarm(
   opts: { withActiveMembership?: boolean } = {}
 ) {
   const { jwt, userId } = await createTestUser(email, "password123");
+
   const farmData = merge({}, DEFAULT_FARM, data);
   const res = await request("POST", "/v1/farm", farmData, jwt);
   const body = (await res.json()) as { data: { id: string } };
