@@ -103,7 +103,7 @@ export const profiles = pgTable.withRLS(
     emailVerified: boolean().notNull().default(false),
     locale: text().notNull().default("de"),
     stripeCustomerId: text(),
-    verificationEmailSentAt: timestamp({ mode: "date" }),
+    verificationHandledAt: timestamp({ mode: "date" }),
     welcomeEmailSentAt: timestamp({ mode: "date" }),
   },
   (table) => [

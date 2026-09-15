@@ -1,7 +1,7 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "95eb8672-9151-4458-9d19-cd2bac873f1a",
+  "id": "b99aed28-fd1b-4d3f-9ea5-c73e9ca8a3a0",
   "prevIds": [
     "8e7e35bc-40bc-4879-8f59-10531816b19c"
   ],
@@ -5976,7 +5976,7 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "verification_email_sent_at",
+      "name": "verification_handled_at",
       "entityType": "columns",
       "schema": "public",
       "table": "profiles"

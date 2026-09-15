@@ -65,7 +65,7 @@ CREATE TRIGGER on_auth_user_created
 
 ## 5. `update_profile` trigger
 
-Syncs profile data when the auth user is updated. A changed address invalidates the email verification, so the next API request of that account sends a new verification mail. The migration `20260914140224_email_verification` replaces the function body with this version, together with the column grants on `profiles`:
+Syncs profile data when the auth user is updated. Supabase changes the address only once the new one is confirmed, so a changed address stays verified. The trigger clears `verification_handled_at`, and the next API request of that account finishes the change (open verification tokens removed, Brevo contact moved to the new address). The migration `20260915071226_email_verification` replaces the function body with this version, together with the column grants on `profiles`:
 
 ```sql
 CREATE OR REPLACE FUNCTION public.update_profile()
@@ -79,7 +79,7 @@ BEGIN
 
   IF NEW.email IS DISTINCT FROM OLD.email THEN
     UPDATE public.profiles
-    SET email_verified = false, verification_email_sent_at = NULL
+    SET email_verified = true, verification_handled_at = NULL
     WHERE id = NEW.id;
   END IF;
 
@@ -160,4 +160,4 @@ DATABASE_URL="<production-connection-string>" yarn db:migrate
 | `SUPABASE_API_URL` | Supabase API URL (for auth) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Service role key (for admin auth operations) |
 | `APP_URL` | Web app base URL, used for links in emails (e.g. `https://app.coltivio.ch`) |
-| `BREVO_LIST_ID` | Brevo newsletter list. Being on it is the newsletter consent. Contacts need the attributes `VERIFIED` (boolean), `QUELLE`, `SPRACHE` and `VORNAME`. The list also holds unconfirmed app addresses, so campaigns go to segments that include the list condition. Without the variable, contact sync is skipped and only logged |
+| `BREVO_LIST_ID` | Brevo newsletter list. Being on it is the newsletter consent. Contacts need the attributes `VERIFIED` (boolean), `QUELLE`, `SPRACHE` and `VORNAME`. `QUELLE=app` means the contact belongs to an app account, even if it first signed up through the landing page. The list also holds unconfirmed app addresses, so campaigns go to segments that include the list condition, e.g. list + `QUELLE=app` + `VERIFIED=true` for app users. Without the variable, contact sync is skipped and only logged |

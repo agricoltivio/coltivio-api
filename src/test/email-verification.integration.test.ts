@@ -9,7 +9,11 @@ import { cleanDb, createTestUser, getAdminDb, getAdminSql, request } from "./hel
 import { emailVerificationTokens, profiles } from "../db/schema";
 import * as brevo from "../brevo/brevo";
 import { adminOnlyDb, clientDrizzle } from "../db/db";
-import { sendVerificationEmailIfNeeded, verifyEmailToken } from "../user/user-verification";
+import {
+  completeAddressChangeIfNeeded,
+  sendVerificationEmailIfNeeded,
+  verifyEmailToken,
+} from "../user/user-verification";
 import { usersApi } from "../user/users";
 
 // Email helpers call getFixedT(locale), so i18next must be initialised in the worker
@@ -55,7 +59,10 @@ function uniqueEmail(prefix: string) {
 async function newUser() {
   const email = uniqueEmail("verify");
   const { jwt, userId } = await createTestUser(email, "123456");
-  await getAdminDb().update(profiles).set({ emailVerified: false }).where(eq(profiles.id, userId));
+  await getAdminDb()
+    .update(profiles)
+    .set({ emailVerified: false, verificationHandledAt: null })
+    .where(eq(profiles.id, userId));
   return { jwt, userId, email };
 }
 
@@ -85,14 +92,18 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// The middleware sends the mail without awaiting it, so the token rows show up a moment later
-async function waitForTokens(userId: string, count: number) {
+// The middleware works without awaiting it, so its effects show up a moment later
+async function waitFor(check: () => Promise<boolean>, what: string) {
   for (let i = 0; i < 60; i++) {
-    const rows = await tokensFor(userId);
-    if (rows.length >= count) return rows;
+    if (await check()) return;
     await sleep(100);
   }
-  throw new Error(`expected ${count} verification token(s)`);
+  throw new Error(`timed out waiting for ${what}`);
+}
+
+async function waitForTokens(userId: string, count: number) {
+  await waitFor(async () => (await tokensFor(userId)).length >= count, `${count} verification token(s)`);
+  return tokensFor(userId);
 }
 
 async function getMe(jwt: string) {
@@ -107,7 +118,7 @@ async function mailedUser() {
   return { ...user, token };
 }
 
-// Through auth.users, so the update_profile trigger resets the verification as in production
+// Through auth.users, so the update_profile trigger runs as in production
 async function changeAddress(userId: string, email: string) {
   await getAdminSql()`update auth.users set email = ${email} where id = ${userId}`;
 }
@@ -120,7 +131,7 @@ describe("Verification email trigger", () => {
     await waitForTokens(userId, 1);
 
     const profile = await profileFor(userId);
-    expect(profile.verificationEmailSentAt).not.toBeNull();
+    expect(profile.verificationHandledAt).not.toBeNull();
     expect(profile.emailVerified).toBe(false);
   });
 
@@ -156,15 +167,18 @@ describe("Verification email trigger", () => {
     expect(await tokensFor(userId)).toHaveLength(0);
   });
 
-  it("sends again after an address change", async () => {
+  it("keeps a changed address verified and finishes the change without a new token", async () => {
     const { jwt, userId, token } = await mailedUser();
     await request("POST", "/v1/auth/verify-email", { token: token.token });
 
     await changeAddress(userId, uniqueEmail("changed"));
-    expect((await profileFor(userId)).emailVerified).toBe(false);
+    const changed = await profileFor(userId);
+    expect(changed.emailVerified).toBe(true);
+    expect(changed.verificationHandledAt).toBeNull();
 
     await getMe(jwt);
-    await waitForTokens(userId, 2);
+    await waitFor(async () => (await profileFor(userId)).verificationHandledAt !== null, "the address change");
+    expect(await tokensFor(userId)).toHaveLength(1);
   });
 });
 
@@ -226,14 +240,14 @@ describe("Verification token exchange", () => {
     expect(emailSpy).toHaveBeenCalledTimes(1);
   });
 
-  it("rejects a used token once the address has changed", async () => {
+  it("still answers verified for a used token after an address change", async () => {
     const { userId, token } = await mailedUser();
     await request("POST", "/v1/auth/verify-email", { token: token.token });
 
     await changeAddress(userId, uniqueEmail("changed"));
 
     const res = await request("POST", "/v1/auth/verify-email", { token: token.token });
-    expect(res.status).toBe(410);
+    expect(res.status).toBe(200);
   });
 
   it("rejects an expired token", async () => {
@@ -278,24 +292,35 @@ describe("Welcome mail", () => {
     expect(res.status).toBe(200);
   });
 
-  it("moves the Brevo contact to a changed address once it is confirmed", async () => {
-    const { jwt, userId, email } = await newUser();
-    await getMe(jwt);
-    const [first] = await waitForTokens(userId, 1);
-    await verifyEmailToken(first.token);
+  it("moves the Brevo contact to a changed address without a second welcome mail", async () => {
+    const { userId, email } = await newUser();
+    await sendVerificationEmailIfNeeded(userId);
+    const [token] = await tokensFor(userId);
+    await verifyEmailToken(token.token);
 
     const newEmail = uniqueEmail("moved");
     await changeAddress(userId, newEmail);
-    await getMe(jwt);
-    const tokens = await waitForTokens(userId, 2);
-    const second = tokens.find((row) => row.token !== first.token)!;
     emailSpy.mockClear();
-    await verifyEmailToken(second.token);
+    await completeAddressChangeIfNeeded(userId);
+    await completeAddressChangeIfNeeded(userId);
 
     expect(contactSpy).toHaveBeenCalledTimes(2);
-    expect(contactSpy.mock.calls[0][0]).toEqual(expect.objectContaining({ userId, email }));
-    expect(contactSpy.mock.calls[1][0]).toEqual(expect.objectContaining({ userId, email: newEmail }));
+    expect(contactSpy.mock.calls[0][0]).toEqual({ userId, email });
+    expect(contactSpy.mock.calls[1][0]).toEqual({ userId, email: newEmail });
     expect(emailSpy).not.toHaveBeenCalled();
+  });
+
+  it("is sent when an unconfirmed account completes an address change", async () => {
+    const { userId } = await newUser();
+    await sendVerificationEmailIfNeeded(userId);
+
+    await changeAddress(userId, uniqueEmail("changed"));
+    emailSpy.mockClear();
+    await completeAddressChangeIfNeeded(userId);
+
+    expect(emailSpy).toHaveBeenCalledTimes(1);
+    expect(emailSpy.mock.calls[0][0].subject).toBe("Willkommen bei Coltivio");
+    expect(await tokensFor(userId)).toHaveLength(0);
   });
 });
 
@@ -320,7 +345,7 @@ describe("Newsletter consent", () => {
 });
 
 describe("Resend verification email", () => {
-  it("mints a new token and keeps the previous one valid", async () => {
+  it("keeps earlier tokens valid until the address is confirmed, then removes them", async () => {
     const { jwt, userId, token: first } = await mailedUser();
 
     // Step around the five minute cooldown
@@ -331,10 +356,15 @@ describe("Resend verification email", () => {
 
     const res = await request("POST", "/v1/me/verification-email", {}, jwt);
     expect(res.status).toBe(200);
-    expect(await tokensFor(userId)).toHaveLength(2);
+    const tokens = await tokensFor(userId);
+    expect(tokens).toHaveLength(2);
+    const second = tokens.find((row) => row.token !== first.token)!;
 
     const earlier = await request("POST", "/v1/auth/verify-email", { token: first.token });
     expect(earlier.status).toBe(200);
+
+    const removed = await request("POST", "/v1/auth/verify-email", { token: second.token });
+    expect(removed.status).toBe(400);
   });
 
   it("rate limits repeated resends", async () => {

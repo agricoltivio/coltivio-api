@@ -62,10 +62,11 @@ export async function createTestUser(email: string, password: string) {
   const { data: signInData, error: signInError } = await gotrue.signInWithPassword({ email, password });
   if (signInError) throw signInError;
 
-  // Confirmed by default, otherwise the first request of every test sends a verification mail
+  // Confirmed and handled by default, otherwise the first request of every test sends a verification or
+  // welcome mail
   await getAdminDb()
     .update(schema.profiles)
-    .set({ emailVerified: true })
+    .set({ emailVerified: true, verificationHandledAt: new Date() })
     .where(eq(schema.profiles.id, createData.user.id));
 
   return {

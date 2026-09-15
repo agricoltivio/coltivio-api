@@ -10,7 +10,7 @@ import { supabase, SupabaseToken } from "./supabase/supabase";
 import * as tables from "./db/schema";
 import { FarmPermissionFeature } from "./db/schema";
 import { sentryResultHandler } from "./sentry";
-import { sendVerificationEmailIfNeeded } from "./user/user-verification";
+import { completeAddressChangeIfNeeded, sendVerificationEmailIfNeeded } from "./user/user-verification";
 
 export const supabaseAuthMiddleware = new Middleware({
   security: {
@@ -74,9 +74,10 @@ export const supabaseAuthMiddleware = new Middleware({
       user.locale = requestLocale;
     }
 
-    // After the locale sync, so the mail goes out in the language of the requesting client
-    if (!user.emailVerified && !user.verificationEmailSentAt) {
-      void sendVerificationEmailIfNeeded(user.id).catch(captureException);
+    // After the locale sync, so mails go out in the language of the requesting client
+    if (!user.verificationHandledAt) {
+      const handle = user.emailVerified ? completeAddressChangeIfNeeded : sendVerificationEmailIfNeeded;
+      void handle(user.id).catch(captureException);
     }
 
     const farmContext = await resolveFarmContext(request.headers["x-farm-id"], user.id);

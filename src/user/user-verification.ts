@@ -31,8 +31,8 @@ async function mintToken(userId: string): Promise<string> {
 export async function sendVerificationEmailIfNeeded(userId: string): Promise<void> {
   const [profile] = await adminDrizzle
     .update(profiles)
-    .set({ verificationEmailSentAt: new Date() })
-    .where(and(eq(profiles.id, userId), eq(profiles.emailVerified, false), isNull(profiles.verificationEmailSentAt)))
+    .set({ verificationHandledAt: new Date() })
+    .where(and(eq(profiles.id, userId), eq(profiles.emailVerified, false), isNull(profiles.verificationHandledAt)))
     .returning({ email: profiles.email, fullName: profiles.fullName, locale: profiles.locale });
   if (!profile) return;
 
@@ -45,7 +45,8 @@ export async function sendVerificationEmailIfNeeded(userId: string): Promise<voi
   });
 }
 
-// Earlier tokens stay valid, so the first mail still works after asking for a second one.
+// Earlier tokens stay valid until the address is confirmed, so the first mail still works after asking
+// for a second one.
 export async function resendVerificationEmail(userId: string): Promise<void> {
   const profile = await adminDrizzle.query.profiles.findFirst({ where: { id: userId } });
   if (!profile) throw createHttpError(404, "User not found");
@@ -62,8 +63,8 @@ export async function resendVerificationEmail(userId: string): Promise<void> {
     throw createHttpError(429, "A verification email was sent recently. Please wait a few minutes.");
   }
 
-  if (!profile.verificationEmailSentAt) {
-    await adminDrizzle.update(profiles).set({ verificationEmailSentAt: new Date() }).where(eq(profiles.id, userId));
+  if (!profile.verificationHandledAt) {
+    await adminDrizzle.update(profiles).set({ verificationHandledAt: new Date() }).where(eq(profiles.id, userId));
   }
 
   const token = await mintToken(userId);
@@ -81,6 +82,35 @@ async function confirmedOrGone(userId: string): Promise<{ verified: true }> {
   const profile = await adminDrizzle.query.profiles.findFirst({ where: { id: userId } });
   if (profile?.emailVerified) return { verified: true };
   throw createHttpError(410, "Verification token already used");
+}
+
+// Shared by the verification link and a confirmed address change
+async function completeVerification(userId: string): Promise<void> {
+  // Used tokens stay, so a second click on the link still answers "verified"
+  await adminDrizzle
+    .delete(emailVerificationTokens)
+    .where(and(eq(emailVerificationTokens.userId, userId), isNull(emailVerificationTokens.usedAt)));
+
+  const profile = await adminDrizzle.query.profiles.findFirst({ where: { id: userId } });
+  if (!profile) return;
+
+  // Claimed conditionally, so a second token or a later address change does not resend it
+  const [claimedWelcome] = await adminDrizzle
+    .update(profiles)
+    .set({ welcomeEmailSentAt: new Date() })
+    .where(and(eq(profiles.id, profile.id), isNull(profiles.welcomeEmailSentAt)))
+    .returning({ id: profiles.id });
+
+  if (claimedWelcome) {
+    await sendWelcomeEmail({
+      email: profile.email,
+      fullName: profile.fullName,
+      locale: profile.locale,
+      membershipUrl: MEMBERSHIP_URL,
+    });
+  }
+
+  await markNewsletterContactVerified({ userId: profile.id, email: profile.email });
 }
 
 export async function verifyEmailToken(token: string): Promise<{ verified: true }> {
@@ -103,27 +133,17 @@ export async function verifyEmailToken(token: string): Promise<{ verified: true 
   });
   if (!claimed) return confirmedOrGone(row.userId);
 
-  const profile = await adminDrizzle.query.profiles.findFirst({ where: { id: row.userId } });
-  if (!profile) throw createHttpError(500, "User profile not found");
-
-  // Claimed conditionally, so a second token or a confirmation after an address change does not resend it
-  const [claimedWelcome] = await adminDrizzle
-    .update(profiles)
-    .set({ welcomeEmailSentAt: new Date() })
-    .where(and(eq(profiles.id, profile.id), isNull(profiles.welcomeEmailSentAt)))
-    .returning({ id: profiles.id });
-
-  if (claimedWelcome) {
-    await sendWelcomeEmail({
-      email: profile.email,
-      fullName: profile.fullName,
-      locale: profile.locale,
-      membershipUrl: MEMBERSHIP_URL,
-    });
-  }
-
-  // Unconditional: without consent there is no contact, and after an address change this moves it
-  await markNewsletterContactVerified({ userId: profile.id, email: profile.email });
-
+  await completeVerification(row.userId);
   return { verified: true };
+}
+
+// Supabase changes the address only once the new one is confirmed, so the update_profile trigger keeps the
+// account verified and clears verification_handled_at. The first request afterwards finishes the change.
+export async function completeAddressChangeIfNeeded(userId: string): Promise<void> {
+  const [claimed] = await adminDrizzle
+    .update(profiles)
+    .set({ verificationHandledAt: new Date() })
+    .where(and(eq(profiles.id, userId), eq(profiles.emailVerified, true), isNull(profiles.verificationHandledAt)))
+    .returning({ id: profiles.id });
+  if (claimed) await completeVerification(userId);
 }

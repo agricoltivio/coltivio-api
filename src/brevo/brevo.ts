@@ -1,39 +1,21 @@
 import { captureException } from "@sentry/node";
-import {
-  TransactionalEmailsApi,
-  TransactionalEmailsApiApiKeys,
-  SendSmtpEmail,
-  ContactsApi,
-  ContactsApiApiKeys,
-  CreateContact,
-  RemoveContactFromList,
-} from "@getbrevo/brevo";
+import { Brevo, BrevoClient, BrevoError } from "@getbrevo/brevo";
 
 const API_KEY = process.env.BREVO_API_KEY;
-const BREVO_API_URL = "https://api.brevo.com/v3";
-
-const _txEmailApi = new TransactionalEmailsApi();
-if (API_KEY) {
-  _txEmailApi.setApiKey(TransactionalEmailsApiApiKeys.apiKey, API_KEY);
-}
-
-export const txEmailApi = {
-  sendTransacEmail(email: SendSmtpEmail) {
-    if (!API_KEY) {
-      console.log("[brevo] BREVO_API_KEY not set, skipping email:", JSON.stringify(email, null, 2));
-      return Promise.resolve();
-    }
-    return _txEmailApi.sendTransacEmail(email);
-  },
-};
-
-const _contactsApi = new ContactsApi();
-if (API_KEY) {
-  _contactsApi.setApiKey(ContactsApiApiKeys.apiKey, API_KEY);
-}
-
 // Being on this list is the newsletter consent
 const LIST_ID = process.env.BREVO_LIST_ID ? Number(process.env.BREVO_LIST_ID) : undefined;
+
+const client = API_KEY ? new BrevoClient({ apiKey: API_KEY }) : undefined;
+
+export const txEmailApi = {
+  async sendTransacEmail(email: Brevo.SendTransacEmailRequest): Promise<void> {
+    if (!client) {
+      console.log("[brevo] BREVO_API_KEY not set, skipping email:", JSON.stringify(email, null, 2));
+      return;
+    }
+    await client.transactionalEmails.sendTransacEmail(email);
+  },
+};
 
 export type NewsletterContact = {
   userId: string;
@@ -43,142 +25,154 @@ export type NewsletterContact = {
   verified: boolean;
 };
 
-// Keyed by user id (ext_id) so an address change keeps the contact, its list and its unsubscribe status.
-// The SDK cannot address contacts by ext_id.
-function requestContactByUserId(
-  method: "PUT" | "DELETE",
-  userId: string,
-  body?: Record<string, unknown>
-): Promise<Response> {
-  return fetch(`${BREVO_API_URL}/contacts/${encodeURIComponent(userId)}?identifierType=ext_id`, {
-    method,
-    headers: { "api-key": API_KEY!, "content-type": "application/json", accept: "application/json" },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-}
+type Contacts = BrevoClient["contacts"];
+type Attributes = Record<string, string | boolean>;
 
-async function reportFailure(action: string, email: string, res: Response): Promise<void> {
-  const message = `[brevo] failed to ${action}: ${res.status} ${await res.text()}`;
-  console.error(message, email);
-  captureException(new Error(message));
-}
-
-async function createListContact(contact: NewsletterContact, withUserId: boolean): Promise<void> {
-  const payload = new CreateContact();
-  payload.email = contact.email;
-  if (withUserId) {
-    payload.extId = contact.userId;
+function contactsClient(action: string, detail: string): Contacts | undefined {
+  if (!client || LIST_ID === undefined) {
+    console.log(`[brevo] ${action} skipped (no API key or BREVO_LIST_ID):`, detail);
+    return undefined;
   }
-  payload.attributes = {
+  return client.contacts;
+}
+
+function report(action: string, error: unknown): void {
+  console.error(`[brevo] failed to ${action}`, error);
+  captureException(error);
+}
+
+function isNotFound(error: unknown): boolean {
+  return error instanceof Brevo.NotFoundError;
+}
+
+// Brevo refuses to give a contact an address that already belongs to another contact. The code is a generic
+// invalid_parameter, only the metadata names the conflicting identifier.
+function isDuplicate(error: unknown): boolean {
+  if (!(error instanceof BrevoError) || error.statusCode !== 400) return false;
+  const body = error.body as { metadata?: { duplicate_identifiers?: string[] } } | undefined;
+  return body?.metadata?.duplicate_identifiers?.includes("email") ?? false;
+}
+
+// QUELLE=app marks a contact that belongs to an app account, wherever it first signed up
+function appAttributes(contact: NewsletterContact): Attributes {
+  return {
+    EMAIL: contact.email,
     VORNAME: contact.firstName ?? "",
     SPRACHE: contact.locale,
     QUELLE: "app",
     VERIFIED: contact.verified,
   };
-  payload.listIds = [LIST_ID!];
-  payload.updateEnabled = true;
-  await _contactsApi.createContact(payload);
+}
+
+// Deleting and re-attaching instead of forceMerge, whose surviving contact depends on last_modified
+async function moveUserToExistingContact(
+  contacts: Contacts,
+  userId: string,
+  email: string,
+  attributes: Attributes,
+  addToList: boolean
+): Promise<void> {
+  const previous = await contacts.getContactInfo({ identifier: userId, identifierType: "ext_id" });
+  const wasOnList = previous.listIds?.includes(LIST_ID!) ?? false;
+  await contacts.deleteContact({ identifier: userId, identifierType: "ext_id" });
+  await contacts.updateContact({
+    identifier: email,
+    identifierType: "email_id",
+    ext_id: userId,
+    attributes,
+    listIds: addToList || wasOnList ? [LIST_ID!] : undefined,
+  });
 }
 
 export async function upsertNewsletterContact(contact: NewsletterContact): Promise<void> {
-  if (!API_KEY || LIST_ID === undefined) {
-    console.log("[brevo] contact sync skipped (no API key or BREVO_LIST_ID):", contact.email);
-    return;
-  }
+  const contacts = contactsClient("contact sync", contact.email);
+  if (!contacts) return;
 
+  const attributes = appAttributes(contact);
   try {
-    const res = await requestContactByUserId("PUT", contact.userId, {
-      attributes: {
-        EMAIL: contact.email,
-        VORNAME: contact.firstName ?? "",
-        SPRACHE: contact.locale,
-        VERIFIED: contact.verified,
-      },
-      listIds: [LIST_ID],
+    // For an unknown user id Brevo attaches the id to a contact that already owns the address
+    await contacts.updateContact({
+      identifier: contact.userId,
+      identifierType: "ext_id",
+      attributes,
+      listIds: [LIST_ID!],
     });
-    if (res.ok) return;
-
-    if (res.status === 404) {
-      // updateEnabled attaches the user id to an address already subscribed through the landing page
-      await createListContact(contact, true);
-      return;
-    }
-
-    if (res.status === 400) {
-      // Usually the new address already exists as a separate contact
-      console.warn(
-        "[brevo] contact update rejected, subscribing the address separately",
-        contact.email,
-        await res.text()
-      );
-      await createListContact(contact, false);
-      await requestContactByUserId("PUT", contact.userId, { unlinkListIds: [LIST_ID] });
-      return;
-    }
-
-    await reportFailure("update contact", contact.email, res);
   } catch (error) {
-    console.error("[brevo] failed to upsert contact", contact.email, error);
-    captureException(error);
+    try {
+      if (isNotFound(error)) {
+        await contacts.createContact({
+          email: contact.email,
+          ext_id: contact.userId,
+          attributes,
+          listIds: [LIST_ID!],
+          updateEnabled: true,
+        });
+      } else if (isDuplicate(error)) {
+        await moveUserToExistingContact(contacts, contact.userId, contact.email, attributes, true);
+      } else {
+        report("upsert contact", error);
+      }
+    } catch (fallbackError) {
+      report("upsert contact", fallbackError);
+    }
   }
 }
 
 export async function markNewsletterContactVerified(contact: { userId: string; email: string }): Promise<void> {
-  if (!API_KEY || LIST_ID === undefined) {
-    console.log("[brevo] contact verification skipped (no API key or BREVO_LIST_ID):", contact.email);
+  const contacts = contactsClient("contact verification", contact.email);
+  if (!contacts) return;
+
+  // Without this lookup, updating by an unknown user id would take over any contact owning the address,
+  // including landing page subscribers who never consented in the app
+  try {
+    await contacts.getContactInfo({ identifier: contact.userId, identifierType: "ext_id" });
+  } catch (error) {
+    if (!isNotFound(error)) report("look up contact", error);
     return;
   }
 
+  const attributes: Attributes = { EMAIL: contact.email, QUELLE: "app", VERIFIED: true };
   try {
-    const res = await requestContactByUserId("PUT", contact.userId, {
-      attributes: { EMAIL: contact.email, VERIFIED: true },
-    });
-    // 404: the user never consented, so there is no contact
-    if (res.ok || res.status === 404) return;
-    await reportFailure("mark contact verified", contact.email, res);
+    await contacts.updateContact({ identifier: contact.userId, identifierType: "ext_id", attributes });
   } catch (error) {
-    console.error("[brevo] failed to mark contact verified", contact.email, error);
-    captureException(error);
+    if (!isDuplicate(error)) {
+      report("mark contact verified", error);
+      return;
+    }
+    try {
+      await moveUserToExistingContact(contacts, contact.userId, contact.email, attributes, false);
+    } catch (moveError) {
+      report("move contact", moveError);
+    }
   }
 }
 
 export async function removeNewsletterContact(contact: { userId: string; email: string }): Promise<void> {
-  if (!API_KEY || LIST_ID === undefined) {
-    console.log("[brevo] contact removal skipped (no API key or BREVO_LIST_ID):", contact.email);
-    return;
-  }
+  const contacts = contactsClient("contact removal", contact.email);
+  if (!contacts) return;
 
   try {
-    const res = await requestContactByUserId("PUT", contact.userId, { unlinkListIds: [LIST_ID] });
-    if (!res.ok && res.status !== 404) {
-      console.error("[brevo] failed to unlink contact", contact.email, res.status, await res.text());
-    }
+    await contacts.updateContact({ identifier: contact.userId, identifierType: "ext_id", unlinkListIds: [LIST_ID!] });
   } catch (error) {
-    console.error("[brevo] failed to unlink contact", contact.email, error);
+    if (!isNotFound(error)) report("unlink contact", error);
   }
 
-  // Addresses subscribed through the landing page or the duplicate fallback carry no user id
-  const payload = new RemoveContactFromList();
-  payload.emails = [contact.email];
   try {
-    await _contactsApi.removeContactFromList(LIST_ID, payload);
+    await contacts.removeContactFromList({ listId: LIST_ID!, body: { emails: [contact.email] } });
   } catch {
-    // not on the list
+    // Addresses subscribed through the landing page carry no user id; not being on the list is fine
   }
 }
 
 export async function deleteNewsletterContact(userId: string): Promise<void> {
-  if (!API_KEY) {
+  if (!client) {
     console.log("[brevo] contact deletion skipped (no API key):", userId);
     return;
   }
 
   try {
-    const res = await requestContactByUserId("DELETE", userId);
-    if (res.ok || res.status === 404) return;
-    await reportFailure("delete contact", userId, res);
+    await client.contacts.deleteContact({ identifier: userId, identifierType: "ext_id" });
   } catch (error) {
-    console.error("[brevo] failed to delete contact", userId, error);
-    captureException(error);
+    if (!isNotFound(error)) report("delete contact", error);
   }
 }
