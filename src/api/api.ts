@@ -27,7 +27,6 @@ import { cropProtectionApplicationsApi } from "../crop-protection/crop-protectio
 import { plotsApi } from "../plots/plots";
 import { tillagesApi } from "../tillages/tillages";
 import { usersApi } from "../user/users";
-import { accountDeletionApi } from "../user/account-deletion";
 import { cropProtectionProductsApi } from "../crop-protection/crop-protection-products";
 import { TFunction } from "i18next";
 import { fieldCalendarReportsApi } from "../reports/field-calendar-reports";
@@ -49,7 +48,6 @@ export function sessionApi(db: RlsDb, t: TFunction, locale: string) {
     plots: plotsApi(db),
     dashboard: dashboardApi(db, t),
     users: usersApi(db),
-    accountDeletion: accountDeletionApi(),
     farms: farmsApi(db, t),
     farmInvites: farmInvitesApi(db, t),
     federalParcelLayer: federalPlotsLayerApi(db),

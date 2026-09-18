@@ -126,7 +126,7 @@ export const getAccountDeletionPreviewEndpoint = authenticatedEndpointFactory.bu
   input: z.object({}),
   output: z.object({ farms: z.array(deletionPreviewFarmSchema) }),
   handler: async ({ ctx }) => {
-    return { farms: await ctx.accountDeletion.getDeletionPreview(ctx.user.id) };
+    return { farms: await ctx.users.getDeletionPreview(ctx.user.id) };
   },
 });
 
@@ -143,7 +143,7 @@ export const deleteAccountEndpoint = authenticatedEndpointFactory.build({
     if (input.email.trim().toLowerCase() !== ctx.user.email.trim().toLowerCase()) {
       throw createHttpError(400, "Email does not match");
     }
-    await ctx.accountDeletion.deleteAccount(ctx.user.id, input.transfers);
+    await ctx.users.deleteAccount(ctx.user.id, input.transfers);
     return {};
   },
 });
