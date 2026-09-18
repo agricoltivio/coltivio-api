@@ -5,6 +5,7 @@ const UNLIMITED_TRIAL = process.env.UNLIMITED_TRIAL === "true";
 import Stripe from "stripe";
 import { eq, and, or, gt } from "drizzle-orm";
 import createHttpError from "http-errors";
+import { captureException } from "@sentry/node";
 import { RlsDb } from "../db/db";
 import { getStripe, STRIPE_API_VERSION } from "../stripe/stripe";
 import {
@@ -68,6 +69,26 @@ async function getCardDetailsFromPaymentMethod(paymentMethodId: string | null): 
 }
 
 export function membershipApi(db: RlsDb) {
+  async function profileExists(userId: string): Promise<boolean> {
+    return !!(await db.admin.query.profiles.findFirst({ where: { id: userId }, columns: { id: true } }));
+  }
+
+  // A payment can land after its account was deleted. The money still has to be on record, but
+  // there is nobody left to link it to or mail, so it gets refunded by hand.
+  async function recordPaymentForDeletedAccount(payment: {
+    stripePaymentId: string;
+    stripeSubscriptionId?: string;
+    amount: number;
+    currency: string;
+    periodEnd: Date;
+  }): Promise<void> {
+    await db.admin
+      .insert(membershipPayments)
+      .values({ ...payment, userId: null, status: "succeeded" })
+      .onConflictDoNothing();
+    captureException(new Error("Membership payment for a deleted account, refund manually"), { extra: payment });
+  }
+
   // Get or create a Stripe Customer for the user, storing the ID on their profile
   async function getOrCreateStripeCustomer(userId: string): Promise<string> {
     const profile = await db.admin.query.profiles.findFirst({ where: { id: userId } });
@@ -602,6 +623,22 @@ export function membershipApi(db: RlsDb) {
 
           const stripeSubscription = await getStripe().subscriptions.retrieve(stripeSubscriptionId);
 
+          if (!(await profileExists(userId))) {
+            const invoice = stripeSubscription.latest_invoice;
+            if (invoice) {
+              const stripeInvoice =
+                typeof invoice === "string" ? await getStripe().invoices.retrieve(invoice) : invoice;
+              await recordPaymentForDeletedAccount({
+                stripePaymentId: stripeInvoice.id,
+                stripeSubscriptionId,
+                amount: stripeInvoice.amount_paid,
+                currency: stripeInvoice.currency,
+                periodEnd: new Date((stripeSubscription.items.data[0]?.current_period_end ?? 0) * 1000),
+              });
+            }
+            return;
+          }
+
           // Upsert userSubscriptions row
           await db.admin
             .insert(userSubscriptions)
@@ -684,6 +721,17 @@ export function membershipApi(db: RlsDb) {
             typeof session.payment_intent === "string"
               ? session.payment_intent
               : (session.payment_intent?.id ?? session.id);
+
+          if (!(await profileExists(userId))) {
+            if (session.amount_total == null) throw new Error(`Missing amount_total on session ${session.id}`);
+            await recordPaymentForDeletedAccount({
+              stripePaymentId: paymentIntentId,
+              amount: session.amount_total,
+              currency: session.currency ?? "chf",
+              periodEnd,
+            });
+            return;
+          }
 
           const paymentIntent = await getStripe().paymentIntents.retrieve(paymentIntentId, {
             expand: ["payment_method"],
@@ -933,6 +981,16 @@ export function membershipApi(db: RlsDb) {
         const cardDetails = await getCardDetailsFromPaymentMethod(pmId);
 
         const { periodEnd, isFirstMembership, wasStillActive } = await getManualPaymentContext(userId);
+
+        if (!(await profileExists(userId))) {
+          await recordPaymentForDeletedAccount({
+            stripePaymentId: paymentIntent.id,
+            amount: paymentIntent.amount,
+            currency: paymentIntent.currency,
+            periodEnd,
+          });
+          return;
+        }
 
         const inserted = await db.admin
           .insert(membershipPayments)

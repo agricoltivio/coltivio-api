@@ -2,6 +2,7 @@ import createHttpError from "http-errors";
 import { z } from "zod";
 import { farmEndpointFactory, authenticatedEndpointFactory } from "../endpoint-factory";
 import { farmPermissionFeatureSchema } from "../db/schema";
+import { deletionOutcomeSchema } from "./users";
 
 const farmPermissionSchema = z.object({
   feature: farmPermissionFeatureSchema,
@@ -108,12 +109,33 @@ export const updateUserProfileEndpoint = authenticatedEndpointFactory.build({
   },
 });
 
-export const deleteUserProfileEndpoint = authenticatedEndpointFactory.build({
-  method: "delete",
-  input: z.object({ userId: z.string() }),
+const deletionPreviewFarmSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  outcome: deletionOutcomeSchema,
+});
+
+export const getAccountDeletionPreviewEndpoint = authenticatedEndpointFactory.build({
+  method: "get",
+  input: z.object({}),
+  output: z.object({ farms: z.array(deletionPreviewFarmSchema) }),
+  handler: async ({ ctx }) => {
+    return { farms: await ctx.users.getDeletionPreview(ctx.user.id) };
+  },
+});
+
+export const deleteAccountEndpoint = authenticatedEndpointFactory.build({
+  method: "post",
+  input: z.object({
+    // Typed by the user as confirmation
+    email: z.string(),
+  }),
   output: z.object({}),
-  handler: async ({ input: { userId: _userId }, ctx: _ctx }) => {
-    throw new Error("Not implemented");
+  handler: async ({ input, ctx }) => {
+    if (input.email.trim().toLowerCase() !== ctx.user.email.trim().toLowerCase()) {
+      throw createHttpError(400, "Email does not match");
+    }
+    await ctx.users.deleteAccount(ctx.user.id);
     return {};
   },
 });

@@ -292,9 +292,7 @@ export const membershipPayments = pgTable.withRLS(
   "membership_payments",
   {
     id: uuid().primaryKey().defaultRandom(),
-    userId: uuid()
-      .notNull()
-      .references(() => profiles.id, { onDelete: "cascade" }),
+    userId: uuid().references(() => profiles.id, { onDelete: "set null" }),
     stripePaymentId: text().notNull().unique(), // PaymentIntent ID or Invoice ID
     stripeSubscriptionId: text(), // only for auto-renewing payments
     amount: integer().notNull(), // CHF cents
@@ -1192,9 +1190,7 @@ export const fertilizerApplications = pgTable.withRLS(
         onDelete: "cascade",
       }),
     createdAt: timestamp().notNull().defaultNow(),
-    createdBy: uuid()
-      .notNull()
-      .references(() => profiles.id),
+    createdBy: uuid().references(() => profiles.id, { onDelete: "set null" }),
     plotId: uuid()
       .notNull()
       .references(() => plots.id, { onDelete: "cascade" }),
@@ -1658,9 +1654,7 @@ export const wikiEntries = pgTable.withRLS(
     id: uuid().primaryKey().defaultRandom(),
     status: wikiEntryStatus().notNull().default("draft"),
     visibility: wikiVisibility().notNull().default("private"),
-    createdBy: uuid()
-      .notNull()
-      .references(() => profiles.id, { onDelete: "restrict" }),
+    createdBy: uuid().references(() => profiles.id, { onDelete: "set null" }),
     farmId: uuid()
       .notNull()
       .references(() => farms.id, { onDelete: "cascade" }),
@@ -1817,9 +1811,7 @@ export const wikiChangeRequests = pgTable.withRLS(
     entryId: uuid().references(() => wikiEntries.id, { onDelete: "set null" }),
     type: wikiChangeRequestType().notNull(),
     status: wikiChangeRequestStatus().notNull().default("draft"),
-    submittedBy: uuid()
-      .notNull()
-      .references(() => profiles.id, { onDelete: "restrict" }),
+    submittedBy: uuid().references(() => profiles.id, { onDelete: "set null" }),
     // Snapshot fields for new_entry type — the proposed public entry content
     proposedCategoryId: uuid().references(() => wikiCategories.id, {
       onDelete: "set null",
@@ -1892,9 +1884,7 @@ export const wikiChangeRequestNotes = pgTable.withRLS(
     changeRequestId: uuid()
       .notNull()
       .references(() => wikiChangeRequests.id, { onDelete: "cascade" }),
-    authorId: uuid()
-      .notNull()
-      .references(() => profiles.id, { onDelete: "restrict" }),
+    authorId: uuid().references(() => profiles.id, { onDelete: "set null" }),
     body: text().notNull(),
     createdAt: timestamp().notNull().defaultNow(),
   },
@@ -1941,9 +1931,7 @@ export const forumThreads = pgTable.withRLS(
     type: forumThreadTypeEnum().notNull().default("general"),
     status: forumThreadStatusEnum().notNull().default("open"),
     isPinned: boolean("is_pinned").notNull().default(false),
-    createdBy: uuid()
-      .notNull()
-      .references(() => profiles.id, { onDelete: "restrict" }),
+    createdBy: uuid().references(() => profiles.id, { onDelete: "set null" }),
     createdAt: timestamp().notNull().defaultNow(),
     updatedAt: timestamp().notNull().defaultNow(),
   },
@@ -1986,9 +1974,7 @@ export const forumReplies = pgTable.withRLS(
       .notNull()
       .references(() => forumThreads.id, { onDelete: "cascade" }),
     body: text().notNull(),
-    createdBy: uuid()
-      .notNull()
-      .references(() => profiles.id, { onDelete: "restrict" }),
+    createdBy: uuid().references(() => profiles.id, { onDelete: "set null" }),
     createdAt: timestamp().notNull().defaultNow(),
     updatedAt: timestamp().notNull().defaultNow(),
   },

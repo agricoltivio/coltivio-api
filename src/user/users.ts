@@ -1,7 +1,10 @@
 import createHttpError from "http-errors";
-import { and, count, eq, inArray } from "drizzle-orm";
+import { asc, eq, inArray } from "drizzle-orm";
+import { captureException } from "@sentry/node";
+import Stripe from "stripe";
+import { z } from "zod";
 import { RlsDb } from "../db/db";
-import { farmMembers, profiles } from "../db/schema";
+import { farmMembers, farms, membershipPayments, profiles } from "../db/schema";
 import { supabase } from "../supabase/supabase";
 import { getStripe } from "../stripe/stripe";
 import { deleteNewsletterContact, removeNewsletterContact, upsertNewsletterContact } from "../brevo/brevo";
@@ -9,6 +12,77 @@ import { deleteNewsletterContact, removeNewsletterContact, upsertNewsletterConta
 export type NewUser = typeof profiles.$inferInsert;
 export type UpdatedUser = Partial<NewUser>;
 export type User = typeof profiles.$inferSelect;
+
+// What happens to each of the user's farms when the account is deleted:
+// leave: another owner remains, the user just drops out
+// delete: the user is the only owner, the farm goes with the account, even if it has other members
+export const deletionOutcomeSchema = z.enum(["leave", "delete"]);
+export type DeletionOutcome = z.infer<typeof deletionOutcomeSchema>;
+
+export type DeletionPreviewFarm = {
+  id: string;
+  name: string;
+  outcome: DeletionOutcome;
+};
+
+type AdminDb = RlsDb["admin"];
+type AdminTx = Parameters<Parameters<AdminDb["transaction"]>[0]>[0];
+
+async function computePreview(
+  db: AdminDb | AdminTx,
+  userId: string,
+  { lock }: { lock: boolean }
+): Promise<DeletionPreviewFarm[]> {
+  const memberships = await db
+    .select({ farmId: farmMembers.farmId })
+    .from(farmMembers)
+    .where(eq(farmMembers.userId, userId));
+  if (memberships.length === 0) return [];
+
+  const query = db
+    .select({
+      farmId: farms.id,
+      farmName: farms.name,
+      userId: farmMembers.userId,
+      role: farmMembers.role,
+    })
+    .from(farmMembers)
+    .innerJoin(farms, eq(farms.id, farmMembers.farmId))
+    .where(
+      inArray(
+        farmMembers.farmId,
+        memberships.map((m) => m.farmId)
+      )
+    )
+    .orderBy(asc(farms.name));
+  const rows = lock ? await query.for("update", { of: farmMembers }) : await query;
+
+  const byFarm = new Map<string, { id: string; name: string; selfRole?: string; hasOtherOwner: boolean }>();
+  for (const row of rows) {
+    const farm = byFarm.get(row.farmId) ?? { id: row.farmId, name: row.farmName, hasOtherOwner: false };
+    if (row.userId === userId) {
+      farm.selfRole = row.role;
+    } else if (row.role === "owner") {
+      farm.hasOtherOwner = true;
+    }
+    byFarm.set(row.farmId, farm);
+  }
+
+  return [...byFarm.values()].map(({ selfRole, hasOtherOwner, ...farm }) => ({
+    ...farm,
+    outcome: selfRole !== "owner" || hasOtherOwner ? "leave" : "delete",
+  }));
+}
+
+async function deleteStripeCustomer(customerId: string): Promise<void> {
+  try {
+    // Also cancels any running subscription immediately
+    await getStripe().customers.del(customerId);
+  } catch (error) {
+    if (error instanceof Stripe.errors.StripeInvalidRequestError && error.code === "resource_missing") return;
+    throw error;
+  }
+}
 
 export function usersApi(authDb: RlsDb) {
   return {
@@ -53,46 +127,41 @@ export function usersApi(authDb: RlsDb) {
         await removeNewsletterContact({ userId: profile.id, email: profile.email });
       }
     },
-    // Blocks account deletion if it would leave any other farm (besides the one optionally being
-    // deleted alongside it, via excludeFarmId) with zero owners. Deleting a profile cascades to
-    // ALL of that user's farm_members rows, not just one farm's — so with multi-farm membership,
-    // deleting your account through one farm's "delete farm + account" flow could otherwise
-    // silently strand or fully orphan a completely different farm you also own.
-    async assertCanDeleteAccount(id: string, excludeFarmId?: string): Promise<void> {
-      const ownedMemberships = await authDb.admin.query.farmMembers.findMany({
-        where: { userId: id, role: "owner" },
-      });
-      const otherOwnedFarmIds = ownedMemberships.map((m) => m.farmId).filter((farmId) => farmId !== excludeFarmId);
-      if (otherOwnedFarmIds.length === 0) return;
 
-      const ownerCounts = await authDb.admin
-        .select({ farmId: farmMembers.farmId, count: count() })
-        .from(farmMembers)
-        .where(and(inArray(farmMembers.farmId, otherOwnedFarmIds), eq(farmMembers.role, "owner")))
-        .groupBy(farmMembers.farmId);
-
-      if (ownerCounts.some((row) => row.count === 1)) {
-        throw createHttpError(
-          409,
-          "You are the only owner of another farm. Transfer ownership or delete it before deleting your account."
-        );
-      }
+    async getDeletionPreview(userId: string): Promise<DeletionPreviewFarm[]> {
+      return computePreview(authDb.admin, userId, { lock: false });
     },
-    async deleteUser(id: string) {
-      // Fetch stripeCustomerId before deleting the profile row
-      const profile = await authDb.admin.query.profiles.findFirst({ where: { id } });
 
-      await authDb.rls(async (tx) => {
-        await tx.delete(profiles).where(eq(profiles.id, id));
-        await supabase.auth.admin.deleteUser(id);
+    // Only the account and its personal data go. Everything the user created in farms, the forum
+    // or the wiki stays behind without an author, and membership payments stay as anonymous
+    // bookkeeping records. The external services are cleaned up first so a failure there aborts
+    // with nothing deleted, above all a Stripe subscription that would keep charging a gone user.
+    async deleteAccount(userId: string): Promise<void> {
+      const profile = await authDb.admin.query.profiles.findFirst({ where: { id: userId } });
+      if (!profile) throw createHttpError(404, "User not found");
+
+      if (profile.stripeCustomerId) await deleteStripeCustomer(profile.stripeCustomerId);
+      await deleteNewsletterContact(userId);
+
+      await authDb.admin.transaction(async (tx) => {
+        const preview = await computePreview(tx, userId, { lock: true });
+        const farmsToDelete = preview.filter((farm) => farm.outcome === "delete").map((farm) => farm.id);
+        if (farmsToDelete.length > 0) {
+          await tx.delete(farms).where(inArray(farms.id, farmsToDelete));
+        }
+
+        await tx
+          .update(membershipPayments)
+          .set({ userId: null, cardLast4: null, cardBrand: null, cardExpMonth: null, cardExpYear: null })
+          .where(eq(membershipPayments.userId, userId));
+
+        await tx.delete(profiles).where(eq(profiles.id, userId));
       });
 
-      await deleteNewsletterContact(id);
-
-      // Delete Stripe customer to remove PII (email, name, payment methods) per GDPR
-      if (profile?.stripeCustomerId) {
-        await getStripe().customers.del(profile.stripeCustomerId);
-      }
+      // The profile is gone, so from here on the account counts as deleted. A leftover auth user
+      // can't do anything without a profile, it only needs cleaning up by hand.
+      const { error } = await supabase.auth.admin.deleteUser(userId);
+      if (error) captureException(error, { extra: { userId, step: "delete auth user" } });
     },
   };
 }

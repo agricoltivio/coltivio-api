@@ -129,6 +129,8 @@ import {
   kickFarmMemberEndpoint,
   leaveFarmEndpoint,
   updateUserProfileEndpoint,
+  getAccountDeletionPreviewEndpoint,
+  deleteAccountEndpoint,
 } from "./user/users.endpoint";
 import {
   createFertilizerApplicationsEndpoint,
@@ -433,6 +435,8 @@ export const routing: Routing = {
         get: getMyUserProfileEndpoint,
       },
       "verification-email": { post: resendVerificationEmailEndpoint },
+      "deletion-preview": getAccountDeletionPreviewEndpoint,
+      deletion: { post: deleteAccountEndpoint },
     },
     // parcels: {
     //   "": {

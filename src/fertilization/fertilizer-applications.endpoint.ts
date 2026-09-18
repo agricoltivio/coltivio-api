@@ -23,7 +23,7 @@ export const fertilizerApplicationSchema = z.object({
   id: z.string(),
   farmId: z.string(),
   createdAt: ez.dateOut(),
-  createdBy: z.string(),
+  createdBy: z.string().nullable(),
   plotId: z.string(),
   date: ez.dateOut(),
   unit: fertilizerApplicationUnitSchema,

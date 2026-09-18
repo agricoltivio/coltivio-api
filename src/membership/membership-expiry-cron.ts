@@ -1,5 +1,5 @@
 import cron from "node-cron";
-import { and, eq, gt, isNull, lt, sql } from "drizzle-orm";
+import { and, eq, gt, isNotNull, isNull, lt, sql } from "drizzle-orm";
 import { captureException } from "@sentry/node";
 import { adminDrizzle } from "../db/db";
 import { membershipExpiryNotifications, membershipPayments, userSubscriptions } from "../db/schema";
@@ -14,11 +14,12 @@ const RENEW_URL = `${process.env.APP_URL ?? "https://app.coltivio.ch"}/membershi
 function buildLatestPaymentSubquery() {
   return adminDrizzle
     .select({
-      userId: membershipPayments.userId,
+      // Payments of deleted accounts stay as anonymous rows, the where clause drops them: nobody to remind
+      userId: sql<string>`${membershipPayments.userId}`.as("payer_id"),
       maxPeriodEnd: sql<Date>`max(${membershipPayments.periodEnd})`.as("max_period_end"),
     })
     .from(membershipPayments)
-    .where(eq(membershipPayments.status, "succeeded"))
+    .where(and(eq(membershipPayments.status, "succeeded"), isNotNull(membershipPayments.userId)))
     .groupBy(membershipPayments.userId)
     .as("lp");
 }

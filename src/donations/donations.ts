@@ -75,11 +75,13 @@ export function donationsApi(db: RlsDb) {
         typeof session.payment_intent === "string"
           ? session.payment_intent
           : (session.payment_intent?.id ?? session.id);
+      // The account may have been deleted since checkout started, the donation then stays anonymous
+      const profile = userId ? await db.admin.query.profiles.findFirst({ where: { id: userId } }) : undefined;
 
       const inserted = await db.admin
         .insert(donations)
         .values({
-          userId: userId || null,
+          userId: profile?.id ?? null,
           email,
           stripePaymentId: paymentIntentId,
           amount: session.amount_total ?? 0,
@@ -89,9 +91,6 @@ export function donationsApi(db: RlsDb) {
         .onConflictDoNothing()
         .returning({ id: donations.id });
       if (inserted.length === 0) return;
-
-      // Profile lookup for fullName; locale comes from checkout session metadata
-      const profile = userId ? await db.admin.query.profiles.findFirst({ where: { id: userId } }) : undefined;
 
       await sendDonationConfirmationEmail({
         email,
@@ -108,11 +107,12 @@ export function donationsApi(db: RlsDb) {
       if (metadata?.type !== "donation") return;
       const userId = metadata.userId || null;
       const email = metadata.email || paymentIntent.receipt_email || "";
+      const profile = userId ? await db.admin.query.profiles.findFirst({ where: { id: userId } }) : undefined;
 
       const inserted = await db.admin
         .insert(donations)
         .values({
-          userId,
+          userId: profile?.id ?? null,
           email,
           stripePaymentId: paymentIntent.id,
           amount: paymentIntent.amount,
@@ -122,8 +122,6 @@ export function donationsApi(db: RlsDb) {
         .onConflictDoNothing()
         .returning({ id: donations.id });
       if (inserted.length === 0) return;
-
-      const profile = userId ? await db.admin.query.profiles.findFirst({ where: { id: userId } }) : undefined;
 
       await sendDonationConfirmationEmail({
         email,

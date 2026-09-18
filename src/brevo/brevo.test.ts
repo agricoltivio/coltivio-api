@@ -195,6 +195,13 @@ describe("deleteNewsletterContact", () => {
     await expect(brevo.deleteNewsletterContact("user-1")).resolves.toBeUndefined();
     expect(mockContacts.deleteContact).toHaveBeenCalledWith({ identifier: "user-1", identifierType: "ext_id" });
   });
+
+  it("rethrows other failures", async () => {
+    const { brevo, sdk } = loadBrevo();
+    mockContacts.deleteContact.mockRejectedValueOnce(new sdk.Brevo.BadRequestError({ code: "invalid_parameter" }));
+
+    await expect(brevo.deleteNewsletterContact("user-1")).rejects.toBeInstanceOf(sdk.Brevo.BadRequestError);
+  });
 });
 
 describe("txEmailApi", () => {

@@ -53,7 +53,7 @@ export const wikiChangeRequestSchema = z.object({
   entryId: z.string().nullable(),
   type: wikiChangeRequestTypeSchema,
   status: wikiChangeRequestStatusSchema,
-  submittedBy: z.string(),
+  submittedBy: z.string().nullable(),
   proposedCategoryId: z.string().nullable(),
   proposedFarmId: z.string().nullable(),
   createdAt: z.string().or(z.date()),
@@ -73,7 +73,7 @@ export const wikiEntrySchema = z.object({
   id: z.string(),
   status: wikiEntryStatusSchema,
   visibility: wikiVisibilitySchema,
-  createdBy: z.string(),
+  createdBy: z.string().nullable(),
   farmId: z.string(),
   categoryId: z.string(),
   category: wikiCategorySchema,
@@ -331,7 +331,7 @@ export const deleteWikiImageEndpoint = farmEndpointFactory.build({
 export const wikiChangeRequestNoteSchema = z.object({
   id: z.string(),
   changeRequestId: z.string(),
-  authorId: z.string(),
+  authorId: z.string().nullable(),
   body: z.string(),
   createdAt: z.string().or(z.date()),
 });

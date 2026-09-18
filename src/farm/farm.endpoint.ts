@@ -128,14 +128,20 @@ export const deleteFarmEndpoint = farmEndpointFactory.build({
       throw createHttpError(403, "Only farm owners can delete the farm");
     }
     if (input.deleteAccount) {
-      // Checked before anything is deleted: if this would strand another farm you solely own,
-      // fail cleanly with neither the farm nor the account touched, rather than deleting this
-      // farm and only then discovering the account can't follow.
-      await ctx.users.assertCanDeleteAccount(ctx.user.id, ctx.farmId);
+      // Offered when deleting the user's last farm (and used by older app versions). This flow never
+      // shows which other farms would go with the account, so any such farm blocks up front, with
+      // neither the farm nor the account touched.
+      const preview = await ctx.users.getDeletionPreview(ctx.user.id);
+      if (preview.some((farm) => farm.id !== ctx.farmId && farm.outcome === "delete")) {
+        throw createHttpError(
+          409,
+          "You are the only owner of another farm. Delete your account from your profile instead."
+        );
+      }
     }
     await ctx.farms.deleteFarm(ctx.farmId);
     if (input.deleteAccount) {
-      await ctx.users.deleteUser(ctx.user.id);
+      await ctx.users.deleteAccount(ctx.user.id);
     }
     return {};
   },
