@@ -13,8 +13,7 @@ import { membershipPayments } from "../db/schema";
 type PreviewFarm = {
   id: string;
   name: string;
-  outcome: "leave" | "transfer" | "delete";
-  candidates: { id: string; fullName: string | null; email: string }[];
+  outcome: "leave" | "delete";
 };
 
 async function getPreview(jwt: string): Promise<PreviewFarm[]> {
@@ -24,8 +23,8 @@ async function getPreview(jwt: string): Promise<PreviewFarm[]> {
   return body.data.farms;
 }
 
-function deleteAccount(jwt: string, email: string, transfers: Record<string, string> = {}) {
-  return request("POST", "/v1/me/deletion", { email, transfers }, jwt);
+function deleteAccount(jwt: string, email: string) {
+  return request("POST", "/v1/me/deletion", { email }, jwt);
 }
 
 async function createSecondFarm(jwt: string, name: string): Promise<string> {
@@ -43,9 +42,9 @@ describe("Account deletion", () => {
   beforeEach(cleanDb);
 
   it("previews what happens to each farm", async () => {
-    // Sole owner of "Shared" with a member: needs a successor
+    // Sole owner of "Shared" with a member: goes with the account all the same
     const user = await createUserWithFarm({ name: "Shared" }, "preview-user@test.com");
-    const member = await createFarmMember(user.jwt, "preview-member@test.com");
+    await createFarmMember(user.jwt, "preview-member@test.com");
     // Alone on "Solo": goes with the account
     const soloFarmId = await createSecondFarm(user.jwt, "Solo");
     // Plain member of someone else's farm: just drops out
@@ -63,17 +62,14 @@ describe("Account deletion", () => {
     const preview = await getPreview(user.jwt);
     const byName = Object.fromEntries(preview.map((farm) => [farm.name, farm]));
 
-    expect(byName["Solo"]).toMatchObject({ id: soloFarmId, outcome: "delete", candidates: [] });
-    expect(byName["Other"]).toMatchObject({ id: other.farmId, outcome: "leave", candidates: [] });
-    expect(byName["Shared"]).toMatchObject({ id: user.farmId, outcome: "transfer" });
-    expect(byName["Shared"].candidates).toEqual([
-      expect.objectContaining({ id: member.userId, email: "preview-member@test.com" }),
-    ]);
+    expect(byName["Solo"]).toEqual({ id: soloFarmId, name: "Solo", outcome: "delete" });
+    expect(byName["Other"]).toEqual({ id: other.farmId, name: "Other", outcome: "leave" });
+    expect(byName["Shared"]).toEqual({ id: user.farmId, name: "Shared", outcome: "delete" });
   });
 
-  it("transfers, deletes and leaves farms, then removes the account", async () => {
+  it("deletes solely owned farms, leaves co-owned ones, then removes the account", async () => {
     const user = await createUserWithFarm({ name: "Shared" }, "full-user@test.com");
-    const successor = await createFarmMember(user.jwt, "full-successor@test.com");
+    const member = await createFarmMember(user.jwt, "full-member@test.com");
     const soloFarmId = await createSecondFarm(user.jwt, "Solo");
     const coOwned = await createUserWithFarm({ name: "Co-owned" }, "full-coowner@test.com");
     const inviteRes = await request(
@@ -86,17 +82,15 @@ describe("Account deletion", () => {
     const invite = await getAdminDb().query.farmInvites.findFirst({ where: { farmId: coOwned.farmId } });
     expect((await request("POST", "/v1/farm/invites/accept", { code: invite!.code }, user.jwt)).status).toBe(200);
 
-    const res = await deleteAccount(user.jwt, "Full-User@test.com ", { [user.farmId]: successor.userId });
+    const res = await deleteAccount(user.jwt, "Full-User@test.com ");
     expect(res.status).toBe(200);
 
     const db = getAdminDb();
     expect(await db.query.profiles.findFirst({ where: { id: user.userId } })).toBeUndefined();
     expect(await db.query.farms.findFirst({ where: { id: soloFarmId } })).toBeUndefined();
-    expect(await db.query.farms.findFirst({ where: { id: user.farmId } })).toBeDefined();
-    const successorMembership = await db.query.farmMembers.findFirst({
-      where: { farmId: user.farmId, userId: successor.userId },
-    });
-    expect(successorMembership?.role).toBe("owner");
+    expect(await db.query.farms.findFirst({ where: { id: user.farmId } })).toBeUndefined();
+    // The other member of the deleted farm keeps their account
+    expect(await db.query.profiles.findFirst({ where: { id: member.userId } })).toBeDefined();
     expect(await db.query.farms.findFirst({ where: { id: coOwned.farmId } })).toBeDefined();
     expect(await db.query.farmMembers.findMany({ where: { userId: user.userId } })).toHaveLength(0);
   });
@@ -114,23 +108,6 @@ describe("Account deletion", () => {
 
     expect((await deleteAccount(user.jwt, "someone-else@test.com")).status).toBe(400);
     expect(await getAdminDb().query.profiles.findFirst({ where: { id: user.userId } })).toBeDefined();
-  });
-
-  it("rejects a missing or invalid successor without touching anything", async () => {
-    const user = await createUserWithFarm({ name: "Shared" }, "stale-user@test.com");
-    await createFarmMember(user.jwt, "stale-member@test.com");
-    const outsider = await createUserWithFarm({ name: "Elsewhere" }, "stale-outsider@test.com");
-
-    const missing = await deleteAccount(user.jwt, "stale-user@test.com");
-    expect(missing.status).toBe(409);
-    expect(((await missing.json()) as { error: string }).error).toBe("preview_outdated");
-
-    const invalid = await deleteAccount(user.jwt, "stale-user@test.com", { [user.farmId]: outsider.userId });
-    expect(invalid.status).toBe(409);
-
-    const db = getAdminDb();
-    expect(await db.query.profiles.findFirst({ where: { id: user.userId } })).toBeDefined();
-    expect(await db.query.farms.findFirst({ where: { id: user.farmId } })).toBeDefined();
   });
 
   it("keeps the deleted user's content without an author", async () => {

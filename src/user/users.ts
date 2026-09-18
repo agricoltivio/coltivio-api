@@ -1,5 +1,5 @@
 import createHttpError from "http-errors";
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { asc, eq, inArray } from "drizzle-orm";
 import { captureException } from "@sentry/node";
 import Stripe from "stripe";
 import { z } from "zod";
@@ -15,24 +15,15 @@ export type User = typeof profiles.$inferSelect;
 
 // What happens to each of the user's farms when the account is deleted:
 // leave: another owner remains, the user just drops out
-// transfer: the user is the only owner but not alone, one of the other members must take over
-// delete: the user is the only member, the farm goes with the account
-export const deletionOutcomeSchema = z.enum(["leave", "transfer", "delete"]);
+// delete: the user is the only owner, the farm goes with the account, even if it has other members
+export const deletionOutcomeSchema = z.enum(["leave", "delete"]);
 export type DeletionOutcome = z.infer<typeof deletionOutcomeSchema>;
-
-export type DeletionCandidate = { id: string; fullName: string | null; email: string };
 
 export type DeletionPreviewFarm = {
   id: string;
   name: string;
   outcome: DeletionOutcome;
-  candidates: DeletionCandidate[];
 };
-
-// farmId -> userId of the member who becomes owner
-export type OwnershipTransfers = Record<string, string>;
-
-export const PREVIEW_OUTDATED = "preview_outdated";
 
 type AdminDb = RlsDb["admin"];
 type AdminTx = Parameters<Parameters<AdminDb["transaction"]>[0]>[0];
@@ -54,54 +45,33 @@ async function computePreview(
       farmName: farms.name,
       userId: farmMembers.userId,
       role: farmMembers.role,
-      fullName: profiles.fullName,
-      email: profiles.email,
     })
     .from(farmMembers)
     .innerJoin(farms, eq(farms.id, farmMembers.farmId))
-    .innerJoin(profiles, eq(profiles.id, farmMembers.userId))
     .where(
       inArray(
         farmMembers.farmId,
         memberships.map((m) => m.farmId)
       )
     )
-    .orderBy(asc(farms.name), asc(profiles.fullName));
+    .orderBy(asc(farms.name));
   const rows = lock ? await query.for("update", { of: farmMembers }) : await query;
 
-  const byFarm = new Map<string, DeletionPreviewFarm & { selfRole?: string; hasOtherOwner: boolean }>();
+  const byFarm = new Map<string, { id: string; name: string; selfRole?: string; hasOtherOwner: boolean }>();
   for (const row of rows) {
-    const farm = byFarm.get(row.farmId) ?? {
-      id: row.farmId,
-      name: row.farmName,
-      outcome: "delete" as DeletionOutcome,
-      candidates: [],
-      hasOtherOwner: false,
-    };
+    const farm = byFarm.get(row.farmId) ?? { id: row.farmId, name: row.farmName, hasOtherOwner: false };
     if (row.userId === userId) {
       farm.selfRole = row.role;
-    } else {
-      farm.candidates.push({ id: row.userId, fullName: row.fullName, email: row.email });
-      if (row.role === "owner") farm.hasOtherOwner = true;
+    } else if (row.role === "owner") {
+      farm.hasOtherOwner = true;
     }
     byFarm.set(row.farmId, farm);
   }
 
-  return [...byFarm.values()].map(({ selfRole, hasOtherOwner, ...farm }) => {
-    if (selfRole !== "owner" || hasOtherOwner) return { ...farm, outcome: "leave", candidates: [] };
-    if (farm.candidates.length > 0) return { ...farm, outcome: "transfer" };
-    return { ...farm, outcome: "delete" };
-  });
-}
-
-// The client picks the successors from a preview it fetched earlier. Anything that no longer
-// lines up with the current state means that preview is stale, so the client has to reload it.
-function assertTransfersMatch(preview: DeletionPreviewFarm[], transfers: OwnershipTransfers): void {
-  const transferFarms = preview.filter((farm) => farm.outcome === "transfer");
-  const matches =
-    Object.keys(transfers).length === transferFarms.length &&
-    transferFarms.every((farm) => farm.candidates.some((candidate) => candidate.id === transfers[farm.id]));
-  if (!matches) throw createHttpError(409, PREVIEW_OUTDATED);
+  return [...byFarm.values()].map(({ selfRole, hasOtherOwner, ...farm }) => ({
+    ...farm,
+    outcome: selfRole !== "owner" || hasOtherOwner ? "leave" : "delete",
+  }));
 }
 
 async function deleteStripeCustomer(customerId: string): Promise<void> {
@@ -166,9 +136,7 @@ export function usersApi(authDb: RlsDb) {
     // or the wiki stays behind without an author, and membership payments stay as anonymous
     // bookkeeping records. The external services are cleaned up first so a failure there aborts
     // with nothing deleted, above all a Stripe subscription that would keep charging a gone user.
-    async deleteAccount(userId: string, transfers: OwnershipTransfers): Promise<void> {
-      assertTransfersMatch(await computePreview(authDb.admin, userId, { lock: false }), transfers);
-
+    async deleteAccount(userId: string): Promise<void> {
       const profile = await authDb.admin.query.profiles.findFirst({ where: { id: userId } });
       if (!profile) throw createHttpError(404, "User not found");
 
@@ -177,17 +145,6 @@ export function usersApi(authDb: RlsDb) {
 
       await authDb.admin.transaction(async (tx) => {
         const preview = await computePreview(tx, userId, { lock: true });
-        assertTransfersMatch(preview, transfers);
-
-        for (const farm of preview) {
-          if (farm.outcome === "transfer") {
-            await tx
-              .update(farmMembers)
-              .set({ role: "owner" })
-              .where(and(eq(farmMembers.farmId, farm.id), eq(farmMembers.userId, transfers[farm.id])));
-          }
-        }
-
         const farmsToDelete = preview.filter((farm) => farm.outcome === "delete").map((farm) => farm.id);
         if (farmsToDelete.length > 0) {
           await tx.delete(farms).where(inArray(farms.id, farmsToDelete));

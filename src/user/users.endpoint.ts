@@ -109,17 +109,10 @@ export const updateUserProfileEndpoint = authenticatedEndpointFactory.build({
   },
 });
 
-const deletionCandidateSchema = z.object({
-  id: z.string(),
-  fullName: z.string().nullable(),
-  email: z.string(),
-});
-
 const deletionPreviewFarmSchema = z.object({
   id: z.string(),
   name: z.string(),
   outcome: deletionOutcomeSchema,
-  candidates: z.array(deletionCandidateSchema),
 });
 
 export const getAccountDeletionPreviewEndpoint = authenticatedEndpointFactory.build({
@@ -136,15 +129,13 @@ export const deleteAccountEndpoint = authenticatedEndpointFactory.build({
   input: z.object({
     // Typed by the user as confirmation
     email: z.string(),
-    // farmId -> userId of the new owner, one entry per farm the preview marks as "transfer"
-    transfers: z.record(z.string(), z.string()),
   }),
   output: z.object({}),
   handler: async ({ input, ctx }) => {
     if (input.email.trim().toLowerCase() !== ctx.user.email.trim().toLowerCase()) {
       throw createHttpError(400, "Email does not match");
     }
-    await ctx.users.deleteAccount(ctx.user.id, input.transfers);
+    await ctx.users.deleteAccount(ctx.user.id);
     return {};
   },
 });
