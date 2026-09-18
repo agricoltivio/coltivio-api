@@ -164,6 +164,7 @@ export async function removeNewsletterContact(contact: { userId: string; email: 
   }
 }
 
+// Throws so an account deletion aborts before any data is gone, instead of leaving a contact behind
 export async function deleteNewsletterContact(userId: string): Promise<void> {
   if (!client) {
     console.log("[brevo] contact deletion skipped (no API key):", userId);
@@ -173,6 +174,6 @@ export async function deleteNewsletterContact(userId: string): Promise<void> {
   try {
     await client.contacts.deleteContact({ identifier: userId, identifierType: "ext_id" });
   } catch (error) {
-    if (!isNotFound(error)) report("delete contact", error);
+    if (!isNotFound(error)) throw error;
   }
 }

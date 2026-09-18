@@ -17,10 +17,10 @@ export const forumThreadSchema = z.object({
   type: forumThreadTypeSchema,
   status: forumThreadStatusSchema,
   isPinned: z.boolean(),
-  createdBy: z.string(),
+  createdBy: z.string().nullable(),
   createdAt: z.string().or(z.date()),
   updatedAt: z.string().or(z.date()),
-  creator: profileSnippetSchema,
+  creator: profileSnippetSchema.nullable(),
   replyCount: z.number().optional(),
 });
 
@@ -28,10 +28,10 @@ export const forumReplySchema = z.object({
   id: z.string(),
   threadId: z.string(),
   body: z.string(),
-  createdBy: z.string(),
+  createdBy: z.string().nullable(),
   createdAt: z.string().or(z.date()),
   updatedAt: z.string().or(z.date()),
-  creator: profileSnippetSchema,
+  creator: profileSnippetSchema.nullable(),
 });
 
 // ─── List threads ─────────────────────────────────────────────────────────────

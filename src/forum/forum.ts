@@ -10,8 +10,13 @@ export type ForumReply = typeof forumReplies.$inferSelect;
 
 type ProfileSnippet = { id: string; fullName: string | null };
 
-export type ForumThreadWithCreator = ForumThread & { creator: ProfileSnippet; replyCount?: number };
-export type ForumReplyWithCreator = ForumReply & { creator: ProfileSnippet };
+// creator is null once the author deleted their account, the post itself stays
+export type ForumThreadWithCreator = ForumThread & { creator: ProfileSnippet | null; replyCount?: number };
+export type ForumReplyWithCreator = ForumReply & { creator: ProfileSnippet | null };
+
+function toCreator(row: { creatorId: string | null; creatorFullName: string | null }): ProfileSnippet | null {
+  return row.creatorId ? { id: row.creatorId, fullName: row.creatorFullName } : null;
+}
 
 // SQL expression for last activity: most recent reply createdAt, falling back to thread createdAt
 const lastActivityAt = sql<Date>`COALESCE(MAX(${forumReplies.createdAt}), ${forumThreads.createdAt})`;
@@ -49,7 +54,7 @@ export function forumApi(db: RlsDb) {
               replyCount: sql<number>`COUNT(${forumReplies.id})::int`,
             })
             .from(forumThreads)
-            .innerJoin(profileNamesView, eq(profileNamesView.id, forumThreads.createdBy))
+            .leftJoin(profileNamesView, eq(profileNamesView.id, forumThreads.createdBy))
             .leftJoin(forumReplies, eq(forumReplies.threadId, forumThreads.id))
             .where(whereClause)
             .groupBy(forumThreads.id, profileNamesView.id, profileNamesView.fullName)
@@ -64,7 +69,7 @@ export function forumApi(db: RlsDb) {
 
         const threads = rows.map((row) => ({
           ...row.thread,
-          creator: { id: row.creatorId, fullName: row.creatorFullName },
+          creator: toCreator(row),
           replyCount: row.replyCount,
         }));
 
@@ -81,12 +86,12 @@ export function forumApi(db: RlsDb) {
             creatorFullName: profileNamesView.fullName,
           })
           .from(forumThreads)
-          .innerJoin(profileNamesView, eq(profileNamesView.id, forumThreads.createdBy))
+          .leftJoin(profileNamesView, eq(profileNamesView.id, forumThreads.createdBy))
           .where(eq(forumThreads.id, id))
           .limit(1);
 
         if (!row) return undefined;
-        return { ...row.thread, creator: { id: row.creatorId, fullName: row.creatorFullName } };
+        return { ...row.thread, creator: toCreator(row) };
       });
     },
 
@@ -107,11 +112,11 @@ export function forumApi(db: RlsDb) {
             creatorFullName: profileNamesView.fullName,
           })
           .from(forumThreads)
-          .innerJoin(profileNamesView, eq(profileNamesView.id, forumThreads.createdBy))
+          .leftJoin(profileNamesView, eq(profileNamesView.id, forumThreads.createdBy))
           .where(eq(forumThreads.id, thread.id))
           .limit(1);
 
-        return { ...row.thread, creator: { id: row.creatorId, fullName: row.creatorFullName } };
+        return { ...row.thread, creator: toCreator(row) };
       });
     },
 
@@ -146,11 +151,11 @@ export function forumApi(db: RlsDb) {
             creatorFullName: profileNamesView.fullName,
           })
           .from(forumThreads)
-          .innerJoin(profileNamesView, eq(profileNamesView.id, forumThreads.createdBy))
+          .leftJoin(profileNamesView, eq(profileNamesView.id, forumThreads.createdBy))
           .where(eq(forumThreads.id, threadId))
           .limit(1);
 
-        return { ...row.thread, creator: { id: row.creatorId, fullName: row.creatorFullName } };
+        return { ...row.thread, creator: toCreator(row) };
       });
     },
 
@@ -169,13 +174,13 @@ export function forumApi(db: RlsDb) {
             creatorFullName: profileNamesView.fullName,
           })
           .from(forumReplies)
-          .innerJoin(profileNamesView, eq(profileNamesView.id, forumReplies.createdBy))
+          .leftJoin(profileNamesView, eq(profileNamesView.id, forumReplies.createdBy))
           .where(eq(forumReplies.threadId, threadId))
           .orderBy(asc(forumReplies.createdAt));
 
         return rows.map((row) => ({
           ...row.reply,
-          creator: { id: row.creatorId, fullName: row.creatorFullName },
+          creator: toCreator(row),
         }));
       });
     },
@@ -191,11 +196,11 @@ export function forumApi(db: RlsDb) {
             creatorFullName: profileNamesView.fullName,
           })
           .from(forumReplies)
-          .innerJoin(profileNamesView, eq(profileNamesView.id, forumReplies.createdBy))
+          .leftJoin(profileNamesView, eq(profileNamesView.id, forumReplies.createdBy))
           .where(eq(forumReplies.id, reply.id))
           .limit(1);
 
-        return { ...row.reply, creator: { id: row.creatorId, fullName: row.creatorFullName } };
+        return { ...row.reply, creator: toCreator(row) };
       });
     },
 
@@ -219,11 +224,11 @@ export function forumApi(db: RlsDb) {
             creatorFullName: profileNamesView.fullName,
           })
           .from(forumReplies)
-          .innerJoin(profileNamesView, eq(profileNamesView.id, forumReplies.createdBy))
+          .leftJoin(profileNamesView, eq(profileNamesView.id, forumReplies.createdBy))
           .where(eq(forumReplies.id, replyId))
           .limit(1);
 
-        return { ...row.reply, creator: { id: row.creatorId, fullName: row.creatorFullName } };
+        return { ...row.reply, creator: toCreator(row) };
       });
     },
 
@@ -236,12 +241,12 @@ export function forumApi(db: RlsDb) {
             creatorFullName: profileNamesView.fullName,
           })
           .from(forumReplies)
-          .innerJoin(profileNamesView, eq(profileNamesView.id, forumReplies.createdBy))
+          .leftJoin(profileNamesView, eq(profileNamesView.id, forumReplies.createdBy))
           .where(eq(forumReplies.id, replyId))
           .limit(1);
 
         if (!row) return undefined;
-        return { ...row.reply, creator: { id: row.creatorId, fullName: row.creatorFullName } };
+        return { ...row.reply, creator: toCreator(row) };
       });
     },
 

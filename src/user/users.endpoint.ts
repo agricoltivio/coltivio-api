@@ -108,12 +108,42 @@ export const updateUserProfileEndpoint = authenticatedEndpointFactory.build({
   },
 });
 
-export const deleteUserProfileEndpoint = authenticatedEndpointFactory.build({
-  method: "delete",
-  input: z.object({ userId: z.string() }),
+const deletionCandidateSchema = z.object({
+  id: z.string(),
+  fullName: z.string().nullable(),
+  email: z.string(),
+});
+
+const deletionPreviewFarmSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  outcome: z.enum(["leave", "transfer", "delete"]),
+  candidates: z.array(deletionCandidateSchema),
+});
+
+export const getAccountDeletionPreviewEndpoint = authenticatedEndpointFactory.build({
+  method: "get",
+  input: z.object({}),
+  output: z.object({ farms: z.array(deletionPreviewFarmSchema) }),
+  handler: async ({ ctx }) => {
+    return { farms: await ctx.accountDeletion.getDeletionPreview(ctx.user.id) };
+  },
+});
+
+export const deleteAccountEndpoint = authenticatedEndpointFactory.build({
+  method: "post",
+  input: z.object({
+    // Typed by the user as confirmation
+    email: z.string(),
+    // farmId -> userId of the new owner, one entry per farm the preview marks as "transfer"
+    transfers: z.record(z.string(), z.string()),
+  }),
   output: z.object({}),
-  handler: async ({ input: { userId: _userId }, ctx: _ctx }) => {
-    throw new Error("Not implemented");
+  handler: async ({ input, ctx }) => {
+    if (input.email.trim().toLowerCase() !== ctx.user.email.trim().toLowerCase()) {
+      throw createHttpError(400, "Email does not match");
+    }
+    await ctx.accountDeletion.deleteAccount(ctx.user.id, input.transfers);
     return {};
   },
 });

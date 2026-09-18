@@ -4,7 +4,7 @@ import { membershipPaymentStatusSchema } from "../db/schema";
 
 const membershipPaymentSchema = z.object({
   id: z.string(),
-  userId: z.string(),
+  userId: z.string().nullable(),
   stripePaymentId: z.string(),
   stripeSubscriptionId: z.string().nullable(),
   amount: z.number(),

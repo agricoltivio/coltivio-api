@@ -1,10 +1,8 @@
 import createHttpError from "http-errors";
-import { and, count, eq, inArray } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { RlsDb } from "../db/db";
-import { farmMembers, profiles } from "../db/schema";
-import { supabase } from "../supabase/supabase";
-import { getStripe } from "../stripe/stripe";
-import { deleteNewsletterContact, removeNewsletterContact, upsertNewsletterContact } from "../brevo/brevo";
+import { profiles } from "../db/schema";
+import { removeNewsletterContact, upsertNewsletterContact } from "../brevo/brevo";
 
 export type NewUser = typeof profiles.$inferInsert;
 export type UpdatedUser = Partial<NewUser>;
@@ -51,47 +49,6 @@ export function usersApi(authDb: RlsDb) {
         });
       } else {
         await removeNewsletterContact({ userId: profile.id, email: profile.email });
-      }
-    },
-    // Blocks account deletion if it would leave any other farm (besides the one optionally being
-    // deleted alongside it, via excludeFarmId) with zero owners. Deleting a profile cascades to
-    // ALL of that user's farm_members rows, not just one farm's — so with multi-farm membership,
-    // deleting your account through one farm's "delete farm + account" flow could otherwise
-    // silently strand or fully orphan a completely different farm you also own.
-    async assertCanDeleteAccount(id: string, excludeFarmId?: string): Promise<void> {
-      const ownedMemberships = await authDb.admin.query.farmMembers.findMany({
-        where: { userId: id, role: "owner" },
-      });
-      const otherOwnedFarmIds = ownedMemberships.map((m) => m.farmId).filter((farmId) => farmId !== excludeFarmId);
-      if (otherOwnedFarmIds.length === 0) return;
-
-      const ownerCounts = await authDb.admin
-        .select({ farmId: farmMembers.farmId, count: count() })
-        .from(farmMembers)
-        .where(and(inArray(farmMembers.farmId, otherOwnedFarmIds), eq(farmMembers.role, "owner")))
-        .groupBy(farmMembers.farmId);
-
-      if (ownerCounts.some((row) => row.count === 1)) {
-        throw createHttpError(
-          409,
-          "You are the only owner of another farm. Transfer ownership or delete it before deleting your account."
-        );
-      }
-    },
-    async deleteUser(id: string) {
-      // Fetch stripeCustomerId before deleting the profile row
-      const profile = await authDb.admin.query.profiles.findFirst({ where: { id } });
-
-      await authDb.rls(async (tx) => {
-        await tx.delete(profiles).where(eq(profiles.id, id));
-        await supabase.auth.admin.deleteUser(id);
-      });
-
-      await deleteNewsletterContact(id);
-
-      // Delete Stripe customer to remove PII (email, name, payment methods) per GDPR
-      if (profile?.stripeCustomerId) {
-        await getStripe().customers.del(profile.stripeCustomerId);
       }
     },
   };
