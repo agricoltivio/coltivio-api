@@ -2,6 +2,7 @@ import createHttpError from "http-errors";
 import { z } from "zod";
 import { farmEndpointFactory, authenticatedEndpointFactory } from "../endpoint-factory";
 import { farmPermissionFeatureSchema } from "../db/schema";
+import { deletionOutcomeSchema } from "./users";
 
 const farmPermissionSchema = z.object({
   feature: farmPermissionFeatureSchema,
@@ -117,7 +118,7 @@ const deletionCandidateSchema = z.object({
 const deletionPreviewFarmSchema = z.object({
   id: z.string(),
   name: z.string(),
-  outcome: z.enum(["leave", "transfer", "delete"]),
+  outcome: deletionOutcomeSchema,
   candidates: z.array(deletionCandidateSchema),
 });
 

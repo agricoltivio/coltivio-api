@@ -2,6 +2,7 @@ import createHttpError from "http-errors";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { captureException } from "@sentry/node";
 import Stripe from "stripe";
+import { z } from "zod";
 import { RlsDb } from "../db/db";
 import { farmMembers, farms, membershipPayments, profiles } from "../db/schema";
 import { supabase } from "../supabase/supabase";
@@ -16,7 +17,8 @@ export type User = typeof profiles.$inferSelect;
 // leave: another owner remains, the user just drops out
 // transfer: the user is the only owner but not alone, one of the other members must take over
 // delete: the user is the only member, the farm goes with the account
-export type DeletionOutcome = "leave" | "transfer" | "delete";
+export const deletionOutcomeSchema = z.enum(["leave", "transfer", "delete"]);
+export type DeletionOutcome = z.infer<typeof deletionOutcomeSchema>;
 
 export type DeletionCandidate = { id: string; fullName: string | null; email: string };
 
