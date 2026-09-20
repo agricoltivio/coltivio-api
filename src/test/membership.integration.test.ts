@@ -193,6 +193,8 @@ function buildStripeMock(opts: {
     subscriptions: {
       retrieve: jest.fn().mockImplementation(async () => subscription),
       update: jest.fn().mockImplementation(async () => ({})),
+      create: jest.fn().mockImplementation(async () => subscription),
+      cancel: jest.fn().mockImplementation(async () => ({})),
     },
     invoices: {
       retrieve: jest.fn().mockImplementation(async () => invoice),
@@ -310,11 +312,11 @@ function makeInvoiceFailedEvent(subId: string, invoiceId: string): Stripe.Event 
   } as unknown as Stripe.Event;
 }
 
-function makeSubscriptionUpdatedEvent(subId: string, cancelAtPeriodEnd: boolean): Stripe.Event {
+function makeSubscriptionUpdatedEvent(subId: string, cancelAtPeriodEnd: boolean, status?: string): Stripe.Event {
   return {
     type: "customer.subscription.updated",
     data: {
-      object: { id: subId, cancel_at_period_end: cancelAtPeriodEnd },
+      object: { id: subId, cancel_at_period_end: cancelAtPeriodEnd, status },
     },
   } as unknown as Stripe.Event;
 }
@@ -854,6 +856,23 @@ describe("customer.subscription.updated", () => {
 
     await expect(api.handleWebhookEvent(makeSubscriptionUpdatedEvent("sub_nobody", true))).resolves.not.toThrow();
   });
+
+  it("incomplete_expired — deletes the stale row instead of updating cancelAtPeriodEnd", async () => {
+    // An "incomplete" subscription (never paid, e.g. an aborted PaymentSheet) transitions straight
+    // to "incomplete_expired" after ~23h without Stripe ever firing customer.subscription.deleted —
+    // this is the safety-net cleanup for that case, alongside the on-demand heal in
+    // hasLiveSubscription.
+    const { userId } = await createTestUser("e3@test.com", "password123");
+    await insertSubscription(userId, "sub_e3");
+    const api = membershipApi(adminOnlyDb);
+    mockGetStripe.mockReturnValue(buildStripeMock({}));
+
+    await api.handleWebhookEvent(makeSubscriptionUpdatedEvent("sub_e3", false, "incomplete_expired"));
+
+    const db = getAdminDb();
+    const subRow = await db.query.userSubscriptions.findFirst({ where: { userId } });
+    expect(subRow).toBeUndefined();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -1064,6 +1083,57 @@ describe("createSubscriptionIntent", () => {
     const api = membershipApi(adminOnlyDb);
 
     await expect(api.createSubscriptionIntent(userId)).rejects.toThrow("active subscription");
+  });
+
+  it("self-heals a stale 'incomplete' row from an aborted PaymentSheet payment and lets the retry succeed", async () => {
+    // Mirrors the real bug: createSubscriptionIntent inserts the row before payment is confirmed,
+    // so an aborted payment sheet leaves Stripe's subscription stuck "incomplete" and the local row
+    // would otherwise block every retry with a 409 forever.
+    const { userId } = await createTestUser("i3f@test.com", "password123");
+    await insertSubscription(userId, "sub_i3f_stale");
+    const api = membershipApi(adminOnlyDb);
+
+    const staleSubscription = makeStripeSubscription({ id: "sub_i3f_stale", status: "incomplete" });
+    const newSubscription = makeStripeSubscription({
+      id: "sub_i3f_new",
+      latest_invoice: { confirmation_secret: { client_secret: "seti_new_secret" } },
+    });
+    const stripeMock = buildStripeMock({ subscription: staleSubscription });
+    jest
+      .mocked(stripeMock.subscriptions.create)
+      .mockResolvedValueOnce(newSubscription as unknown as Stripe.Response<Stripe.Subscription>);
+    mockGetStripe.mockReturnValue(stripeMock);
+
+    const result = await api.createSubscriptionIntent(userId);
+
+    expect(result.paymentIntentClientSecret).toBe("seti_new_secret");
+    expect(jest.mocked(stripeMock.subscriptions.cancel)).toHaveBeenCalledWith("sub_i3f_stale");
+
+    const db = getAdminDb();
+    const subRow = await db.query.userSubscriptions.findFirst({ where: { userId } });
+    expect(subRow!.stripeSubscriptionId).toBe("sub_i3f_new");
+  });
+
+  it("self-heals a stale 'incomplete_expired' row without trying to re-cancel it on Stripe", async () => {
+    const { userId } = await createTestUser("i3g@test.com", "password123");
+    await insertSubscription(userId, "sub_i3g_stale");
+    const api = membershipApi(adminOnlyDb);
+
+    const staleSubscription = makeStripeSubscription({ id: "sub_i3g_stale", status: "incomplete_expired" });
+    const newSubscription = makeStripeSubscription({
+      id: "sub_i3g_new",
+      latest_invoice: { confirmation_secret: { client_secret: "seti_new_secret_2" } },
+    });
+    const stripeMock = buildStripeMock({ subscription: staleSubscription });
+    jest
+      .mocked(stripeMock.subscriptions.create)
+      .mockResolvedValueOnce(newSubscription as unknown as Stripe.Response<Stripe.Subscription>);
+    mockGetStripe.mockReturnValue(stripeMock);
+
+    const result = await api.createSubscriptionIntent(userId);
+
+    expect(result.paymentIntentClientSecret).toBe("seti_new_secret_2");
+    expect(jest.mocked(stripeMock.subscriptions.cancel)).not.toHaveBeenCalled();
   });
 });
 
