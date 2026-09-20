@@ -153,6 +153,34 @@ export const publicEndpointFactory = sentryEndpointFactory.addMiddleware(
 
 export const authenticatedEndpointFactory = publicEndpointFactory.addMiddleware(supabaseAuthMiddleware);
 
+// Resolves the caller's user id from an Authorization header without requiring one. Any failure
+// to resolve a user (missing/malformed/expired token) falls back to anonymous (null) rather than
+// throwing, so callers of this never need to reject a request over it.
+export async function resolveOptionalUserId(authorizationHeader: string | undefined): Promise<string | null> {
+  const jwt = authorizationHeader?.split(" ")[1];
+  if (!jwt) return null;
+  try {
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser(jwt);
+    return authUser?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
+// For endpoints that must work for both logged-in and anonymous callers (e.g. donations).
+export const optionalUserEndpointFactory = publicEndpointFactory.addMiddleware(
+  new Middleware({
+    security: {
+      type: "header",
+      name: "authorization",
+    },
+    input: z.object({}),
+    handler: async ({ request }) => ({ userId: await resolveOptionalUserId(request.headers.authorization) }),
+  })
+);
+
 export const farmEndpointFactory = authenticatedEndpointFactory.addMiddleware(
   new Middleware({
     input: z.object({}),

@@ -1,11 +1,40 @@
 import { z } from "zod";
-import { publicEndpointFactory } from "../endpoint-factory";
+import { authenticatedEndpointFactory, optionalUserEndpointFactory } from "../endpoint-factory";
 import { donationsApi } from "./donations";
 import { adminOnlyDb } from "../db/db";
+import { donationStatusSchema } from "../db/schema";
 
 const api = donationsApi(adminOnlyDb);
 
-export const createDonationCheckoutEndpoint = publicEndpointFactory.build({
+const donationSchema = z.object({
+  id: z.string(),
+  userId: z.string().nullable(),
+  email: z.string(),
+  amount: z.number(),
+  currency: z.string(),
+  status: donationStatusSchema,
+  paymentMethodType: z.string().nullable(),
+  cardLast4: z.string().nullable(),
+  cardBrand: z.string().nullable(),
+  cardExpMonth: z.number().nullable(),
+  cardExpYear: z.number().nullable(),
+  createdAt: z.date(),
+});
+
+export const getMyDonationsEndpoint = authenticatedEndpointFactory.build({
+  method: "get",
+  input: z.object({}),
+  output: z.object({
+    result: z.array(donationSchema),
+    count: z.number(),
+  }),
+  handler: async ({ ctx }) => {
+    const result = await ctx.donations.getDonations(ctx.user.id);
+    return { result, count: result.length };
+  },
+});
+
+export const createDonationCheckoutEndpoint = optionalUserEndpointFactory.build({
   method: "post",
   input: z.object({
     amount: z.number().int().min(100),
@@ -20,13 +49,13 @@ export const createDonationCheckoutEndpoint = publicEndpointFactory.build({
       input.email,
       input.successUrl,
       input.cancelUrl,
-      undefined,
+      ctx.userId ?? undefined,
       ctx.preferredLanguage
     );
   },
 });
 
-export const createDonationIntentEndpoint = publicEndpointFactory.build({
+export const createDonationIntentEndpoint = optionalUserEndpointFactory.build({
   method: "post",
   input: z.object({
     amount: z.number().int().min(100),
@@ -34,6 +63,6 @@ export const createDonationIntentEndpoint = publicEndpointFactory.build({
   }),
   output: z.object({ paymentIntentClientSecret: z.string() }),
   handler: async ({ input, ctx }) => {
-    return api.createDonationIntent(input.amount, input.email, undefined, ctx.preferredLanguage);
+    return api.createDonationIntent(input.amount, input.email, ctx.userId ?? undefined, ctx.preferredLanguage);
   },
 });

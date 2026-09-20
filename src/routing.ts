@@ -344,7 +344,11 @@ import {
   createManualIntentEndpoint,
   createPaymentMethodIntentEndpoint,
 } from "./membership/membership.endpoint";
-import { createDonationCheckoutEndpoint, createDonationIntentEndpoint } from "./donations/donations.endpoint";
+import {
+  createDonationCheckoutEndpoint,
+  createDonationIntentEndpoint,
+  getMyDonationsEndpoint,
+} from "./donations/donations.endpoint";
 import {
   listForumThreadsEndpoint,
   createForumThreadEndpoint,
@@ -1067,6 +1071,7 @@ export const routing: Routing = {
       trial: { post: startTrialEndpoint },
     },
     donations: {
+      get: getMyDonationsEndpoint,
       checkout: { post: createDonationCheckoutEndpoint },
       intent: { post: createDonationIntentEndpoint },
     },
