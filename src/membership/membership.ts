@@ -127,8 +127,29 @@ export function membershipApi(db: RlsDb) {
   // been disabled on it (it's still live, and still billing-relevant, until its period actually
   // ends). Switching from subscription to manual (or starting a fresh subscription) requires
   // waiting for the current one to actually end.
+  //
+  // Row existence alone isn't proof of that, though: createSubscriptionIntent inserts the row as
+  // soon as the Stripe subscription is created, before the user has actually paid (there's no
+  // checkout.session.completed event to hang the insert off for the native PaymentSheet flow). If
+  // the user aborts the payment sheet, Stripe leaves the subscription "incomplete" — and later
+  // "incomplete_expired" — without ever sending customer.subscription.deleted, so the row would
+  // otherwise wrongly block every retry forever. Heal that specific case here. This deliberately
+  // doesn't extend to a stale "canceled" row — that one only self-heals via an explicit mutating
+  // action (see updateSubscriptionOrHeal), same as before.
   async function hasLiveSubscription(userId: string): Promise<boolean> {
-    return (await getUserSubscriptionRow(userId)) !== undefined;
+    const row = await getUserSubscriptionRow(userId);
+    if (!row) return false;
+
+    const stripeSubscription = await getStripe().subscriptions.retrieve(row.stripeSubscriptionId);
+    if (stripeSubscription.status === "incomplete" || stripeSubscription.status === "incomplete_expired") {
+      if (stripeSubscription.status === "incomplete") {
+        await getStripe().subscriptions.cancel(row.stripeSubscriptionId);
+      }
+      await db.admin.delete(userSubscriptions).where(eq(userSubscriptions.userId, userId));
+      return false;
+    }
+
+    return true;
   }
 
   // Applies a Stripe subscription update. If Stripe rejects it, don't assume why — verify the
@@ -955,6 +976,18 @@ export function membershipApi(db: RlsDb) {
         }
       } else if (event.type === "customer.subscription.updated") {
         const stripeSubscription = event.data.object as Stripe.Subscription;
+
+        // A subscription created via createSubscriptionIntent that never got paid transitions
+        // straight to "incomplete_expired" without ever firing customer.subscription.deleted —
+        // clean up the row here too, as a safety net alongside the on-demand healing in
+        // hasLiveSubscription, so it doesn't linger for users who never retry.
+        if (stripeSubscription.status === "incomplete_expired") {
+          await db.admin
+            .delete(userSubscriptions)
+            .where(eq(userSubscriptions.stripeSubscriptionId, stripeSubscription.id));
+          return;
+        }
+
         await db.admin
           .update(userSubscriptions)
           .set({ cancelAtPeriodEnd: stripeSubscription.cancel_at_period_end })
