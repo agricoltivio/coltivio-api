@@ -2563,6 +2563,45 @@
       "table": "donations"
     },
     {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "payment_method_type",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "donations"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "card_last4",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "donations"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "card_brand",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "donations"
+    },
+    {
       "type": "timestamp",
       "typeSchema": null,
       "notNull": true,

@@ -270,6 +270,23 @@ describe("Donations — webhook handlers record the payment method used", () => 
     expect(donation?.cardLast4).toBe("4242");
   });
 
+  it("still records the donation when fetching the payment method fails", async () => {
+    const { stripe, paymentIntentRetrieve } = buildStripeMock();
+    paymentIntentRetrieve.mockRejectedValue(new Error("Stripe unavailable"));
+    mockGetStripe.mockReturnValue(stripe);
+    const consoleErrorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+
+    await api.handleDonationPaymentIntentWebhook(makeDonationPaymentIntent({ id: "pi_intent_stripe_down" }));
+
+    const donation = await getAdminDb().query.donations.findFirst({
+      where: { stripePaymentId: "pi_intent_stripe_down" },
+    });
+    expect(donation?.status).toBe("succeeded");
+    expect(donation?.paymentMethodType).toBeNull();
+    expect(donation?.cardLast4).toBeNull();
+    consoleErrorSpy.mockRestore();
+  });
+
   it("intent: stores paymentMethodType without card details for twint", async () => {
     const twint = makePaymentMethod({ type: "twint", card: undefined });
     const { stripe } = buildStripeMock({ paymentMethod: twint });

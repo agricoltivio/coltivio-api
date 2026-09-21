@@ -8,20 +8,23 @@ type CardDetails = {
   paymentMethodType: string | null;
   cardLast4: string | null;
   cardBrand: string | null;
-  cardExpMonth: number | null;
-  cardExpYear: number | null;
 };
 
 const emptyCardDetails: CardDetails = {
   paymentMethodType: null,
   cardLast4: null,
   cardBrand: null,
-  cardExpMonth: null,
-  cardExpYear: null,
 };
 
+// Card details are display-only, a Stripe hiccup here must not fail the webhook and delay recording the donation.
 async function getCardDetails(paymentIntentId: string): Promise<CardDetails> {
-  const paymentIntent = await getStripe().paymentIntents.retrieve(paymentIntentId, { expand: ["payment_method"] });
+  let paymentIntent: Stripe.PaymentIntent;
+  try {
+    paymentIntent = await getStripe().paymentIntents.retrieve(paymentIntentId, { expand: ["payment_method"] });
+  } catch (err) {
+    console.error(`Failed to fetch payment method for donation ${paymentIntentId}:`, err);
+    return emptyCardDetails;
+  }
   const pm = paymentIntent.payment_method;
   if (!pm || typeof pm === "string") return emptyCardDetails;
   if (!pm.card) return { ...emptyCardDetails, paymentMethodType: pm.type };
@@ -29,8 +32,6 @@ async function getCardDetails(paymentIntentId: string): Promise<CardDetails> {
     paymentMethodType: pm.type,
     cardLast4: pm.card.last4,
     cardBrand: pm.card.brand,
-    cardExpMonth: pm.card.exp_month,
-    cardExpYear: pm.card.exp_year,
   };
 }
 

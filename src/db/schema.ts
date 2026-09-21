@@ -374,8 +374,6 @@ export const donations = pgTable.withRLS(
     paymentMethodType: text(), // Stripe PaymentMethod.type, e.g. "card", "twint"
     cardLast4: text(),
     cardBrand: text(),
-    cardExpMonth: integer(),
-    cardExpYear: integer(),
     createdAt: timestamp({ mode: "date" }).defaultNow().notNull(),
   },
   (table) => [

@@ -16,8 +16,6 @@ const donationSchema = z.object({
   paymentMethodType: z.string().nullable(),
   cardLast4: z.string().nullable(),
   cardBrand: z.string().nullable(),
-  cardExpMonth: z.number().nullable(),
-  cardExpYear: z.number().nullable(),
   createdAt: z.date(),
 });
 
