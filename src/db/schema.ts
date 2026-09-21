@@ -339,7 +339,6 @@ export const membershipExpiryNotifications = pgTable(
   (table) => [unique().on(table.userId, table.type, table.periodEndDate)]
 );
 
-// Donations — no RLS, managed via db.admin only
 export const handoffTokens = pgTable.withRLS("handoff_tokens", {
   id: uuid().primaryKey().defaultRandom(),
   userId: uuid()
@@ -362,16 +361,30 @@ export const emailVerificationTokens = pgTable.withRLS("email_verification_token
   createdAt: timestamp({ mode: "date" }).defaultNow().notNull(),
 });
 
-export const donations = pgTable("donations", {
-  id: uuid().primaryKey().defaultRandom(),
-  userId: uuid().references(() => profiles.id, { onDelete: "set null" }), // null = anonymous
-  email: text().notNull(),
-  stripePaymentId: text().notNull().unique(),
-  amount: integer().notNull(), // CHF cents
-  currency: text().notNull().default("chf"),
-  status: donationStatusEnum().notNull().default("pending"),
-  createdAt: timestamp({ mode: "date" }).defaultNow().notNull(),
-});
+export const donations = pgTable.withRLS(
+  "donations",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    userId: uuid().references(() => profiles.id, { onDelete: "set null" }), // null = anonymous
+    email: text().notNull(),
+    stripePaymentId: text().notNull().unique(),
+    amount: integer().notNull(), // CHF cents
+    currency: text().notNull().default("chf"),
+    status: donationStatusEnum().notNull().default("pending"),
+    paymentMethodType: text(), // Stripe PaymentMethod.type, e.g. "card", "twint"
+    cardLast4: text(),
+    cardBrand: text(),
+    createdAt: timestamp({ mode: "date" }).defaultNow().notNull(),
+  },
+  (table) => [
+    pgPolicy("user can read own donations", {
+      as: "permissive",
+      to: authenticatedRole,
+      for: "select",
+      using: eq(table.userId, selectAuthUid),
+    }),
+  ]
+);
 
 export const userRoleEnum = pgEnum("user_role", ["ADMIN", "USER", "CONTRACTOR"]);
 

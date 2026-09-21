@@ -4,8 +4,46 @@ import { getStripe } from "../stripe/stripe";
 import { donations } from "../db/schema";
 import { sendDonationConfirmationEmail } from "./donations.email";
 
+type CardDetails = {
+  paymentMethodType: string | null;
+  cardLast4: string | null;
+  cardBrand: string | null;
+};
+
+const emptyCardDetails: CardDetails = {
+  paymentMethodType: null,
+  cardLast4: null,
+  cardBrand: null,
+};
+
+// Card details are display-only, a Stripe hiccup here must not fail the webhook and delay recording the donation.
+async function getCardDetails(paymentIntentId: string): Promise<CardDetails> {
+  let paymentIntent: Stripe.PaymentIntent;
+  try {
+    paymentIntent = await getStripe().paymentIntents.retrieve(paymentIntentId, { expand: ["payment_method"] });
+  } catch (err) {
+    console.error(`Failed to fetch payment method for donation ${paymentIntentId}:`, err);
+    return emptyCardDetails;
+  }
+  const pm = paymentIntent.payment_method;
+  if (!pm || typeof pm === "string") return emptyCardDetails;
+  if (!pm.card) return { ...emptyCardDetails, paymentMethodType: pm.type };
+  return {
+    paymentMethodType: pm.type,
+    cardLast4: pm.card.last4,
+    cardBrand: pm.card.brand,
+  };
+}
+
 export function donationsApi(db: RlsDb) {
   return {
+    async getDonations(userId: string) {
+      return db.admin.query.donations.findMany({
+        where: { userId },
+        orderBy: { createdAt: "desc" },
+      });
+    },
+
     async createDonationCheckout(
       amount: number,
       email: string,
@@ -71,12 +109,12 @@ export function donationsApi(db: RlsDb) {
     async handleDonationWebhook(session: Stripe.Checkout.Session): Promise<void> {
       const userId = session.metadata?.userId || null;
       const email = session.customer_email ?? session.customer_details?.email ?? "";
-      const paymentIntentId =
-        typeof session.payment_intent === "string"
-          ? session.payment_intent
-          : (session.payment_intent?.id ?? session.id);
+      const rawPaymentIntentId =
+        typeof session.payment_intent === "string" ? session.payment_intent : (session.payment_intent?.id ?? null);
+      const paymentIntentId = rawPaymentIntentId ?? session.id;
       // The account may have been deleted since checkout started, the donation then stays anonymous
       const profile = userId ? await db.admin.query.profiles.findFirst({ where: { id: userId } }) : undefined;
+      const cardDetails = rawPaymentIntentId ? await getCardDetails(rawPaymentIntentId) : emptyCardDetails;
 
       const inserted = await db.admin
         .insert(donations)
@@ -87,6 +125,7 @@ export function donationsApi(db: RlsDb) {
           amount: session.amount_total ?? 0,
           currency: session.currency ?? "chf",
           status: "succeeded",
+          ...cardDetails,
         })
         .onConflictDoNothing()
         .returning({ id: donations.id });
@@ -108,6 +147,7 @@ export function donationsApi(db: RlsDb) {
       const userId = metadata.userId || null;
       const email = metadata.email || paymentIntent.receipt_email || "";
       const profile = userId ? await db.admin.query.profiles.findFirst({ where: { id: userId } }) : undefined;
+      const cardDetails = await getCardDetails(paymentIntent.id);
 
       const inserted = await db.admin
         .insert(donations)
@@ -118,6 +158,7 @@ export function donationsApi(db: RlsDb) {
           amount: paymentIntent.amount,
           currency: paymentIntent.currency,
           status: "succeeded",
+          ...cardDetails,
         })
         .onConflictDoNothing()
         .returning({ id: donations.id });

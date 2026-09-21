@@ -9,7 +9,9 @@ services:
     ports:
       - "5432"
     healthcheck:
-      test: ["CMD-SHELL", "psql -U postgres -c \"SELECT 1 FROM pg_roles WHERE rolname = 'supabase_auth_admin'\" | grep -q 1"]
+      # Via TCP, not the socket: during init the entrypoint runs a socket-only temporary server and then
+      # restarts, so a socket check goes healthy too early and auth dies connecting mid-restart.
+      test: ["CMD-SHELL", "PGPASSWORD=postgres psql -h 127.0.0.1 -U postgres -c \"SELECT 1 FROM pg_roles WHERE rolname = 'supabase_auth_admin'\" | grep -q 1"]
       interval: 5s
       timeout: 10s
       retries: 20
