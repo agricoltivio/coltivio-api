@@ -24,6 +24,15 @@
     "module": "commonjs",
 
     "moduleResolution": "node",
+    "baseUrl": ".",
+    "paths": {
+      // express-zod-api v29's subpath exports aren't resolvable under classic
+      // "node" moduleResolution; switching to node16/bundler would force the
+      // whole CommonJS codebase to deal with several ESM-only deps at once,
+      // so just point the type-checker at the two subpaths we actually use.
+      "express-zod-api/documentation": ["./node_modules/express-zod-api/dist/documentation.d.ts"],
+      "express-zod-api/integration": ["./node_modules/express-zod-api/dist/integration.d.ts"]
+    },
     "esModuleInterop": true,
     "types": ["node"],
     "strict": true,

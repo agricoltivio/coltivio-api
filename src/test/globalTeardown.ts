@@ -14,8 +14,7 @@ export default async function globalTeardown() {
 
   // Stop app server
   const server = (globalThis as Record<string, unknown>).__SERVER__ as
-    | { servers: Array<{ close: (cb?: () => void) => void }> }
-    | undefined;
+    { servers: Array<{ close: (cb?: () => void) => void }> } | undefined;
   if (server) {
     await Promise.all(server.servers.map((s) => new Promise<void>((resolve) => s.close(() => resolve()))));
   }

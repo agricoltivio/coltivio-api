@@ -4,7 +4,7 @@ let _stripe: Stripe | null = null;
 
 // Exported so mobile-SDK-facing code (ephemeral keys) can pass the same version the
 // client Stripe SDK expects, without duplicating the literal.
-export const STRIPE_API_VERSION = "2026-02-25.clover";
+export const STRIPE_API_VERSION = "2026-08-26.dahlia";
 
 // Lazy singleton — only instantiated on first use so importing this module
 // during build/doc generation doesn't require STRIPE_SECRET_KEY to be set.

@@ -63,18 +63,18 @@ const config = createConfig({
     app.use("/docs", ui.serve, ui.setup(documentation));
     app.use(i18nextMiddleware.handle(i18next));
   },
-  cors: ({ defaultHeaders, request }) => {
+  cors: (req, res, next) => {
     const allowedOrigins = [
       "https://coltivio.ch",
       "https://app.coltivio.ch",
       ...(process.env.NODE_ENV !== "production" ? ["http://localhost:4000", "http://localhost:4321"] : []),
     ];
-    const origin = request.headers.origin;
-    return {
-      ...defaultHeaders,
-      ...(origin && allowedOrigins.includes(origin) ? { "Access-Control-Allow-Origin": origin } : {}),
-      "Access-Control-Allow-Headers": "Authorization, Content-Type",
-    };
+    const origin = req.headers.origin;
+    if (origin && allowedOrigins.includes(origin)) {
+      res.setHeader("Access-Control-Allow-Origin", origin);
+    }
+    res.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
+    next();
   },
   compression: { threshold: "1kb" },
   logger: { level: "debug", color: true },

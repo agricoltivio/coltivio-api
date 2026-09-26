@@ -1,5 +1,4 @@
 import { drizzle } from "drizzle-orm/postgres-js";
-import * as schema from "./schema";
 import { relations } from "./schema";
 import { sql } from "drizzle-orm";
 import postgres from "postgres";
@@ -17,15 +16,11 @@ export async function disconnect() {
 
 export const clientDrizzle = drizzle({
   client,
-  schema,
   relations,
-  casing: "snake_case",
 });
 export const adminDrizzle = drizzle({
   client: adminClient,
-  schema,
   relations,
-  casing: "snake_case",
 });
 
 // Whitelist of allowed Supabase roles to prevent SQL injection in SET ROLE

@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, EmptyFilter, eq, inArray, isNull, sql } from "drizzle-orm";
 import ExcelJS from "exceljs";
 import createHttpError from "http-errors";
 import { TFunction } from "i18next";
@@ -363,8 +363,8 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
         return tx.query.animals.findMany({
           where: {
             farmId,
-            type: { in: animalTypes },
-            dateOfDeath: onlyLiving ? { isNull: true } : undefined,
+            type: { in: animalTypes ?? EmptyFilter },
+            dateOfDeath: onlyLiving ? { isNull: true } : EmptyFilter,
           },
           with: {
             earTag: true,

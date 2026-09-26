@@ -10,7 +10,7 @@ import {
   pgPolicy,
   pgRole,
   pgSchema,
-  pgTable,
+  pgTableCreator,
   pgView,
   real,
   text,
@@ -18,6 +18,9 @@ import {
   unique,
   uuid,
 } from "drizzle-orm/pg-core";
+
+// drizzle-orm v1 moved casing config off drizzle() and onto table creation itself
+const pgTable = pgTableCreator((name) => name, "snake_case");
 import { authenticatedRole, authUsers } from "drizzle-orm/supabase";
 
 import { z } from "zod";

@@ -9,7 +9,7 @@ import { relations } from "../db/schema";
 // Helper to create a typed drizzle instance (used for ReturnType inference)
 function createAdminDb() {
   const client = postgres(process.env.DATABASE_URL!, { prepare: false });
-  return drizzle({ client, schema, relations, casing: "snake_case" });
+  return drizzle({ client, relations });
 }
 
 // Lazy singleton admin DB for direct state verification in tests
@@ -27,9 +27,7 @@ export function getAdminDb() {
   if (!_adminDb) {
     _adminDb = drizzle({
       client: getAdminSql(),
-      schema,
       relations,
-      casing: "snake_case",
     });
   }
   return _adminDb;

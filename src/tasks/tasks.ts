@@ -1,4 +1,4 @@
-import { and, arrayContains, eq, inArray } from "drizzle-orm";
+import { and, arrayContains, EmptyFilter, eq, inArray } from "drizzle-orm";
 import { RlsDb } from "../db/db";
 import { farmIdColumnValue, taskChecklistItems, taskLinks, taskRecurrences, tasks } from "../db/schema";
 
@@ -254,7 +254,7 @@ export function tasksApi(rlsDb: RlsDb, locale: string) {
         }
 
         const rows = await tx.query.tasks.findMany({
-          where: matchingIds ? { id: { in: matchingIds } } : undefined,
+          where: matchingIds ? { id: { in: matchingIds } } : EmptyFilter,
           with: {
             recurrence: true,
             checklistItems: { orderBy: (fields, { asc }) => asc(fields.position) },
