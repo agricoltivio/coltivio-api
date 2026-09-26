@@ -1857,13 +1857,11 @@ export const wikiChangeRequests = pgTable.withRLS(
       as: "permissive",
       to: authenticatedRole,
       for: "update",
-      using: and(
-        eq(table.submittedBy, selectAuthUid),
-        or(
-          eq(table.status, sql`'draft'::wiki_change_request_status`),
-          eq(table.status, sql`'changes_requested'::wiki_change_request_status`)
-        )
-      ),
+      // Compared as text, not cast to wiki_change_request_status: a from-scratch migration replay
+      // (e.g. test bootstrap) applies every migration in one transaction, and Postgres refuses to
+      // use an enum value ('changes_requested') within the same transaction that added it via
+      // ALTER TYPE ... ADD VALUE. Comparing as text sidesteps that restriction entirely.
+      using: and(eq(table.submittedBy, selectAuthUid), sql`${table.status}::text in ('draft', 'changes_requested')`),
       withCheck: eq(table.submittedBy, selectAuthUid),
     }),
   ]
