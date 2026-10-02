@@ -68,7 +68,7 @@ export const getFarmAndNearbyPlotsEndpoint = authenticatedEndpointFactory.build(
   method: "get",
   input: z.object({
     federalFarmId: z.string(),
-    buffer: z.number().optional(),
+    buffer: z.coerce.number().optional(),
   }),
   output: z.object({
     result: selectFederalFarmPlotSchema.array(),

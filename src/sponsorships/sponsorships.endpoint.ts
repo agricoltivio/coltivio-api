@@ -70,7 +70,9 @@ const sponsorshipWithPaidFlagSchema = sponsorshipWithRelationsSchema.extend({
 
 export const getFarmSponsorshipsEndpoint = sponsorshipsRead.build({
   method: "get",
-  input: z.object({ onlyActive: z.boolean().optional().default(true) }),
+  input: z.object({
+    onlyActive: z.stringbool().optional().default(true),
+  }),
   output: z.object({
     result: z.array(sponsorshipWithPaidFlagSchema),
     count: z.number(),
@@ -96,7 +98,7 @@ export const getContactSponsorshipsEndpoint = sponsorshipsRead.build({
   method: "get",
   input: z.object({
     contactId: z.string(),
-    onlyActive: z.boolean().optional().default(true),
+    onlyActive: z.stringbool().optional().default(true),
   }),
   output: z.object({
     result: z.array(sponsorshipWithRelationsSchema.omit({ contact: true })),
@@ -115,7 +117,7 @@ export const getAnimalSponsorshipsEndpoint = sponsorshipsRead.build({
   method: "get",
   input: z.object({
     animalId: z.string(),
-    onlyActive: z.boolean().optional().default(true),
+    onlyActive: z.stringbool().optional().default(true),
   }),
   output: z.object({
     result: z.array(sponsorshipWithRelationsSchema.omit({ animal: true })),
