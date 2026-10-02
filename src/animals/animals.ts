@@ -8,14 +8,6 @@ import { EarTag } from "../ear-tags/ear-tags";
 import { Treatment } from "../treatments/treatments";
 import { buildOutdoorJournal, expandOutdoorSchedule, OutdoorJournalResult } from "./outdoor-journal";
 
-// SQL fragment to compute if animal has no active waiting times from treatments
-const _milkAndMeatUsableExtra = sql<boolean>`NOT EXISTS (
-  SELECT 1 FROM ${tables.animalTreatments}
-  JOIN ${tables.treatments} ON ${tables.treatments.id} = ${tables.animalTreatments.treatmentId}
-  WHERE ${tables.animalTreatments.animalId} = ${tables.animals.id}
-  AND (${tables.treatments.milkUsableDate} > NOW() OR ${tables.treatments.meatUsableDate} > NOW())
-)`.as("milk_and_meat_usable");
-
 // Sex value mapping (all locales combined — values are lowercased before lookup)
 const SEX_MAP: Record<string, "male" | "female"> = {
   // German
@@ -87,6 +79,22 @@ const HEADER_MAP: Record<string, Record<string, string>> = {
     "numéro de marque auriculaire (père)": "fatherEarTag",
   },
 };
+
+// Looks up a header's field name, preferring the request's locale but falling back to every other
+// known locale before giving up — TVD exports are not always in the farm's configured locale.
+function resolveHeaderField(headerText: string, preferredHeaderMap: Record<string, string>): string | undefined {
+  const preferredMatch = preferredHeaderMap[headerText];
+  if (preferredMatch) {
+    return preferredMatch;
+  }
+  for (const headerMap of Object.values(HEADER_MAP)) {
+    const match = headerMap[headerText];
+    if (match) {
+      return match;
+    }
+  }
+  return undefined;
+}
 
 // Parses a date string — supports ISO (YYYY-MM-DD) and DD.MM.YYYY (used in Italian/Swiss TVD exports)
 function parseDateString(value: string): Date | null {
@@ -948,10 +956,12 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
       }
 
       const headerRow = worksheet.getRow(1);
+      const presentHeaders: string[] = [];
       headerRow.eachCell((cell, colNumber) => {
         const headerText = cell.text?.trim().toLowerCase();
         if (headerText) {
-          const field = headerMap[headerText];
+          presentHeaders.push(headerText);
+          const field = resolveHeaderField(headerText, headerMap);
           if (field) {
             columnIndex[field] = colNumber;
           }
@@ -962,7 +972,12 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
       const requiredColumns = ["earTag", "name", "sex", "dateOfBirth"] as const;
       const missingColumns = requiredColumns.filter((col) => !columnIndex[col]);
       if (missingColumns.length > 0) {
-        const knownHeaders = Object.keys(headerMap).join(", ");
+        const knownHeaders = Object.values(HEADER_MAP)
+          .flatMap((map) => Object.keys(map))
+          .join(", ");
+        console.error(
+          `[animals-import] Missing required columns: ${missingColumns.join(", ")}. Headers present in file: ${presentHeaders.join(", ") || "none"}`
+        );
         throw createHttpError(
           400,
           `Missing required columns: ${missingColumns.join(", ")}. Known header names: ${knownHeaders}`
@@ -1185,10 +1200,12 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
       }
 
       const headerRow = worksheet.getRow(1);
+      const presentHeaders: string[] = [];
       headerRow.eachCell((cell, colNumber) => {
         const headerText = cell.text?.trim().toLowerCase();
         if (headerText) {
-          const field = headerMap[headerText];
+          presentHeaders.push(headerText);
+          const field = resolveHeaderField(headerText, headerMap);
           if (field) {
             columnIndex[field] = colNumber;
           }
@@ -1198,7 +1215,12 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
       const requiredColumns = ["earTag", "name", "sex", "dateOfBirth"] as const;
       const missingColumns = requiredColumns.filter((col) => !columnIndex[col]);
       if (missingColumns.length > 0) {
-        const knownHeaders = Object.keys(headerMap).join(", ");
+        const knownHeaders = Object.values(HEADER_MAP)
+          .flatMap((map) => Object.keys(map))
+          .join(", ");
+        console.error(
+          `[animals-import] Missing required columns: ${missingColumns.join(", ")}. Headers present in file: ${presentHeaders.join(", ") || "none"}`
+        );
         throw createHttpError(
           400,
           `Missing required columns: ${missingColumns.join(", ")}. Known header names: ${knownHeaders}`

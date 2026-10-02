@@ -1581,6 +1581,43 @@ describe("Animal import — preview + commit", () => {
     expect(mama.fatherEarTagNumber).toBeNull();
   });
 
+  it("preview resolves columns from another locale's headers, not just the request locale", async () => {
+    const { jwt } = await createUserWithFarm();
+    // Mix German and French headers in one file — TVD exports aren't always consistent.
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet("Tiere");
+    sheet.addRow(["Ohrmarkennummer", "Nom", "Sexe", "Geburtsdatum"]);
+    sheet.addRow(["CH700", "Gustav", "männlich", "2021-02-10"]);
+    const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
+
+    // Request locale defaults to "de", but "Nom"/"Sexe" only exist in the French header map.
+    const res = await uploadExcel("/v1/animals/import/preview", buffer, { skipHeaderRow: "true" }, jwt);
+    expect(res.status).toBe(200);
+
+    const body = (await res.json()) as {
+      data: { rows: Array<{ earTagNumber: string | null; name: string | null; sex: string | null }> };
+    };
+    expect(body.data.rows).toHaveLength(1);
+    expect(body.data.rows[0].earTagNumber).toBe("CH700");
+    expect(body.data.rows[0].name).toBe("Gustav");
+    expect(body.data.rows[0].sex).toBe("male");
+  });
+
+  it("preview still fails when a column is missing in every supported locale", async () => {
+    const { jwt } = await createUserWithFarm();
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet("Tiere");
+    // "dateOfBirth" column missing under any locale's header name, plus an unrecognized extra column.
+    sheet.addRow(["Ohrmarkennummer", "Tiername", "Geschlecht", "Herkunftsland"]);
+    sheet.addRow(["CH800", "Hans", "männlich", "CH"]);
+    const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
+
+    const res = await uploadExcel("/v1/animals/import/preview", buffer, { skipHeaderRow: "true" }, jwt);
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toContain("dateOfBirth");
+  });
+
   it("full two-phase flow: preview then commit", async () => {
     const { jwt } = await createUserWithFarm();
     const buffer = await buildExcelBuffer([["CH400", "Liesel", "weiblich", "2022-09-01", "milch"]]);
