@@ -175,6 +175,8 @@ import {
   getFarmPlotsEndpoint,
   getPlotByIdEndpoint,
   mergePlotsEndpoint,
+  previewPlotShapefileImportEndpoint,
+  commitPlotShapefileImportEndpoint,
   splitPlotEndpoint,
   syncMissingLocalIdsEndpoint,
   updatePlotEndpoint,
@@ -462,6 +464,10 @@ export const routing: Routing = {
       "": {
         get: getFarmPlotsEndpoint,
         post: createPlotEndpoint,
+      },
+      import: {
+        preview: previewPlotShapefileImportEndpoint,
+        commit: commitPlotShapefileImportEndpoint,
       },
       byId: {
         ":plotId": {

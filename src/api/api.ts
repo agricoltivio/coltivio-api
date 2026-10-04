@@ -45,7 +45,7 @@ import { farmPermissionsApi } from "../farm/farm-permissions";
 
 export function sessionApi(db: RlsDb, t: TFunction, locale: string) {
   return {
-    plots: plotsApi(db),
+    plots: plotsApi(db, t),
     dashboard: dashboardApi(db, t),
     users: usersApi(db),
     farms: farmsApi(db, t),

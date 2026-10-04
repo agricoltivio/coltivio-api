@@ -81,6 +81,44 @@ export const createPlotEndpoint = plotsWrite.build({
   },
 });
 
+const shapefileImportPreviewRowSchema = z.object({
+  rowNumber: z.number(),
+  externalId: z.string().nullable(),
+  name: z.string(),
+  localId: z.string().nullable(),
+  usage: z.number().nullable(),
+  usageName: z.string().nullable(),
+  size: z.number(),
+  municipality: z.string().nullable(),
+  geometry: multiPolygonSchema.nullable(),
+  overlappingPlotIds: z.array(z.string()),
+  parseErrors: z.array(z.string()),
+});
+
+export const previewPlotShapefileImportEndpoint = plotsWrite.build({
+  method: "post",
+  input: z.object({ file: ez.upload() }),
+  output: z.object({
+    // full: all attributes read from the file, partial: some rows use defaults (name, usage or computed size),
+    // geometries_only: attributes not recognised, all rows use defaults
+    completeness: z.enum(["full", "partial", "geometries_only"]),
+    rows: z.array(shapefileImportPreviewRowSchema),
+  }),
+  handler: async ({ input, ctx: { plots } }) => {
+    return plots.previewShapefileImport(input.file.data);
+  },
+});
+
+export const commitPlotShapefileImportEndpoint = plotsWrite.build({
+  method: "post",
+  input: z.object({ rows: z.array(createPlotSchema).min(1) }),
+  output: z.object({ created: z.number() }),
+  handler: async ({ input, ctx: { plots } }) => {
+    const createdPlotIds = await plots.createPlots(input.rows);
+    return { created: createdPlotIds.length };
+  },
+});
+
 export const updatePlotEndpoint = plotsWrite.build({
   method: "patch",
   input: updatePlotSchema.extend({
