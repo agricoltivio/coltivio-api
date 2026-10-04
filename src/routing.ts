@@ -116,6 +116,7 @@ import {
 } from "./harvests/harvests.endoint";
 import {
   getFarmAndNearbyPlotsEndpoint,
+  getPlotsLayerLastUpdatedEndpoint,
   getFederalFarmIdsEndpoint,
   getPlotsLayerForBoundingBoxEndpoint,
   getPlotsForFederalFarmIdEndpoint,
@@ -382,6 +383,7 @@ export const routing: Routing = {
           },
         },
         radius: getPlotsWithinRadiusOfPointEndpoint,
+        lastUpdated: getPlotsLayerLastUpdatedEndpoint,
       },
       federalFarmIds: getFederalFarmIdsEndpoint,
     },

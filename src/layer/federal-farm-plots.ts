@@ -8,8 +8,16 @@ const plotSelectColumns = {
   geometry: sql<MultiPolygon>`ST_AsGeoJSON(${federalFarmPlots.geometry})::json`,
 };
 
+// The federal farm plots layer is re-imported roughly once a year via an external
+// process (outside this repo). There's no per-row timestamp for this, so we track
+// the last import date here and bump it (with a redeploy) whenever a new import runs.
+const federalFarmPlotsLastUpdated = new Date("2025-01-01");
+
 export function federalPlotsLayerApi(authDb: RlsDb) {
   return {
+    getLastUpdatedDate() {
+      return federalFarmPlotsLastUpdated;
+    },
     async getPlotsForFederalFarmId(federalFarmId: string) {
       return authDb.rls(async (tx) => {
         return tx

@@ -102,6 +102,19 @@ export const getPlotsWithinRadiusOfPointEndpoint = authenticatedEndpointFactory.
   },
 });
 
+export const getPlotsLayerLastUpdatedEndpoint = authenticatedEndpointFactory.build({
+  method: "get",
+  input: z.object({}),
+  output: z.object({
+    lastUpdated: ez.dateOut(),
+  }),
+  handler: async ({ ctx: { federalParcelLayer } }) => {
+    return {
+      lastUpdated: federalParcelLayer.getLastUpdatedDate(),
+    };
+  },
+});
+
 export const getFederalFarmIdsEndpoint = authenticatedEndpointFactory.build({
   method: "get",
   input: z.object({
