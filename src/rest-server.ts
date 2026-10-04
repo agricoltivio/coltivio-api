@@ -34,6 +34,8 @@ const config = createConfig({
     listen: process.env.PORT || 8000, // port, UNIX socket or options
   },
   upload: true,
+  // default limit is 100kb, too small for plot imports which send the geometries of all plots of a farm
+  jsonParser: express.json({ limit: "10mb" }),
   beforeRouting: ({ app, getLogger }) => {
     getLogger().info("Serving the API documentation at http://localhost:8000/docs. ");
     // Global CORS middleware — ensures CORS headers are present on ALL responses including 404s,

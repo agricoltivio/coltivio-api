@@ -1,7 +1,8 @@
-import { and, eq, getTableColumns, inArray, isNull, ne, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import { writeFileSync } from "fs";
 import path from "path";
 import { CropRotation, expandRecurrence } from "../crop-rotations/crop-rotations";
+import { TFunction } from "i18next";
 import { RlsDb } from "../db/db";
 import {
   cropProtectionApplications,
@@ -14,6 +15,7 @@ import {
 } from "../db/schema";
 import { MultiPolygon } from "../geo/geojson";
 import { getParcelsForEnvelopes } from "../geoadmin/geoadmin";
+import { parseShapefileZip, ShapefilePlotFields } from "./plot-shapefile-import";
 
 export type SplitPlotInput = {
   geometry: MultiPolygon;
@@ -29,35 +31,125 @@ export type Plot = Omit<typeof plots.$inferSelect, "geometry"> & {
   geometry: MultiPolygon;
   currentCropRotation: CropRotation | null;
 };
-const plotSelectColumns = {
-  ...getTableColumns(plots),
-  geometry: sql<MultiPolygon>`ST_AsGeoJSON(${plots.geometry})::json`,
+export type ShapefileImportCompleteness = "full" | "partial" | "geometries_only";
+export type ShapefileImportPreviewRow = Omit<ShapefilePlotFields, "size" | "usedDefaults"> & {
+  rowNumber: number;
+  size: number;
+  geometry: MultiPolygon | null;
+  overlappingPlotIds: string[];
 };
 
-export function plotsApi(rlsDb: RlsDb) {
+export function plotsApi(rlsDb: RlsDb, t: TFunction) {
   return {
     async createPlot(plotInput: PlotCreateInput): Promise<Plot> {
-      const result = await rlsDb.rls(async (tx) => {
-        const [plot] = await tx
-          .insert(plots)
-          .values({
-            ...plotInput,
-            ...farmIdColumnValue,
-            geometry: sql<MultiPolygon>`ST_GeomFromGeoJSON(${JSON.stringify(plotInput.geometry)})`,
-          })
-          .returning({ ...plotSelectColumns, geom: plots.geometry });
-
-        await tx
-          .update(plots)
-          .set({
-            geometry: sql<MultiPolygon>`ST_ForcePolygonCCW(ST_Multi(ST_Difference(${plots.geometry}, ${plot.geom})))`,
-            size: sql<number>`ST_Area(ST_Transform(ST_Difference(${plots.geometry}, ${plot.geom}),2056))`,
-          })
-          .where(and(ne(plots.id, plot.id), sql`ST_Intersects(${plots.geometry}, ${plot.geom})`));
-        return plot;
-      });
-      const plot = await this.getPlotById(result.id);
+      const [plotId] = await this.createPlots([plotInput]);
+      const plot = await this.getPlotById(plotId);
       return plot!;
+    },
+
+    // Creates all plots in a single transaction. Each new plot is cut out of the existing plots it overlaps.
+    async createPlots(plotInputs: PlotCreateInput[]): Promise<string[]> {
+      return rlsDb.rls(async (tx) => {
+        const createdPlotIds: string[] = [];
+        for (const plotInput of plotInputs) {
+          const [plot] = await tx
+            .insert(plots)
+            .values({
+              ...plotInput,
+              ...farmIdColumnValue,
+              geometry: sql<MultiPolygon>`ST_GeomFromGeoJSON(${JSON.stringify(plotInput.geometry)})`,
+            })
+            .returning({ id: plots.id, geom: plots.geometry });
+
+          await tx
+            .update(plots)
+            .set({
+              geometry: sql<MultiPolygon>`ST_ForcePolygonCCW(ST_Multi(ST_Difference(${plots.geometry}, ${plot.geom})))`,
+              size: sql<number>`ST_Area(ST_Transform(ST_Difference(${plots.geometry}, ${plot.geom}),2056))`,
+            })
+            .where(and(ne(plots.id, plot.id), sql`ST_Intersects(${plots.geometry}, ${plot.geom})`));
+          createdPlotIds.push(plot.id);
+        }
+        return createdPlotIds;
+      });
+    },
+
+    async previewShapefileImport(
+      zipBuffer: Buffer
+    ): Promise<{ completeness: ShapefileImportCompleteness; rows: ShapefileImportPreviewRow[] }> {
+      const { srid, format, features } = await parseShapefileZip(zipBuffer);
+      return rlsDb.rls(async (tx) => {
+        const previewRows: ShapefileImportPreviewRow[] = [];
+        // set as soon as any row needed a default name, usage or computed size
+        let anyRowUsedDefaults = false;
+        for (const [index, feature] of features.entries()) {
+          const { usedDefaults, ...plotFields } = format.toPlotFields(
+            feature.properties,
+            `${t("plots.plot")} ${index + 1}`
+          );
+          if (usedDefaults || plotFields.size === null) {
+            anyRowUsedDefaults = true;
+          }
+          const parseErrors = [...plotFields.parseErrors];
+          if (feature.rings.length === 0) {
+            parseErrors.push("missing geometry");
+            previewRows.push({
+              rowNumber: index + 1,
+              ...plotFields,
+              size: plotFields.size ?? 0,
+              geometry: null,
+              overlappingPlotIds: [],
+              parseErrors,
+            });
+            continue;
+          }
+
+          // Same steps as "Fix geometries" + "Promote to multipart" in QGIS: assemble polygons (with holes)
+          // from the rings, reproject to WGS84, make valid, keep only polygon parts and force a MultiPolygon.
+          const ringsGeoJson = JSON.stringify({ type: "MultiLineString", coordinates: feature.rings });
+          const [result] = await tx.execute<{
+            geometry: MultiPolygon | null;
+            area: number | null;
+            overlapping_plot_ids: string[];
+          }>(sql`
+            WITH import_geometry AS (
+              SELECT ST_ForcePolygonCCW(ST_Multi(ST_CollectionExtract(ST_MakeValid(
+                ST_Transform(ST_BuildArea(ST_SetSRID(ST_GeomFromGeoJSON(${ringsGeoJson}), ${srid}::int)), 4326),
+                'method=structure'), 3))) AS geom
+            )
+            SELECT
+              CASE WHEN ST_IsEmpty(import_geometry.geom) THEN NULL ELSE ST_AsGeoJSON(import_geometry.geom)::json END AS geometry,
+              ST_Area(ST_Transform(import_geometry.geom, 2056)) AS area,
+              COALESCE((
+                SELECT json_agg(${plots.id})
+                FROM ${plots}
+                WHERE ST_Intersects(${plots.geometry}, import_geometry.geom)
+                  -- ignore plots that only touch along a shared border
+                  AND ST_Area(ST_Transform(ST_Intersection(${plots.geometry}, import_geometry.geom), 2056)) > 1
+              ), '[]'::json) AS overlapping_plot_ids
+            FROM import_geometry
+          `);
+
+          if (!result?.geometry) {
+            parseErrors.push("invalid geometry");
+          }
+          previewRows.push({
+            rowNumber: index + 1,
+            ...plotFields,
+            size: plotFields.size ?? Math.round(result?.area ?? 0),
+            geometry: result?.geometry ?? null,
+            overlappingPlotIds: result?.overlapping_plot_ids ?? [],
+            parseErrors,
+          });
+        }
+        let completeness: ShapefileImportCompleteness = "full";
+        if (format.geometryOnly) {
+          completeness = "geometries_only";
+        } else if (anyRowUsedDefaults) {
+          completeness = "partial";
+        }
+        return { completeness, rows: previewRows };
+      });
     },
 
     async getPlotById(id: string): Promise<Plot | undefined> {
