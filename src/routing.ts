@@ -364,6 +364,7 @@ import {
 } from "./forum/forum.endpoint";
 import { setForumThreadStatusEndpoint, pinForumThreadEndpoint } from "./forum/forum-moderation.endpoint";
 import { createHandoffTokenEndpoint, exchangeHandoffTokenEndpoint } from "./auth/handoff.endpoint";
+import { registerPushTokenEndpoint, unregisterPushTokenEndpoint } from "./push/push-tokens.endpoint";
 import { resendVerificationEmailEndpoint, verifyEmailEndpoint } from "./user/user-verification.endpoint";
 import {
   listMemberPermissionsEndpoint,
@@ -443,6 +444,7 @@ export const routing: Routing = {
       "verification-email": { post: resendVerificationEmailEndpoint },
       "deletion-preview": getAccountDeletionPreviewEndpoint,
       deletion: { post: deleteAccountEndpoint },
+      "push-tokens": { post: registerPushTokenEndpoint, delete: unregisterPushTokenEndpoint },
     },
     // parcels: {
     //   "": {

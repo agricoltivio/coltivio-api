@@ -66,13 +66,14 @@ export type TaskCreateInput = {
 };
 
 // recurrence: undefined = keep as-is, null = delete, value = upsert
+// assigneeId/dueDate: undefined = keep as-is, null = clear
 // links/checklistItems: undefined = keep as-is, array = replace all
 export type TaskUpdateInput = {
   name?: string;
   description?: string;
   labels?: string[];
-  assigneeId?: string;
-  dueDate?: Date;
+  assigneeId?: string | null;
+  dueDate?: Date | null;
   pinned?: boolean;
   recurrence?: TaskRecurrenceInput | null;
   links?: TaskLinkInput[];
@@ -213,13 +214,14 @@ async function upsertRecurrence(
   const existing = await tx.query.taskRecurrences.findFirst({
     where: { taskId },
   });
+  // Recurrence input is a full replacement: omitted optional fields are cleared, not kept
   const values = {
     frequency: input.frequency,
     interval: input.interval ?? 1,
-    byWeekday: input.byWeekday,
-    byMonthDay: input.byMonthDay,
-    until: input.until,
-    count: input.count,
+    byWeekday: input.byWeekday ?? null,
+    byMonthDay: input.byMonthDay ?? null,
+    until: input.until ?? null,
+    count: input.count ?? null,
   };
   if (existing) {
     await tx.update(taskRecurrences).set(values).where(eq(taskRecurrences.taskId, taskId));

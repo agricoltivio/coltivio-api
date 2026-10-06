@@ -361,6 +361,51 @@ export const emailVerificationTokens = pgTable.withRLS("email_verification_token
   createdAt: timestamp({ mode: "date" }).defaultNow().notNull(),
 });
 
+// User-editable preferences. Kept out of profiles because profiles only grants column-level UPDATE
+// on full_name (server-managed columns like email_verified must stay read-only). A missing row means defaults.
+export const userSettings = pgTable.withRLS(
+  "user_settings",
+  {
+    userId: uuid()
+      .primaryKey()
+      .references(() => profiles.id, { onDelete: "cascade" }),
+    taskPushNotifications: boolean().notNull().default(true),
+  },
+  (table) => [
+    pgPolicy("user can manage own settings", {
+      as: "permissive",
+      to: authenticatedRole,
+      for: "all",
+      using: eq(table.userId, selectAuthUid),
+      withCheck: eq(table.userId, selectAuthUid),
+    }),
+  ]
+);
+
+// Expo push tokens, one row per device. A device that switches accounts is reassigned on register.
+export const pushTokens = pgTable.withRLS(
+  "push_tokens",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    userId: uuid()
+      .notNull()
+      .references(() => profiles.id, { onDelete: "cascade" }),
+    token: text().notNull().unique(),
+    platform: text().$type<"ios" | "android">(),
+    createdAt: timestamp({ mode: "date" }).defaultNow().notNull(),
+    lastUsedAt: timestamp({ mode: "date" }),
+  },
+  (table) => [
+    pgPolicy("user can manage own push tokens", {
+      as: "permissive",
+      to: authenticatedRole,
+      for: "all",
+      using: eq(table.userId, selectAuthUid),
+      withCheck: eq(table.userId, selectAuthUid),
+    }),
+  ]
+);
+
 export const donations = pgTable.withRLS(
   "donations",
   {
@@ -2068,6 +2113,24 @@ export const tasks = pgTable.withRLS(
   ]
 );
 
+// RLS enabled without policies: denies all access via PostgREST, only db.admin (task due cron) can read/write.
+// Dedup log so each user is notified once per task due date.
+export const taskDueNotifications = pgTable.withRLS(
+  "task_due_notifications",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    taskId: uuid()
+      .notNull()
+      .references(() => tasks.id, { onDelete: "cascade" }),
+    userId: uuid()
+      .notNull()
+      .references(() => profiles.id, { onDelete: "cascade" }),
+    dueDate: date({ mode: "date" }).notNull(),
+    sentAt: timestamp({ mode: "date" }).defaultNow().notNull(),
+  },
+  (table) => [unique().on(table.taskId, table.userId, table.dueDate)]
+);
+
 export const taskRecurrences = pgTable.withRLS(
   "task_recurrences",
   {
@@ -2415,6 +2478,9 @@ const tables = {
   membershipExpiryNotifications,
   donations,
   handoffTokens,
+  pushTokens,
+  taskDueNotifications,
+  userSettings,
   emailVerificationTokens,
   invoiceSettings,
 };
@@ -2425,6 +2491,17 @@ export const relations = defineRelations(tables, (r) => ({
     memberships: r.many.farmMembers(),
     handoffTokens: r.many.handoffTokens(),
     emailVerificationTokens: r.many.emailVerificationTokens(),
+    pushTokens: r.many.pushTokens(),
+    settings: r.one.userSettings({
+      from: r.profiles.id,
+      to: r.userSettings.userId,
+    }),
+  },
+  pushTokens: {
+    user: r.one.profiles({
+      from: r.pushTokens.userId,
+      to: r.profiles.id,
+    }),
   },
   handoffTokens: {
     user: r.one.profiles({

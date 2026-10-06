@@ -103,8 +103,9 @@ const taskUpdateSchema = z.object({
   name: z.string().min(1).optional(),
   description: z.string().optional(),
   labels: z.array(z.string()).optional(),
-  assigneeId: z.string().optional(),
-  dueDate: ez.dateIn().optional(),
+  // null clears the assignee / due date, undefined keeps it as-is
+  assigneeId: z.string().nullable().optional(),
+  dueDate: ez.dateIn().nullable().optional(),
   pinned: z.boolean().optional(),
   recurrence: taskRecurrenceInputSchema.nullable().optional(),
   links: z.array(taskLinkInputSchema).optional(),

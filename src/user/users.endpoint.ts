@@ -24,12 +24,18 @@ export const userSchema = z.object({
 // Members default to "none" for unlisted features.
 const myProfileSchema = userSchema.extend({
   farmPermissions: z.array(farmPermissionSchema),
+  taskPushNotifications: z.boolean(),
+});
+
+const updatedProfileSchema = userSchema.extend({
+  taskPushNotifications: z.boolean(),
 });
 
 const updateUserSchema = z
   .object({
     fullName: z.string().optional(),
     newsletterConsent: z.boolean().optional(),
+    taskPushNotifications: z.boolean().optional(),
   })
   .partial();
 
@@ -38,13 +44,15 @@ export const getMyUserProfileEndpoint = authenticatedEndpointFactory.build({
   input: z.object({}),
   output: myProfileSchema,
   handler: async ({ ctx }) => {
-    const [user, isWikiModerator, farmPermissions] = await Promise.all([
+    const [user, isWikiModerator, farmPermissions, settings] = await Promise.all([
       ctx.users.getUserById(ctx.user.id),
       ctx.wikiModeration.isModerator(ctx.user.id),
       ctx.farmPermissions.listPermissionsForUser(ctx.user.id),
+      ctx.users.getSettings(ctx.user.id),
     ]);
     return {
       ...user,
+      ...settings,
       farmId: ctx.farmContext.farmId,
       farmRole: ctx.farmContext.farmRole,
       isWikiModerator,
@@ -93,19 +101,28 @@ export const getFarmUsersEndpoint = farmEndpointFactory.build({
 export const updateUserProfileEndpoint = authenticatedEndpointFactory.build({
   method: "patch",
   input: updateUserSchema,
-  output: userSchema,
+  output: updatedProfileSchema,
   handler: async ({ input, ctx }) => {
-    const { newsletterConsent, ...profileInput } = input;
+    const { newsletterConsent, taskPushNotifications, ...profileInput } = input;
     if (newsletterConsent !== undefined) {
       await ctx.users.setNewsletterConsent(ctx.user.id, newsletterConsent);
     }
-    // Drizzle rejects an empty update set, so a consent-only PATCH just reads the profile back
+    // Drizzle rejects an empty update set, so a settings-only PATCH just reads the profile back
     const hasProfileChanges = Object.keys(profileInput).length > 0;
-    const [user, isWikiModerator] = await Promise.all([
+    const [user, isWikiModerator, settings] = await Promise.all([
       hasProfileChanges ? ctx.users.updateUser(ctx.user.id, profileInput) : ctx.users.getUserById(ctx.user.id),
       ctx.wikiModeration.isModerator(ctx.user.id),
+      taskPushNotifications !== undefined
+        ? ctx.users.updateSettings(ctx.user.id, { taskPushNotifications })
+        : ctx.users.getSettings(ctx.user.id),
     ]);
-    return { ...user, farmId: ctx.farmContext.farmId, farmRole: ctx.farmContext.farmRole, isWikiModerator };
+    return {
+      ...user,
+      ...settings,
+      farmId: ctx.farmContext.farmId,
+      farmRole: ctx.farmContext.farmRole,
+      isWikiModerator,
+    };
   },
 });
 
