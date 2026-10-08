@@ -50,20 +50,13 @@ async function attachSignedUrls(images: (typeof plotJournalImages.$inferSelect)[
 }
 
 export function plotJournalApi(db: RlsDb) {
-  async function listEntries(plotId: string, farmId: string): Promise<PlotJournalEntryWithImages[]> {
-    const entries = await db.rls(async (tx) => {
+  async function listEntries(plotId: string, farmId: string): Promise<PlotJournalEntry[]> {
+    return db.rls(async (tx) => {
       return tx.query.plotJournalEntries.findMany({
         where: { plotId, farmId },
-        with: { images: true },
         orderBy: (t, { desc }) => [desc(t.date), desc(t.createdAt)],
       });
     });
-    return Promise.all(
-      entries.map(async (entry) => ({
-        ...entry,
-        images: await attachSignedUrls(entry.images),
-      }))
-    );
   }
 
   async function getEntry(entryId: string): Promise<PlotJournalEntryWithImages> {

@@ -32,7 +32,7 @@ const journalEntryWithImagesSchema = journalEntrySchema.extend({
 export const listPlotJournalEntriesEndpoint = plotsRead.build({
   method: "get",
   input: z.object({ plotId: z.string() }),
-  output: z.object({ entries: z.array(journalEntryWithImagesSchema) }),
+  output: z.object({ entries: z.array(journalEntrySchema) }),
   handler: async ({ input, ctx: { plotJournal, farmId } }) => {
     const entries = await plotJournal.listEntries(input.plotId, farmId);
     return { entries };

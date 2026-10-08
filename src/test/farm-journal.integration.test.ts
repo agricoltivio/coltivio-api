@@ -73,11 +73,11 @@ describe("Farm Journal — entry CRUD", () => {
 
     const res = await request("GET", "/v1/farm/journal", undefined, jwt);
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { data: { entries: { title: string; images: unknown[] }[] } };
+    const body = (await res.json()) as { data: { entries: Record<string, unknown>[] } };
     expect(body.data.entries).toHaveLength(2);
     expect(body.data.entries[0].title).toBe("New entry");
     expect(body.data.entries[1].title).toBe("Old entry");
-    expect(body.data.entries[0].images).toEqual([]);
+    expect(body.data.entries[0]).not.toHaveProperty("images");
   });
 
   it("gets a single journal entry by id", async () => {

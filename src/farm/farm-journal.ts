@@ -50,20 +50,13 @@ async function attachSignedUrls(images: (typeof farmJournalImages.$inferSelect)[
 }
 
 export function farmJournalApi(db: RlsDb) {
-  async function listEntries(farmId: string): Promise<FarmJournalEntryWithImages[]> {
-    const entries = await db.rls(async (tx) => {
+  async function listEntries(farmId: string): Promise<FarmJournalEntry[]> {
+    return db.rls(async (tx) => {
       return tx.query.farmJournalEntries.findMany({
         where: { farmId },
-        with: { images: true },
         orderBy: (t, { desc }) => [desc(t.date), desc(t.createdAt)],
       });
     });
-    return Promise.all(
-      entries.map(async (entry) => ({
-        ...entry,
-        images: await attachSignedUrls(entry.images),
-      }))
-    );
   }
 
   async function getEntry(entryId: string): Promise<FarmJournalEntryWithImages> {

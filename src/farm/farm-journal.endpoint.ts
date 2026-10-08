@@ -28,7 +28,7 @@ const journalEntryWithImagesSchema = journalEntrySchema.extend({
 export const listFarmJournalEntriesEndpoint = farmEndpointFactory.build({
   method: "get",
   input: z.object({}),
-  output: z.object({ entries: z.array(journalEntryWithImagesSchema) }),
+  output: z.object({ entries: z.array(journalEntrySchema) }),
   handler: async ({ ctx: { farmJournal, farmId } }) => {
     const entries = await farmJournal.listEntries(farmId);
     return { entries };
