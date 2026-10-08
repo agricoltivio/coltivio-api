@@ -190,4 +190,55 @@ describe("Tasks", () => {
     expect(body.data.result[0].id).toBe(t2.id);
     expect(body.data.result[1].id).toBe(t1.id);
   });
+
+  it("clears assignee and due date with null and keeps them when omitted", async () => {
+    const { jwt, userId } = await createUserWithFarm({}, "test@test.com", { withActiveMembership: true });
+    const task = await createTask(jwt, {
+      name: "Assigned task",
+      assigneeId: userId,
+      dueDate: "2030-06-15",
+      checklistItems: [],
+    });
+    expect(task.assigneeId).toBe(userId);
+    expect(task.dueDate).not.toBeNull();
+
+    const renamed = await updateTask(jwt, task.id, { name: "Renamed" });
+    expect(renamed.assigneeId).toBe(userId);
+    expect(renamed.dueDate).not.toBeNull();
+
+    const cleared = await updateTask(jwt, task.id, { assigneeId: null, dueDate: null });
+    expect(cleared.assigneeId).toBeNull();
+    expect(cleared.dueDate).toBeNull();
+  });
+
+  it("clears a recurrence with null and keeps it when omitted", async () => {
+    const { jwt } = await createUserWithFarm({}, "test@test.com", { withActiveMembership: true });
+    const task = await createTask(jwt, {
+      name: "Recurring task",
+      dueDate: "2030-06-15",
+      recurrence: { frequency: "weekly", interval: 1 },
+      checklistItems: [],
+    });
+    expect(task.recurrence).not.toBeNull();
+
+    const renamed = await updateTask(jwt, task.id, { name: "Renamed" });
+    expect(renamed.recurrence).not.toBeNull();
+
+    const cleared = await updateTask(jwt, task.id, { recurrence: null });
+    expect(cleared.recurrence).toBeNull();
+  });
+
+  it("clears omitted recurrence fields when the recurrence is replaced", async () => {
+    const { jwt } = await createUserWithFarm({}, "test@test.com", { withActiveMembership: true });
+    const task = await createTask(jwt, {
+      name: "Recurring task",
+      dueDate: "2030-06-15",
+      recurrence: { frequency: "weekly", interval: 1, until: "2030-12-31", count: 5 },
+      checklistItems: [],
+    });
+    expect(task.recurrence).toMatchObject({ count: 5 });
+
+    const updated = await updateTask(jwt, task.id, { recurrence: { frequency: "monthly", interval: 2 } });
+    expect(updated.recurrence).toMatchObject({ frequency: "monthly", interval: 2, until: null, count: null });
+  });
 });

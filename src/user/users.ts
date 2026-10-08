@@ -4,13 +4,14 @@ import { captureException } from "@sentry/node";
 import Stripe from "stripe";
 import { z } from "zod";
 import { RlsDb } from "../db/db";
-import { farmMembers, farms, membershipPayments, profiles } from "../db/schema";
+import { farmMembers, farms, membershipPayments, profiles, userSettings } from "../db/schema";
 import { supabase } from "../supabase/supabase";
 import { getStripe } from "../stripe/stripe";
 import { deleteNewsletterContact, removeNewsletterContact, upsertNewsletterContact } from "../brevo/brevo";
 
 export type NewUser = typeof profiles.$inferInsert;
 export type UpdatedUser = Partial<NewUser>;
+export type UserSettings = { taskPushNotifications: boolean };
 export type User = typeof profiles.$inferSelect;
 
 // What happens to each of the user's farms when the account is deleted:
@@ -126,6 +127,24 @@ export function usersApi(authDb: RlsDb) {
       } else {
         await removeNewsletterContact({ userId: profile.id, email: profile.email });
       }
+    },
+
+    async getSettings(userId: string): Promise<UserSettings> {
+      return authDb.rls(async (tx) => {
+        const settings = await tx.query.userSettings.findFirst({ where: { userId } });
+        return { taskPushNotifications: settings?.taskPushNotifications ?? true };
+      });
+    },
+
+    async updateSettings(userId: string, update: Partial<UserSettings>): Promise<UserSettings> {
+      return authDb.rls(async (tx) => {
+        const [settings] = await tx
+          .insert(userSettings)
+          .values({ userId, ...update })
+          .onConflictDoUpdate({ target: userSettings.userId, set: update })
+          .returning();
+        return { taskPushNotifications: settings.taskPushNotifications };
+      });
     },
 
     async getDeletionPreview(userId: string): Promise<DeletionPreviewFarm[]> {

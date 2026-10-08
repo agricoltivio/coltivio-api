@@ -42,6 +42,7 @@ import { membershipApi } from "../membership/membership";
 import { donationsApi } from "../donations/donations";
 import { handoffApi } from "../auth/handoff";
 import { farmPermissionsApi } from "../farm/farm-permissions";
+import { pushTokensApi } from "../push/push-tokens";
 
 export function sessionApi(db: RlsDb, t: TFunction, locale: string) {
   return {
@@ -87,5 +88,6 @@ export function sessionApi(db: RlsDb, t: TFunction, locale: string) {
     donations: donationsApi(db),
     handoff: handoffApi(db),
     farmPermissions: farmPermissionsApi(db),
+    pushTokens: pushTokensApi(db),
   };
 }

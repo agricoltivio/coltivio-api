@@ -490,5 +490,8 @@
   },
   "animals_report": {
     "file_name": "Tierbericht {{fromDate}} - {{toDate}}"
+  },
+  "task_due_push": {
+    "title": "Heute fällig"
   }
 }

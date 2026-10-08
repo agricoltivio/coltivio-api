@@ -490,5 +490,8 @@
   },
   "animals_report": {
     "file_name": "Rapporto animali {{fromDate}} - {{toDate}}"
+  },
+  "task_due_push": {
+    "title": "In scadenza oggi"
   }
 }
