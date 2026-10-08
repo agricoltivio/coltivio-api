@@ -2404,6 +2404,59 @@ export const animalJournalImages = pgTable.withRLS(
   ]
 );
 
+export const farmJournalEntries = pgTable.withRLS(
+  "farm_journal_entries",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    farmId: uuid()
+      .notNull()
+      .references(() => farms.id, { onDelete: "cascade" }),
+    title: text().notNull(),
+    date: date({ mode: "date" }).notNull(),
+    content: text(),
+    createdBy: uuid().references(() => profiles.id, { onDelete: "set null" }),
+    createdAt: timestamp().notNull().defaultNow(),
+    updatedAt: timestamp().notNull().defaultNow(),
+  },
+  (table) => [
+    index("farm_journal_entries_farm_id_idx").on(table.farmId),
+    pgPolicy("only farm members", {
+      as: "permissive",
+      to: authenticatedRole,
+      using: eq(table.farmId, currentFarmId),
+      withCheck: eq(table.farmId, currentFarmId),
+    }),
+  ]
+);
+
+export const farmJournalImages = pgTable.withRLS(
+  "farm_journal_images",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    // No FK to farmJournalEntries — pre-upload flow, same rationale as animalJournalImages
+    journalEntryId: uuid().notNull(),
+    storagePath: text().notNull(),
+    createdAt: timestamp().notNull().defaultNow(),
+  },
+  (table) => [
+    index("farm_journal_images_entry_id_idx").on(table.journalEntryId),
+    pgPolicy("only farm members via journal entry", {
+      as: "permissive",
+      to: authenticatedRole,
+      using: sql`EXISTS (
+        SELECT 1 FROM ${farmJournalEntries} e
+        WHERE e.id = ${table.journalEntryId}
+        AND e.farm_id = (SELECT farm_id())
+      )`,
+      withCheck: sql`EXISTS (
+        SELECT 1 FROM ${farmJournalEntries} e
+        WHERE e.id = ${table.journalEntryId}
+        AND e.farm_id = (SELECT farm_id())
+      )`,
+    }),
+  ]
+);
+
 // Schema object for defineRelations (contains all tables)
 const tables = {
   federalFarmPlots,
@@ -2472,6 +2525,8 @@ const tables = {
   plotJournalImages,
   animalJournalEntries,
   animalJournalImages,
+  farmJournalEntries,
+  farmJournalImages,
   userSubscriptions,
   userTrials,
   membershipPayments,
@@ -2522,6 +2577,7 @@ export const relations = defineRelations(tables, (r) => ({
     harvests: r.many.harvests(),
     fertilizerApplications: r.many.fertilizerApplications(),
     invites: r.many.farmInvites(),
+    journalEntries: r.many.farmJournalEntries(),
   },
   farmMembers: {
     farm: r.one.farms({
@@ -3231,6 +3287,21 @@ export const relations = defineRelations(tables, (r) => ({
     journalEntry: r.one.animalJournalEntries({
       from: r.animalJournalImages.journalEntryId,
       to: r.animalJournalEntries.id,
+      optional: false,
+    }),
+  },
+  farmJournalEntries: {
+    farm: r.one.farms({
+      from: r.farmJournalEntries.farmId,
+      to: r.farms.id,
+      optional: false,
+    }),
+    images: r.many.farmJournalImages(),
+  },
+  farmJournalImages: {
+    journalEntry: r.one.farmJournalEntries({
+      from: r.farmJournalImages.journalEntryId,
+      to: r.farmJournalEntries.id,
       optional: false,
     }),
   },

@@ -371,6 +371,16 @@ import {
   setMemberPermissionEndpoint,
   resetMemberPermissionEndpoint,
 } from "./farm/farm-permissions.endpoint";
+import {
+  createFarmJournalEntryEndpoint,
+  deleteFarmJournalEntryEndpoint,
+  deleteFarmJournalImageEndpoint,
+  getFarmJournalEntryEndpoint,
+  listFarmJournalEntriesEndpoint,
+  registerFarmJournalImageEndpoint,
+  requestFarmJournalImageSignedUrlEndpoint,
+  updateFarmJournalEntryEndpoint,
+} from "./farm/farm-journal.endpoint";
 
 export const routing: Routing = {
   healthz: healthEndpoint,
@@ -404,6 +414,23 @@ export const routing: Routing = {
       dashboard: getDashboardStatsEndpoint,
       fieldEvents: getFieldEventsEndpoint,
       stats: getFarmStatsEndpoint,
+      journal: {
+        "": { get: listFarmJournalEntriesEndpoint, post: createFarmJournalEntryEndpoint },
+        byId: {
+          ":entryId": {
+            "": {
+              get: getFarmJournalEntryEndpoint,
+              patch: updateFarmJournalEntryEndpoint,
+              delete: deleteFarmJournalEntryEndpoint,
+            },
+          },
+        },
+        images: {
+          signedUrl: { post: requestFarmJournalImageSignedUrlEndpoint },
+          "": { post: registerFarmJournalImageEndpoint },
+          byId: { ":imageId": { delete: deleteFarmJournalImageEndpoint } },
+        },
+      },
       invites: {
         "": { get: listFarmInvitesEndpoint, post: createFarmInviteEndpoint },
         accept: { post: acceptFarmInviteEndpoint },
