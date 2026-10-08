@@ -492,8 +492,6 @@
     "file_name": "Rapport animaux {{fromDate}} - {{toDate}}"
   },
   "task_due_push": {
-    "title": "Tâches à échéance – {{farmName}}",
-    "body_one": "À faire aujourd'hui : {{taskNames}}",
-    "body_other": "{{count}} tâches à faire aujourd'hui : {{taskNames}}"
+    "title": "À faire aujourd'hui"
   }
 }

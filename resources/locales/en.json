@@ -492,8 +492,6 @@
     "file_name": "Animal report {{fromDate}} - {{toDate}}"
   },
   "task_due_push": {
-    "title": "Tasks due – {{farmName}}",
-    "body_one": "Due today: {{taskNames}}",
-    "body_other": "{{count}} tasks due today: {{taskNames}}"
+    "title": "Due today"
   }
 }

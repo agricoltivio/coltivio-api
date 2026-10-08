@@ -492,8 +492,6 @@
     "file_name": "Tierbericht {{fromDate}} - {{toDate}}"
   },
   "task_due_push": {
-    "title": "Fällige Aufgaben – {{farmName}}",
-    "body_one": "Heute fällig: {{taskNames}}",
-    "body_other": "{{count}} Aufgaben heute fällig: {{taskNames}}"
+    "title": "Heute fällig"
   }
 }

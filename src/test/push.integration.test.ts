@@ -164,7 +164,8 @@ describe("Task due notifications", () => {
     const messages = sentMessages();
     expect(messages).toHaveLength(1);
     expect(messages[0].to).toBe(tokenFor("member"));
-    expect(messages[0].body).toContain("Fix fence");
+    expect(messages[0].title).toBe("Heute fällig");
+    expect(messages[0].body).toBe("Fix fence");
     expect(messages[0].data).toMatchObject({ type: "tasks_due", farmId: owner.farmId });
   });
 
@@ -199,8 +200,7 @@ describe("Task due notifications", () => {
 
     const messages = sentMessages();
     expect(messages).toHaveLength(1);
-    expect(messages[0].body).toContain("Task A");
-    expect(messages[0].body).toContain("Task B");
+    expect(messages[0].body).toBe("Task A, Task B");
   });
 
   it("skips users who opted out", async () => {

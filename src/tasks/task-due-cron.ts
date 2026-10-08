@@ -6,7 +6,6 @@ import { adminDrizzle } from "../db/db";
 import {
   farmMemberPermissions,
   farmMembers,
-  farms,
   profiles,
   pushTokens,
   taskDueNotifications,
@@ -37,12 +36,10 @@ async function runTaskDueNotifications(now: Date = new Date()): Promise<TaskDueS
       id: tasks.id,
       name: tasks.name,
       farmId: tasks.farmId,
-      farmName: farms.name,
       assigneeId: tasks.assigneeId,
       dueDate: tasks.dueDate,
     })
     .from(tasks)
-    .innerJoin(farms, eq(farms.id, tasks.farmId))
     .where(
       and(
         eq(tasks.status, "todo"),
@@ -127,10 +124,7 @@ async function runTaskDueNotifications(now: Date = new Date()): Promise<TaskDueS
   if (claimed.length === 0) return [];
 
   const taskById = new Map(dueTasks.map((task) => [task.id, task]));
-  const digests = new Map<
-    string,
-    { userId: string; farmId: string; farmName: string; taskIds: string[]; taskNames: string[] }
-  >();
+  const digests = new Map<string, { userId: string; farmId: string; taskIds: string[]; taskNames: string[] }>();
   for (const claim of claimed) {
     const task = taskById.get(claim.taskId);
     if (!task) continue;
@@ -138,7 +132,6 @@ async function runTaskDueNotifications(now: Date = new Date()): Promise<TaskDueS
     const digest = digests.get(digestKey) ?? {
       userId: claim.userId,
       farmId: task.farmId,
-      farmName: task.farmName,
       taskIds: [],
       taskNames: [],
     };
@@ -162,10 +155,10 @@ async function runTaskDueNotifications(now: Date = new Date()): Promise<TaskDueS
     const userTokens = tokensByUserId.get(digest.userId);
     if (!userTokens) continue;
     const t = i18next.getFixedT(localeByUserId.get(digest.userId) ?? "de");
+    // Body is just the task name(s), the app icon already says where the push comes from
     const shownNames = digest.taskNames.slice(0, MAX_TASK_NAMES_IN_BODY).join(", ");
-    const taskNames = digest.taskNames.length > MAX_TASK_NAMES_IN_BODY ? `${shownNames}, …` : shownNames;
-    const title = t("task_due_push.title", { farmName: digest.farmName });
-    const body = t("task_due_push.body", { count: digest.taskNames.length, taskNames });
+    const body = digest.taskNames.length > MAX_TASK_NAMES_IN_BODY ? `${shownNames}, …` : shownNames;
+    const title = t("task_due_push.title");
     for (const token of userTokens) {
       messages.push({
         to: token,
