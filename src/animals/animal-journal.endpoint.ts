@@ -32,7 +32,7 @@ const journalEntryWithImagesSchema = journalEntrySchema.extend({
 export const listAnimalJournalEntriesEndpoint = animalsRead.build({
   method: "get",
   input: z.object({ animalId: z.string() }),
-  output: z.object({ entries: z.array(journalEntryWithImagesSchema) }),
+  output: z.object({ entries: z.array(journalEntrySchema) }),
   handler: async ({ input, ctx: { animalJournal, farmId } }) => {
     const entries = await animalJournal.listEntries(input.animalId, farmId);
     return { entries };
