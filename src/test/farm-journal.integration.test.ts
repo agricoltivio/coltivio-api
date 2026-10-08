@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "@jest/globals";
 import { cleanDb, getAdminDb, request } from "./helpers";
-import { createUserWithFarm } from "./test-utils";
+import { createFarmMember, createUserWithFarm, grantMemberWriteAccess } from "./test-utils";
 import { farmJournalImages } from "../db/schema";
 
 // ---------------------------------------------------------------------------
@@ -184,6 +184,37 @@ describe("Farm Journal — farm isolation", () => {
       where: { id: entry.id as string },
     });
     expect(dbEntry).toBeDefined();
+  });
+});
+
+describe("Farm Journal — owner only", () => {
+  beforeEach(cleanDb);
+
+  it("non-owner member cannot access any journal endpoint", async () => {
+    const { jwt: ownerJwt } = await createUserWithFarm({}, "owner@test.com", { withActiveMembership: true });
+    const { jwt: memberJwt, userId: memberId } = await createFarmMember(ownerJwt, "member@test.com", {
+      withActiveMembership: true,
+    });
+    await grantMemberWriteAccess(ownerJwt, memberId, "animals");
+
+    const entry = await createJournalEntry(ownerJwt);
+
+    const memberRequests: [string, string, Record<string, unknown> | undefined][] = [
+      ["GET", "/v1/farm/journal", undefined],
+      ["POST", "/v1/farm/journal", { title: "x", date: "2024-06-01" }],
+      ["GET", `/v1/farm/journal/byId/${entry.id}`, undefined],
+      ["PATCH", `/v1/farm/journal/byId/${entry.id}`, { title: "hacked" }],
+      ["DELETE", `/v1/farm/journal/byId/${entry.id}`, undefined],
+      ["POST", "/v1/farm/journal/images/signedUrl", { journalEntryId: entry.id, filename: "a.jpg" }],
+    ];
+    for (const [method, path, body] of memberRequests) {
+      const res = await request(method, path, body, memberJwt);
+      expect(res.status).toBe(403);
+    }
+
+    const db = getAdminDb();
+    const dbEntry = await db.query.farmJournalEntries.findFirst({ where: { id: String(entry.id) } });
+    expect(dbEntry?.title).toBe("Barn repair");
   });
 });
 

@@ -1,6 +1,6 @@
 import { ez } from "express-zod-api";
 import { z } from "zod";
-import { farmEndpointFactory } from "../endpoint-factory";
+import { ownerOnlyEndpointFactory } from "../endpoint-factory";
 
 const journalImageSchema = z.object({
   id: z.string(),
@@ -25,7 +25,7 @@ const journalEntryWithImagesSchema = journalEntrySchema.extend({
   images: z.array(journalImageSchema),
 });
 
-export const listFarmJournalEntriesEndpoint = farmEndpointFactory.build({
+export const listFarmJournalEntriesEndpoint = ownerOnlyEndpointFactory.build({
   method: "get",
   input: z.object({}),
   output: z.object({ entries: z.array(journalEntrySchema) }),
@@ -35,7 +35,7 @@ export const listFarmJournalEntriesEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const createFarmJournalEntryEndpoint = farmEndpointFactory.build({
+export const createFarmJournalEntryEndpoint = ownerOnlyEndpointFactory.build({
   method: "post",
   input: z.object({
     title: z.string().min(1),
@@ -48,7 +48,7 @@ export const createFarmJournalEntryEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const getFarmJournalEntryEndpoint = farmEndpointFactory.build({
+export const getFarmJournalEntryEndpoint = ownerOnlyEndpointFactory.build({
   method: "get",
   input: z.object({ entryId: z.string() }),
   output: journalEntryWithImagesSchema,
@@ -57,7 +57,7 @@ export const getFarmJournalEntryEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const updateFarmJournalEntryEndpoint = farmEndpointFactory.build({
+export const updateFarmJournalEntryEndpoint = ownerOnlyEndpointFactory.build({
   method: "patch",
   input: z.object({
     entryId: z.string(),
@@ -72,7 +72,7 @@ export const updateFarmJournalEntryEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const deleteFarmJournalEntryEndpoint = farmEndpointFactory.build({
+export const deleteFarmJournalEntryEndpoint = ownerOnlyEndpointFactory.build({
   method: "delete",
   input: z.object({ entryId: z.string() }),
   output: z.object({}),
@@ -82,7 +82,7 @@ export const deleteFarmJournalEntryEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const requestFarmJournalImageSignedUrlEndpoint = farmEndpointFactory.build({
+export const requestFarmJournalImageSignedUrlEndpoint = ownerOnlyEndpointFactory.build({
   method: "post",
   input: z.object({
     journalEntryId: z.string(),
@@ -97,7 +97,7 @@ export const requestFarmJournalImageSignedUrlEndpoint = farmEndpointFactory.buil
   },
 });
 
-export const registerFarmJournalImageEndpoint = farmEndpointFactory.build({
+export const registerFarmJournalImageEndpoint = ownerOnlyEndpointFactory.build({
   method: "post",
   input: z.object({
     journalEntryId: z.string(),
@@ -109,7 +109,7 @@ export const registerFarmJournalImageEndpoint = farmEndpointFactory.build({
   },
 });
 
-export const deleteFarmJournalImageEndpoint = farmEndpointFactory.build({
+export const deleteFarmJournalImageEndpoint = ownerOnlyEndpointFactory.build({
   method: "delete",
   input: z.object({ imageId: z.string() }),
   output: z.object({}),
