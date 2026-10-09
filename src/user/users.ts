@@ -132,7 +132,7 @@ export function usersApi(authDb: RlsDb) {
     async getSettings(userId: string): Promise<UserSettings> {
       return authDb.rls(async (tx) => {
         const settings = await tx.query.userSettings.findFirst({ where: { userId } });
-        return { taskPushNotifications: settings?.taskPushNotifications ?? true };
+        return { taskPushNotifications: settings?.taskPushNotifications ?? false };
       });
     },
 

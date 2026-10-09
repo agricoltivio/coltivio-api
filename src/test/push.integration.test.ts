@@ -30,6 +30,11 @@ async function registerToken(jwt: string, token: string) {
   expect(res.status).toBe(200);
 }
 
+async function enableTaskPush(jwt: string) {
+  const res = await request("PATCH", "/v1/me", { taskPushNotifications: true }, jwt);
+  expect(res.status).toBe(200);
+}
+
 async function insertTask(
   farmId: string,
   data: { name?: string; dueDate?: Date; assigneeId?: string; status?: "todo" | "done"; createdAt?: Date } = {}
@@ -135,17 +140,17 @@ describe("Push tokens", () => {
 });
 
 describe("Profile task push toggle", () => {
-  it("defaults to enabled and can be disabled", async () => {
+  it("defaults to disabled and can be enabled", async () => {
     const { jwt } = await createTestUser("user@test.com", "password123");
 
     const meRes = await request("GET", "/v1/me", undefined, jwt);
     const me = (await meRes.json()) as { data: { taskPushNotifications: boolean } };
-    expect(me.data.taskPushNotifications).toBe(true);
+    expect(me.data.taskPushNotifications).toBe(false);
 
-    const patchRes = await request("PATCH", "/v1/me", { taskPushNotifications: false }, jwt);
+    const patchRes = await request("PATCH", "/v1/me", { taskPushNotifications: true }, jwt);
     expect(patchRes.status).toBe(200);
     const patched = (await patchRes.json()) as { data: { taskPushNotifications: boolean } };
-    expect(patched.data.taskPushNotifications).toBe(false);
+    expect(patched.data.taskPushNotifications).toBe(true);
   });
 });
 
@@ -156,7 +161,9 @@ describe("Task due notifications", () => {
       permissions: [{ feature: "tasks", access: "write" }],
     });
     await registerToken(owner.jwt, tokenFor("owner"));
+    await enableTaskPush(owner.jwt);
     await registerToken(member.jwt, tokenFor("member"));
+    await enableTaskPush(member.jwt);
     await insertTask(owner.farmId, { name: "Fix fence", assigneeId: member.userId });
 
     await runTaskDueNotifications(NOW);
@@ -178,8 +185,11 @@ describe("Task due notifications", () => {
       permissions: [{ feature: "tasks", access: "none" }],
     });
     await registerToken(owner.jwt, tokenFor("owner"));
+    await enableTaskPush(owner.jwt);
     await registerToken(reader.jwt, tokenFor("reader"));
+    await enableTaskPush(reader.jwt);
     await registerToken(noAccess.jwt, tokenFor("noaccess"));
+    await enableTaskPush(noAccess.jwt);
     await insertTask(owner.farmId);
 
     await runTaskDueNotifications(NOW);
@@ -193,6 +203,7 @@ describe("Task due notifications", () => {
   it("sends one digest per user and farm", async () => {
     const owner = await createUserWithFarm({}, "owner@test.com");
     await registerToken(owner.jwt, tokenFor("owner"));
+    await enableTaskPush(owner.jwt);
     await insertTask(owner.farmId, { name: "Task A" });
     await insertTask(owner.farmId, { name: "Task B" });
 
@@ -206,7 +217,18 @@ describe("Task due notifications", () => {
   it("skips users who opted out", async () => {
     const owner = await createUserWithFarm({}, "owner@test.com");
     await registerToken(owner.jwt, tokenFor("owner"));
+    await enableTaskPush(owner.jwt);
     await request("PATCH", "/v1/me", { taskPushNotifications: false }, owner.jwt);
+    await insertTask(owner.farmId);
+
+    await runTaskDueNotifications(NOW);
+
+    expect(mockPostToExpo).not.toHaveBeenCalled();
+  });
+
+  it("skips users who never enabled notifications", async () => {
+    const owner = await createUserWithFarm({}, "owner@test.com");
+    await registerToken(owner.jwt, tokenFor("owner"));
     await insertTask(owner.farmId);
 
     await runTaskDueNotifications(NOW);
@@ -217,6 +239,7 @@ describe("Task due notifications", () => {
   it("does not notify twice for the same task and due date", async () => {
     const owner = await createUserWithFarm({}, "owner@test.com");
     await registerToken(owner.jwt, tokenFor("owner"));
+    await enableTaskPush(owner.jwt);
     await insertTask(owner.farmId);
 
     await runTaskDueNotifications(NOW);
@@ -228,6 +251,7 @@ describe("Task due notifications", () => {
   it("ignores done tasks and tasks not due today", async () => {
     const owner = await createUserWithFarm({}, "owner@test.com");
     await registerToken(owner.jwt, tokenFor("owner"));
+    await enableTaskPush(owner.jwt);
     await insertTask(owner.farmId, { status: "done" });
     await insertTask(owner.farmId, { dueDate: DUE_TOMORROW });
 
@@ -239,6 +263,7 @@ describe("Task due notifications", () => {
   it("skips tasks created on their due day", async () => {
     const owner = await createUserWithFarm({}, "owner@test.com");
     await registerToken(owner.jwt, tokenFor("owner"));
+    await enableTaskPush(owner.jwt);
     // 07:30 Zurich on the due date
     await insertTask(owner.farmId, { createdAt: new Date("2030-06-15T05:30:00Z") });
 
@@ -250,6 +275,7 @@ describe("Task due notifications", () => {
   it("notifies tasks created late the evening before their due day", async () => {
     const owner = await createUserWithFarm({}, "owner@test.com");
     await registerToken(owner.jwt, tokenFor("owner"));
+    await enableTaskPush(owner.jwt);
     // 23:30 Zurich the day before, already June 14 21:30 UTC
     await insertTask(owner.farmId, { createdAt: new Date("2030-06-14T21:30:00Z") });
 
@@ -261,6 +287,7 @@ describe("Task due notifications", () => {
   it("deletes tokens Expo reports as no longer registered", async () => {
     const owner = await createUserWithFarm({}, "owner@test.com");
     await registerToken(owner.jwt, tokenFor("stale"));
+    await enableTaskPush(owner.jwt);
     await insertTask(owner.farmId);
     mockPostToExpo.mockImplementation(async (messages) =>
       messages.map((message) => ({
