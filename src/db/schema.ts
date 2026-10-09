@@ -369,7 +369,7 @@ export const userSettings = pgTable.withRLS(
     userId: uuid()
       .primaryKey()
       .references(() => profiles.id, { onDelete: "cascade" }),
-    taskPushNotifications: boolean().notNull().default(true),
+    taskPushNotifications: boolean().notNull().default(false),
   },
   (table) => [
     pgPolicy("user can manage own settings", {

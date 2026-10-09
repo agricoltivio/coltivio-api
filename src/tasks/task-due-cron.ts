@@ -1,6 +1,6 @@
 import cron from "node-cron";
 import i18next from "i18next";
-import { and, eq, inArray, isNull, or, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { captureException } from "@sentry/node";
 import { adminDrizzle } from "../db/db";
 import {
@@ -103,14 +103,9 @@ async function runTaskDueNotifications(now: Date = new Date()): Promise<TaskDueS
   const recipientProfiles = await adminDrizzle
     .select({ id: profiles.id, locale: profiles.locale })
     .from(profiles)
-    // No settings row means defaults, i.e. notifications enabled
-    .leftJoin(userSettings, eq(userSettings.userId, profiles.id))
-    .where(
-      and(
-        inArray(profiles.id, candidateUserIds),
-        or(isNull(userSettings.userId), eq(userSettings.taskPushNotifications, true))
-      )
-    );
+    // Opt-in: no settings row means notifications disabled
+    .innerJoin(userSettings, eq(userSettings.userId, profiles.id))
+    .where(and(inArray(profiles.id, candidateUserIds), eq(userSettings.taskPushNotifications, true)));
   const localeByUserId = new Map(recipientProfiles.map((profile) => [profile.id, profile.locale]));
   const optedInCandidates = candidates.filter((candidate) => localeByUserId.has(candidate.userId));
   if (optedInCandidates.length === 0) return [];
