@@ -79,40 +79,27 @@ export type MembershipEmailParams = {
   periodEnd: Date;
   cardBrand: string | null;
   cardLast4: string | null;
-  // When set, shows trial billing info instead of a receipt
-  trialEnd?: Date;
 };
 
 export async function sendNewMembershipEmail(params: MembershipEmailParams): Promise<void> {
-  const { email, fullName, locale, amount, periodEnd, cardBrand, cardLast4, trialEnd } = params;
+  const { email, fullName, locale, amount, periodEnd, cardBrand, cardLast4 } = params;
   const t = i18next.getFixedT(locale);
   const name = fullName ?? email;
-  const isTrial = trialEnd !== undefined;
-
-  const bottomBlock = isTrial
-    ? `<div style="background:#F4FAFB;border:1px solid #72aea2;border-radius:10px;padding:16px 20px;margin-top:24px;">
-        <p style="margin:0;font-size:14px;color:#2a5159;line-height:1.6;">
-          ${t("membership_email.new.trial_billing_info", { date: formatDate(trialEnd, locale) })}
-        </p>
-      </div>`
-    : `<p style="margin:24px 0 10px;font-size:14px;font-weight:600;color:#212123;">${t("membership_email.new.receipt_title")}</p>
-       ${receiptHtml(t, amount, periodEnd, locale, cardBrand, cardLast4)}`;
 
   const html = baseLayout(
     t("membership_email.subtitle"),
     `
     <h1 style="margin:0 0 20px;font-size:24px;font-weight:700;color:#212123;">${t("membership_email.new.greeting", { name })}</h1>
     ${welcomeBody(t, locale)}
-    ${bottomBlock}
+    <p style="margin:24px 0 10px;font-size:14px;font-weight:600;color:#212123;">${t("membership_email.new.receipt_title")}</p>
+    ${receiptHtml(t, amount, periodEnd, locale, cardBrand, cardLast4)}
   `
   );
-
-  const subject = isTrial ? t("membership_email.new.subject_trial") : t("membership_email.new.subject");
 
   await txEmailApi.sendTransacEmail({
     to: [{ email, name: fullName ?? undefined }],
     sender: SENDER,
-    subject,
+    subject: t("membership_email.new.subject"),
     htmlContent: html,
     textContent: [
       t("membership_email.new.greeting", { name }),
@@ -123,9 +110,8 @@ export async function sendNewMembershipEmail(params: MembershipEmailParams): Pro
       t("membership_email.new.benefits_title"),
       ...(t("membership_email.new.benefits", { returnObjects: true }) as string[]).map((item) => `- ${item}`),
       "",
-      isTrial
-        ? t("membership_email.new.trial_billing_info", { date: formatDate(trialEnd, locale) })
-        : `${t("membership_email.valid_until")}: ${formatDate(periodEnd, locale)}\n${t("membership_email.amount")}: ${formatCHF(amount, locale)}`,
+      `${t("membership_email.valid_until")}: ${formatDate(periodEnd, locale)}`,
+      `${t("membership_email.amount")}: ${formatCHF(amount, locale)}`,
     ].join("\n"),
   });
 }

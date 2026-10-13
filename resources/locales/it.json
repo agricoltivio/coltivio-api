@@ -379,11 +379,9 @@
     "contact_newsletter": "Iscriviti alla nostra newsletter su",
     "new": {
       "subject": "Benvenuto ad AgriColtivio – la tua Iscrizione è attiva",
-      "subject_trial": "Benvenuto ad AgriColtivio – la tua Iscrizione è configurata",
       "greeting": "Ciao {{name}}",
       "welcome": "Benvenuto ad AgriColtivio, l'associazione dietro Coltivio. Bello averti con noi.",
       "receipt_title": "Conferma del pagamento",
-      "trial_billing_info": "Il tuo periodo di prova termina il {{date}}. Verrai addebitato solo al termine del periodo di prova.",
       "carried_by_members": "Coltivio è finanziato dai contributi dei soci e dalle donazioni. Nessun investitore che si aspetta un rendimento e nessuno che faccia affari con i tuoi dati. Stai sostenendo un'agricoltura aperta e giusta in Svizzera.",
       "benefits_title": "Come socio",
       "benefits": [

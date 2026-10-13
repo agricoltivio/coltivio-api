@@ -379,11 +379,9 @@
     "contact_newsletter": "Abonniere unseren Newsletter auf",
     "new": {
       "subject": "Willkommen bei AgriColtivio – deine Mitgliedschaft ist aktiv",
-      "subject_trial": "Willkommen bei AgriColtivio – deine Mitgliedschaft ist eingerichtet",
       "greeting": "Hallo {{name}}",
       "welcome": "Herzlich willkommen bei AgriColtivio, dem Verein hinter Coltivio. Schön, dass du dabei bist.",
       "receipt_title": "Deine Zahlungsbestätigung",
-      "trial_billing_info": "Deine Testphase läuft bis zum {{date}}. Du wirst erst nach Ablauf der Testphase belastet.",
       "carried_by_members": "Coltivio wird von den Beiträgen der Mitglieder und von Spenden getragen. Kein Investor, der eine Rendite erwartet, und niemand, der aus deinen Daten ein Geschäft macht. Du unterstützt damit eine offene und faire Landwirtschaft in der Schweiz.",
       "benefits_title": "Als Mitglied",
       "benefits": [
