@@ -372,24 +372,21 @@ describe("checkout.session.completed — subscription", () => {
     expect(emailSpy.mock.calls[0]?.[0]?.to?.[0]?.email).toBe("a1@test.com");
   });
 
-  it("trial checkout ($0 invoice) sends welcome email with trialEnd set", async () => {
+  it("$0 first invoice (promotion code) sends the normal welcome email with receipt, no trial block", async () => {
     const { userId } = await createTestUser("a2@test.com", "password123");
     const api = membershipApi(adminOnlyDb);
 
-    const periodEnd = daysFromNow(30);
-    const sub = makeStripeSubscription({
-      id: "sub_a2",
-      latest_invoice: "in_a2",
-      items: { data: [{ current_period_end: Math.floor(periodEnd.getTime() / 1000) }] },
-    });
+    const sub = makeStripeSubscription({ id: "sub_a2", latest_invoice: "in_a2" });
     const invoice = makeStripeInvoice({ id: "in_a2", amount_paid: 0, amount_due: 0 });
     mockGetStripe.mockReturnValue(buildStripeMock({ subscription: sub, invoice }));
 
     await api.handleWebhookEvent(makeCheckoutSubscriptionEvent(userId, "sub_a2", "in_a2"));
 
     expect(emailSpy).toHaveBeenCalledTimes(1);
-    // Trial email shows trial block (German "Testphase"), not a receipt
-    expect(emailSpy.mock.calls[0]?.[0]?.htmlContent).toContain("Testphase");
+    const sent = emailSpy.mock.calls[0]?.[0];
+    expect(sent?.subject).toContain("deine Mitgliedschaft ist aktiv");
+    expect(sent?.htmlContent).toContain("Zahlungsbestätigung");
+    expect(sent?.htmlContent).not.toContain("Testphase");
   });
 
   it("reactivation (prior succeeded payment) sends reactivation email", async () => {

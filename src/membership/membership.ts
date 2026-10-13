@@ -721,8 +721,6 @@ export function membershipApi(db: RlsDb) {
                     periodEnd,
                     cardBrand: cardDetails.cardBrand,
                     cardLast4: cardDetails.cardLast4,
-                    // Trial checkout ($0): show trial info instead of receipt
-                    trialEnd: stripeInvoice.amount_paid === 0 ? periodEnd : undefined,
                   });
                 } else {
                   await sendReactivationEmail({
@@ -879,7 +877,6 @@ export function membershipApi(db: RlsDb) {
                 periodEnd,
                 cardBrand: cardDetails.cardBrand,
                 cardLast4: cardDetails.cardLast4,
-                trialEnd: invoice.amount_paid === 0 ? periodEnd : undefined,
               });
             } else {
               await sendReactivationEmail({
