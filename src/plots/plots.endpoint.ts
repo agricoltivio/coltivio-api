@@ -89,20 +89,36 @@ const shapefileImportPreviewRowSchema = z.object({
   usage: z.number().nullable(),
   usageName: z.string().nullable(),
   size: z.number(),
+  cuttingDate: ez.dateOut().nullable(),
   municipality: z.string().nullable(),
   geometry: multiPolygonSchema.nullable(),
   overlappingPlotIds: z.array(z.string()),
-  parseErrors: z.array(z.string()),
+  // code is translated by the client, value is the offending attribute if any
+  parseErrors: z.array(z.object({ code: z.string(), value: z.string().optional() })),
+});
+
+const shapefileImportOverlaySchema = z.object({
+  externalId: z.string(),
+  name: z.string(),
+  localId: z.string().nullable(),
+  usage: z.number(),
+  usageName: z.string().nullable(),
+  size: z.number(),
+  // own instance: the OpenAPI generator would otherwise reuse the nullable variant from the row schema above
+  geometry: z.object(multiPolygonSchema.shape),
 });
 
 export const previewPlotShapefileImportEndpoint = plotsWrite.build({
   method: "post",
   input: z.object({ file: ez.upload() }),
   output: z.object({
-    // full: all attributes read from the file, partial: some rows use defaults (name, usage or computed size),
+    format: z.object({ name: z.string(), label: z.string(), geometryOnly: z.boolean() }),
+    // full: all attributes read from the file, partial: some rows use defaults (name or usage),
     // geometries_only: attributes not recognised, all rows use defaults
     completeness: z.enum(["full", "partial", "geometries_only"]),
     rows: z.array(shapefileImportPreviewRowSchema),
+    // overlay elements (trees, Ackerschonstreifen) that are stored apart from the plots
+    overlays: z.array(shapefileImportOverlaySchema.extend({ rowNumber: z.number(), alreadyPresent: z.boolean() })),
   }),
   handler: async ({ input, ctx: { plots } }) => {
     return plots.previewShapefileImport(input.file.data);
@@ -111,11 +127,29 @@ export const previewPlotShapefileImportEndpoint = plotsWrite.build({
 
 export const commitPlotShapefileImportEndpoint = plotsWrite.build({
   method: "post",
-  input: z.object({ rows: z.array(createPlotSchema).min(1) }),
-  output: z.object({ created: z.number() }),
-  handler: async ({ input, ctx: { plots } }) => {
-    const createdPlotIds = await plots.createPlots(input.rows);
-    return { created: createdPlotIds.length };
+  input: z
+    .object({
+      // format name from the preview, stored as the source of the overlays
+      format: z.string(),
+      rows: z.array(createPlotSchema),
+      overlays: z.array(shapefileImportOverlaySchema).default([]),
+    })
+    .refine((body) => body.rows.length + body.overlays.length > 0, { message: "nothing to import" }),
+  output: z.object({ created: z.number(), overlaysCreated: z.number(), overlaysSkipped: z.number() }),
+  handler: async ({ input, ctx: { plots, farmId } }) => {
+    return plots.commitShapefileImport(
+      farmId,
+      input.format,
+      input.rows.map((row) => ({
+        name: row.name,
+        localId: row.localId ?? null,
+        usage: row.usage ?? null,
+        cuttingDate: row.cuttingDate ?? null,
+        size: row.size,
+        geometry: row.geometry,
+      })),
+      input.overlays
+    );
   },
 });
 

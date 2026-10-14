@@ -14,6 +14,12 @@ export type ParsedShapefile = {
   features: ShapefileFeature[];
 };
 
+// Machine readable, the web app translates the code. value carries the offending attribute.
+export type ShapefileParseError = {
+  code: "invalid_usage_code" | "invalid_size" | "missing_geometry" | "invalid_geometry";
+  value?: string;
+};
+
 export type ShapefilePlotFields = {
   externalId: string | null;
   name: string;
@@ -22,14 +28,17 @@ export type ShapefilePlotFields = {
   usageName: string | null;
   // in m², null if the file has no usable size (falls back to computed area)
   size: number | null;
+  cuttingDate: Date | null;
   municipality: string | null;
-  parseErrors: string[];
+  parseErrors: ShapefileParseError[];
   // true if the name or usage could not be read from the file and a default was used
   usedDefaults: boolean;
 };
 
 export type ShapefileFormat = {
   name: string;
+  // shown to the user, e.g. the cantonal system the export comes from
+  label: string;
   // true if the format does not read any attributes, only the geometries
   geometryOnly: boolean;
   matches: (fieldNames: string[]) => boolean;
@@ -46,13 +55,26 @@ function emptyToNull(value: string | undefined): string | null {
   return trimmed === "" ? null : trimmed;
 }
 
-// "Betriebsansicht kul_poly" export (cantonal agricultural GIS, e.g. GR).
+// Parses an area given in Aren (1 a = 100 m²) to m².
+function parseAres(value: string | null, parseErrors: ShapefileParseError[]): number | null {
+  if (value === null) return null;
+  const parsed = Number.parseFloat(value);
+  if (Number.isNaN(parsed)) {
+    parseErrors.push({ code: "invalid_size", value });
+    return null;
+  }
+  return Math.round(parsed * 100);
+}
+
+// LAWIS / LAWISplus "Geometriedaten exportieren", file betriebsansicht-kul.zip (one row per Kultur).
+// Same export in all LAWIS cantons, verified with GR and ZH files.
 const kulPolyFormat: ShapefileFormat = {
   name: "kul_poly",
+  label: "LAWIS",
   geometryOnly: false,
   matches: (fieldNames) => ["AVParz", "LNFCode", "FlaeLN"].every((field) => fieldNames.includes(field)),
   toPlotFields: (properties, defaultName) => {
-    const parseErrors: string[] = [];
+    const parseErrors: ShapefileParseError[] = [];
     const externalId = emptyToNull(properties.Ident);
     const localId = emptyToNull(properties.AVParz);
 
@@ -62,24 +84,16 @@ const kulPolyFormat: ShapefileFormat = {
     if (usageCode !== null) {
       const parsedUsage = Number.parseInt(usageCode, 10);
       if (Number.isNaN(parsedUsage)) {
-        parseErrors.push(`invalid usage code "${usageCode}"`);
+        parseErrors.push({ code: "invalid_usage_code", value: usageCode });
       } else {
         usage = parsedUsage;
         usageDefaulted = false;
       }
     }
 
-    // FlaeLN is given in Aren (1 a = 100 m²)
-    const sizeInAres = emptyToNull(properties.FlaeLN);
-    let size: number | null = null;
-    if (sizeInAres !== null) {
-      const parsedSize = Number.parseFloat(sizeInAres);
-      if (Number.isNaN(parsedSize)) {
-        parseErrors.push(`invalid size "${sizeInAres}"`);
-      } else {
-        size = Math.round(parsedSize * 100);
-      }
-    }
+    // FlaeLN holds the area inside the LN, FlaeALN the area outside it (codes 09xx). Only one is set.
+    const size =
+      parseAres(emptyToNull(properties.FlaeLN), parseErrors) ?? parseAres(emptyToNull(properties.FlaeALN), parseErrors);
 
     return {
       externalId,
@@ -88,6 +102,7 @@ const kulPolyFormat: ShapefileFormat = {
       usage,
       usageName: emptyToNull(properties.Nutzung),
       size,
+      cuttingDate: null,
       municipality: emptyToNull(properties.Gemeinde),
       parseErrors,
       usedDefaults: localId === null || usageDefaulted,
@@ -99,6 +114,7 @@ const kulPolyFormat: ShapefileFormat = {
 // size is computed from the polygon.
 const geometryOnlyFormat: ShapefileFormat = {
   name: "geometry_only",
+  label: "",
   geometryOnly: true,
   matches: () => true,
   toPlotFields: (_properties, defaultName) => ({
@@ -108,6 +124,7 @@ const geometryOnlyFormat: ShapefileFormat = {
     usage: DEFAULT_USAGE_CODE,
     usageName: null,
     size: null,
+    cuttingDate: null,
     municipality: null,
     parseErrors: [],
     usedDefaults: true,

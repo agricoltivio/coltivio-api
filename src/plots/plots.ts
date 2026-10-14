@@ -15,7 +15,10 @@ import {
 } from "../db/schema";
 import { MultiPolygon } from "../geo/geojson";
 import { getParcelsForEnvelopes } from "../geoadmin/geoadmin";
-import { parseShapefileZip, ShapefilePlotFields } from "./plot-shapefile-import";
+import { parseShapefileZip, ShapefileParseError, ShapefilePlotFields } from "./plot-shapefile-import";
+import { findPresentOverlayExternalIds, insertPlotOverlays, isOverlayUsage, PlotOverlayInput } from "./plot-overlays";
+import { createPlotsWithCrops, PlotWithCropInput } from "./create-plots-with-crops";
+import { isKnownUsageCode } from "../crops/codeToCropsMapper";
 
 export type SplitPlotInput = {
   geometry: MultiPolygon;
@@ -37,6 +40,23 @@ export type ShapefileImportPreviewRow = Omit<ShapefilePlotFields, "size" | "used
   size: number;
   geometry: MultiPolygon | null;
   overlappingPlotIds: string[];
+};
+export type ShapefileImportOverlayRow = {
+  rowNumber: number;
+  externalId: string;
+  name: string;
+  localId: string | null;
+  usage: number;
+  usageName: string | null;
+  size: number;
+  geometry: MultiPolygon;
+  alreadyPresent: boolean;
+};
+export type ShapefileImportPreview = {
+  format: { name: string; label: string; geometryOnly: boolean };
+  completeness: ShapefileImportCompleteness;
+  rows: ShapefileImportPreviewRow[];
+  overlays: ShapefileImportOverlayRow[];
 };
 
 export function plotsApi(rlsDb: RlsDb, t: TFunction) {
@@ -74,32 +94,38 @@ export function plotsApi(rlsDb: RlsDb, t: TFunction) {
       });
     },
 
-    async previewShapefileImport(
-      zipBuffer: Buffer
-    ): Promise<{ completeness: ShapefileImportCompleteness; rows: ShapefileImportPreviewRow[] }> {
+    async previewShapefileImport(zipBuffer: Buffer): Promise<ShapefileImportPreview> {
       const { srid, format, features } = await parseShapefileZip(zipBuffer);
       return rlsDb.rls(async (tx) => {
-        const previewRows: ShapefileImportPreviewRow[] = [];
-        // set as soon as any row needed a default name, usage or computed size
+        type ProcessedFeature = {
+          rowNumber: number;
+          fields: ShapefilePlotFields;
+          parseErrors: ShapefileParseError[];
+          geometry: MultiPolygon | null;
+          area: number | null;
+          geometryHash: string | null;
+          overlappingPlotIds: string[];
+        };
+        const processed: ProcessedFeature[] = [];
+        // set as soon as any row needed a default name or usage
         let anyRowUsedDefaults = false;
         for (const [index, feature] of features.entries()) {
-          const { usedDefaults, ...plotFields } = format.toPlotFields(
-            feature.properties,
-            `${t("plots.plot")} ${index + 1}`
-          );
-          if (usedDefaults || plotFields.size === null) {
+          const rowNumber = index + 1;
+          const fields = format.toPlotFields(feature.properties, `${t("plots.plot")} ${rowNumber}`);
+          if (fields.usedDefaults) {
             anyRowUsedDefaults = true;
           }
-          const parseErrors = [...plotFields.parseErrors];
+          const parseErrors = [...fields.parseErrors];
           if (feature.rings.length === 0) {
-            parseErrors.push("missing geometry");
-            previewRows.push({
-              rowNumber: index + 1,
-              ...plotFields,
-              size: plotFields.size ?? 0,
-              geometry: null,
-              overlappingPlotIds: [],
+            parseErrors.push({ code: "missing_geometry" });
+            processed.push({
+              rowNumber,
+              fields,
               parseErrors,
+              geometry: null,
+              area: null,
+              geometryHash: null,
+              overlappingPlotIds: [],
             });
             continue;
           }
@@ -110,6 +136,7 @@ export function plotsApi(rlsDb: RlsDb, t: TFunction) {
           const [result] = await tx.execute<{
             geometry: MultiPolygon | null;
             area: number | null;
+            geometry_hash: string | null;
             overlapping_plot_ids: string[];
           }>(sql`
             WITH import_geometry AS (
@@ -120,6 +147,7 @@ export function plotsApi(rlsDb: RlsDb, t: TFunction) {
             SELECT
               CASE WHEN ST_IsEmpty(import_geometry.geom) THEN NULL ELSE ST_AsGeoJSON(import_geometry.geom)::json END AS geometry,
               ST_Area(ST_Transform(import_geometry.geom, 2056)) AS area,
+              CASE WHEN ST_IsEmpty(import_geometry.geom) THEN NULL ELSE md5(ST_AsBinary(import_geometry.geom)) END AS geometry_hash,
               COALESCE((
                 SELECT json_agg(${plots.id})
                 FROM ${plots}
@@ -131,24 +159,101 @@ export function plotsApi(rlsDb: RlsDb, t: TFunction) {
           `);
 
           if (!result?.geometry) {
-            parseErrors.push("invalid geometry");
+            parseErrors.push({ code: "invalid_geometry" });
           }
-          previewRows.push({
-            rowNumber: index + 1,
-            ...plotFields,
-            size: plotFields.size ?? Math.round(result?.area ?? 0),
-            geometry: result?.geometry ?? null,
-            overlappingPlotIds: result?.overlapping_plot_ids ?? [],
+          processed.push({
+            rowNumber,
+            fields,
             parseErrors,
+            geometry: result?.geometry ?? null,
+            area: result?.area ?? null,
+            geometryHash: result?.geometry_hash ?? null,
+            overlappingPlotIds: result?.overlapping_plot_ids ?? [],
           });
         }
+
+        // Overlay elements (trees, Ackerschonstreifen) are stored apart from the plots. Rows without a
+        // geometry stay in the plot list so the user sees the error.
+        const isOverlayRow = (row: ProcessedFeature) => row.geometry !== null && isOverlayUsage(row.fields.usage);
+        const plotRows = processed.filter((row) => !isOverlayRow(row));
+        const overlayRows = processed.filter(isOverlayRow);
+
+        // A parcel number that repeats in the file (several Kulturen on one parcel) gets the crop appended
+        // to its name, e.g. "306 Winterweizen", so the plots can be told apart.
+        const localIdCounts = new Map<string, number>();
+        for (const row of plotRows) {
+          if (row.fields.localId !== null) {
+            localIdCounts.set(row.fields.localId, (localIdCounts.get(row.fields.localId) ?? 0) + 1);
+          }
+        }
+        const nameFor = (row: ProcessedFeature) => {
+          const { localId, name, usage, usageName } = row.fields;
+          if (localId === null || name !== localId || (localIdCounts.get(localId) ?? 0) < 2) return name;
+          const label =
+            usage !== null && isKnownUsageCode(usage)
+              ? // @ts-ignore the code list is not part of the typed keys, same cast as in codeToCropsMapper
+                (t(`crops.codes.${usage}`) as string)
+              : (usageName ?? String(row.rowNumber));
+          return `${localId} ${label}`;
+        };
+
+        const overlayExternalId = (row: ProcessedFeature) => row.fields.externalId ?? row.geometryHash!;
+        const presentOverlayIds = await findPresentOverlayExternalIds(tx, overlayRows.map(overlayExternalId));
+
         let completeness: ShapefileImportCompleteness = "full";
         if (format.geometryOnly) {
           completeness = "geometries_only";
         } else if (anyRowUsedDefaults) {
           completeness = "partial";
         }
-        return { completeness, rows: previewRows };
+        return {
+          format: { name: format.name, label: format.label, geometryOnly: format.geometryOnly },
+          completeness,
+          rows: plotRows.map((row) => ({
+            rowNumber: row.rowNumber,
+            externalId: row.fields.externalId,
+            name: nameFor(row),
+            localId: row.fields.localId,
+            usage: row.fields.usage,
+            usageName: row.fields.usageName,
+            size: row.fields.size ?? Math.round(row.area ?? 0),
+            cuttingDate: row.fields.cuttingDate,
+            municipality: row.fields.municipality,
+            geometry: row.geometry,
+            overlappingPlotIds: row.overlappingPlotIds,
+            parseErrors: row.parseErrors,
+          })),
+          overlays: overlayRows.map((row) => ({
+            rowNumber: row.rowNumber,
+            externalId: overlayExternalId(row),
+            name: row.fields.name,
+            localId: row.fields.localId,
+            usage: row.fields.usage!,
+            usageName: row.fields.usageName,
+            size: row.fields.size ?? Math.round(row.area ?? 0),
+            geometry: row.geometry!,
+            alreadyPresent: presentOverlayIds.has(overlayExternalId(row)),
+          })),
+        };
+      });
+    },
+
+    // Writes the rows the user selected in the import preview. Like manual plot creation, each new
+    // plot is cut out of the existing plots it overlaps (the preview asked for confirmation).
+    async commitShapefileImport(
+      farmId: string,
+      source: string,
+      rows: PlotWithCropInput[],
+      overlays: PlotOverlayInput[]
+    ): Promise<{ created: number; overlaysCreated: number; overlaysSkipped: number }> {
+      return rlsDb.rls(async (tx) => {
+        const plotIds = await createPlotsWithCrops(tx, farmId, t, rows, { cutExistingPlots: true });
+        const overlayResult = await insertPlotOverlays(tx, farmId, source, overlays);
+        return {
+          created: plotIds.length,
+          overlaysCreated: overlayResult.created,
+          overlaysSkipped: overlayResult.skipped,
+        };
       });
     },
 

@@ -813,6 +813,40 @@ export const plots = pgTable.withRLS(
   ]
 );
 
+// Overlay elements of the cantonal data (trees, Ackerschonstreifen, codes 921 to 928, 950, 951). They lie on top of
+// real plots and are kept apart so they never show up as Schläge. external_id dedupes re-imports.
+export const plotOverlays = pgTable.withRLS(
+  "plot_overlays",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    farmId: uuid()
+      .notNull()
+      .references(() => farms.id, {
+        onDelete: "cascade",
+      }),
+    name: text().notNull(),
+    localId: text(),
+    usage: integer().notNull(),
+    usageName: text(),
+    size: integer().notNull(),
+    geometry: polygon().notNull(),
+    externalId: text().notNull(),
+    source: text().notNull(),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+
+  (table) => [
+    index("plot_overlays_geometries_idx").using("gist", table.geometry),
+    unique("plot_overlays_farm_external_id_unique").on(table.farmId, table.externalId),
+    pgPolicy("only farm members", {
+      as: "permissive",
+      to: authenticatedRole,
+      using: eq(table.farmId, currentFarmId),
+      withCheck: eq(table.farmId, currentFarmId),
+    }),
+  ]
+);
+
 export const conservationMethod = pgEnum("conservation_method", ["dried", "silage", "haylage", "other", "none"]);
 
 export const cropCategory = pgEnum("crop_category", ["grass", "grain", "vegetable", "fruit", "other"]);
