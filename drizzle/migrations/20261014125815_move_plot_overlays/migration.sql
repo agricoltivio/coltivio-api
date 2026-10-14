@@ -13,7 +13,7 @@ WITH movable AS (
 ),
 inserted AS (
   INSERT INTO plot_overlays (farm_id, name, local_id, usage, usage_name, size, geometry, external_id, source)
-  SELECT farm_id, name, local_id, usage, NULL, size, geometry, md5(ST_AsBinary(geometry)), 'migration'
+  SELECT farm_id, name, local_id, usage, NULL, size, geometry, md5(ST_AsBinary(geometry)) || ':' || usage, 'migration'
   FROM movable
   ON CONFLICT (farm_id, external_id) DO NOTHING
   RETURNING id

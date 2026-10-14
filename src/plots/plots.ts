@@ -197,7 +197,9 @@ export function plotsApi(rlsDb: RlsDb, t: TFunction) {
           return `${localId} ${label}`;
         };
 
-        const overlayExternalId = (row: ProcessedFeature) => row.fields.externalId ?? row.geometryHash!;
+        // without an id in the file, geometry plus usage identifies the overlay (one area can carry several tree types)
+        const overlayExternalId = (row: ProcessedFeature) =>
+          row.fields.externalId ?? `${row.geometryHash}:${row.fields.usage}`;
         const presentOverlayIds = await findPresentOverlayExternalIds(tx, overlayRows.map(overlayExternalId));
 
         let completeness: ShapefileImportCompleteness = "full";

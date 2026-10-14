@@ -112,19 +112,28 @@ export function farmsApi(rlsDb: RlsDb, t: TFunction) {
         }
 
         if (farm.federalId) {
+          // geometry plus usage identifies a plot, the federal table has no stable id. The same area can carry
+          // several usages (e.g. 921 and 922 on one orchard), but identical rows are delivered more than once.
+          const geometryHash = sql<string>`md5(ST_AsBinary(${tables.federalFarmPlots.geometry}))`;
           const federalFarmPlots = await tx
-            .select({
+            .selectDistinctOn([geometryHash, tables.federalFarmPlots.usage], {
               localId: tables.federalFarmPlots.localId,
               usage: tables.federalFarmPlots.usage,
               size: tables.federalFarmPlots.size,
               cuttingDate: tables.federalFarmPlots.cuttingDate,
               geometry: sql<MultiPolygon>`ST_AsGeoJSON(${tables.federalFarmPlots.geometry})::json`,
-              // the federal table has no stable id, the geometry stands in for it
-              geometryHash: sql<string>`md5(ST_AsBinary(${tables.federalFarmPlots.geometry}))`,
+              geometryHash,
             })
             .from(tables.federalFarmPlots)
             .where(eq(tables.federalFarmPlots.federalFarmId, farm.federalId))
-            .orderBy(tables.federalFarmPlots.localId);
+            .orderBy(geometryHash, tables.federalFarmPlots.usage, tables.federalFarmPlots.id);
+          // DISTINCT ON dictates the query order, sort by parcel number afterwards (nulls last, as before)
+          federalFarmPlots.sort((a, b) => {
+            if (a.localId === b.localId) return 0;
+            if (a.localId === null) return 1;
+            if (b.localId === null) return -1;
+            return a.localId < b.localId ? -1 : 1;
+          });
 
           const plotInputs: PlotWithCropInput[] = [];
           const overlayInputs: PlotOverlayInput[] = [];
@@ -138,7 +147,7 @@ export function farmsApi(rlsDb: RlsDb, t: TFunction) {
                 usageName: null,
                 size: plot.size,
                 geometry: plot.geometry,
-                externalId: plot.geometryHash,
+                externalId: `${plot.geometryHash}:${plot.usage}`,
               });
             } else {
               plotInputs.push({

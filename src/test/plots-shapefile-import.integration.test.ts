@@ -572,7 +572,7 @@ describe("Plot shapefile import — preview + commit", () => {
       .where(sql`${schema.plotOverlays.farmId} = ${farmId}`);
     expect(overlays).toHaveLength(1);
     expect(overlays[0]).toMatchObject({ usage: 921, localId: "3", size: 100, source: "federal" });
-    expect(overlays[0].externalId).toHaveLength(32);
+    expect(overlays[0].externalId).toMatch(/^[0-9a-f]{32}:921$/);
 
     // crops and rotations only for the real plots
     expect(await db.$count(schema.cropRotations)).toBe(2);
@@ -581,6 +581,42 @@ describe("Plot shapefile import — preview + commit", () => {
       .from(schema.crops)
       .where(sql`${schema.crops.farmId} = ${farmId}`);
     expect(crops.some((crop) => crop.usageCodes.includes(921))).toBe(false);
+  });
+
+  it("drops identical federal rows but keeps several usages on the same area at farm creation", async () => {
+    const db = getAdminDb();
+    const federalFarmId = "ZZ9998";
+    const plotRing = square(ORIGIN_X, ORIGIN_Y + 1000, 100);
+    const treeRing = square(ORIGIN_X + 200, ORIGIN_Y + 1000, 50);
+    // the base plot and the 921 overlay are delivered twice, the same area also carries a 922 overlay
+    const rows: { ring: Ring; usage: number }[] = [
+      { ring: plotRing, usage: 611 },
+      { ring: plotRing, usage: 611 },
+      { ring: treeRing, usage: 921 },
+      { ring: treeRing, usage: 921 },
+      { ring: treeRing, usage: 922 },
+    ];
+    for (const [index, row] of rows.entries()) {
+      const wkt = `POLYGON((${row.ring.map(([x, y]) => `${x} ${y}`).join(", ")}))`;
+      await db.execute(sql`
+        insert into ${schema.federalFarmPlots} (id, farm_id, local_id, usage, size, canton, geometry)
+        values (${100 + index}, ${federalFarmId}, '7', ${row.usage}, 10000, 'ZZ',
+                ST_Multi(ST_Transform(ST_GeomFromText(${wkt}, 2056), 4326)))
+      `);
+    }
+
+    const { farmId } = await createUserWithFarm({ federalId: federalFarmId });
+
+    const plots = await db
+      .select()
+      .from(schema.plots)
+      .where(sql`${schema.plots.farmId} = ${farmId}`);
+    expect(plots.map((plot) => plot.usage)).toEqual([611]);
+    const overlays = await db
+      .select()
+      .from(schema.plotOverlays)
+      .where(sql`${schema.plotOverlays.farmId} = ${farmId}`);
+    expect(overlays.map((overlay) => overlay.usage).sort()).toEqual([921, 922]);
   });
 
   it("reports partial completeness and defaults the usage when a row has no usage code", async () => {
