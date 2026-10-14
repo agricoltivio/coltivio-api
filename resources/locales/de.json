@@ -491,5 +491,16 @@
   },
   "task_due_push": {
     "title": "Heute fällig"
+  },
+  "forum_email": {
+    "subtitle": "Treffpunkt",
+    "new_thread_subject": "[Treffpunkt] {{title}}",
+    "reply_subject": "Re: [Treffpunkt] {{title}}",
+    "new_thread_intro": "{{author}} hat einen neuen Beitrag im Treffpunkt eröffnet:",
+    "reply_intro": "{{author}} hat auf diesen Beitrag geantwortet:",
+    "unknown_author": "Jemand",
+    "cta": "Beitrag öffnen",
+    "reason_moderator": "Du erhältst diese E-Mail, weil du den Treffpunkt moderierst.",
+    "reason_subscribed": "Du erhältst diese E-Mail, weil du diesen Beitrag abonniert hast. Im Beitrag kannst du die Benachrichtigungen ausschalten."
   }
 }

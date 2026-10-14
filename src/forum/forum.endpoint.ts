@@ -1,7 +1,9 @@
+import { captureException } from "@sentry/node";
 import createHttpError from "http-errors";
 import { z } from "zod";
 import { forumThreadStatusSchema, forumThreadTypeSchema } from "../db/schema";
 import { userMembershipEndpointFactory, userPaidMembershipEndpointFactory } from "../endpoint-factory";
+import { notifyNewReply, notifyNewThread } from "./forum-notifications";
 
 // ─── Shared output schemas ────────────────────────────────────────────────────
 
@@ -22,6 +24,7 @@ export const forumThreadSchema = z.object({
   updatedAt: z.string().or(z.date()),
   creator: profileSnippetSchema.nullable(),
   replyCount: z.number().optional(),
+  isSubscribed: z.boolean().optional(),
 });
 
 export const forumReplySchema = z.object({
@@ -72,11 +75,13 @@ export const createForumThreadEndpoint = userPaidMembershipEndpointFactory.build
   }),
   output: forumThreadSchema,
   handler: async ({ input, ctx: { forum, user } }) => {
-    return forum.createThread(user.id, {
+    const thread = await forum.createThread(user.id, {
       title: input.title,
       body: input.body,
       type: input.type,
     });
+    notifyNewThread(thread, user.id).catch(captureException);
+    return thread;
   },
 });
 
@@ -86,10 +91,28 @@ export const getForumThreadByIdEndpoint = userMembershipEndpointFactory.build({
   method: "get",
   input: z.object({ threadId: z.string() }),
   output: forumThreadSchema,
-  handler: async ({ input, ctx: { forum } }) => {
-    const thread = await forum.getThreadById(input.threadId);
+  handler: async ({ input, ctx: { forum, user } }) => {
+    const thread = await forum.getThreadById(input.threadId, user.id);
     if (!thread) throw createHttpError(404, "Thread not found");
     return thread;
+  },
+});
+
+// ─── Subscribe / unsubscribe from thread notifications ───────────────────────
+
+export const setForumThreadSubscriptionEndpoint = userMembershipEndpointFactory.build({
+  method: "put",
+  input: z.object({
+    threadId: z.string(),
+    subscribed: z.boolean(),
+  }),
+  output: z.object({ subscribed: z.boolean() }),
+  handler: async ({ input, ctx: { forum, user } }) => {
+    const thread = await forum.getThreadById(input.threadId);
+    if (!thread) throw createHttpError(404, "Thread not found");
+
+    await forum.setSubscription(input.threadId, user.id, input.subscribed);
+    return { subscribed: input.subscribed };
   },
 });
 
@@ -160,7 +183,9 @@ export const addForumReplyEndpoint = userPaidMembershipEndpointFactory.build({
     if (!thread) throw createHttpError(404, "Thread not found");
     if (thread.status === "closed") throw createHttpError(400, "Cannot reply to a closed thread");
 
-    return forum.addReply(input.threadId, user.id, input.body);
+    const reply = await forum.addReply(input.threadId, user.id, input.body);
+    notifyNewReply(thread, reply, user.id).catch(captureException);
+    return reply;
   },
 });
 

@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, ilike, or, sql } from "drizzle-orm";
 import { RlsDb } from "../db/db";
-import { forumReplies, forumThreads, profileNamesView } from "../db/schema";
+import { forumReplies, forumThreads, forumThreadSubscriptions, profileNamesView } from "../db/schema";
 
 export type ForumThreadType = "question" | "feature_request" | "bug_report" | "general";
 export type ForumThreadStatus = "open" | "closed";
@@ -11,7 +11,11 @@ export type ForumReply = typeof forumReplies.$inferSelect;
 type ProfileSnippet = { id: string; fullName: string | null };
 
 // creator is null once the author deleted their account, the post itself stays
-export type ForumThreadWithCreator = ForumThread & { creator: ProfileSnippet | null; replyCount?: number };
+export type ForumThreadWithCreator = ForumThread & {
+  creator: ProfileSnippet | null;
+  replyCount?: number;
+  isSubscribed?: boolean;
+};
 export type ForumReplyWithCreator = ForumReply & { creator: ProfileSnippet | null };
 
 function toCreator(row: { creatorId: string | null; creatorFullName: string | null }): ProfileSnippet | null {
@@ -77,21 +81,44 @@ export function forumApi(db: RlsDb) {
       });
     },
 
-    async getThreadById(id: string): Promise<ForumThreadWithCreator | undefined> {
+    async getThreadById(id: string, userId?: string): Promise<ForumThreadWithCreator | undefined> {
       return db.rls(async (tx) => {
         const [row] = await tx
           .select({
             thread: forumThreads,
             creatorId: profileNamesView.id,
             creatorFullName: profileNamesView.fullName,
+            subscribed: forumThreadSubscriptions.subscribed,
           })
           .from(forumThreads)
           .leftJoin(profileNamesView, eq(profileNamesView.id, forumThreads.createdBy))
+          .leftJoin(
+            forumThreadSubscriptions,
+            userId
+              ? and(eq(forumThreadSubscriptions.threadId, forumThreads.id), eq(forumThreadSubscriptions.userId, userId))
+              : sql`false`
+          )
           .where(eq(forumThreads.id, id))
           .limit(1);
 
         if (!row) return undefined;
-        return { ...row.thread, creator: toCreator(row) };
+        return {
+          ...row.thread,
+          creator: toCreator(row),
+          ...(userId ? { isSubscribed: row.subscribed ?? false } : {}),
+        };
+      });
+    },
+
+    async setSubscription(threadId: string, userId: string, subscribed: boolean): Promise<void> {
+      await db.rls(async (tx) => {
+        await tx
+          .insert(forumThreadSubscriptions)
+          .values({ threadId, userId, subscribed })
+          .onConflictDoUpdate({
+            target: [forumThreadSubscriptions.threadId, forumThreadSubscriptions.userId],
+            set: { subscribed, updatedAt: new Date() },
+          });
       });
     },
 
@@ -104,6 +131,8 @@ export function forumApi(db: RlsDb) {
           .insert(forumThreads)
           .values({ title: input.title, body: input.body, type: input.type, createdBy })
           .returning();
+
+        await tx.insert(forumThreadSubscriptions).values({ threadId: thread.id, userId: createdBy, subscribed: true });
 
         const [row] = await tx
           .select({
@@ -188,6 +217,11 @@ export function forumApi(db: RlsDb) {
     async addReply(threadId: string, createdBy: string, body: string): Promise<ForumReplyWithCreator> {
       return db.rls(async (tx) => {
         const [reply] = await tx.insert(forumReplies).values({ threadId, body, createdBy }).returning();
+
+        await tx
+          .insert(forumThreadSubscriptions)
+          .values({ threadId, userId: createdBy, subscribed: true })
+          .onConflictDoNothing();
 
         const [row] = await tx
           .select({

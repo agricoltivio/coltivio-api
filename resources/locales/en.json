@@ -491,5 +491,16 @@
   },
   "task_due_push": {
     "title": "Due today"
+  },
+  "forum_email": {
+    "subtitle": "Treffpunkt",
+    "new_thread_subject": "[Treffpunkt] {{title}}",
+    "reply_subject": "Re: [Treffpunkt] {{title}}",
+    "new_thread_intro": "{{author}} opened a new post in the Treffpunkt:",
+    "reply_intro": "{{author}} replied to this post:",
+    "unknown_author": "Someone",
+    "cta": "Open post",
+    "reason_moderator": "You are receiving this email because you moderate the Treffpunkt.",
+    "reason_subscribed": "You are receiving this email because you are subscribed to this post. You can turn notifications off on the post."
   }
 }
