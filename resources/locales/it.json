@@ -491,5 +491,16 @@
   },
   "task_due_push": {
     "title": "In scadenza oggi"
+  },
+  "forum_email": {
+    "subtitle": "Treffpunkt",
+    "new_thread_subject": "[Treffpunkt] {{title}}",
+    "reply_subject": "Re: [Treffpunkt] {{title}}",
+    "new_thread_intro": "{{author}} ha aperto un nuovo contributo nel Treffpunkt:",
+    "reply_intro": "{{author}} ha risposto a questo contributo:",
+    "unknown_author": "Qualcuno",
+    "cta": "Apri il contributo",
+    "reason_moderator": "Ricevi questa e-mail perché moderi il Treffpunkt.",
+    "reason_subscribed": "Ricevi questa e-mail perché sei iscritto a questo contributo. Puoi disattivare le notifiche nel contributo."
   }
 }

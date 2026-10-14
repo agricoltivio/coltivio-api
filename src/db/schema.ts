@@ -2086,6 +2086,34 @@ export const forumModerators = pgTable.withRLS(
   ]
 );
 
+// Per-thread email subscriptions (GitHub-issues model). A row is written when a user creates a thread
+// or replies; subscribed=false is an explicit mute that later replies must not override.
+export const forumThreadSubscriptions = pgTable.withRLS(
+  "forum_thread_subscriptions",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    threadId: uuid()
+      .notNull()
+      .references(() => forumThreads.id, { onDelete: "cascade" }),
+    userId: uuid()
+      .notNull()
+      .references(() => profiles.id, { onDelete: "cascade" }),
+    subscribed: boolean().notNull(),
+    createdAt: timestamp().notNull().defaultNow(),
+    updatedAt: timestamp().notNull().defaultNow(),
+  },
+  (table) => [
+    unique("forum_thread_subscriptions_thread_user_unique").on(table.threadId, table.userId),
+    pgPolicy("user can manage own forum thread subscriptions", {
+      as: "permissive",
+      to: authenticatedRole,
+      for: "all",
+      using: eq(table.userId, selectAuthUid),
+      withCheck: eq(table.userId, selectAuthUid),
+    }),
+  ]
+);
+
 export const tasks = pgTable.withRLS(
   "tasks",
   {

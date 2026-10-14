@@ -50,6 +50,16 @@ export function baseLayout(subtitle: string, content: string): string {
 </html>`;
 }
 
+// For user-written content that ends up inside the HTML body
+export function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 export function ctaButton(href: string, label: string): string {
   return `<a href="${href}" style="display:inline-block;background:${BRAND.primary};color:${BRAND.white};font-size:15px;font-weight:600;padding:13px 28px;border-radius:6px;text-decoration:none;">${label}</a>`;
 }

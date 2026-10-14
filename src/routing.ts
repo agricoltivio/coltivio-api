@@ -361,6 +361,7 @@ import {
   addForumReplyEndpoint,
   updateForumReplyEndpoint,
   deleteForumReplyEndpoint,
+  setForumThreadSubscriptionEndpoint,
 } from "./forum/forum.endpoint";
 import { setForumThreadStatusEndpoint, pinForumThreadEndpoint } from "./forum/forum-moderation.endpoint";
 import { createHandoffTokenEndpoint, exchangeHandoffTokenEndpoint } from "./auth/handoff.endpoint";
@@ -1136,6 +1137,7 @@ export const routing: Routing = {
             },
             status: { post: setForumThreadStatusEndpoint },
             pin: { post: pinForumThreadEndpoint },
+            subscription: { put: setForumThreadSubscriptionEndpoint },
           },
         },
       },
