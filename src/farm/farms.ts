@@ -3,7 +3,7 @@ import { and, count, eq, getTableColumns, isNull, sql } from "drizzle-orm";
 import { TFunction } from "i18next";
 import {} from "../crop-rotations/crop-rotations";
 import { createPlotsWithCrops, PlotWithCropInput } from "../plots/create-plots-with-crops";
-import { insertPlotOverlays, isOverlayUsage, PlotOverlayInput } from "../plots/plot-overlays";
+import { insertPlotOverlays, isIgnoredUsage, isOverlayUsage, PlotOverlayInput } from "../plots/plot-overlays";
 import { AnimalType, computeActiveCropRotations } from "../dashboard/dashboard";
 import { RlsDb } from "../db/db";
 import * as tables from "../db/schema";
@@ -139,6 +139,7 @@ export function farmsApi(rlsDb: RlsDb, t: TFunction) {
           const overlayInputs: PlotOverlayInput[] = [];
           for (const [index, plot] of federalFarmPlots.entries()) {
             const name = plot.localId ?? `${index + 1}`;
+            if (isIgnoredUsage(plot.usage)) continue;
             if (isOverlayUsage(plot.usage)) {
               overlayInputs.push({
                 name,

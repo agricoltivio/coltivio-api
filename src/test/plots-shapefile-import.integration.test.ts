@@ -440,8 +440,8 @@ describe("Plot shapefile import — preview + commit", () => {
     expect(await db.$count(schema.cropRotations)).toBe(8);
   });
 
-  it("preview flags rows that overlap existing plots and commit cuts them out of those plots", async () => {
-    const { jwt, farmId } = await createUserWithFarm();
+  it("preview flags rows that overlap existing plots and commit rejects them", async () => {
+    const { jwt } = await createUserWithFarm();
     const { rows } = await previewSample(jwt);
 
     const createRes = await request("POST", "/v1/plots", toCommitRow(rows[0]), jwt);
@@ -455,17 +455,71 @@ describe("Plot shapefile import — preview + commit", () => {
       1,
     ]);
 
-    // importing the flagged row anyway cuts it out of the existing plot, like manual creation does
-    const commitRes = await commit(jwt, { rows: [toCommitRow(rows[0])] });
-    expect(commitRes.status).toBe(200);
+    // the overlapping row fails the whole import, nothing is written and the existing plot stays intact
+    const commitRes = await commit(jwt, { rows: rows.map(toCommitRow) });
+    expect(commitRes.status).toBe(409);
+    expect(JSON.stringify(await commitRes.json())).toContain(`row 1 overlaps plot ${existingPlot.id}`);
     const db = getAdminDb();
     const [existing] = await db.execute<{ area: number }>(
       sql`select ST_Area(ST_Transform(${schema.plots.geometry}, 2056)) as area from ${schema.plots} where ${schema.plots.id} = ${existingPlot.id}`
     );
-    expect(existing.area).toBeLessThan(1);
-    expect(await db.$count(schema.plots)).toBe(2);
-    void farmId;
+    expect(existing.area).toBeGreaterThan(1000);
+    expect(await db.$count(schema.plots)).toBe(1);
+
+    // a row that only shares a border is accepted
+    const neighbourRes = await commit(jwt, { rows: [toCommitRow(rows[1])] });
+    expect(neighbourRes.status).toBe(200);
   });
+
+  it("ignores sliver overlaps below 1% of the smaller plot", async () => {
+    const { jwt } = await createUserWithFarm();
+    const { rows } = await previewSample(jwt);
+    const createRes = await request("POST", "/v1/plots", toCommitRow(rows[0]), jwt);
+    expect(createRes.status).toBe(200);
+
+    // the same 100 m square shifted by 1.5 m overlaps 150 m² (1.5%) and conflicts
+    const shiftedFar = await previewSample(jwt, ORIGIN_X + 98.5, ORIGIN_Y);
+    expect(shiftedFar.rows[0].overlappingPlotIds).toHaveLength(1);
+    expect((await commit(jwt, { rows: [toCommitRow(shiftedFar.rows[0])] })).status).toBe(409);
+
+    // shifted by 99.5 m it overlaps 50 m² (0.5%), a sliver from slightly different borders
+    const shiftedNear = await previewSample(jwt, ORIGIN_X + 99.5, ORIGIN_Y);
+    expect(shiftedNear.rows[0].overlappingPlotIds).toEqual([]);
+    expect((await commit(jwt, { rows: [toCommitRow(shiftedNear.rows[0])] })).status).toBe(200);
+  });
+
+  it("leaves rows with usage 595 out of the preview", async () => {
+    const { jwt } = await createUserWithFarm();
+    const shapes = [...sampleShapes(), [square(ORIGIN_X + 500, ORIGIN_Y, 20)]];
+    const records: KulRecord[] = [
+      ...SAMPLE_RECORDS,
+      { code: "0595", ident: "4001", parcel: "104", areaLn: "4.00", usage: "Übrige offene Ackerfläche" },
+    ];
+    const preview = await previewZip(await buildKulZip(shapes, records), jwt);
+    expect(preview.rows.map((row) => row.usage)).toEqual([513, 601, 613, 901]);
+    expect(preview.overlays).toEqual([]);
+  });
+
+  it("rejects overlays whose usage code is not an overlay code", async () => {
+    const { jwt } = await createUserWithFarm();
+    const { rows } = await previewSample(jwt);
+    const commitRes = await commit(jwt, {
+      overlays: [
+        {
+          externalId: "3001",
+          name: "101",
+          localId: "101",
+          usage: 613,
+          usageName: null,
+          size: 100,
+          geometry: rows[0].geometry!,
+        },
+      ],
+    });
+    expect(commitRes.status).toBe(400);
+    expect(await getAdminDb().$count(schema.plotOverlays)).toBe(0);
+  });
+
   it("keeps overlay elements apart from the plots and skips them on a second import", async () => {
     const { jwt, farmId } = await createUserWithFarm();
     // an Ackerschonstreifen and a Hochstamm-Feldobstbaum row on top of the Winterweizen parcel
@@ -583,7 +637,7 @@ describe("Plot shapefile import — preview + commit", () => {
     expect(crops.some((crop) => crop.usageCodes.includes(921))).toBe(false);
   });
 
-  it("drops identical federal rows but keeps several usages on the same area at farm creation", async () => {
+  it("drops identical federal rows and 595 but keeps several usages on the same area at farm creation", async () => {
     const db = getAdminDb();
     const federalFarmId = "ZZ9998";
     const plotRing = square(ORIGIN_X, ORIGIN_Y + 1000, 100);
@@ -595,6 +649,8 @@ describe("Plot shapefile import — preview + commit", () => {
       { ring: treeRing, usage: 921 },
       { ring: treeRing, usage: 921 },
       { ring: treeRing, usage: 922 },
+      // 595 is left out entirely
+      { ring: plotRing, usage: 595 },
     ];
     for (const [index, row] of rows.entries()) {
       const wkt = `POLYGON((${row.ring.map(([x, y]) => `${x} ${y}`).join(", ")}))`;

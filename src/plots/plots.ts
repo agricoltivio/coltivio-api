@@ -1,4 +1,5 @@
-import { and, eq, inArray, isNull, ne, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, ne, SQL, sql } from "drizzle-orm";
+import createHttpError from "http-errors";
 import { writeFileSync } from "fs";
 import path from "path";
 import { CropRotation, expandRecurrence } from "../crop-rotations/crop-rotations";
@@ -16,7 +17,13 @@ import {
 import { MultiPolygon } from "../geo/geojson";
 import { getParcelsForEnvelopes } from "../geoadmin/geoadmin";
 import { parseShapefileZip, ShapefileParseError, ShapefilePlotFields } from "./plot-shapefile-import";
-import { findPresentOverlayExternalIds, insertPlotOverlays, isOverlayUsage, PlotOverlayInput } from "./plot-overlays";
+import {
+  findPresentOverlayExternalIds,
+  insertPlotOverlays,
+  isIgnoredUsage,
+  isOverlayUsage,
+  PlotOverlayInput,
+} from "./plot-overlays";
 import { createPlotsWithCrops, PlotWithCropInput } from "./create-plots-with-crops";
 import { isKnownUsageCode } from "../crops/codeToCropsMapper";
 
@@ -58,6 +65,15 @@ export type ShapefileImportPreview = {
   rows: ShapefileImportPreviewRow[];
   overlays: ShapefileImportOverlayRow[];
 };
+
+// An import row conflicts with an existing plot if they share more than 1% of the smaller one. Borders
+// digitised slightly differently by two sources leave slivers along shared edges (up to a few hundred m² on
+// large plots), which are noise and not conflicts. The ratio needs no metric projection.
+function overlapsSignificantly(existingGeometry: SQL, importGeometry: SQL): SQL {
+  return sql`ST_Intersects(${existingGeometry}, ${importGeometry})
+    AND ST_Area(ST_Intersection(${existingGeometry}, ${importGeometry}))
+      > 0.01 * LEAST(ST_Area(${existingGeometry}), ST_Area(${importGeometry}))`;
+}
 
 export function plotsApi(rlsDb: RlsDb, t: TFunction) {
   return {
@@ -151,9 +167,7 @@ export function plotsApi(rlsDb: RlsDb, t: TFunction) {
               COALESCE((
                 SELECT json_agg(${plots.id})
                 FROM ${plots}
-                WHERE ST_Intersects(${plots.geometry}, import_geometry.geom)
-                  -- ignore plots that only touch along a shared border
-                  AND ST_Area(ST_Transform(ST_Intersection(${plots.geometry}, import_geometry.geom), 2056)) > 1
+                WHERE ${overlapsSignificantly(sql`${plots.geometry}`, sql`import_geometry.geom`)}
               ), '[]'::json) AS overlapping_plot_ids
             FROM import_geometry
           `);
@@ -175,8 +189,9 @@ export function plotsApi(rlsDb: RlsDb, t: TFunction) {
         // Overlay elements (trees, Ackerschonstreifen) are stored apart from the plots. Rows without a
         // geometry stay in the plot list so the user sees the error.
         const isOverlayRow = (row: ProcessedFeature) => row.geometry !== null && isOverlayUsage(row.fields.usage);
-        const plotRows = processed.filter((row) => !isOverlayRow(row));
-        const overlayRows = processed.filter(isOverlayRow);
+        const importedRows = processed.filter((row) => !isIgnoredUsage(row.fields.usage));
+        const plotRows = importedRows.filter((row) => !isOverlayRow(row));
+        const overlayRows = importedRows.filter(isOverlayRow);
 
         // A parcel number that repeats in the file (several Kulturen on one parcel) gets the crop appended
         // to its name, e.g. "306 Winterweizen", so the plots can be told apart.
@@ -240,16 +255,35 @@ export function plotsApi(rlsDb: RlsDb, t: TFunction) {
       });
     },
 
-    // Writes the rows the user selected in the import preview. Like manual plot creation, each new
-    // plot is cut out of the existing plots it overlaps (the preview asked for confirmation).
+    // Writes the rows the user selected in the import preview. Unlike manual plot creation, existing plots
+    // are never cut: the whole import fails if a row overlaps one of them.
     async commitShapefileImport(
       farmId: string,
       source: string,
       rows: PlotWithCropInput[],
       overlays: PlotOverlayInput[]
     ): Promise<{ created: number; overlaysCreated: number; overlaysSkipped: number }> {
+      const nonOverlayUsages = overlays.filter((overlay) => !isOverlayUsage(overlay.usage)).map((o) => o.usage);
+      if (nonOverlayUsages.length > 0) {
+        throw createHttpError(400, `Overlays with a usage code that is not an overlay: ${nonOverlayUsages.join(", ")}`);
+      }
       return rlsDb.rls(async (tx) => {
-        const plotIds = await createPlotsWithCrops(tx, farmId, t, rows, { cutExistingPlots: true });
+        if (rows.length > 0) {
+          // checked in the same transaction as the insert, the preview may be outdated
+          const overlaps = await tx.execute<{ row_number: number; plot_id: string }>(sql`
+            SELECT import_rows.row_number, ${plots.id} AS plot_id
+            FROM json_array_elements(${JSON.stringify(rows.map((row) => row.geometry))}::json)
+              WITH ORDINALITY AS import_rows(geometry, row_number)
+            JOIN ${plots}
+              ON ${overlapsSignificantly(sql`${plots.geometry}`, sql`ST_GeomFromGeoJSON(import_rows.geometry::text)`)}
+            ORDER BY import_rows.row_number
+          `);
+          if (overlaps.length > 0) {
+            const conflicts = overlaps.map((overlap) => `row ${overlap.row_number} overlaps plot ${overlap.plot_id}`);
+            throw createHttpError(409, `Import overlaps existing plots: ${conflicts.join(", ")}`);
+          }
+        }
+        const plotIds = await createPlotsWithCrops(tx, farmId, t, rows);
         const overlayResult = await insertPlotOverlays(tx, farmId, source, overlays);
         return {
           created: plotIds.length,

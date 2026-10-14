@@ -11,6 +11,14 @@ export function isOverlayUsage(usage: number | null | undefined): boolean {
   return usage !== null && usage !== undefined && OVERLAY_USAGE_CODES.has(usage);
 }
 
+// Usage codes left out of farm creation and the import entirely. 595 (regionsspezifische BFF auf offener
+// Ackerfläche) is an overlay on 601 in some cantons (AG) and a tiny standalone plot in others (VS).
+export const IGNORED_USAGE_CODES: ReadonlySet<number> = new Set([595]);
+
+export function isIgnoredUsage(usage: number | null | undefined): boolean {
+  return usage !== null && usage !== undefined && IGNORED_USAGE_CODES.has(usage);
+}
+
 export type PlotOverlayInput = {
   name: string;
   localId: string | null;

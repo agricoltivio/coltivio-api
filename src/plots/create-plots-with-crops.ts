@@ -1,4 +1,4 @@
-import { and, eq, ne, sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { TFunction } from "i18next";
 import { mapCodesToCrops, UNKNOWN_CROP_CODE } from "../crops/codeToCropsMapper";
 import { Transaction } from "../db/db";
@@ -20,16 +20,14 @@ export async function createPlotsWithCrops(
   tx: Transaction,
   farmId: string,
   t: TFunction,
-  inputs: PlotWithCropInput[],
-  options: { cutExistingPlots?: boolean } = {}
+  inputs: PlotWithCropInput[]
 ): Promise<string[]> {
   if (inputs.length === 0) return [];
 
-  const createdPlots: { id: string; usage: number | null }[] = [];
-  for (const input of inputs) {
-    const [plot] = await tx
-      .insert(plots)
-      .values({
+  const createdPlots = await tx
+    .insert(plots)
+    .values(
+      inputs.map((input) => ({
         farmId,
         name: input.name,
         localId: input.localId,
@@ -37,22 +35,9 @@ export async function createPlotsWithCrops(
         cuttingDate: input.cuttingDate,
         size: input.size,
         geometry: sql`ST_GeomFromGeoJSON(${JSON.stringify(input.geometry)})`,
-      })
-      .returning({ id: plots.id, usage: plots.usage, geom: plots.geometry });
-    createdPlots.push({ id: plot.id, usage: plot.usage });
-    if (options.cutExistingPlots) {
-      // same as manual plot creation: the new plot wins over whatever it overlaps
-      await tx
-        .update(plots)
-        .set({
-          geometry: sql<MultiPolygon>`ST_ForcePolygonCCW(ST_Multi(ST_Difference(${plots.geometry}, ${plot.geom})))`,
-          size: sql<number>`ST_Area(ST_Transform(ST_Difference(${plots.geometry}, ${plot.geom}),2056))`,
-        })
-        .where(
-          and(eq(plots.farmId, farmId), ne(plots.id, plot.id), sql`ST_Intersects(${plots.geometry}, ${plot.geom})`)
-        );
-    }
-  }
+      }))
+    )
+    .returning({ id: plots.id, usage: plots.usage });
 
   const farmCrops = await tx
     .select({ id: crops.id, name: crops.name, usageCodes: crops.usageCodes })
