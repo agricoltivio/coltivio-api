@@ -5,8 +5,10 @@ import { sql } from "drizzle-orm";
 import { cleanDb, getAdminDb, request } from "./helpers";
 import * as schema from "../db/schema";
 import { createUserWithFarm } from "./test-utils";
+import federalFarmPlotsFixture from "./fixtures/federal-farm-plots.json";
 
-// All shapefiles are generated here: no customer exports in the repo. The DBF layouts mirror the
+// All shapefiles are generated here: no customer exports in the repo. The federal fixture holds public
+// federal plot data of two farms with the farm and parcel ids replaced. The DBF layouts mirror the
 // LAWIS / LAWISplus "Geometriedaten exportieren" file (betriebsansicht-kul).
 
 type ParseError = { code: string; value?: string };
@@ -246,6 +248,18 @@ const SAMPLE_RECORDS: KulRecord[] = [
   { code: "0901", ident: "1004", parcel: "103", areaAln: "25.00", usage: "Wald" },
 ];
 const SAMPLE_SIZES = [10000, 5000, 37500, 2500];
+
+// Real rows of two farms from the federal plot dataset, farm and parcel ids replaced
+async function insertFederalFixture(federalFarmId: string) {
+  const db = getAdminDb();
+  for (const row of federalFarmPlotsFixture.filter((fixtureRow) => fixtureRow.farmId === federalFarmId)) {
+    await db.execute(sql`
+      insert into ${schema.federalFarmPlots} (id, farm_id, local_id, usage, size, cut_date, canton, geometry)
+      values (${row.id}, ${row.farmId}, ${row.localId}, ${row.usage}, ${row.size}, ${row.cutDate}, ${row.canton},
+              ST_SetSRID(ST_GeomFromGeoJSON(${JSON.stringify(row.geometry)}), 4326))
+    `);
+  }
+}
 
 async function uploadZip(zipBuffer: Buffer, jwt: string) {
   const formData = new FormData();
@@ -595,84 +609,55 @@ describe("Plot shapefile import — preview + commit", () => {
     expect(await db.$count(schema.plotOverlays)).toBe(2);
   });
 
-  it("routes overlay codes of the federal plots into plot_overlays at farm creation", async () => {
+  it("splits a real federal farm into plots and overlays, dropping duplicates but keeping every tree type", async () => {
+    // LU farm: 75 rows, 23 of them overlays. 950 has the same geometry as a 516 plot, 921 rows are delivered
+    // twice and 921, 922 and 924 are declared on the same orchards.
+    await insertFederalFixture("TEST_OVERLAYS");
+    const { farmId } = await createUserWithFarm({ federalId: "TEST_OVERLAYS" });
     const db = getAdminDb();
-    const federalFarmId = "ZZ9999";
-    const squares = [
-      square(ORIGIN_X, ORIGIN_Y, 100),
-      square(ORIGIN_X + 100, ORIGIN_Y, 100),
-      square(ORIGIN_X + 200, ORIGIN_Y, 10),
-    ];
-    const usages = [613, 513, 921];
-    for (const [index, ring] of squares.entries()) {
-      const wkt = `POLYGON((${ring.map(([x, y]) => `${x} ${y}`).join(", ")}))`;
-      await db.execute(sql`
-        insert into ${schema.federalFarmPlots} (id, farm_id, local_id, usage, size, canton, geometry)
-        values (${index + 1}, ${federalFarmId}, ${`${index + 1}`}, ${usages[index]}, ${index === 2 ? 100 : 10000}, 'ZZ',
-                ST_Multi(ST_Transform(ST_GeomFromText(${wkt}, 2056), 4326)))
-      `);
-    }
-
-    const { farmId } = await createUserWithFarm({ federalId: federalFarmId });
 
     const plots = await db
       .select()
       .from(schema.plots)
       .where(sql`${schema.plots.farmId} = ${farmId}`);
-    expect(plots.map((plot) => plot.usage).sort()).toEqual([513, 613]);
+    expect(plots).toHaveLength(52);
+    expect(plots.some((plot) => plot.usage !== null && plot.usage >= 921 && plot.usage <= 951)).toBe(false);
+
     const overlays = await db
       .select()
       .from(schema.plotOverlays)
       .where(sql`${schema.plotOverlays.farmId} = ${farmId}`);
-    expect(overlays).toHaveLength(1);
-    expect(overlays[0]).toMatchObject({ usage: 921, localId: "3", size: 100, source: "federal" });
-    expect(overlays[0].externalId).toMatch(/^[0-9a-f]{32}:921$/);
+    const overlayUsageCounts = new Map<number, number>();
+    for (const overlay of overlays) {
+      overlayUsageCounts.set(overlay.usage, (overlayUsageCounts.get(overlay.usage) ?? 0) + 1);
+    }
+    expect(Object.fromEntries(overlayUsageCounts)).toEqual({ 921: 8, 922: 2, 924: 6, 950: 1 });
+    expect(overlays.every((overlay) => overlay.source === "federal")).toBe(true);
+    expect(overlays.every((overlay) => /^[0-9a-f]{32}:\d+$/.test(overlay.externalId))).toBe(true);
 
-    // crops and rotations only for the real plots
-    expect(await db.$count(schema.cropRotations)).toBe(2);
+    // crops and rotations only for the plots
+    expect(await db.$count(schema.cropRotations, sql`${schema.cropRotations.farmId} = ${farmId}`)).toBe(52);
     const crops = await db
       .select()
       .from(schema.crops)
       .where(sql`${schema.crops.farmId} = ${farmId}`);
-    expect(crops.some((crop) => crop.usageCodes.includes(921))).toBe(false);
+    const overlayCodes = [921, 922, 924, 950];
+    expect(crops.some((crop) => crop.usageCodes.some((code) => overlayCodes.includes(code)))).toBe(false);
   });
 
-  it("drops identical federal rows and 595 but keeps several usages on the same area at farm creation", async () => {
+  it("leaves 595 out of a real federal farm", async () => {
+    // AG farm: 96 rows, 13 of them 595 (regionsspezifische BFF auf offener Ackerfläche)
+    await insertFederalFixture("TEST_595");
+    const { farmId } = await createUserWithFarm({ federalId: "TEST_595" });
     const db = getAdminDb();
-    const federalFarmId = "ZZ9998";
-    const plotRing = square(ORIGIN_X, ORIGIN_Y + 1000, 100);
-    const treeRing = square(ORIGIN_X + 200, ORIGIN_Y + 1000, 50);
-    // the base plot and the 921 overlay are delivered twice, the same area also carries a 922 overlay
-    const rows: { ring: Ring; usage: number }[] = [
-      { ring: plotRing, usage: 611 },
-      { ring: plotRing, usage: 611 },
-      { ring: treeRing, usage: 921 },
-      { ring: treeRing, usage: 921 },
-      { ring: treeRing, usage: 922 },
-      // 595 is left out entirely
-      { ring: plotRing, usage: 595 },
-    ];
-    for (const [index, row] of rows.entries()) {
-      const wkt = `POLYGON((${row.ring.map(([x, y]) => `${x} ${y}`).join(", ")}))`;
-      await db.execute(sql`
-        insert into ${schema.federalFarmPlots} (id, farm_id, local_id, usage, size, canton, geometry)
-        values (${100 + index}, ${federalFarmId}, '7', ${row.usage}, 10000, 'ZZ',
-                ST_Multi(ST_Transform(ST_GeomFromText(${wkt}, 2056), 4326)))
-      `);
-    }
-
-    const { farmId } = await createUserWithFarm({ federalId: federalFarmId });
 
     const plots = await db
       .select()
       .from(schema.plots)
       .where(sql`${schema.plots.farmId} = ${farmId}`);
-    expect(plots.map((plot) => plot.usage)).toEqual([611]);
-    const overlays = await db
-      .select()
-      .from(schema.plotOverlays)
-      .where(sql`${schema.plotOverlays.farmId} = ${farmId}`);
-    expect(overlays.map((overlay) => overlay.usage).sort()).toEqual([921, 922]);
+    expect(plots).toHaveLength(83);
+    expect(plots.some((plot) => plot.usage === 595)).toBe(false);
+    expect(await db.$count(schema.plotOverlays, sql`${schema.plotOverlays.farmId} = ${farmId}`)).toBe(0);
   });
 
   it("reports partial completeness and defaults the usage when a row has no usage code", async () => {
