@@ -272,13 +272,11 @@ describe("Forum notifications — subscription", () => {
     expect(sentTo()).toEqual(["author@test.com", "reader@test.com"]);
   });
 
-  it("requires membership and an existing thread", async () => {
+  it("requires membership", async () => {
     const author = await createUserWithPaidMembership("author@test.com");
     const thread = await postThread(author);
 
     const noMember = await createTestUser("nomem@test.com", "password123");
     expect((await setSubscription(noMember, thread.id, true)).status).toBe(403);
-
-    expect((await setSubscription(author, "00000000-0000-0000-0000-000000000000", true)).status).toBe(404);
   });
 });

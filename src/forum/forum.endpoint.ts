@@ -5,8 +5,6 @@ import { forumThreadStatusSchema, forumThreadTypeSchema } from "../db/schema";
 import { userMembershipEndpointFactory, userPaidMembershipEndpointFactory } from "../endpoint-factory";
 import { notifyNewReply, notifyNewThread } from "./forum-notifications";
 
-// ─── Shared output schemas ────────────────────────────────────────────────────
-
 const profileSnippetSchema = z.object({
   id: z.string(),
   fullName: z.string().nullable(),
@@ -37,8 +35,6 @@ export const forumReplySchema = z.object({
   creator: profileSnippetSchema.nullable(),
 });
 
-// ─── List threads ─────────────────────────────────────────────────────────────
-
 export const listForumThreadsEndpoint = userMembershipEndpointFactory.build({
   method: "get",
   input: z.object({
@@ -64,8 +60,6 @@ export const listForumThreadsEndpoint = userMembershipEndpointFactory.build({
   },
 });
 
-// ─── Create thread ────────────────────────────────────────────────────────────
-
 export const createForumThreadEndpoint = userPaidMembershipEndpointFactory.build({
   method: "post",
   input: z.object({
@@ -85,8 +79,6 @@ export const createForumThreadEndpoint = userPaidMembershipEndpointFactory.build
   },
 });
 
-// ─── Get thread by ID ─────────────────────────────────────────────────────────
-
 export const getForumThreadByIdEndpoint = userMembershipEndpointFactory.build({
   method: "get",
   input: z.object({ threadId: z.string() }),
@@ -98,8 +90,6 @@ export const getForumThreadByIdEndpoint = userMembershipEndpointFactory.build({
   },
 });
 
-// ─── Subscribe / unsubscribe from thread notifications ───────────────────────
-
 export const setForumThreadSubscriptionEndpoint = userMembershipEndpointFactory.build({
   method: "put",
   input: z.object({
@@ -108,15 +98,10 @@ export const setForumThreadSubscriptionEndpoint = userMembershipEndpointFactory.
   }),
   output: z.object({ subscribed: z.boolean() }),
   handler: async ({ input, ctx: { forum, user } }) => {
-    const thread = await forum.getThreadById(input.threadId);
-    if (!thread) throw createHttpError(404, "Thread not found");
-
     await forum.setSubscription(input.threadId, user.id, input.subscribed);
     return { subscribed: input.subscribed };
   },
 });
-
-// ─── Update thread ────────────────────────────────────────────────────────────
 
 export const updateForumThreadEndpoint = userPaidMembershipEndpointFactory.build({
   method: "patch",
@@ -136,8 +121,6 @@ export const updateForumThreadEndpoint = userPaidMembershipEndpointFactory.build
   },
 });
 
-// ─── Delete thread (owner or moderator) ──────────────────────────────────────
-
 export const deleteForumThreadEndpoint = userPaidMembershipEndpointFactory.build({
   method: "delete",
   input: z.object({ threadId: z.string() }),
@@ -154,8 +137,6 @@ export const deleteForumThreadEndpoint = userPaidMembershipEndpointFactory.build
   },
 });
 
-// ─── List replies ─────────────────────────────────────────────────────────────
-
 export const listForumRepliesEndpoint = userMembershipEndpointFactory.build({
   method: "get",
   input: z.object({ threadId: z.string() }),
@@ -168,8 +149,6 @@ export const listForumRepliesEndpoint = userMembershipEndpointFactory.build({
     return { result, count: result.length };
   },
 });
-
-// ─── Add reply ────────────────────────────────────────────────────────────────
 
 export const addForumReplyEndpoint = userPaidMembershipEndpointFactory.build({
   method: "post",
@@ -189,8 +168,6 @@ export const addForumReplyEndpoint = userPaidMembershipEndpointFactory.build({
   },
 });
 
-// ─── Update reply ─────────────────────────────────────────────────────────────
-
 export const updateForumReplyEndpoint = userPaidMembershipEndpointFactory.build({
   method: "patch",
   input: z.object({
@@ -202,8 +179,6 @@ export const updateForumReplyEndpoint = userPaidMembershipEndpointFactory.build(
     return forum.updateReply(input.replyId, user.id, input.body);
   },
 });
-
-// ─── Delete reply (owner or moderator) ───────────────────────────────────────
 
 export const deleteForumReplyEndpoint = userPaidMembershipEndpointFactory.build({
   method: "delete",

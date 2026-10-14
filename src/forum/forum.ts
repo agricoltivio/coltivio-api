@@ -18,10 +18,6 @@ export type ForumThreadWithCreator = ForumThread & {
 };
 export type ForumReplyWithCreator = ForumReply & { creator: ProfileSnippet | null };
 
-function toCreator(row: { creatorId: string | null; creatorFullName: string | null }): ProfileSnippet | null {
-  return row.creatorId ? { id: row.creatorId, fullName: row.creatorFullName } : null;
-}
-
 // SQL expression for last activity: most recent reply createdAt, falling back to thread createdAt
 const lastActivityAt = sql<Date>`COALESCE(MAX(${forumReplies.createdAt}), ${forumThreads.createdAt})`;
 
@@ -73,7 +69,7 @@ export function forumApi(db: RlsDb) {
 
         const threads = rows.map((row) => ({
           ...row.thread,
-          creator: toCreator(row),
+          creator: row.creatorId ? { id: row.creatorId, fullName: row.creatorFullName } : null,
           replyCount: row.replyCount,
         }));
 
@@ -104,7 +100,7 @@ export function forumApi(db: RlsDb) {
         if (!row) return undefined;
         return {
           ...row.thread,
-          creator: toCreator(row),
+          creator: row.creatorId ? { id: row.creatorId, fullName: row.creatorFullName } : null,
           ...(userId ? { isSubscribed: row.subscribed ?? false } : {}),
         };
       });
@@ -145,7 +141,7 @@ export function forumApi(db: RlsDb) {
           .where(eq(forumThreads.id, thread.id))
           .limit(1);
 
-        return { ...row.thread, creator: toCreator(row) };
+        return { ...row.thread, creator: row.creatorId ? { id: row.creatorId, fullName: row.creatorFullName } : null };
       });
     },
 
@@ -184,7 +180,7 @@ export function forumApi(db: RlsDb) {
           .where(eq(forumThreads.id, threadId))
           .limit(1);
 
-        return { ...row.thread, creator: toCreator(row) };
+        return { ...row.thread, creator: row.creatorId ? { id: row.creatorId, fullName: row.creatorFullName } : null };
       });
     },
 
@@ -209,7 +205,7 @@ export function forumApi(db: RlsDb) {
 
         return rows.map((row) => ({
           ...row.reply,
-          creator: toCreator(row),
+          creator: row.creatorId ? { id: row.creatorId, fullName: row.creatorFullName } : null,
         }));
       });
     },
@@ -234,7 +230,7 @@ export function forumApi(db: RlsDb) {
           .where(eq(forumReplies.id, reply.id))
           .limit(1);
 
-        return { ...row.reply, creator: toCreator(row) };
+        return { ...row.reply, creator: row.creatorId ? { id: row.creatorId, fullName: row.creatorFullName } : null };
       });
     },
 
@@ -262,7 +258,7 @@ export function forumApi(db: RlsDb) {
           .where(eq(forumReplies.id, replyId))
           .limit(1);
 
-        return { ...row.reply, creator: toCreator(row) };
+        return { ...row.reply, creator: row.creatorId ? { id: row.creatorId, fullName: row.creatorFullName } : null };
       });
     },
 
@@ -280,7 +276,7 @@ export function forumApi(db: RlsDb) {
           .limit(1);
 
         if (!row) return undefined;
-        return { ...row.reply, creator: toCreator(row) };
+        return { ...row.reply, creator: row.creatorId ? { id: row.creatorId, fullName: row.creatorFullName } : null };
       });
     },
 
