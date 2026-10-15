@@ -9,7 +9,7 @@ import federalFarmPlotsFixture from "./fixtures/federal-farm-plots.json";
 
 // All shapefiles are generated here: no customer exports in the repo. The federal fixture holds public
 // federal plot data of two farms with the farm and parcel ids replaced. The DBF layouts mirror the
-// LAWIS / LAWISplus "Geometriedaten exportieren" file (betriebsansicht-kul).
+// LAWIS / LAWISplus "Geometriedaten exportieren" file (betriebsansicht-kul) and the Acorda shape export.
 
 type ParseError = { code: string; value?: string };
 
@@ -198,6 +198,34 @@ function buildKulDbf(records: KulRecord[]) {
       record.municipality ?? "Testhausen",
     ])
   );
+}
+
+// Field names as in Agridea's sample file, cut to 10 characters by the DBF format
+const ACORDA_FIELDS = ["id", "exploitati", "parcel_nam", "affectatio", "surface", "surfaceArr", "zone"];
+
+type AcordaRecord = {
+  id: string;
+  name: string;
+  // "<code> <French crop name>"
+  affectation: string;
+  // in Aren
+  area: string;
+};
+
+function buildAcordaZip(shapes: Ring[][], records: AcordaRecord[]) {
+  const dbf = buildDbf(
+    ACORDA_FIELDS,
+    records.map((record) => [
+      record.id,
+      "ZZ-1234",
+      record.name,
+      record.affectation,
+      record.area,
+      String(Math.round(Number.parseFloat(record.area) || 0)),
+      "31",
+    ])
+  );
+  return buildZip({ "export/export.shp": buildPolygonShp(shapes), "export/export.dbf": dbf });
 }
 
 // Minimal DBF with a single unknown character field "Foo": the API falls back to geometry only.
@@ -725,6 +753,59 @@ describe("Plot shapefile import — preview + commit", () => {
     // size is computed from the polygon
     expect(rows.map((row) => row.size)).toEqual(SAMPLE_SIZES);
     expect(rows[0].geometry?.type).toBe("MultiPolygon");
+  });
+
+  it("reads an Acorda export, including a parcel made of several polygons", async () => {
+    const { jwt } = await createUserWithFarm();
+    const shapes = [
+      [square(ORIGIN_X, ORIGIN_Y, 100)],
+      // one parcel, two separate polygons of 0.25 ha each
+      [square(ORIGIN_X + 200, ORIGIN_Y, 50), square(ORIGIN_X + 300, ORIGIN_Y, 50)],
+    ];
+    const preview = await previewZip(
+      await buildAcordaZip(shapes, [
+        { id: "VD_2026_1", name: "Champ du haut", affectation: "513 Blé d'automne", area: "100.00" },
+        { id: "VD_2026_2", name: "Les Grands Prés", affectation: "601 Prairies artificielles", area: "50.00" },
+      ]),
+      jwt
+    );
+    expect(preview.format).toEqual({ name: "acorda", label: "Acorda", geometryOnly: false });
+    expect(preview.completeness).toBe("full");
+    expect(preview.overlays).toHaveLength(0);
+    expect(preview.rows[0]).toMatchObject({
+      externalId: "VD_2026_1",
+      name: "Champ du haut",
+      // the export has no cadastral parcel number
+      localId: null,
+      usage: 513,
+      usageName: "Blé d'automne",
+      size: 10000,
+      municipality: null,
+      parseErrors: [],
+    });
+    expect(preview.rows[1]).toMatchObject({ name: "Les Grands Prés", usage: 601, size: 5000, parseErrors: [] });
+    expect(preview.rows[1].geometry!.coordinates).toHaveLength(2);
+  });
+
+  it("defaults the name and usage of Acorda rows that lack them", async () => {
+    const { jwt } = await createUserWithFarm();
+    const shapes = [[square(ORIGIN_X, ORIGIN_Y, 100)], [square(ORIGIN_X + 200, ORIGIN_Y, 100)]];
+    const preview = await previewZip(
+      await buildAcordaZip(shapes, [
+        { id: "NE_2026_7", name: "", affectation: "611", area: "100.00" },
+        { id: "NE_2026_8", name: "Verger", affectation: "abc Inconnu", area: "" },
+      ]),
+      jwt
+    );
+    expect(preview.completeness).toBe("partial");
+    expect(preview.rows[0]).toMatchObject({ name: "Schlag 1", usage: 611, usageName: null, parseErrors: [] });
+    expect(preview.rows[1]).toMatchObject({
+      name: "Verger",
+      usage: 613,
+      // without a size in the file it is computed from the polygon
+      size: 10000,
+      parseErrors: [{ code: "invalid_usage_code", value: "abc" }],
+    });
   });
 
   it("rejects a dbf whose record count does not match the shapes", async () => {
