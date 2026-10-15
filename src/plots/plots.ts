@@ -1,7 +1,6 @@
 import { and, eq, inArray, isNull, ne, SQL, sql } from "drizzle-orm";
 import createHttpError from "http-errors";
-import { writeFileSync } from "fs";
-import path from "path";
+import escapeRegExp from "lodash/escapeRegExp";
 import { CropRotation, expandRecurrence } from "../crop-rotations/crop-rotations";
 import { TFunction } from "i18next";
 import { RlsDb } from "../db/db";
@@ -583,12 +582,13 @@ export function plotsApi(rlsDb: RlsDb, t: TFunction) {
 
         const geoAdminParcels = await getParcelsForEnvelopes(plotGroups.map((group) => group.envelope));
 
-        writeFileSync(path.join(__dirname, "geoparcels.json"), JSON.stringify(geoAdminParcels));
-
         const candidates = await tx.query.plots.findMany({
           where: { localId: { isNull: true } },
         });
         const plotIds = candidates.map((candidate) => candidate.id);
+        // Only generated names give way to the parcel number: "3" from farm creation, "Schlag 3" from a file
+        // import. Names the farmer chose (e.g. from the Acorda export) are kept.
+        const defaultNamePattern = `^(${escapeRegExp(t("plots.plot"))} )?[0-9]+$`;
 
         for (const parcel of geoAdminParcels) {
           if (parcel.properties.number) {
@@ -596,7 +596,7 @@ export function plotsApi(rlsDb: RlsDb, t: TFunction) {
               .update(plots)
               .set({
                 localId: parcel.properties.number,
-                name: parcel.properties.number,
+                name: sql`CASE WHEN ${plots.name} ~ ${defaultNamePattern} THEN ${parcel.properties.number} ELSE ${plots.name} END`,
               })
               .where(
                 and(

@@ -66,6 +66,16 @@ function parseAres(value: string | null, parseErrors: ShapefileParseError[]): nu
   return Math.round(parsed * 100);
 }
 
+function parseUsageCode(value: string | null, parseErrors: ShapefileParseError[]): number | null {
+  if (value === null) return null;
+  const parsed = Number.parseInt(value, 10);
+  if (Number.isNaN(parsed)) {
+    parseErrors.push({ code: "invalid_usage_code", value });
+    return null;
+  }
+  return parsed;
+}
+
 // LAWIS / LAWISplus "Geometriedaten exportieren", file betriebsansicht-kul.zip (one row per Kultur).
 // Same export in all LAWIS cantons, verified with GR and ZH files.
 const kulPolyFormat: ShapefileFormat = {
@@ -78,18 +88,7 @@ const kulPolyFormat: ShapefileFormat = {
     const externalId = emptyToNull(properties.Ident);
     const localId = emptyToNull(properties.AVParz);
 
-    const usageCode = emptyToNull(properties.LNFCode);
-    let usage = DEFAULT_USAGE_CODE;
-    let usageDefaulted = true;
-    if (usageCode !== null) {
-      const parsedUsage = Number.parseInt(usageCode, 10);
-      if (Number.isNaN(parsedUsage)) {
-        parseErrors.push({ code: "invalid_usage_code", value: usageCode });
-      } else {
-        usage = parsedUsage;
-        usageDefaulted = false;
-      }
-    }
+    const parsedUsage = parseUsageCode(emptyToNull(properties.LNFCode), parseErrors);
 
     // FlaeLN holds the area inside the LN, FlaeALN the area outside it (codes 09xx). Only one is set.
     const size =
@@ -99,13 +98,52 @@ const kulPolyFormat: ShapefileFormat = {
       externalId,
       name: localId ?? defaultName,
       localId,
-      usage,
+      usage: parsedUsage ?? DEFAULT_USAGE_CODE,
       usageName: emptyToNull(properties.Nutzung),
       size,
       cuttingDate: null,
       municipality: emptyToNull(properties.Gemeinde),
       parseErrors,
-      usedDefaults: localId === null || usageDefaulted,
+      usedDefaults: localId === null || parsedUsage === null,
+    };
+  },
+};
+
+function lowerCaseKeys(properties: Record<string, string>): Record<string, string> {
+  return Object.fromEntries(Object.entries(properties).map(([key, value]) => [key.toLowerCase(), value]));
+}
+
+// Acorda "Consultation > Export données géo" (GE, JU, NE, VD). Agridea documents the field names capitalised,
+// their sample file has them in lower case, so case is ignored. The export has no cadastral parcel number,
+// syncMissingLocalIds fills it in after the import.
+const acordaFormat: ShapefileFormat = {
+  name: "acorda",
+  label: "Acorda",
+  geometryOnly: false,
+  matches: (fieldNames) => {
+    const lowerCaseNames = fieldNames.map((field) => field.toLowerCase());
+    return ["affectatio", "parcel_nam", "surface"].every((field) => lowerCaseNames.includes(field));
+  },
+  toPlotFields: (rawProperties, defaultName) => {
+    const properties = lowerCaseKeys(rawProperties);
+    const parseErrors: ShapefileParseError[] = [];
+    const parcelName = emptyToNull(properties.parcel_nam);
+
+    // code and French crop name in one field, e.g. "501 Blé"
+    const [, usageCode, usageName] = emptyToNull(properties.affectatio)?.match(/^(\S+)\s*(.*)$/) ?? [];
+    const parsedUsage = parseUsageCode(usageCode ?? null, parseErrors);
+
+    return {
+      externalId: emptyToNull(properties.id),
+      name: parcelName ?? defaultName,
+      localId: null,
+      usage: parsedUsage ?? DEFAULT_USAGE_CODE,
+      usageName: emptyToNull(usageName),
+      size: parseAres(emptyToNull(properties.surface), parseErrors),
+      cuttingDate: null,
+      municipality: null,
+      parseErrors,
+      usedDefaults: parcelName === null || parsedUsage === null,
     };
   },
 };
@@ -133,7 +171,7 @@ const geometryOnlyFormat: ShapefileFormat = {
 
 // Add further formats here when shapefiles with different property names show up.
 // geometryOnlyFormat must stay last, it matches everything.
-const shapefileFormats: ShapefileFormat[] = [kulPolyFormat, geometryOnlyFormat];
+const shapefileFormats: ShapefileFormat[] = [kulPolyFormat, acordaFormat, geometryOnlyFormat];
 
 const SHAPE_TYPE_NULL = 0;
 const POLYGON_SHAPE_TYPES = [5, 15, 25]; // Polygon, PolygonZ, PolygonM (x/y layout is identical)
