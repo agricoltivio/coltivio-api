@@ -127,6 +127,32 @@ export const createFertilizerApplicationsEndpoint = fertilizationWrite.build({
   },
 });
 
+export const updateFertilizerApplicationEndpoint = fertilizationWrite.build({
+  method: "patch",
+  // plot, geometry and size can't be changed after creation
+  input: z.object({
+    fertilizerApplicationId: z.string(),
+    date: ez.dateIn().optional(),
+    unit: fertilizerApplicationUnitSchema.optional(),
+    method: fertilizationMethodSchema.optional().nullable(),
+    amountPerUnit: z.number().optional(),
+    numberOfUnits: z.number().optional(),
+    fertilizerId: z.string().optional(),
+    additionalNotes: z.string().optional().nullable(),
+  }),
+  output: fertilizerApplicationResponseSchema,
+  handler: async ({ input: { fertilizerApplicationId, ...data }, ctx: { fertilizerApplications } }) => {
+    const fertilizerApplication = await fertilizerApplications.updateFertilizerApplication(
+      fertilizerApplicationId,
+      data
+    );
+    if (!fertilizerApplication) {
+      throw createHttpError(404, "Fertilizer Application not found");
+    }
+    return fertilizerApplication;
+  },
+});
+
 export const deleteFertilizerApplicationEndpoint = fertilizationWrite.build({
   method: "delete",
   input: z.object({ fertilizerApplicationId: z.string() }),

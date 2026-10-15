@@ -42,7 +42,13 @@ export type CropProtectionApplicationBatchCreateInput = {
     numberOfUnits: number;
   }[];
 };
-export type CropProtectionApplicationUpdateInput = Partial<CropProtectionApplicationCreateInput>;
+// plot, geometry and size are fixed once an entry is created; only values can be edited
+export type CropProtectionApplicationUpdateInput = Partial<
+  Pick<
+    typeof cropProtectionApplications.$inferInsert,
+    "dateTime" | "productId" | "method" | "amountPerUnit" | "numberOfUnits" | "unit" | "additionalNotes"
+  >
+>;
 
 export type CropProtectionApplication = typeof cropProtectionApplications.$inferSelect & {
   geometry: MultiPolygon;
@@ -172,21 +178,16 @@ export function cropProtectionApplicationsApi(rlsDb: RlsDb) {
     async updateCropProtectionApplication(
       id: string,
       data: CropProtectionApplicationUpdateInput
-    ): Promise<CropProtectionApplication> {
-      const result = await rlsDb.rls(async (tx) => {
-        const geometry = data.geometry
-          ? sql<MultiPolygon>`ST_GeomFromGeoJSON(${JSON.stringify(data.geometry)})`
-          : undefined;
-
-        const [cropProtectionApplication] = await tx
-          .update(cropProtectionApplications)
-          .set({ ...data, geometry })
-          .where(eq(cropProtectionApplications.id, id))
-          .returning();
-        return cropProtectionApplication;
-      });
-      const cropProtectionApplication = await this.getCropProtectionApplicationById(result.id);
-      return cropProtectionApplication!;
+    ): Promise<CropProtectionApplication | undefined> {
+      const { dateTime, productId, method, amountPerUnit, numberOfUnits, unit, additionalNotes } = data;
+      const values = { dateTime, productId, method, amountPerUnit, numberOfUnits, unit, additionalNotes };
+      const hasValues = Object.values(values).some((value) => value !== undefined);
+      if (hasValues) {
+        await rlsDb.rls(async (tx) => {
+          await tx.update(cropProtectionApplications).set(values).where(eq(cropProtectionApplications.id, id));
+        });
+      }
+      return this.getCropProtectionApplicationById(id);
     },
     async deleteCropProtectionApplication(id: string): Promise<void> {
       return rlsDb.rls(async (tx) => {

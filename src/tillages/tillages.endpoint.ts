@@ -132,13 +132,19 @@ export const createTillagesEndpoint = tillagesWrite.build({
 
 export const updateTillageEndpoint = tillagesWrite.build({
   method: "patch",
-  input: tillageCreateSchema.omit({ plotId: true }).partial().extend({
+  // plot, geometry and size can't be changed after creation
+  input: tillageCreateSchema.omit({ plotId: true, geometry: true, size: true }).partial().extend({
     tillageId: z.string(),
     customAction: z.string().optional().nullable(),
+    additionalNotes: z.string().optional().nullable(),
   }),
   output: tillagesResponseSchema,
-  handler: async ({ input, ctx: { tillages } }) => {
-    return tillages.updateTillage(input.tillageId, input);
+  handler: async ({ input: { tillageId, ...data }, ctx: { tillages } }) => {
+    const tillage = await tillages.updateTillage(tillageId, data);
+    if (!tillage) {
+      throw createHttpError(404, "Tillage not found");
+    }
+    return tillage;
   },
 });
 

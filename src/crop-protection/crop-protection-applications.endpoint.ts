@@ -155,12 +155,21 @@ export const createCropProtectionApplicationsEndpoint = cropProtectionWrite.buil
 
 export const updateCropProtectionApplicationEndpoint = cropProtectionWrite.build({
   method: "patch",
-  input: cropProtectionApplicationCreateSchema.omit({ plotId: true }).partial().extend({
+  // plot, geometry and size can't be changed after creation
+  input: cropProtectionApplicationCreateSchema.omit({ plotId: true, geometry: true, size: true }).partial().extend({
     cropProtectionApplicationId: z.string(),
+    additionalNotes: z.string().optional().nullable(),
   }),
   output: cropProtectionApplicationsResponseSchema,
-  handler: async ({ input, ctx: { cropProtectionApplications } }) => {
-    return cropProtectionApplications.updateCropProtectionApplication(input.cropProtectionApplicationId, input);
+  handler: async ({ input: { cropProtectionApplicationId, ...data }, ctx: { cropProtectionApplications } }) => {
+    const cropProtectionApplication = await cropProtectionApplications.updateCropProtectionApplication(
+      cropProtectionApplicationId,
+      data
+    );
+    if (!cropProtectionApplication) {
+      throw createHttpError(404, "Crop protection application not found");
+    }
+    return cropProtectionApplication;
   },
 });
 

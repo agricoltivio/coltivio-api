@@ -4,6 +4,21 @@ import { cleanDb, getAdminDb, request } from "./helpers";
 import * as schema from "../db/schema";
 import { createUserWithFarm, createPlot, createCrop, createHarvests, TEST_GEOMETRY } from "./test-utils";
 
+const OTHER_GEOMETRY = {
+  type: "MultiPolygon",
+  coordinates: [
+    [
+      [
+        [9.0, 46.0],
+        [9.1, 46.0],
+        [9.1, 46.1],
+        [9.0, 46.1],
+        [9.0, 46.0],
+      ],
+    ],
+  ],
+};
+
 // ---------------------------------------------------------------------------
 // Harvests CRUD
 // ---------------------------------------------------------------------------
@@ -110,6 +125,102 @@ describe("Harvests CRUD", () => {
     expect(dbHarvests).toHaveLength(2);
     expect(dbHarvests.every((h) => h.unit === "load")).toBe(true);
     expect(dbHarvests.every((h) => h.kilosPerUnit === 500)).toBe(true);
+  });
+
+  it("updates a harvest", async () => {
+    const { jwt } = await createUserWithFarm();
+    const plot = await createPlot(jwt);
+    const crop = await createCrop(jwt, { name: "Hay", category: "grass" });
+    const otherCrop = await createCrop(jwt, { name: "Clover", category: "grass" });
+    const [harvest] = await createHarvests(jwt, plot.id, crop.id, {
+      date: "2025-07-15",
+      unit: "round_bale",
+      kilosPerUnit: 300,
+      numberOfUnits: 5,
+      conservationMethod: "dried",
+    });
+
+    const res = await request(
+      "PATCH",
+      `/v1/harvests/byId/${harvest.id}`,
+      {
+        date: "2025-07-20",
+        cropId: otherCrop.id,
+        unit: "square_bale",
+        kilosPerUnit: 20,
+        numberOfUnits: 50,
+        conservationMethod: "silage",
+        harvestCount: 2,
+        additionalNotes: "Corrected",
+      },
+      jwt
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { data: { crop: { name: string } } };
+    expect(body.data.crop.name).toBe("Clover");
+
+    // Verify DB
+    const db = getAdminDb();
+    const dbHarvest = await db.query.harvests.findFirst({
+      where: { id: harvest.id },
+    });
+    expect(dbHarvest!.date.toISOString().slice(0, 10)).toBe("2025-07-20");
+    expect(dbHarvest!.cropId).toBe(otherCrop.id);
+    expect(dbHarvest!.unit).toBe("square_bale");
+    expect(dbHarvest!.kilosPerUnit).toBe(20);
+    expect(dbHarvest!.numberOfUnits).toBe(50);
+    expect(dbHarvest!.conservationMethod).toBe("silage");
+    expect(dbHarvest!.harvestCount).toBe(2);
+    expect(dbHarvest!.additionalNotes).toBe("Corrected");
+
+    // Clear nullable values
+    const clearRes = await request(
+      "PATCH",
+      `/v1/harvests/byId/${harvest.id}`,
+      { conservationMethod: null, harvestCount: null, additionalNotes: null },
+      jwt
+    );
+    expect(clearRes.status).toBe(200);
+    const clearedHarvest = await db.query.harvests.findFirst({
+      where: { id: harvest.id },
+    });
+    expect(clearedHarvest!.conservationMethod).toBeNull();
+    expect(clearedHarvest!.harvestCount).toBeNull();
+    expect(clearedHarvest!.additionalNotes).toBeNull();
+  });
+
+  it("ignores plot, geometry and size when updating a harvest", async () => {
+    const { jwt } = await createUserWithFarm();
+    const plot = await createPlot(jwt);
+    const otherPlot = await createPlot(jwt, { name: "Other" });
+    const crop = await createCrop(jwt, { category: "grass" });
+    const [harvest] = await createHarvests(jwt, plot.id, crop.id);
+
+    const res = await request(
+      "PATCH",
+      `/v1/harvests/byId/${harvest.id}`,
+      { numberOfUnits: 42, plotId: otherPlot.id, geometry: OTHER_GEOMETRY, size: 1 },
+      jwt
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      data: { numberOfUnits: number; plotId: string; size: number; geometry: { coordinates: unknown } };
+    };
+    expect(body.data.numberOfUnits).toBe(42);
+    expect(body.data.plotId).toBe(plot.id);
+    expect(body.data.size).toBe(10000);
+    expect(body.data.geometry.coordinates).toEqual(TEST_GEOMETRY.coordinates);
+  });
+
+  it("returns 404 when updating an unknown harvest", async () => {
+    const { jwt } = await createUserWithFarm();
+    const res = await request(
+      "PATCH",
+      "/v1/harvests/byId/00000000-0000-0000-0000-000000000000",
+      { numberOfUnits: 1 },
+      jwt
+    );
+    expect(res.status).toBe(404);
   });
 
   it("deletes a harvest", async () => {

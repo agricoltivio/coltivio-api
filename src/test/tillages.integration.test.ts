@@ -4,6 +4,21 @@ import { cleanDb, getAdminDb, request } from "./helpers";
 import * as schema from "../db/schema";
 import { createUserWithFarm, createPlot, createTillage, TEST_GEOMETRY } from "./test-utils";
 
+const OTHER_GEOMETRY = {
+  type: "MultiPolygon",
+  coordinates: [
+    [
+      [
+        [9.0, 46.0],
+        [9.1, 46.0],
+        [9.1, 46.1],
+        [9.0, 46.1],
+        [9.0, 46.0],
+      ],
+    ],
+  ],
+};
+
 // ---------------------------------------------------------------------------
 // Tillages CRUD
 // ---------------------------------------------------------------------------
@@ -116,6 +131,39 @@ describe("Tillages CRUD", () => {
     });
     expect(dbTillage!.action).toBe("tilling");
     expect(dbTillage!.additionalNotes).toBe("Deep tilling");
+  });
+
+  it("ignores plot, geometry and size when updating a tillage", async () => {
+    const { jwt } = await createUserWithFarm();
+    const plot = await createPlot(jwt);
+    const otherPlot = await createPlot(jwt, { name: "Other" });
+    const tillage = await createTillage(jwt, plot.id, { action: "plowing" });
+
+    const res = await request(
+      "PATCH",
+      `/v1/tillages/byId/${tillage.id}`,
+      { action: "harrowing", plotId: otherPlot.id, geometry: OTHER_GEOMETRY, size: 1 },
+      jwt
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      data: { action: string; plotId: string; size: number; geometry: { coordinates: unknown } };
+    };
+    expect(body.data.action).toBe("harrowing");
+    expect(body.data.plotId).toBe(plot.id);
+    expect(body.data.size).toBe(10000);
+    expect(body.data.geometry.coordinates).toEqual(TEST_GEOMETRY.coordinates);
+  });
+
+  it("returns 404 when updating an unknown tillage", async () => {
+    const { jwt } = await createUserWithFarm();
+    const res = await request(
+      "PATCH",
+      "/v1/tillages/byId/00000000-0000-0000-0000-000000000000",
+      { action: "harrowing" },
+      jwt
+    );
+    expect(res.status).toBe(404);
   });
 
   it("deletes a tillage", async () => {

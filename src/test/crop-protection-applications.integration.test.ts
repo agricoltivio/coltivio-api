@@ -10,6 +10,21 @@ import {
   TEST_GEOMETRY,
 } from "./test-utils";
 
+const OTHER_GEOMETRY = {
+  type: "MultiPolygon",
+  coordinates: [
+    [
+      [
+        [9.0, 46.0],
+        [9.1, 46.0],
+        [9.1, 46.1],
+        [9.0, 46.1],
+        [9.0, 46.0],
+      ],
+    ],
+  ],
+};
+
 // ---------------------------------------------------------------------------
 // Crop Protection Applications CRUD
 // ---------------------------------------------------------------------------
@@ -147,6 +162,40 @@ describe("Crop Protection Applications CRUD", () => {
     });
     expect(dbApp!.method).toBe("broadcasting");
     expect(dbApp!.additionalNotes).toBe("Changed method");
+  });
+
+  it("ignores plot, geometry and size when updating an application", async () => {
+    const { jwt } = await createUserWithFarm();
+    const plot = await createPlot(jwt);
+    const otherPlot = await createPlot(jwt, { name: "Other" });
+    const product = await createCropProtectionProduct(jwt);
+    const app = await createCropProtectionApplication(jwt, plot.id, product.id);
+
+    const res = await request(
+      "PATCH",
+      `/v1/cropProtectionApplications/byId/${app.id}`,
+      { numberOfUnits: 42, plotId: otherPlot.id, geometry: OTHER_GEOMETRY, size: 1 },
+      jwt
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      data: { numberOfUnits: number; plotId: string; size: number; geometry: { coordinates: unknown } };
+    };
+    expect(body.data.numberOfUnits).toBe(42);
+    expect(body.data.plotId).toBe(plot.id);
+    expect(body.data.size).toBe(10000);
+    expect(body.data.geometry.coordinates).toEqual(TEST_GEOMETRY.coordinates);
+  });
+
+  it("returns 404 when updating an unknown application", async () => {
+    const { jwt } = await createUserWithFarm();
+    const res = await request(
+      "PATCH",
+      "/v1/cropProtectionApplications/byId/00000000-0000-0000-0000-000000000000",
+      { numberOfUnits: 1 },
+      jwt
+    );
+    expect(res.status).toBe(404);
   });
 
   it("deletes an application", async () => {
