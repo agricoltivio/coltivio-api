@@ -2,7 +2,8 @@ import createHttpError from "http-errors";
 import { and, count, eq, getTableColumns, isNull, sql } from "drizzle-orm";
 import { TFunction } from "i18next";
 import {} from "../crop-rotations/crop-rotations";
-import { mapCodesToCrops, UNKNOWN_CROP_CODE } from "../crops/codeToCropsMapper";
+import { createPlotsWithCrops, PlotWithCropInput } from "../plots/create-plots-with-crops";
+import { insertPlotOverlays, isIgnoredUsage, isOverlayUsage, PlotOverlayInput } from "../plots/plot-overlays";
 import { AnimalType, computeActiveCropRotations } from "../dashboard/dashboard";
 import { RlsDb } from "../db/db";
 import * as tables from "../db/schema";
@@ -111,89 +112,57 @@ export function farmsApi(rlsDb: RlsDb, t: TFunction) {
         }
 
         if (farm.federalId) {
+          // geometry plus usage identifies a plot, the federal table has no stable id. The same area can carry
+          // several usages (e.g. 921 and 922 on one orchard), but identical rows are delivered more than once.
+          const geometryHash = sql<string>`md5(ST_AsBinary(${tables.federalFarmPlots.geometry}))`;
           const federalFarmPlots = await tx
-            .select({
-              ...getTableColumns(tables.federalFarmPlots),
+            .selectDistinctOn([geometryHash, tables.federalFarmPlots.usage], {
+              localId: tables.federalFarmPlots.localId,
+              usage: tables.federalFarmPlots.usage,
+              size: tables.federalFarmPlots.size,
+              cuttingDate: tables.federalFarmPlots.cuttingDate,
               geometry: sql<MultiPolygon>`ST_AsGeoJSON(${tables.federalFarmPlots.geometry})::json`,
+              geometryHash,
             })
             .from(tables.federalFarmPlots)
             .where(eq(tables.federalFarmPlots.federalFarmId, farm.federalId))
-            .orderBy(tables.federalFarmPlots.localId);
-
-          // copy parcels from federal parcels
-
-          // if (federalParcels.length !== farm.parcelGisIds.length) {
-          //   throw new Error("Could not find all federal parcels");
-          // }
-          // const parcels: CreateParcelInput[] = federalFarmPlots.map(
-          //   (federalParcel) => ({
-          //     gisId: federalParcel.gisId,
-          //     communalId: federalParcel.communalId,
-          //     area: federalParcel.area,
-          //     geometry: federalParcel.geometry,
-          //     size: federalParcel.area,
-          //   })
-          // );
-
-          // await tx.insert(tables.parcels).values(
-          //   parcels.map((parcel) => ({
-          //     farmId: createdFarm.id,
-          //     ...parcel,
-          //     geometry: sql`ST_GeomFromGeoJSON(${JSON.stringify(parcel.geometry)})`,
-          //   }))
-          // );
-
-          const plotsToCreate = federalFarmPlots.map((plot, index) => {
-            return {
-              farmId: createdFarm.id,
-              name: plot.localId ?? `${index + 1}`,
-              size: plot.size,
-              localId: plot.localId,
-              usage: plot.usage,
-              cuttingDate: plot.cuttingDate,
-              geometry: sql`ST_GeomFromGeoJSON(${JSON.stringify(plot.geometry)})`,
-            };
+            .orderBy(geometryHash, tables.federalFarmPlots.usage, tables.federalFarmPlots.id);
+          // DISTINCT ON dictates the query order, sort by parcel number afterwards (nulls last, as before)
+          federalFarmPlots.sort((a, b) => {
+            if (a.localId === b.localId) return 0;
+            if (a.localId === null) return 1;
+            if (b.localId === null) return -1;
+            return a.localId < b.localId ? -1 : 1;
           });
 
-          const plots = await tx.insert(tables.plots).values(plotsToCreate).returning();
-
-          const cropCreateInputs = mapCodesToCrops(
-            plots.map((plot) => plot.usage ?? UNKNOWN_CROP_CODE),
-            t
-          );
-
-          const crops = await tx
-            .insert(tables.crops)
-            .values(
-              cropCreateInputs.map((crop) => ({
-                ...crop,
-                farmId: createdFarm.id,
-              }))
-            )
-            .returning();
-
-          const currentYear = new Date().getFullYear();
-          const fromDate = new Date(Date.UTC(currentYear, 0, 1)); // Jan 1
-          const toDate = new Date(Date.UTC(currentYear, 11, 31)); // Dec 31
-
-          const cropRotationInputs = plots.map((plot) => ({
-            farmId: createdFarm.id,
-            cropId: crops.find((crop) => crop.usageCodes.includes(plot.usage ?? UNKNOWN_CROP_CODE))!.id,
-            fromDate,
-            toDate,
-            plotId: plot.id,
-          }));
-
-          const createdRotations = await tx.insert(tables.cropRotations).values(cropRotationInputs).returning();
-
-          // Create yearly recurrences for permanent rotations
-          await tx.insert(tables.cropRotationYearlyRecurrences).values(
-            createdRotations.map((rotation) => ({
-              farmId: createdFarm.id,
-              cropRotationId: rotation.id,
-              interval: 1,
-            }))
-          );
+          const plotInputs: PlotWithCropInput[] = [];
+          const overlayInputs: PlotOverlayInput[] = [];
+          for (const [index, plot] of federalFarmPlots.entries()) {
+            const name = plot.localId ?? `${index + 1}`;
+            if (isIgnoredUsage(plot.usage)) continue;
+            if (isOverlayUsage(plot.usage)) {
+              overlayInputs.push({
+                name,
+                localId: plot.localId,
+                usage: plot.usage,
+                usageName: null,
+                size: plot.size,
+                geometry: plot.geometry,
+                externalId: `${plot.geometryHash}:${plot.usage}`,
+              });
+            } else {
+              plotInputs.push({
+                name,
+                localId: plot.localId,
+                usage: plot.usage,
+                cuttingDate: plot.cuttingDate,
+                size: plot.size,
+                geometry: plot.geometry,
+              });
+            }
+          }
+          await createPlotsWithCrops(tx, createdFarm.id, t, plotInputs);
+          await insertPlotOverlays(tx, createdFarm.id, "federal", overlayInputs);
         }
 
         return createdFarm;
