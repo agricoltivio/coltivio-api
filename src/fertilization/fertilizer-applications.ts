@@ -55,6 +55,14 @@ export type FertilizerApplicationApplicationBatchCreateInput = {
   }[];
 };
 
+// plot, geometry and size are fixed once an entry is created; only values can be edited
+export type FertilizerApplicationUpdateInput = Partial<
+  Pick<
+    typeof fertilizerApplications.$inferInsert,
+    "date" | "unit" | "method" | "amountPerUnit" | "numberOfUnits" | "fertilizerId" | "additionalNotes"
+  >
+>;
+
 type FertilizerApplication = Omit<typeof fertilizerApplications.$inferSelect, "geometry"> & {
   geometry: MultiPolygon;
   fertilizer: typeof fertilizers.$inferSelect;
@@ -179,6 +187,21 @@ export function fertilizerApplicationsApi(rlsDb: RlsDb) {
           orderBy: { date: "desc" },
         });
       });
+    },
+
+    async updateFertilizerApplication(
+      id: string,
+      data: FertilizerApplicationUpdateInput
+    ): Promise<FertilizerApplication | undefined> {
+      const { date, unit, method, amountPerUnit, numberOfUnits, fertilizerId, additionalNotes } = data;
+      const values = { date, unit, method, amountPerUnit, numberOfUnits, fertilizerId, additionalNotes };
+      const hasValues = Object.values(values).some((value) => value !== undefined);
+      if (hasValues) {
+        await rlsDb.rls(async (tx) => {
+          await tx.update(fertilizerApplications).set(values).where(eq(fertilizerApplications.id, id));
+        });
+      }
+      return this.getFertilizerApplicationById(id);
     },
 
     async deleteFertilizerApplication(id: string): Promise<void> {

@@ -24,7 +24,10 @@ export type TillageBatchCreateInput = {
     size: number;
   }[];
 };
-export type TillageUpdateInput = Partial<TillageCreateInput>;
+// plot, geometry and size are fixed once an entry is created; only values can be edited
+export type TillageUpdateInput = Partial<
+  Pick<typeof tillages.$inferInsert, "action" | "customAction" | "date" | "additionalNotes">
+>;
 
 export type Tillage = typeof tillages.$inferSelect & {
   geometry: MultiPolygon;
@@ -121,21 +124,16 @@ export function tillagesApi(rlsDb: RlsDb) {
         });
       });
     },
-    async updateTillage(id: string, data: TillageUpdateInput): Promise<Tillage> {
-      const result = await rlsDb.rls(async (tx) => {
-        const geometry = data.geometry
-          ? sql<MultiPolygon>`ST_GeomFromGeoJSON(${JSON.stringify(data.geometry)})`
-          : undefined;
-
-        const [tillage] = await tx
-          .update(tillages)
-          .set({ ...data, geometry })
-          .where(eq(tillages.id, id))
-          .returning();
-        return tillage;
-      });
-      const tillage = await this.getTillageById(result.id);
-      return tillage!;
+    async updateTillage(id: string, data: TillageUpdateInput): Promise<Tillage | undefined> {
+      const { action, customAction, date, additionalNotes } = data;
+      const values = { action, customAction, date, additionalNotes };
+      const hasValues = Object.values(values).some((value) => value !== undefined);
+      if (hasValues) {
+        await rlsDb.rls(async (tx) => {
+          await tx.update(tillages).set(values).where(eq(tillages.id, id));
+        });
+      }
+      return this.getTillageById(id);
     },
     async deleteTillage(id: string): Promise<void> {
       return rlsDb.rls(async (tx) => {

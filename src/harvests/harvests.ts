@@ -43,7 +43,20 @@ export type HarvestsBatchCreateInput = {
     numberOfUnits: number;
   }[];
 };
-export type HarvestUpdateInput = Partial<HarvestCreateInput>;
+// plot, geometry and size are fixed once an entry is created; only values can be edited
+export type HarvestUpdateInput = Partial<
+  Pick<
+    typeof tables.harvests.$inferInsert,
+    | "date"
+    | "cropId"
+    | "conservationMethod"
+    | "unit"
+    | "kilosPerUnit"
+    | "numberOfUnits"
+    | "harvestCount"
+    | "additionalNotes"
+  >
+>;
 
 interface ProducedQuantity {
   totalAmountInKilos: number;
@@ -87,6 +100,27 @@ export function harvestsApi(rlsDb: RlsDb) {
         return harvests;
       });
       return this.getHarvestsByIds(result.map((harvest) => harvest.id))!;
+    },
+    async updateHarvest(id: string, data: HarvestUpdateInput): Promise<Harvest | undefined> {
+      const { date, cropId, conservationMethod, unit, kilosPerUnit, numberOfUnits, harvestCount, additionalNotes } =
+        data;
+      const values = {
+        date,
+        cropId,
+        conservationMethod,
+        unit,
+        kilosPerUnit,
+        numberOfUnits,
+        harvestCount,
+        additionalNotes,
+      };
+      const hasValues = Object.values(values).some((value) => value !== undefined);
+      if (hasValues) {
+        await rlsDb.rls(async (tx) => {
+          await tx.update(tables.harvests).set(values).where(eq(tables.harvests.id, id));
+        });
+      }
+      return this.getHarvestById(id);
     },
     async deleteHarvest(id: string): Promise<void> {
       return rlsDb.rls(async (tx) => {

@@ -102,6 +102,7 @@ import { getDashboardStatsEndpoint, getFieldEventsEndpoint } from "./dashboard/d
 import {
   createHarvestsEndpoint,
   deleteHarvestEndpoint,
+  updateHarvestEndpoint,
   getHarvestByIdEndpoint,
   getHarvestsForFarmEndpoint,
   getHarvestsForPlotEndpoint,
@@ -135,6 +136,7 @@ import {
 import {
   createFertilizerApplicationsEndpoint,
   deleteFertilizerApplicationEndpoint,
+  updateFertilizerApplicationEndpoint,
   getFertilizerApplicationByIdEndpoint,
   getFertilizerApplicationsForFarmEndpoint,
   getFertilizerApplicationsForPlotEndpoint,
@@ -687,6 +689,7 @@ export const routing: Routing = {
         ":harvestId": {
           get: getHarvestByIdEndpoint,
           delete: deleteHarvestEndpoint,
+          patch: updateHarvestEndpoint,
         },
       },
       summaries: getHarvestSummaryForFarmEndpoint,
@@ -714,6 +717,7 @@ export const routing: Routing = {
         ":fertilizerApplicationId": {
           get: getFertilizerApplicationByIdEndpoint,
           delete: deleteFertilizerApplicationEndpoint,
+          patch: updateFertilizerApplicationEndpoint,
         },
       },
       summaries: getFertilizerApplicationSummaryForFarmEndpoint,

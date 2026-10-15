@@ -10,6 +10,21 @@ import {
   TEST_GEOMETRY,
 } from "./test-utils";
 
+const OTHER_GEOMETRY = {
+  type: "MultiPolygon",
+  coordinates: [
+    [
+      [
+        [9.0, 46.0],
+        [9.1, 46.0],
+        [9.1, 46.1],
+        [9.0, 46.1],
+        [9.0, 46.0],
+      ],
+    ],
+  ],
+};
+
 // ---------------------------------------------------------------------------
 // Fertilizer Applications CRUD
 // ---------------------------------------------------------------------------
@@ -118,6 +133,99 @@ describe("Fertilizer Applications CRUD", () => {
     expect(dbApps).toHaveLength(2);
     expect(dbApps.every((a) => a.unit === "bag")).toBe(true);
     expect(dbApps.every((a) => a.amountPerUnit === 25)).toBe(true);
+  });
+
+  it("updates a fertilizer application", async () => {
+    const { jwt } = await createUserWithFarm();
+    const plot = await createPlot(jwt);
+    const fert = await createFertilizer(jwt, { name: "Slurry" });
+    const otherFert = await createFertilizer(jwt, { name: "Manure" });
+    const [app] = await createFertilizerApplication(jwt, plot.id, fert.id, {
+      date: "2025-04-15",
+      unit: "load",
+      amountPerUnit: 500,
+      numberOfUnits: 3,
+      method: "spread",
+    });
+
+    const res = await request(
+      "PATCH",
+      `/v1/fertilizerApplications/byId/${app.id}`,
+      {
+        date: "2025-05-01",
+        unit: "bag",
+        amountPerUnit: 25,
+        numberOfUnits: 4,
+        method: "spray",
+        fertilizerId: otherFert.id,
+        additionalNotes: "Corrected",
+      },
+      jwt
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { data: { fertilizer: { name: string } } };
+    expect(body.data.fertilizer.name).toBe("Manure");
+
+    // Verify DB
+    const db = getAdminDb();
+    const dbApp = await db.query.fertilizerApplications.findFirst({
+      where: { id: app.id },
+    });
+    expect(dbApp!.date.toISOString().slice(0, 10)).toBe("2025-05-01");
+    expect(dbApp!.unit).toBe("bag");
+    expect(dbApp!.amountPerUnit).toBe(25);
+    expect(dbApp!.numberOfUnits).toBe(4);
+    expect(dbApp!.method).toBe("spray");
+    expect(dbApp!.fertilizerId).toBe(otherFert.id);
+    expect(dbApp!.additionalNotes).toBe("Corrected");
+
+    // Clear nullable values
+    const clearRes = await request(
+      "PATCH",
+      `/v1/fertilizerApplications/byId/${app.id}`,
+      { method: null, additionalNotes: null },
+      jwt
+    );
+    expect(clearRes.status).toBe(200);
+    const clearedApp = await db.query.fertilizerApplications.findFirst({
+      where: { id: app.id },
+    });
+    expect(clearedApp!.method).toBeNull();
+    expect(clearedApp!.additionalNotes).toBeNull();
+  });
+
+  it("ignores plot, geometry and size when updating a fertilizer application", async () => {
+    const { jwt } = await createUserWithFarm();
+    const plot = await createPlot(jwt);
+    const otherPlot = await createPlot(jwt, { name: "Other" });
+    const fert = await createFertilizer(jwt);
+    const [app] = await createFertilizerApplication(jwt, plot.id, fert.id);
+
+    const res = await request(
+      "PATCH",
+      `/v1/fertilizerApplications/byId/${app.id}`,
+      { numberOfUnits: 42, plotId: otherPlot.id, geometry: OTHER_GEOMETRY, size: 1 },
+      jwt
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      data: { numberOfUnits: number; plotId: string; size: number; geometry: { coordinates: unknown } };
+    };
+    expect(body.data.numberOfUnits).toBe(42);
+    expect(body.data.plotId).toBe(plot.id);
+    expect(body.data.size).toBe(10000);
+    expect(body.data.geometry.coordinates).toEqual(TEST_GEOMETRY.coordinates);
+  });
+
+  it("returns 404 when updating an unknown fertilizer application", async () => {
+    const { jwt } = await createUserWithFarm();
+    const res = await request(
+      "PATCH",
+      "/v1/fertilizerApplications/byId/00000000-0000-0000-0000-000000000000",
+      { numberOfUnits: 1 },
+      jwt
+    );
+    expect(res.status).toBe(404);
   });
 
   it("deletes a fertilizer application", async () => {

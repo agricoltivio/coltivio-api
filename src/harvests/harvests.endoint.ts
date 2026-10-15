@@ -157,6 +157,30 @@ export const createHarvestsEndpoint = harvestsWrite.build({
   },
 });
 
+export const updateHarvestEndpoint = harvestsWrite.build({
+  method: "patch",
+  // plot, geometry and size can't be changed after creation
+  input: z.object({
+    harvestId: z.string(),
+    date: ez.dateIn().optional(),
+    cropId: z.string().optional(),
+    conservationMethod: tables.conservationMethodEnumSchema.optional().nullable(),
+    unit: tables.harvestUnitsSchema.optional(),
+    kilosPerUnit: z.number().optional(),
+    numberOfUnits: z.number().optional(),
+    harvestCount: z.number().optional().nullable(),
+    additionalNotes: z.string().optional().nullable(),
+  }),
+  output: harvestSchema,
+  handler: async ({ input: { harvestId, ...data }, ctx: { harvests } }) => {
+    const harvest = await harvests.updateHarvest(harvestId, data);
+    if (!harvest) {
+      throw createHttpError(404, "Harvest not found");
+    }
+    return harvest;
+  },
+});
+
 export const deleteHarvestEndpoint = harvestsWrite.build({
   method: "delete",
   input: z.object({ harvestId: z.string() }),
