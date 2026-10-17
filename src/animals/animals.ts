@@ -1,12 +1,18 @@
-import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import ExcelJS from "exceljs";
 import createHttpError from "http-errors";
 import { TFunction } from "i18next";
-import { RlsDb } from "../db/db";
+import { RlsDb, Transaction } from "../db/db";
 import * as tables from "../db/schema";
 import { EarTag } from "../ear-tags/ear-tags";
 import { Treatment } from "../treatments/treatments";
-import { buildOutdoorJournal, expandOutdoorSchedule, OutdoorJournalResult } from "./outdoor-journal";
+import {
+  buildMeadowJournal,
+  buildOutdoorJournal,
+  expandOutdoorSchedule,
+  MeadowJournalEntry,
+  OutdoorJournalResult,
+} from "./outdoor-journal";
 
 // Sex value mapping (all locales combined — values are lowercased before lookup)
 const SEX_MAP: Record<string, "male" | "female"> = {
@@ -144,6 +150,7 @@ export type OutdoorScheduleCreateInput = {
   endDate?: Date | null;
   type: OutdoorScheduleType;
   notes?: string | null;
+  meadowId?: string | null;
   recurrence?: {
     frequency: (typeof tables.frequency.enumValues)[number];
     interval: number;
@@ -163,6 +170,7 @@ function inputToSchedule(input: OutdoorScheduleCreateInput): OutdoorScheduleWith
     id: "",
     farmId: "",
     herdId: "",
+    meadowId: input.meadowId ?? null,
     startDate: input.startDate,
     endDate: input.endDate ?? null,
     type: input.type,
@@ -182,6 +190,93 @@ function inputToSchedule(input: OutdoorScheduleCreateInput): OutdoorScheduleWith
       : null,
   };
 }
+
+// Meadow FK checks bypass RLS, so make sure referenced meadows are visible to (= belong to) the current farm
+async function assertMeadowsAccessible(tx: Transaction, meadowIds: (string | null | undefined)[]) {
+  const uniqueMeadowIds = [...new Set(meadowIds.filter((meadowId): meadowId is string => !!meadowId))];
+  if (uniqueMeadowIds.length === 0) return;
+  const foundMeadows = await tx.query.meadows.findMany({
+    where: { id: { in: uniqueMeadowIds } },
+    columns: { id: true },
+  });
+  if (foundMeadows.length !== uniqueMeadowIds.length) {
+    throw createHttpError(400, "Meadow not found");
+  }
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+// Calendar day as UTC midnight, matching how date columns are written and read back
+function toUtcDay(date: Date): Date {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+}
+
+// Moves animals into targetHerdId (or out of any herd when null) as of effectiveDate.
+// Membership ranges are inclusive on both ends, so the previous membership ends the day before effectiveDate.
+// Animals whose active membership already is in the target herd are left untouched.
+// An effectiveDate before the animal's existing history would create overlapping memberships:
+// mode "strict" rejects it (explicit user input), mode "clamp" moves it to the first free day (implicit defaults).
+async function changeHerdMemberships(
+  tx: Transaction,
+  animalIds: string[],
+  targetHerdId: string | null,
+  requestedEffectiveDate: Date,
+  mode: "strict" | "clamp"
+) {
+  for (const animalId of animalIds) {
+    const activeMembership = await tx.query.herdMemberships.findFirst({
+      where: { animalId, toDate: { isNull: true } },
+    });
+    if ((activeMembership?.herdId ?? null) === targetHerdId) continue;
+
+    const latestClosedMembership = activeMembership
+      ? undefined
+      : await tx.query.herdMemberships.findFirst({
+          where: { animalId, toDate: { isNotNull: true } },
+          orderBy: { toDate: "desc" },
+        });
+
+    // First day a new membership can start without overlapping this animal's history
+    let earliestAllowedDate: Date | null = null;
+    if (activeMembership) {
+      earliestAllowedDate = activeMembership.fromDate;
+    } else if (latestClosedMembership?.toDate) {
+      earliestAllowedDate = new Date(latestClosedMembership.toDate.getTime() + DAY_MS);
+    }
+
+    let effectiveDate = toUtcDay(requestedEffectiveDate);
+    if (earliestAllowedDate && effectiveDate < earliestAllowedDate) {
+      if (mode === "strict") {
+        throw createHttpError(400, "Effective date is before the animal's current herd membership");
+      }
+      effectiveDate = earliestAllowedDate;
+    }
+
+    if (activeMembership) {
+      if (activeMembership.fromDate.getTime() === effectiveDate.getTime()) {
+        // Replaced on the day it started, so it never applied
+        await tx.delete(tables.herdMemberships).where(eq(tables.herdMemberships.id, activeMembership.id));
+      } else {
+        await tx
+          .update(tables.herdMemberships)
+          .set({ toDate: new Date(effectiveDate.getTime() - DAY_MS) })
+          .where(eq(tables.herdMemberships.id, activeMembership.id));
+      }
+    }
+
+    if (targetHerdId) {
+      await tx.insert(tables.herdMemberships).values({
+        ...tables.farmIdColumnValue,
+        animalId,
+        herdId: targetHerdId,
+        fromDate: effectiveDate,
+      });
+    }
+    await tx.update(tables.animals).set({ herdId: targetHerdId }).where(eq(tables.animals.id, animalId));
+  }
+}
+
+const meadowSummaryColumns = { columns: { id: true, name: true, size: true } } as const;
 
 // Checks if any two schedules in the list produce overlapping concrete occurrences.
 // Uses a 25-year window starting from the earliest schedule start date.
@@ -286,7 +381,8 @@ export type AnimalWithRelations = Animal & {
 
 export function animalsApi(rlsDb: RlsDb, t: TFunction) {
   return {
-    async createAnimal(animalInput: AnimalCreateInput): Promise<Animal> {
+    async createAnimal(input: AnimalCreateInput & { herdEffectiveDate?: Date | null }): Promise<Animal> {
+      const { herdEffectiveDate, ...animalInput } = input;
       const result = await rlsDb.rls(async (tx) => {
         const [result] = await tx
           .insert(tables.animals)
@@ -298,12 +394,7 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
 
         // Create herd membership if animal is assigned to a herd
         if (animalInput.herdId) {
-          await tx.insert(tables.herdMemberships).values({
-            ...tables.farmIdColumnValue,
-            animalId: result.id,
-            herdId: animalInput.herdId,
-            fromDate: new Date(),
-          });
+          await changeHerdMemberships(tx, [result.id], animalInput.herdId, herdEffectiveDate ?? new Date(), "strict");
         }
 
         return result;
@@ -422,30 +513,25 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
       return { nodes, edges };
     },
 
-    async updateAnimals(data: Array<AnimalUpdateInput & { id: string }>): Promise<Animal[]> {
+    async updateAnimals(
+      data: Array<AnimalUpdateInput & { id: string; herdEffectiveDate?: Date | null }>
+    ): Promise<Animal[]> {
       await rlsDb.rls(async (tx) => {
-        const today = new Date();
-        await Promise.all(
-          data.map(async ({ id, ...animal }) => {
+        for (const { id, herdId, herdEffectiveDate, ...animal } of data) {
+          if (Object.keys(animal).length > 0) {
             await tx.update(tables.animals).set(animal).where(eq(tables.animals.id, id));
-
-            // Manage herd membership when herdId changes
-            if (animal.herdId !== undefined) {
-              await tx
-                .update(tables.herdMemberships)
-                .set({ toDate: today })
-                .where(and(eq(tables.herdMemberships.animalId, id), isNull(tables.herdMemberships.toDate)));
-              if (animal.herdId) {
-                await tx.insert(tables.herdMemberships).values({
-                  ...tables.farmIdColumnValue,
-                  animalId: id,
-                  herdId: animal.herdId,
-                  fromDate: today,
-                });
-              }
-            }
-          })
-        );
+          }
+          // Herd changes go through memberships so the outdoor journal history stays correct
+          if (herdId !== undefined) {
+            await changeHerdMemberships(
+              tx,
+              [id],
+              herdId,
+              herdEffectiveDate ?? new Date(),
+              herdEffectiveDate ? "strict" : "clamp"
+            );
+          }
+        }
       });
       const result = await rlsDb.rls(async (tx) => {
         return tx.query.animals.findMany({
@@ -458,36 +544,30 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
       return result!;
     },
 
-    async updateAnimal(id: string, data: AnimalUpdateInput): Promise<Animal> {
+    async updateAnimal(id: string, input: AnimalUpdateInput & { herdEffectiveDate?: Date | null }): Promise<Animal> {
+      const { herdId, herdEffectiveDate, ...data } = input;
       const result = await rlsDb.rls(async (tx) => {
-        const [result] = await tx
-          .update(tables.animals)
-          .set(data)
-          .where(eq(tables.animals.id, id))
-          .returning({ id: tables.animals.id, herdId: tables.animals.herdId });
+        const [result] =
+          Object.keys(data).length > 0
+            ? await tx
+                .update(tables.animals)
+                .set(data)
+                .where(eq(tables.animals.id, id))
+                .returning({ id: tables.animals.id })
+            : await tx.select({ id: tables.animals.id }).from(tables.animals).where(eq(tables.animals.id, id));
+
+        // Herd changes go through memberships so the outdoor journal history stays correct
+        if (result && herdId !== undefined) {
+          await changeHerdMemberships(
+            tx,
+            [id],
+            herdId,
+            herdEffectiveDate ?? new Date(),
+            herdEffectiveDate ? "strict" : "clamp"
+          );
+        }
         return result;
       });
-
-      // Manage herd membership when herdId changes
-      if (data.herdId !== undefined) {
-        await rlsDb.rls(async (tx) => {
-          const today = new Date();
-          // Close any active membership for this animal
-          await tx
-            .update(tables.herdMemberships)
-            .set({ toDate: today })
-            .where(and(eq(tables.herdMemberships.animalId, id), isNull(tables.herdMemberships.toDate)));
-          // Create new membership if assigned to a herd
-          if (data.herdId) {
-            await tx.insert(tables.herdMemberships).values({
-              ...tables.farmIdColumnValue,
-              animalId: id,
-              herdId: data.herdId,
-              fromDate: today,
-            });
-          }
-        });
-      }
 
       const animal = await rlsDb.rls(async (tx) => {
         return tx.query.animals.findFirst({
@@ -552,7 +632,7 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
           where: { farmId },
           with: {
             animals: { with: { earTag: true } },
-            outdoorSchedules: { with: { recurrence: true } },
+            outdoorSchedules: { with: { recurrence: true, meadow: meadowSummaryColumns } },
           },
         });
       });
@@ -564,13 +644,18 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
           where: { id },
           with: {
             animals: { with: { earTag: true } },
-            outdoorSchedules: { with: { recurrence: true } },
+            outdoorSchedules: { with: { recurrence: true, meadow: meadowSummaryColumns } },
           },
         });
       });
     },
 
-    async createHerd(input: { name: string }, animalIds: string[], outdoorSchedules?: OutdoorScheduleCreateInput[]) {
+    async createHerd(
+      input: { name: string },
+      animalIds: string[],
+      outdoorSchedules?: OutdoorScheduleCreateInput[],
+      effectiveDate?: Date | null
+    ) {
       // Validate overlap among schedules before entering the transaction
       if (outdoorSchedules?.length) {
         if (hasScheduleOverlap(outdoorSchedules.map(inputToSchedule))) {
@@ -579,40 +664,31 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
       }
 
       return rlsDb.rls(async (tx) => {
+        await assertMeadowsAccessible(tx, outdoorSchedules?.map((schedule) => schedule.meadowId) ?? []);
+
         const [herd] = await tx
           .insert(tables.herds)
           .values({ ...tables.farmIdColumnValue, ...input })
           .returning();
 
         if (animalIds.length > 0) {
-          // Update denormalized herdId on animals
-          await tx.update(tables.animals).set({ herdId: herd.id }).where(inArray(tables.animals.id, animalIds));
-
-          // Close any active memberships and create new ones.
-          // If schedules are provided and the earliest startDate is in the past, backdate membership
-          // to that date so the outdoor journal reflects the full schedule history.
-          const today = new Date();
-          const earliestScheduleStart =
-            outdoorSchedules && outdoorSchedules.length > 0
-              ? outdoorSchedules.reduce(
-                  (earliest, s) => (s.startDate < earliest ? s.startDate : earliest),
-                  outdoorSchedules[0].startDate
-                )
-              : null;
-          const membershipFromDate =
-            earliestScheduleStart && earliestScheduleStart < today ? earliestScheduleStart : today;
-
-          for (const animalId of animalIds) {
-            await tx
-              .update(tables.herdMemberships)
-              .set({ toDate: membershipFromDate })
-              .where(and(eq(tables.herdMemberships.animalId, animalId), isNull(tables.herdMemberships.toDate)));
-            await tx.insert(tables.herdMemberships).values({
-              ...tables.farmIdColumnValue,
-              animalId,
-              herdId: herd.id,
-              fromDate: membershipFromDate,
-            });
+          if (effectiveDate) {
+            await changeHerdMemberships(tx, animalIds, herd.id, effectiveDate, "strict");
+          } else {
+            // Without an explicit date: if schedules are provided and the earliest startDate is in the past, backdate
+            // membership to that date so the outdoor journal reflects the full schedule history. Clamped per animal so
+            // it never overlaps an earlier membership in another herd.
+            const today = new Date();
+            const earliestScheduleStart =
+              outdoorSchedules && outdoorSchedules.length > 0
+                ? outdoorSchedules.reduce(
+                    (earliest, s) => (s.startDate < earliest ? s.startDate : earliest),
+                    outdoorSchedules[0].startDate
+                  )
+                : null;
+            const membershipFromDate =
+              earliestScheduleStart && earliestScheduleStart < today ? earliestScheduleStart : today;
+            await changeHerdMemberships(tx, animalIds, herd.id, membershipFromDate, "clamp");
           }
         }
 
@@ -646,7 +722,8 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
       id: string,
       input: { name?: string },
       animalIds?: string[],
-      outdoorSchedules?: OutdoorScheduleCreateInput[]
+      outdoorSchedules?: OutdoorScheduleCreateInput[],
+      effectiveDate?: Date | null
     ) {
       // Validate overlap among new schedules before entering the transaction
       if (outdoorSchedules?.length) {
@@ -656,41 +733,41 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
       }
 
       return rlsDb.rls(async (tx) => {
+        await assertMeadowsAccessible(tx, outdoorSchedules?.map((schedule) => schedule.meadowId) ?? []);
+
         // Only run the update if there are fields to set (avoids Drizzle "No values to set" error)
         const [herd] =
           Object.keys(input).length > 0
             ? await tx.update(tables.herds).set(input).where(eq(tables.herds.id, id)).returning()
             : await tx.query.herds.findMany({ where: { id }, limit: 1 });
 
-        // If animalIds provided, replace all assignments: clear existing, set new
+        // If animalIds provided, it is the new full member list: only animals that were added or removed change
+        // memberships, unchanged animals keep their history
         if (animalIds !== undefined) {
-          const today = new Date();
+          const membershipDate = effectiveDate ?? new Date();
+          const membershipMode = effectiveDate ? "strict" : "clamp";
+          const activeMemberships = await tx.query.herdMemberships.findMany({
+            where: { herdId: id, toDate: { isNull: true } },
+            columns: { animalId: true },
+          });
+          const currentAnimalIds = new Set(activeMemberships.map((membership) => membership.animalId));
+          const newAnimalIds = new Set(animalIds);
+          const removedAnimalIds = [...currentAnimalIds].filter((animalId) => !newAnimalIds.has(animalId));
+          const addedAnimalIds = [...newAnimalIds].filter((animalId) => !currentAnimalIds.has(animalId));
 
-          // Close all active memberships for this herd
-          await tx
-            .update(tables.herdMemberships)
-            .set({ toDate: today })
-            .where(and(eq(tables.herdMemberships.herdId, id), isNull(tables.herdMemberships.toDate)));
+          await changeHerdMemberships(tx, removedAnimalIds, null, membershipDate, membershipMode);
+          await changeHerdMemberships(tx, addedAnimalIds, id, membershipDate, membershipMode);
 
-          // Update denormalized herdId on animals
-          await tx.update(tables.animals).set({ herdId: null }).where(eq(tables.animals.herdId, id));
-
-          if (animalIds.length > 0) {
-            await tx.update(tables.animals).set({ herdId: id }).where(inArray(tables.animals.id, animalIds));
-
-            // Close any other active membership for each animal, then create new
-            for (const animalId of animalIds) {
-              await tx
-                .update(tables.herdMemberships)
-                .set({ toDate: today })
-                .where(and(eq(tables.herdMemberships.animalId, animalId), isNull(tables.herdMemberships.toDate)));
-              await tx.insert(tables.herdMemberships).values({
-                ...tables.farmIdColumnValue,
-                animalId,
-                herdId: id,
-                fromDate: today,
-              });
-            }
+          // Repair denormalized herdId for animals pointing at this herd without an active membership
+          const staleAnimalIds = await tx
+            .select({ id: tables.animals.id })
+            .from(tables.animals)
+            .where(eq(tables.animals.herdId, id));
+          const strayAnimalIds = staleAnimalIds
+            .map((animal) => animal.id)
+            .filter((animalId) => !newAnimalIds.has(animalId));
+          if (strayAnimalIds.length > 0) {
+            await tx.update(tables.animals).set({ herdId: null }).where(inArray(tables.animals.id, strayAnimalIds));
           }
         }
 
@@ -736,7 +813,7 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
       return rlsDb.rls(async (tx) => {
         return tx.query.outdoorSchedules.findMany({
           where: { herdId },
-          with: { recurrence: true },
+          with: { recurrence: true, meadow: meadowSummaryColumns },
         });
       });
     },
@@ -745,7 +822,7 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
       return rlsDb.rls(async (tx) => {
         return tx.query.outdoorSchedules.findFirst({
           where: { id },
-          with: { recurrence: true },
+          with: { recurrence: true, meadow: meadowSummaryColumns },
         });
       });
     },
@@ -763,6 +840,8 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
       }
 
       const result = await rlsDb.rls(async (tx) => {
+        await assertMeadowsAccessible(tx, [scheduleInput.meadowId]);
+
         const [schedule] = await tx
           .insert(tables.outdoorSchedules)
           .values({
@@ -826,6 +905,8 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
       }
 
       await rlsDb.rls(async (tx) => {
+        await assertMeadowsAccessible(tx, [scheduleData.meadowId]);
+
         // Update schedule fields if any provided
         if (Object.keys(scheduleData).length > 0) {
           await tx.update(tables.outdoorSchedules).set(scheduleData).where(eq(tables.outdoorSchedules.id, id));
@@ -920,15 +1001,22 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
                 },
               },
             },
-            outdoorSchedules: { with: { recurrence: true } },
+            outdoorSchedules: { with: { recurrence: true, meadow: meadowSummaryColumns } },
           },
         });
       });
     },
 
-    async getOutdoorJournal(farmId: string, fromDate: Date, toDate: Date): Promise<OutdoorJournalResult> {
+    async getOutdoorJournal(
+      farmId: string,
+      fromDate: Date,
+      toDate: Date
+    ): Promise<OutdoorJournalResult & { meadowEntries: MeadowJournalEntry[] }> {
       const herds = await this.getHerdsWithMembershipsForFarm(farmId);
-      return buildOutdoorJournal(herds, fromDate, toDate);
+      return {
+        ...buildOutdoorJournal(herds, fromDate, toDate),
+        meadowEntries: buildMeadowJournal(herds, fromDate, toDate),
+      };
     },
 
     // Import animals from an Excel file buffer. Uses header row to detect columns by name.

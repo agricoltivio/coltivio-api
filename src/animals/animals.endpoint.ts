@@ -58,6 +58,8 @@ const outdoorScheduleSchema = z.object({
   id: z.string(),
   farmId: z.string(),
   herdId: z.string(),
+  meadowId: z.string().nullable(),
+  meadow: z.object({ id: z.string(), name: z.string(), size: z.number() }).nullable().optional(),
   startDate: ez.dateOut(),
   endDate: ez.dateOut().nullable(),
   type: outdoorScheduleTypeSchema,
@@ -75,6 +77,7 @@ const createOutdoorScheduleSchema = z.object({
   endDate: ez.dateIn().optional().nullable(),
   type: outdoorScheduleTypeSchema,
   notes: z.string().optional().nullable(),
+  meadowId: z.string().optional().nullable(),
   recurrence: z
     .object({
       frequency: frequencySchema,
@@ -94,6 +97,8 @@ const createHerdSchema = z.object({
   name: z.string(),
   animalIds: z.array(z.string()),
   outdoorSchedules: z.array(createOutdoorScheduleSchema).optional(),
+  // Day from which added/removed animals count as (no longer) in the herd. Defaults to today.
+  effectiveDate: ez.dateIn().optional().nullable(),
 });
 const updateHerdSchema = createHerdSchema.partial();
 
@@ -135,6 +140,8 @@ const createAnimalSchema = z.object({
   dateOfDeath: ez.dateIn().optional().nullable(),
   deathReason: deathReasonSchema.optional().nullable(),
   herdId: z.string().optional().nullable(),
+  // Day from which a herdId change applies. Defaults to today.
+  herdEffectiveDate: ez.dateIn().optional().nullable(),
 });
 
 const updateAnimalSchema = createAnimalSchema.partial();
@@ -443,12 +450,27 @@ const outdoorJournalEntrySchema = z.object({
   animalCount: z.number(),
 });
 
+export const meadowJournalEntrySchema = z.object({
+  meadowId: z.string(),
+  meadowName: z.string(),
+  meadowSize: z.number(),
+  herdId: z.string(),
+  herdName: z.string(),
+  type: outdoorScheduleTypeSchema,
+  startDate: ez.dateOut(),
+  endDate: ez.dateOut(),
+  animalCount: z.number(),
+  // Only animal types present in the stay, e.g. { cow: 12, sheep: 3 }
+  animalCountsByType: z.partialRecord(animalTypeSchema, z.number()),
+});
+
 export const getOutdoorJournalEndpoint = animalsRead.build({
   method: "get",
   input: z.object({ fromDate: ez.dateIn(), toDate: ez.dateIn() }),
   output: z.object({
     entries: z.array(outdoorJournalEntrySchema),
     uncategorizedAnimals: z.array(animalSchema),
+    meadowEntries: z.array(meadowJournalEntrySchema).optional(),
   }),
   handler: async ({ input, ctx: { animals, farmId } }) => {
     return animals.getOutdoorJournal(farmId, input.fromDate, input.toDate);
@@ -475,8 +497,8 @@ export const createHerdEndpoint = animalsWrite.build({
   input: createHerdSchema,
   output: herdSchema,
   handler: async ({ input, ctx: { animals } }) => {
-    const { animalIds, outdoorSchedules, ...herdData } = input;
-    return animals.createHerd(herdData, animalIds, outdoorSchedules);
+    const { animalIds, outdoorSchedules, effectiveDate, ...herdData } = input;
+    return animals.createHerd(herdData, animalIds, outdoorSchedules, effectiveDate);
   },
 });
 
@@ -498,8 +520,8 @@ export const updateHerdEndpoint = animalsWrite.build({
   input: updateHerdSchema.extend({ herdId: z.string() }),
   output: herdSchema,
   handler: async ({ input, ctx: { animals } }) => {
-    const { herdId, animalIds, outdoorSchedules, ...data } = input;
-    return animals.updateHerd(herdId, data, animalIds, outdoorSchedules);
+    const { herdId, animalIds, outdoorSchedules, effectiveDate, ...data } = input;
+    return animals.updateHerd(herdId, data, animalIds, outdoorSchedules, effectiveDate);
   },
 });
 

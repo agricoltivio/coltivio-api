@@ -15,7 +15,7 @@ import {
 // Reports - Field Calendar
 // ---------------------------------------------------------------------------
 // TODO: skipped due to missing ICU data in test Node.js environment
-describe.skip("Field Calendar Reports", () => {
+describe("Field Calendar Reports", () => {
   beforeEach(cleanDb);
 
   it("downloads a field calendar report as base64 PDF", async () => {
@@ -55,7 +55,7 @@ describe.skip("Field Calendar Reports", () => {
 // ---------------------------------------------------------------------------
 // Reports - Treatment
 // ---------------------------------------------------------------------------
-describe.skip("Treatment Reports", () => {
+describe("Treatment Reports", () => {
   beforeEach(cleanDb);
 
   it("downloads a treatment report as base64 PDF", async () => {
@@ -88,7 +88,7 @@ describe.skip("Treatment Reports", () => {
 // ---------------------------------------------------------------------------
 // Reports - Outdoor Journal
 // ---------------------------------------------------------------------------
-describe.skip("Outdoor Journal Reports", () => {
+describe("Outdoor Journal Reports", () => {
   beforeEach(cleanDb);
 
   it("downloads an outdoor journal report as base64 PDF", async () => {
@@ -126,7 +126,7 @@ describe.skip("Outdoor Journal Reports", () => {
 // ---------------------------------------------------------------------------
 // Reports - Animals (combined treatments + outdoor journal)
 // ---------------------------------------------------------------------------
-describe.skip("Animals Reports", () => {
+describe("Animals Reports", () => {
   beforeEach(cleanDb);
 
   it("downloads a combined report with both sections enabled", async () => {

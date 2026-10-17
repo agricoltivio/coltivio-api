@@ -329,6 +329,19 @@
       "9": "Ottobre",
       "10": "Novembre",
       "11": "Dicembre"
+    },
+    "meadows_sheet": "Pascoli",
+    "meadow": "Pascolo",
+    "meadow_size": "Superficie (a)",
+    "herd": "Mandria",
+    "type": "Tipo",
+    "from": "Dal",
+    "to": "Al",
+    "days": "Giorni",
+    "animal_count": "Numero di animali",
+    "types": {
+      "pasture": "Pascolo",
+      "exercise_yard": "Paddock"
     }
   },
   "application_units": {

@@ -292,6 +292,14 @@ import {
 import { sendFieldCalendarReport, downloadFieldCalendarReport } from "./reports/field-calendar-reports.endpoint";
 import { downloadTreatmentReport } from "./reports/treatment-reports.endpoint";
 import { downloadOutdoorJournalReport } from "./reports/outdoor-journal-reports.endpoint";
+import {
+  createMeadowEndpoint,
+  deleteMeadowEndpoint,
+  getMeadowByIdEndpoint,
+  getMeadowsEndpoint,
+  getMeadowUsageEndpoint,
+  updateMeadowEndpoint,
+} from "./meadows/meadows.endpoint";
 import { downloadAnimalsReport } from "./reports/animals-reports.endpoint";
 import { healthEndpoint } from "./chore/chore.endpoint";
 import { verifyCaptchaEndpoint } from "./captcha/turnstile.endpoint";
@@ -492,6 +500,15 @@ export const routing: Routing = {
     //     },
     //   },
     // },
+    meadows: {
+      "": { get: getMeadowsEndpoint, post: createMeadowEndpoint },
+      byId: {
+        ":meadowId": {
+          "": { get: getMeadowByIdEndpoint, patch: updateMeadowEndpoint, delete: deleteMeadowEndpoint },
+          usage: getMeadowUsageEndpoint,
+        },
+      },
+    },
     plots: {
       "": {
         get: getFarmPlotsEndpoint,
