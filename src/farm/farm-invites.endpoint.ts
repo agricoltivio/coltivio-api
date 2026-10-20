@@ -58,7 +58,10 @@ export const acceptFarmInviteEndpoint = authenticatedEndpointFactory.build({
   output: userSchema,
   handler: async ({ input, ctx }) => {
     const updatedUser = await ctx.farmInvites.acceptInvite(input.code, ctx.user);
-    const isWikiModerator = await ctx.wikiModeration.isModerator(updatedUser.id);
-    return { ...updatedUser, isWikiModerator };
+    const [isWikiModerator, isForumModerator] = await Promise.all([
+      ctx.wikiModeration.isModerator(updatedUser.id),
+      ctx.forumModeration.isModerator(updatedUser.id),
+    ]);
+    return { ...updatedUser, isWikiModerator, isForumModerator };
   },
 });

@@ -11,6 +11,11 @@ export function forumModerationApi(db: RlsDb) {
       return row !== undefined;
     },
 
+    async getModeratorUserIds(): Promise<Set<string>> {
+      const rows = await db.admin.query.forumModerators.findMany({});
+      return new Set(rows.map((r) => r.userId));
+    },
+
     async setThreadStatus(threadId: string, status: "open" | "closed"): Promise<void> {
       await db.admin.update(forumThreads).set({ status, updatedAt: new Date() }).where(eq(forumThreads.id, threadId));
     },
