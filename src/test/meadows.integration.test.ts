@@ -1,7 +1,9 @@
 import { describe, it, expect, beforeEach } from "@jest/globals";
 import ExcelJS from "exceljs";
+import { eq } from "drizzle-orm";
 
 import { cleanDb, getAdminDb, request } from "./helpers";
+import * as schema from "../db/schema";
 import { createAnimal, createHerd, createOutdoorSchedule, createUserWithFarm } from "./test-utils";
 
 function square(minLng: number, minLat: number, edge = 0.01) {
@@ -261,6 +263,63 @@ describe("Archiving meadows with outdoor schedules", () => {
   });
 });
 
+describe("Schedules on archived meadows", () => {
+  beforeEach(cleanDb);
+
+  it("existing schedules can't be changed to run on or after the archive date", async () => {
+    const { jwt } = await createUserWithFarm();
+    const meadow = await createMeadow(jwt, { name: "M", geometry: square(8.0, 47.0) });
+    const herd = await createHerd(jwt);
+    const scheduleRes = await request(
+      "POST",
+      `/v1/animals/herds/byId/${herd.id}/outdoorSchedules`,
+      { startDate: "2025-05-01", endDate: "2025-05-31", type: "pasture", meadowId: meadow.id },
+      jwt
+    );
+    expect(scheduleRes.status).toBe(200);
+    const schedule = ((await scheduleRes.json()) as { data: { id: string } }).data;
+
+    // Archived on 1 Aug 2025 (Swiss time)
+    await getAdminDb()
+      .update(schema.meadows)
+      .set({ archivedAt: new Date("2025-08-01T08:00:00Z") })
+      .where(eq(schema.meadows.id, meadow.id));
+    const scheduleUrl = `/v1/animals/herds/outdoorSchedules/byId/${schedule.id}`;
+
+    const beforeArchiveRes = await request("PATCH", scheduleUrl, { endDate: "2025-07-31" }, jwt);
+    expect(beforeArchiveRes.status).toBe(200);
+
+    const onArchiveDayRes = await request("PATCH", scheduleUrl, { endDate: "2025-08-01" }, jwt);
+    expect(onArchiveDayRes.status).toBe(400);
+
+    const openEndedRes = await request("PATCH", scheduleUrl, { endDate: null }, jwt);
+    expect(openEndedRes.status).toBe(400);
+
+    const yearlyRes = await request("PATCH", scheduleUrl, { recurrence: { frequency: "yearly", interval: 1 } }, jwt);
+    expect(yearlyRes.status).toBe(400);
+
+    const notesRes = await request("PATCH", scheduleUrl, { notes: "dry" }, jwt);
+    expect(notesRes.status).toBe(200);
+
+    // Same rule when re-saving the herd with its schedules
+    const herdUrl = `/v1/animals/herds/byId/${herd.id}`;
+    const herdOpenEndedRes = await request(
+      "PATCH",
+      herdUrl,
+      { outdoorSchedules: [{ startDate: "2025-05-01", type: "pasture", meadowId: meadow.id }] },
+      jwt
+    );
+    expect(herdOpenEndedRes.status).toBe(400);
+    const herdUnchangedRes = await request(
+      "PATCH",
+      herdUrl,
+      { outdoorSchedules: [{ startDate: "2025-05-01", endDate: "2025-07-31", type: "pasture", meadowId: meadow.id }] },
+      jwt
+    );
+    expect(herdUnchangedRes.status).toBe(200);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Meadows in outdoor schedules and the outdoor journal
 // ---------------------------------------------------------------------------
@@ -398,6 +457,51 @@ describe("Meadows in outdoor journal", () => {
     expect(dataRow.getCell(3).value).toBe("Herde A");
     expect(dataRow.getCell(7).value).toBe(10);
     expect(dataRow.getCell(8).value).toBe(1);
+  });
+
+  it("adds a meadow sheet to the combined animals report, including yearly repeats", async () => {
+    const { jwt } = await createUserWithFarm();
+    const meadow = await createMeadow(jwt, { name: "Weide Ost", geometry: square(8.0, 47.0) });
+    const sheep = await createAnimal(jwt, {
+      type: "sheep",
+      sex: "female",
+      dateOfBirth: "2020-01-01",
+      usage: "other",
+    });
+    await createHerd(jwt, {
+      name: "Herde A",
+      animalIds: [sheep.id],
+      outdoorSchedules: [
+        {
+          startDate: "2025-05-01",
+          endDate: "2025-05-10",
+          type: "pasture",
+          meadowId: meadow.id,
+          recurrence: { frequency: "yearly", interval: 1 },
+        },
+      ],
+    });
+
+    const res = await request(
+      "POST",
+      "/v1/reports/animals/download",
+      { fromDate: "2026-01-01", toDate: "2026-12-31", generateTreatments: false, generateOutdoorJournal: true },
+      jwt
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { data: { base64: string } };
+
+    const workbook = new ExcelJS.Workbook();
+    const reportBytes = Buffer.from(body.data.base64, "base64");
+    await workbook.xlsx.load(
+      reportBytes.buffer.slice(reportBytes.byteOffset, reportBytes.byteOffset + reportBytes.byteLength)
+    );
+    const meadowSheet = workbook.worksheets[1];
+    expect(meadowSheet).toBeDefined();
+    const dataRow = meadowSheet.getRow(2);
+    expect(dataRow.getCell(1).value).toBe("Weide Ost");
+    expect(dataRow.getCell(5).value).toBe(new Date("2026-05-01").toLocaleDateString("de"));
+    expect(dataRow.getCell(7).value).toBe(10);
   });
 });
 

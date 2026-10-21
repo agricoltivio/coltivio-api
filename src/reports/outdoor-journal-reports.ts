@@ -1,10 +1,11 @@
 import ExcelJS from "exceljs";
 import { TFunction } from "i18next";
-import { differenceInCalendarDays, getDaysInMonth } from "date-fns";
+import { getDaysInMonth } from "date-fns";
 import { RlsDb } from "../db/db";
 import { AnimalCategory } from "../animals/animals";
 import { buildMeadowJournal, expandOutdoorSchedule } from "../animals/outdoor-journal";
 import { mapAnimalToCategory } from "../animals/animal-key-mapping";
+import { addMeadowSheet } from "./meadow-report-sheet";
 
 export function outdoorJournalReportsApi(rlsDb: RlsDb, t: TFunction, locale: string = "de") {
   return {
@@ -258,43 +259,7 @@ export function outdoorJournalReportsApi(rlsDb: RlsDb, t: TFunction, locale: str
           }
         }
 
-        // Meadow sheet: which herd was on which meadow, for how long and with how many animals
-        const meadowEntries = buildMeadowJournal(herds, fromDate, toDate);
-        if (meadowEntries.length > 0) {
-          const meadowSheet = workbook.addWorksheet(t("outdoor_journal_report.meadows_sheet"));
-          meadowSheet.columns = [
-            { header: t("outdoor_journal_report.meadow"), width: 28 },
-            { header: t("outdoor_journal_report.meadow_size"), width: 12 },
-            { header: t("outdoor_journal_report.herd"), width: 24 },
-            { header: t("outdoor_journal_report.type"), width: 14 },
-            { header: t("outdoor_journal_report.from"), width: 12 },
-            { header: t("outdoor_journal_report.to"), width: 12 },
-            { header: t("outdoor_journal_report.days"), width: 8 },
-            { header: t("outdoor_journal_report.animal_count"), width: 16 },
-          ];
-          const meadowHeaderRow = meadowSheet.getRow(1);
-          meadowHeaderRow.eachCell((cell) => {
-            cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
-            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF4472C4" } };
-            cell.border = border;
-          });
-
-          for (const entry of meadowEntries) {
-            const meadowRow = meadowSheet.addRow([
-              entry.meadowName,
-              Math.round(entry.meadowSize / 100),
-              entry.herdName,
-              t(`outdoor_journal_report.types.${entry.type}`),
-              entry.startDate.toLocaleDateString(locale),
-              entry.endDate.toLocaleDateString(locale),
-              differenceInCalendarDays(entry.endDate, entry.startDate) + 1,
-              entry.animalCount,
-            ]);
-            meadowRow.eachCell((cell) => {
-              cell.border = border;
-            });
-          }
-        }
+        addMeadowSheet(workbook, buildMeadowJournal(herds, fromDate, toDate), t, locale);
 
         const fileName = `${t("outdoor_journal_report.file_name", { fromDate: fromDate.toLocaleDateString(locale), toDate: toDate.toLocaleDateString(locale) })}.xlsx`;
         const buffer = Buffer.from(await workbook.xlsx.writeBuffer());

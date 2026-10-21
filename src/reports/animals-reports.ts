@@ -3,9 +3,10 @@ import { TFunction } from "i18next";
 import { getDaysInMonth } from "date-fns";
 import { RlsDb, Transaction } from "../db/db";
 import { AnimalType, AnimalCategory } from "../animals/animals";
-import { expandOutdoorSchedule } from "../animals/outdoor-journal";
+import { buildMeadowJournal, expandOutdoorSchedule } from "../animals/outdoor-journal";
 import { mapAnimalToCategory } from "../animals/animal-key-mapping";
 import { writeTreatmentTable } from "./treatment-report-sheet";
+import { addMeadowSheet } from "./meadow-report-sheet";
 
 export function animalsReportsApi(rlsDb: RlsDb, t: TFunction, locale: string = "de") {
   return {
@@ -137,7 +138,7 @@ export function animalsReportsApi(rlsDb: RlsDb, t: TFunction, locale: string = "
               with: { animal: true },
             },
             outdoorSchedules: {
-              with: { recurrence: true },
+              with: { recurrence: true, meadow: { columns: { id: true, name: true, size: true } } },
             },
           },
         });
@@ -377,6 +378,8 @@ export function animalsReportsApi(rlsDb: RlsDb, t: TFunction, locale: string = "
             cell.border = borderFor(c);
           }
         }
+
+        addMeadowSheet(workbook, buildMeadowJournal(herds, fromDate, toDate), t, locale);
       }
     },
   };

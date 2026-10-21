@@ -1,4 +1,5 @@
 import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
+import { addYears } from "date-fns";
 import ExcelJS from "exceljs";
 import createHttpError from "http-errors";
 import { TFunction } from "i18next";
@@ -192,13 +193,16 @@ function inputToSchedule(input: OutdoorScheduleCreateInput): OutdoorScheduleWith
 }
 
 // Meadow FK checks bypass RLS, so make sure referenced meadows are visible to (= belong to) the current farm.
-// Archived meadows can't get new schedules; meadowIds the caller already used before (unchanged links) are allowed.
+// Archived meadows can't get new schedules. Schedules already linked before (previouslyLinkedMeadowIds) stay allowed
+// as long as they don't run on or after the archive date.
 async function assertMeadowsAccessible(
   tx: Transaction,
-  meadowIds: (string | null | undefined)[],
+  schedules: OutdoorScheduleWithRecurrence[],
   previouslyLinkedMeadowIds: (string | null)[] = []
 ) {
-  const uniqueMeadowIds = [...new Set(meadowIds.filter((meadowId): meadowId is string => !!meadowId))];
+  const uniqueMeadowIds = [
+    ...new Set(schedules.map((schedule) => schedule.meadowId).filter((meadowId): meadowId is string => !!meadowId)),
+  ];
   if (uniqueMeadowIds.length === 0) return;
   const foundMeadows = await tx.query.meadows.findMany({
     where: { id: { in: uniqueMeadowIds } },
@@ -207,8 +211,19 @@ async function assertMeadowsAccessible(
   if (foundMeadows.length !== uniqueMeadowIds.length) {
     throw createHttpError(400, "Meadow not found");
   }
-  if (foundMeadows.some((meadow) => meadow.archivedAt && !previouslyLinkedMeadowIds.includes(meadow.id))) {
-    throw createHttpError(400, "Meadow is archived");
+  for (const meadow of foundMeadows) {
+    if (!meadow.archivedAt) continue;
+    if (!previouslyLinkedMeadowIds.includes(meadow.id)) {
+      throw createHttpError(400, "Meadow is archived");
+    }
+    const archiveDay = swissUtcDay(meadow.archivedAt);
+    const farFuture = addYears(archiveDay, 100);
+    const runsAfterArchive = schedules.some(
+      (schedule) => schedule.meadowId === meadow.id && expandOutdoorSchedule(schedule, archiveDay, farFuture).length > 0
+    );
+    if (runsAfterArchive) {
+      throw createHttpError(400, "Meadow is archived");
+    }
   }
 }
 
@@ -219,16 +234,20 @@ function toUtcDay(date: Date): Date {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
 }
 
-// Today's calendar day in Swiss local time as UTC midnight. new Date() + toUtcDay would still give yesterday
+// Calendar day of a timestamp in Swiss local time as UTC midnight. toUtcDay would give the previous day
 // between 00:00 and 01:00/02:00 local time.
-export function todayUtcDay(): Date {
+export function swissUtcDay(date: Date): Date {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Europe/Zurich",
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-  }).format(new Date());
+  }).format(date);
   return new Date(`${parts}T00:00:00.000Z`);
+}
+
+export function todayUtcDay(): Date {
+  return swissUtcDay(new Date());
 }
 
 // Per animal: its active membership, and the first day a herd change can take effect without overlapping its
@@ -767,7 +786,7 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
       }
 
       return rlsDb.rls(async (tx) => {
-        await assertMeadowsAccessible(tx, outdoorSchedules?.map((schedule) => schedule.meadowId) ?? []);
+        await assertMeadowsAccessible(tx, outdoorSchedules?.map(inputToSchedule) ?? []);
 
         const [herd] = await tx
           .insert(tables.herds)
@@ -843,7 +862,7 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
           });
           await assertMeadowsAccessible(
             tx,
-            outdoorSchedules.map((schedule) => schedule.meadowId),
+            outdoorSchedules.map(inputToSchedule),
             existingSchedules.map((schedule) => schedule.meadowId)
           );
         }
@@ -953,7 +972,7 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
       }
 
       const result = await rlsDb.rls(async (tx) => {
-        await assertMeadowsAccessible(tx, [scheduleInput.meadowId]);
+        await assertMeadowsAccessible(tx, [inputToSchedule(input)]);
 
         const [schedule] = await tx
           .insert(tables.outdoorSchedules)
@@ -988,37 +1007,39 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
         throw createHttpError(404, "Outdoor schedule not found");
       }
 
+      const updatedSchedule: OutdoorScheduleWithRecurrence = {
+        ...current,
+        meadowId: scheduleData.meadowId !== undefined ? scheduleData.meadowId : current.meadowId,
+        startDate: scheduleData.startDate ?? current.startDate,
+        endDate: scheduleData.endDate !== undefined ? scheduleData.endDate : current.endDate,
+        recurrence:
+          recurrence !== undefined
+            ? recurrence
+              ? {
+                  ...current.recurrence,
+                  id: current.recurrence?.id ?? "",
+                  farmId: current.farmId,
+                  outdoorScheduleId: current.id,
+                  ...recurrence,
+                  until: recurrence.until ?? null,
+                  byWeekday: recurrence.byWeekday ?? null,
+                  byMonthDay: recurrence.byMonthDay ?? null,
+                  count: recurrence.count ?? null,
+                }
+              : null
+            : current.recurrence,
+      };
+
       // Validate no overlap (exclude self)
       if (scheduleData.startDate !== undefined || scheduleData.endDate !== undefined || recurrence !== undefined) {
         const existing = await this.getOutdoorSchedulesForHerd(current.herdId);
-        const updatedSchedule: OutdoorScheduleWithRecurrence = {
-          ...current,
-          startDate: scheduleData.startDate ?? current.startDate,
-          endDate: scheduleData.endDate !== undefined ? scheduleData.endDate : current.endDate,
-          recurrence:
-            recurrence !== undefined
-              ? recurrence
-                ? {
-                    ...current.recurrence,
-                    id: current.recurrence?.id ?? "",
-                    farmId: current.farmId,
-                    outdoorScheduleId: current.id,
-                    ...recurrence,
-                    until: recurrence.until ?? null,
-                    byWeekday: recurrence.byWeekday ?? null,
-                    byMonthDay: recurrence.byMonthDay ?? null,
-                    count: recurrence.count ?? null,
-                  }
-                : null
-              : current.recurrence,
-        };
         if (hasScheduleOverlap([...existing.filter((s) => s.id !== id), updatedSchedule])) {
           throw createHttpError(409, "Schedule overlaps with existing schedule");
         }
       }
 
       await rlsDb.rls(async (tx) => {
-        await assertMeadowsAccessible(tx, [scheduleData.meadowId], [current.meadowId]);
+        await assertMeadowsAccessible(tx, [updatedSchedule], [current.meadowId]);
 
         // Update schedule fields if any provided
         if (Object.keys(scheduleData).length > 0) {
