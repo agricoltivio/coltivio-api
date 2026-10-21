@@ -800,6 +800,8 @@ export const plots = pgTable.withRLS(
     geometry: polygon().notNull(),
     size: integer().notNull(),
     additionalNotes: text(),
+    // Archived plots are hidden from the plot list but keep their history (crop rotations, field calendar)
+    archivedAt: timestamp({ withTimezone: true }),
   },
 
   (table) => [
@@ -1486,6 +1488,8 @@ export const meadows = pgTable.withRLS(
     geometry: polygon().notNull(),
     size: integer().notNull(),
     additionalNotes: text(),
+    // Archived meadows are hidden from the meadow list but keep their history in schedules and reports
+    archivedAt: timestamp({ withTimezone: true }),
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -1523,12 +1527,13 @@ export const outdoorSchedules = pgTable.withRLS(
   },
   (table) => [
     // Composite FK including farmId: FK checks bypass RLS, so this keeps a schedule from referencing another farm's
-    // meadow. No "set null" here: it would also null farmId, deleteMeadow unlinks schedules explicitly instead.
+    // meadow. Deleting a meadow deletes its schedules (archive the meadow to keep its history).
     foreignKey({
       columns: [table.meadowId, table.farmId],
       foreignColumns: [meadows.id, meadows.farmId],
       name: "outdoor_schedules_meadow_farm_fk",
-    }),
+    }).onDelete("cascade"),
+    index("outdoor_schedules_meadow_id_idx").on(table.meadowId),
     pgPolicy("only farm members", {
       as: "permissive",
       to: authenticatedRole,

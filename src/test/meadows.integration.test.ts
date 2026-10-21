@@ -98,7 +98,7 @@ describe("Meadows CRUD", () => {
     expect(reshaped.size).toBeGreaterThan(meadow.size * 3.95);
   });
 
-  it("deleting a meadow keeps the outdoor schedule but clears its meadowId", async () => {
+  it("deleting a meadow deletes its outdoor schedules", async () => {
     const { jwt } = await createUserWithFarm();
     const meadow = await createMeadow(jwt, { name: "M", geometry: square(8.0, 47.0) });
     const herd = await createHerd(jwt);
@@ -120,8 +120,47 @@ describe("Meadows CRUD", () => {
 
     const db = getAdminDb();
     const dbSchedule = await db.query.outdoorSchedules.findFirst({ where: { id: schedule.id } });
-    expect(dbSchedule).toBeDefined();
-    expect(dbSchedule!.meadowId).toBeNull();
+    expect(dbSchedule).toBeUndefined();
+    const dbRecurrences = await db.query.outdoorScheduleRecurrences.findMany({
+      where: { outdoorScheduleId: schedule.id },
+    });
+    expect(dbRecurrences).toHaveLength(0);
+  });
+
+  it("archiving a meadow hides it from the list but keeps its schedules", async () => {
+    const { jwt } = await createUserWithFarm();
+    const meadow = await createMeadow(jwt, { name: "M", geometry: square(8.0, 47.0) });
+    await createMeadow(jwt, { name: "N", geometry: square(8.1, 47.0) });
+    const herd = await createHerd(jwt);
+    const scheduleRes = await request(
+      "POST",
+      `/v1/animals/herds/byId/${herd.id}/outdoorSchedules`,
+      { startDate: "2025-05-01", endDate: "2025-05-31", type: "pasture", meadowId: meadow.id },
+      jwt
+    );
+    expect(scheduleRes.status).toBe(200);
+    const schedule = ((await scheduleRes.json()) as { data: { id: string } }).data;
+
+    const archiveRes = await request("PATCH", `/v1/meadows/byId/${meadow.id}`, { archived: true }, jwt);
+    expect(archiveRes.status).toBe(200);
+    const archived = ((await archiveRes.json()) as { data: { archivedAt: string | null } }).data;
+    expect(archived.archivedAt).not.toBeNull();
+
+    const listRes = await request("GET", "/v1/meadows", undefined, jwt);
+    const list = ((await listRes.json()) as { data: { result: MeadowResponse[] } }).data.result;
+    expect(list.map((listedMeadow) => listedMeadow.name)).toEqual(["N"]);
+
+    const listAllRes = await request("GET", "/v1/meadows?includeArchived=true", undefined, jwt);
+    const listAll = ((await listAllRes.json()) as { data: { result: MeadowResponse[] } }).data.result;
+    expect(listAll.map((listedMeadow) => listedMeadow.name)).toEqual(["M", "N"]);
+
+    const db = getAdminDb();
+    const dbSchedule = await db.query.outdoorSchedules.findFirst({ where: { id: schedule.id } });
+    expect(dbSchedule!.meadowId).toBe(meadow.id);
+
+    const unarchiveRes = await request("PATCH", `/v1/meadows/byId/${meadow.id}`, { archived: false }, jwt);
+    const unarchived = ((await unarchiveRes.json()) as { data: { archivedAt: string | null } }).data;
+    expect(unarchived.archivedAt).toBeNull();
   });
 });
 

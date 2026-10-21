@@ -1,4 +1,4 @@
-import { eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import ExcelJS from "exceljs";
 import createHttpError from "http-errors";
 import { TFunction } from "i18next";
@@ -211,6 +211,18 @@ function toUtcDay(date: Date): Date {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
 }
 
+// Today's calendar day in Swiss local time as UTC midnight. new Date() + toUtcDay would still give yesterday
+// between 00:00 and 01:00/02:00 local time.
+function todayUtcDay(): Date {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Zurich",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+  return new Date(`${parts}T00:00:00.000Z`);
+}
+
 // Moves animals into targetHerdId (or out of any herd when null) as of effectiveDate.
 // Membership ranges are inclusive on both ends, so the previous membership ends the day before effectiveDate.
 // Animals whose active membership already is in the target herd are left untouched.
@@ -223,25 +235,54 @@ async function changeHerdMemberships(
   requestedEffectiveDate: Date,
   mode: "strict" | "clamp"
 ) {
-  for (const animalId of animalIds) {
-    const activeMembership = await tx.query.herdMemberships.findFirst({
-      where: { animalId, toDate: { isNull: true } },
-    });
-    if ((activeMembership?.herdId ?? null) === targetHerdId) continue;
+  // Duplicates would otherwise insert the same membership twice
+  const uniqueAnimalIds = [...new Set(animalIds)];
+  if (uniqueAnimalIds.length === 0) return;
 
-    const latestClosedMembership = activeMembership
-      ? undefined
-      : await tx.query.herdMemberships.findFirst({
-          where: { animalId, toDate: { isNotNull: true } },
-          orderBy: { toDate: "desc" },
-        });
+  const activeMemberships = await tx.query.herdMemberships.findMany({
+    where: { animalId: { in: uniqueAnimalIds }, toDate: { isNull: true } },
+  });
+  const activeMembershipByAnimalId = new Map(activeMemberships.map((membership) => [membership.animalId, membership]));
+
+  // Latest closed membership per animal, only needed for animals without an active one
+  const animalIdsWithoutActive = uniqueAnimalIds.filter((animalId) => !activeMembershipByAnimalId.has(animalId));
+  const latestClosedMemberships =
+    animalIdsWithoutActive.length > 0
+      ? await tx
+          .selectDistinctOn([tables.herdMemberships.animalId], {
+            animalId: tables.herdMemberships.animalId,
+            toDate: tables.herdMemberships.toDate,
+          })
+          .from(tables.herdMemberships)
+          .where(
+            and(
+              inArray(tables.herdMemberships.animalId, animalIdsWithoutActive),
+              isNotNull(tables.herdMemberships.toDate)
+            )
+          )
+          .orderBy(tables.herdMemberships.animalId, desc(tables.herdMemberships.toDate))
+      : [];
+  const latestClosedToDateByAnimalId = new Map(
+    latestClosedMemberships.map((membership) => [membership.animalId, membership.toDate])
+  );
+
+  const membershipIdsToDelete: string[] = [];
+  // Active memberships to close, grouped by their new toDate so each date needs one update
+  const membershipIdsToCloseByToDate = new Map<number, string[]>();
+  const membershipsToInsert: { animalId: string; herdId: string; fromDate: Date }[] = [];
+  const changedAnimalIds: string[] = [];
+
+  for (const animalId of uniqueAnimalIds) {
+    const activeMembership = activeMembershipByAnimalId.get(animalId);
+    if ((activeMembership?.herdId ?? null) === targetHerdId) continue;
 
     // First day a new membership can start without overlapping this animal's history
     let earliestAllowedDate: Date | null = null;
+    const latestClosedToDate = latestClosedToDateByAnimalId.get(animalId);
     if (activeMembership) {
       earliestAllowedDate = activeMembership.fromDate;
-    } else if (latestClosedMembership?.toDate) {
-      earliestAllowedDate = new Date(latestClosedMembership.toDate.getTime() + DAY_MS);
+    } else if (latestClosedToDate) {
+      earliestAllowedDate = new Date(latestClosedToDate.getTime() + DAY_MS);
     }
 
     let effectiveDate = toUtcDay(requestedEffectiveDate);
@@ -255,24 +296,41 @@ async function changeHerdMemberships(
     if (activeMembership) {
       if (activeMembership.fromDate.getTime() === effectiveDate.getTime()) {
         // Replaced on the day it started, so it never applied
-        await tx.delete(tables.herdMemberships).where(eq(tables.herdMemberships.id, activeMembership.id));
+        membershipIdsToDelete.push(activeMembership.id);
       } else {
-        await tx
-          .update(tables.herdMemberships)
-          .set({ toDate: new Date(effectiveDate.getTime() - DAY_MS) })
-          .where(eq(tables.herdMemberships.id, activeMembership.id));
+        const closingToDate = effectiveDate.getTime() - DAY_MS;
+        const idsForToDate = membershipIdsToCloseByToDate.get(closingToDate) ?? [];
+        idsForToDate.push(activeMembership.id);
+        membershipIdsToCloseByToDate.set(closingToDate, idsForToDate);
       }
     }
 
     if (targetHerdId) {
-      await tx.insert(tables.herdMemberships).values({
-        ...tables.farmIdColumnValue,
+      membershipsToInsert.push({
         animalId,
         herdId: targetHerdId,
         fromDate: effectiveDate,
       });
     }
-    await tx.update(tables.animals).set({ herdId: targetHerdId }).where(eq(tables.animals.id, animalId));
+    changedAnimalIds.push(animalId);
+  }
+
+  if (membershipIdsToDelete.length > 0) {
+    await tx.delete(tables.herdMemberships).where(inArray(tables.herdMemberships.id, membershipIdsToDelete));
+  }
+  for (const [closingToDate, membershipIds] of membershipIdsToCloseByToDate) {
+    await tx
+      .update(tables.herdMemberships)
+      .set({ toDate: new Date(closingToDate) })
+      .where(inArray(tables.herdMemberships.id, membershipIds));
+  }
+  if (membershipsToInsert.length > 0) {
+    await tx
+      .insert(tables.herdMemberships)
+      .values(membershipsToInsert.map((membership) => ({ ...tables.farmIdColumnValue, ...membership })));
+  }
+  if (changedAnimalIds.length > 0) {
+    await tx.update(tables.animals).set({ herdId: targetHerdId }).where(inArray(tables.animals.id, changedAnimalIds));
   }
 }
 
@@ -394,7 +452,13 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
 
         // Create herd membership if animal is assigned to a herd
         if (animalInput.herdId) {
-          await changeHerdMemberships(tx, [result.id], animalInput.herdId, herdEffectiveDate ?? new Date(), "strict");
+          await changeHerdMemberships(
+            tx,
+            [result.id],
+            animalInput.herdId,
+            herdEffectiveDate ?? todayUtcDay(),
+            "strict"
+          );
         }
 
         return result;
@@ -527,7 +591,7 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
               tx,
               [id],
               herdId,
-              herdEffectiveDate ?? new Date(),
+              herdEffectiveDate ?? todayUtcDay(),
               herdEffectiveDate ? "strict" : "clamp"
             );
           }
@@ -562,7 +626,7 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
             tx,
             [id],
             herdId,
-            herdEffectiveDate ?? new Date(),
+            herdEffectiveDate ?? todayUtcDay(),
             herdEffectiveDate ? "strict" : "clamp"
           );
         }
@@ -678,7 +742,7 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
             // Without an explicit date: if schedules are provided and the earliest startDate is in the past, backdate
             // membership to that date so the outdoor journal reflects the full schedule history. Clamped per animal so
             // it never overlaps an earlier membership in another herd.
-            const today = new Date();
+            const today = todayUtcDay();
             const earliestScheduleStart =
               outdoorSchedules && outdoorSchedules.length > 0
                 ? outdoorSchedules.reduce(
@@ -744,7 +808,7 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
         // If animalIds provided, it is the new full member list: only animals that were added or removed change
         // memberships, unchanged animals keep their history
         if (animalIds !== undefined) {
-          const membershipDate = effectiveDate ?? new Date();
+          const membershipDate = effectiveDate ?? todayUtcDay();
           const membershipMode = effectiveDate ? "strict" : "clamp";
           const activeMemberships = await tx.query.herdMemberships.findMany({
             where: { herdId: id, toDate: { isNull: true } },

@@ -1,7 +1,7 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "4d017c6b-bc02-482c-a5b6-9fe2efffcecc",
+  "id": "def48319-78a0-478f-b77a-4ced0b3ba2ff",
   "prevIds": [
     "d3258daa-8136-4b3a-8409-aab96f57ca3f"
   ],
@@ -5057,6 +5057,19 @@
     {
       "type": "timestamp with time zone",
       "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "archived_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "meadows"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
       "notNull": true,
       "dimensions": 0,
       "default": "now()",
@@ -9079,6 +9092,27 @@
       "nameExplicit": true,
       "columns": [
         {
+          "value": "meadow_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "outdoor_schedules_meadow_id_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "outdoor_shedules"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
           "value": "geometry",
           "isExpression": false,
           "asc": true,
@@ -10935,7 +10969,7 @@
         "farm_id"
       ],
       "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
+      "onDelete": "CASCADE",
       "name": "outdoor_schedules_meadow_farm_fk",
       "entityType": "fks",
       "schema": "public",

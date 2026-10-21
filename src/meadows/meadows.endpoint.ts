@@ -15,6 +15,7 @@ const meadowSchema = z.object({
   geometry: multiPolygonSchema,
   size: z.number(),
   additionalNotes: z.string().nullable(),
+  archivedAt: ez.dateOut().nullable(),
   createdAt: ez.dateOut(),
 });
 
@@ -24,17 +25,24 @@ const createMeadowSchema = z.object({
   additionalNotes: z.string().optional().nullable(),
 });
 
-const updateMeadowSchema = createMeadowSchema.partial().extend({ meadowId: z.string() });
+const updateMeadowSchema = createMeadowSchema
+  .partial()
+  .extend({ meadowId: z.string(), archived: z.boolean().optional() });
 
 export const getMeadowsEndpoint = meadowsRead.build({
   method: "get",
-  input: z.object({}),
+  input: z.object({
+    includeArchived: z
+      .enum(["true", "false"])
+      .optional()
+      .transform((value) => value === "true"),
+  }),
   output: z.object({
     result: z.array(meadowSchema),
     count: z.number(),
   }),
-  handler: async ({ ctx: { meadows } }) => {
-    const result = await meadows.getMeadows();
+  handler: async ({ input, ctx: { meadows } }) => {
+    const result = await meadows.getMeadows(input.includeArchived);
     return { result, count: result.length };
   },
 });

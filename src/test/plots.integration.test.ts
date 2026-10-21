@@ -67,6 +67,35 @@ describe("Plots CRUD", () => {
     expect(dbPlot!.additionalNotes).toBe("Wet corner");
   });
 
+  it("archives a plot: hidden from the list, not clipped by new overlapping plots, and can be unarchived", async () => {
+    const { jwt } = await createUserWithFarm();
+    const archivedPlot = await createPlot(jwt, { name: "Old", size: 5000 });
+
+    const archiveRes = await request("PATCH", `/v1/plots/byId/${archivedPlot.id}`, { archived: true }, jwt);
+    expect(archiveRes.status).toBe(200);
+    const archived = ((await archiveRes.json()) as { data: { archivedAt: string | null } }).data;
+    expect(archived.archivedAt).not.toBeNull();
+
+    // Same geometry as the archived plot: would clip it to nothing if it weren't archived
+    await createPlot(jwt, { name: "New", size: 5000 });
+
+    const listRes = await request("GET", "/v1/plots", undefined, jwt);
+    const list = ((await listRes.json()) as { data: { result: { name: string }[] } }).data.result;
+    expect(list.map((plot) => plot.name)).toEqual(["New"]);
+
+    const listAllRes = await request("GET", "/v1/plots?includeArchived=true", undefined, jwt);
+    const listAll = ((await listAllRes.json()) as { data: { result: { name: string }[] } }).data.result;
+    expect(listAll.map((plot) => plot.name)).toEqual(["New", "Old"]);
+
+    const db = getAdminDb();
+    const dbArchivedPlot = await db.query.plots.findFirst({ where: { id: archivedPlot.id } });
+    expect(dbArchivedPlot!.size).toBe(5000);
+
+    const unarchiveRes = await request("PATCH", `/v1/plots/byId/${archivedPlot.id}`, { archived: false }, jwt);
+    const unarchived = ((await unarchiveRes.json()) as { data: { archivedAt: string | null } }).data;
+    expect(unarchived.archivedAt).toBeNull();
+  });
+
   it("deletes a plot", async () => {
     const { jwt } = await createUserWithFarm();
     const plot = await createPlot(jwt);

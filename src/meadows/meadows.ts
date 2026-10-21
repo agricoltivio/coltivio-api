@@ -1,7 +1,7 @@
 import { eq, sql } from "drizzle-orm";
 import createHttpError from "http-errors";
 import { RlsDb } from "../db/db";
-import { farmIdColumnValue, meadows, outdoorSchedules } from "../db/schema";
+import { farmIdColumnValue, meadows } from "../db/schema";
 import { MultiPolygon } from "../geo/geojson";
 import { buildMeadowJournal, MeadowJournalEntry } from "../animals/outdoor-journal";
 
@@ -15,7 +15,7 @@ export type MeadowCreateInput = {
   additionalNotes?: string | null;
 };
 
-export type MeadowUpdateInput = Partial<MeadowCreateInput>;
+export type MeadowUpdateInput = Partial<MeadowCreateInput> & { archived?: boolean };
 
 // Geometry and size (square meters via LV95) for a GeoJSON input. Meadows built from plots are merged by the client.
 function geometryAndSize(geometry: MultiPolygon) {
@@ -28,9 +28,10 @@ function geometryAndSize(geometry: MultiPolygon) {
 
 export function meadowsApi(rlsDb: RlsDb) {
   return {
-    async getMeadows(): Promise<Meadow[]> {
+    async getMeadows(includeArchived: boolean = false): Promise<Meadow[]> {
       return rlsDb.rls(async (tx) => {
         return tx.query.meadows.findMany({
+          where: includeArchived ? undefined : { archivedAt: { isNull: true } },
           orderBy: { name: "asc" },
           extras: {
             geometry: (t) => sql<MultiPolygon>`ST_AsGeoJSON(${t.geometry})::json`.as("geometry"),
@@ -73,12 +74,18 @@ export function meadowsApi(rlsDb: RlsDb) {
         if (!existing) throw createHttpError(404, "Meadow not found");
 
         // Only run the update if there are fields to set (avoids Drizzle "No values to set" error)
-        if (input.name !== undefined || input.additionalNotes !== undefined || input.geometry) {
+        if (
+          input.name !== undefined ||
+          input.additionalNotes !== undefined ||
+          input.geometry ||
+          input.archived !== undefined
+        ) {
           await tx
             .update(meadows)
             .set({
               name: input.name,
               additionalNotes: input.additionalNotes,
+              ...(input.archived !== undefined ? { archivedAt: input.archived ? new Date() : null } : {}),
               ...(input.geometry ? geometryAndSize(input.geometry) : {}),
             })
             .where(eq(meadows.id, id));
@@ -89,11 +96,9 @@ export function meadowsApi(rlsDb: RlsDb) {
       return updated!;
     },
 
+    // Cascades to the outdoor schedules on this meadow (via FK). Archive the meadow instead to keep its history.
     async deleteMeadow(id: string): Promise<void> {
-      // Outdoor schedules referencing this meadow keep existing without a meadow. Done here because the composite FK
-      // (meadowId, farmId) can't use "on delete set null" without also nulling farmId.
       return rlsDb.rls(async (tx) => {
-        await tx.update(outdoorSchedules).set({ meadowId: null }).where(eq(outdoorSchedules.meadowId, id));
         await tx.delete(meadows).where(eq(meadows.id, id));
       });
     },
