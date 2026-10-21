@@ -11,7 +11,7 @@ import type {
   OutdoorScheduleWithRecurrence,
 } from "./animals";
 import { hasScheduleOverlap } from "./animals";
-import { buildOutdoorJournal, expandOutdoorSchedule } from "./outdoor-journal";
+import { buildMeadowJournal, buildOutdoorJournal, expandOutdoorSchedule } from "./outdoor-journal";
 
 // --- Helpers ---
 
@@ -60,6 +60,7 @@ function makeSchedule(overrides: {
     id: nextId(),
     farmId: "farm-1",
     herdId: "herd-1",
+    meadowId: null,
     startDate: overrides.startDate,
     endDate: overrides.endDate ?? null,
     type: "pasture",
@@ -965,5 +966,127 @@ describe("hasScheduleOverlap", () => {
         sched("2025-07-01", "2025-09-30"),
       ])
     ).toBe(true);
+  });
+});
+
+// --- buildMeadowJournal ---
+
+describe("buildMeadowJournal", () => {
+  const meadow = { id: "meadow-1", name: "Weide Nord", size: 12000 };
+
+  function cow(dateOfDeath?: Date) {
+    return makeAnimal({ type: "cow", sex: "female", dateOfBirth: d("2018-01-01"), dateOfDeath });
+  }
+
+  test("ignores schedules without a meadow", () => {
+    const herd = makeHerd(
+      [makeMembership(cow(), d("2025-01-01"))],
+      [makeSchedule({ startDate: d("2025-05-01"), endDate: d("2025-05-31") })]
+    );
+    const entries = buildMeadowJournal(
+      [{ ...herd, outdoorSchedules: herd.outdoorSchedules.map((schedule) => ({ ...schedule, meadow: null })) }],
+      d("2025-01-01"),
+      d("2025-12-31")
+    );
+    expect(entries).toEqual([]);
+  });
+
+  test("splits occurrence into segments when animal count changes", () => {
+    const herd = makeHerd(
+      [
+        makeMembership(cow(), d("2025-01-01")),
+        makeMembership(cow(), d("2025-05-11")),
+        makeMembership(cow(d("2025-05-20")), d("2025-01-01")),
+      ],
+      [makeSchedule({ startDate: d("2025-05-01"), endDate: d("2025-05-31") })]
+    );
+    const entries = buildMeadowJournal(
+      [{ ...herd, outdoorSchedules: herd.outdoorSchedules.map((schedule) => ({ ...schedule, meadow })) }],
+      d("2025-01-01"),
+      d("2025-12-31")
+    );
+    expect(entries.map(({ startDate, endDate, animalCount }) => ({ startDate, endDate, animalCount }))).toEqual([
+      { startDate: d("2025-05-01"), endDate: d("2025-05-10"), animalCount: 2 },
+      { startDate: d("2025-05-11"), endDate: d("2025-05-20"), animalCount: 3 },
+      { startDate: d("2025-05-21"), endDate: d("2025-05-31"), animalCount: 2 },
+    ]);
+    expect(entries[0]).toMatchObject({
+      meadowId: "meadow-1",
+      meadowName: "Weide Nord",
+      meadowSize: 12000,
+      herdId: "herd-1",
+      herdName: "Test Herd",
+      type: "pasture",
+    });
+  });
+
+  test("counts animals per type and splits when the mix changes even if the total stays the same", () => {
+    const sheep = makeAnimal({ type: "sheep", sex: "female", dateOfBirth: d("2019-01-01") });
+    const herd = makeHerd(
+      [
+        makeMembership(cow(), d("2025-01-01")),
+        makeMembership(cow(), d("2025-01-01"), d("2025-05-15")),
+        makeMembership(sheep, d("2025-05-16")),
+      ],
+      [makeSchedule({ startDate: d("2025-05-01"), endDate: d("2025-05-31") })]
+    );
+    const entries = buildMeadowJournal(
+      [{ ...herd, outdoorSchedules: herd.outdoorSchedules.map((schedule) => ({ ...schedule, meadow })) }],
+      d("2025-01-01"),
+      d("2025-12-31")
+    );
+    expect(
+      entries.map(({ startDate, endDate, animalCount, animalCountsByType }) => ({
+        startDate,
+        endDate,
+        animalCount,
+        animalCountsByType,
+      }))
+    ).toEqual([
+      { startDate: d("2025-05-01"), endDate: d("2025-05-15"), animalCount: 2, animalCountsByType: { cow: 2 } },
+      {
+        startDate: d("2025-05-16"),
+        endDate: d("2025-05-31"),
+        animalCount: 2,
+        animalCountsByType: { cow: 1, sheep: 1 },
+      },
+    ]);
+  });
+
+  test("swapping two animals of the same type on one day does not split the stay", () => {
+    const herd = makeHerd(
+      [makeMembership(cow(), d("2025-01-01"), d("2025-05-15")), makeMembership(cow(), d("2025-05-16"))],
+      [makeSchedule({ startDate: d("2025-05-01"), endDate: d("2025-05-31") })]
+    );
+    const entries = buildMeadowJournal(
+      [{ ...herd, outdoorSchedules: herd.outdoorSchedules.map((schedule) => ({ ...schedule, meadow })) }],
+      d("2025-01-01"),
+      d("2025-12-31")
+    );
+    expect(
+      entries.map(({ startDate, endDate, animalCountsByType }) => ({ startDate, endDate, animalCountsByType }))
+    ).toEqual([{ startDate: d("2025-05-01"), endDate: d("2025-05-31"), animalCountsByType: { cow: 1 } }]);
+  });
+
+  test("expands recurring meadow schedules and clamps to query window", () => {
+    const herd = makeHerd(
+      [makeMembership(cow(), d("2020-01-01"))],
+      [
+        makeSchedule({
+          startDate: d("2024-06-01"),
+          endDate: d("2024-06-30"),
+          recurrence: makeRecurrence({ frequency: "yearly" }),
+        }),
+      ]
+    );
+    const entries = buildMeadowJournal(
+      [{ ...herd, outdoorSchedules: herd.outdoorSchedules.map((schedule) => ({ ...schedule, meadow })) }],
+      d("2025-06-15"),
+      d("2026-12-31")
+    );
+    expect(entries.map(({ startDate, endDate }) => ({ startDate, endDate }))).toEqual([
+      { startDate: d("2025-06-15"), endDate: d("2025-06-30") },
+      { startDate: d("2026-06-01"), endDate: d("2026-06-30") },
+    ]);
   });
 });

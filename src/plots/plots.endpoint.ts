@@ -18,6 +18,7 @@ export const plotSchema = z.object({
   geometry: multiPolygonSchema,
   size: z.number(),
   additionalNotes: z.string().nullable(),
+  archivedAt: ez.dateOut().nullable(),
   currentCropRotation: cropRotationSchema.nullable(),
 });
 
@@ -41,6 +42,7 @@ const updatePlotSchema = z.object({
   geometry: multiPolygonSchema.optional(),
   size: z.number().optional(),
   additionalNotes: z.string().optional(),
+  archived: z.boolean().optional(),
 });
 
 export const getPlotByIdEndpoint = plotsRead.build({
@@ -58,13 +60,18 @@ export const getPlotByIdEndpoint = plotsRead.build({
 
 export const getFarmPlotsEndpoint = plotsRead.build({
   method: "get",
-  input: z.object({}),
+  input: z.object({
+    includeArchived: z
+      .enum(["true", "false"])
+      .optional()
+      .transform((value) => value === "true"),
+  }),
   output: z.object({
     result: z.array(plotSchema),
     count: z.number(),
   }),
-  handler: async ({ ctx: { plots, farmId } }) => {
-    const result = await plots.getPlotsForFarm(farmId);
+  handler: async ({ input, ctx: { plots, farmId } }) => {
+    const result = await plots.getPlotsForFarm(farmId, input.includeArchived);
     return {
       result,
       count: result.length,

@@ -329,6 +329,19 @@
       "9": "Oktober",
       "10": "November",
       "11": "Dezember"
+    },
+    "meadows_sheet": "Weiden",
+    "meadow": "Weide",
+    "meadow_size": "Fläche (a)",
+    "herd": "Herde",
+    "type": "Typ",
+    "from": "Von",
+    "to": "Bis",
+    "days": "Tage",
+    "animal_count": "Anzahl Tiere",
+    "types": {
+      "pasture": "Weide",
+      "exercise_yard": "Laufhof"
     }
   },
   "application_units": {

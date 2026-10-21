@@ -329,6 +329,19 @@
       "9": "Octobre",
       "10": "Novembre",
       "11": "Décembre"
+    },
+    "meadows_sheet": "Pâturages",
+    "meadow": "Pâturage",
+    "meadow_size": "Surface (a)",
+    "herd": "Troupeau",
+    "type": "Type",
+    "from": "Du",
+    "to": "Au",
+    "days": "Jours",
+    "animal_count": "Nombre d'animaux",
+    "types": {
+      "pasture": "Pâturage",
+      "exercise_yard": "Paddock"
     }
   },
   "application_units": {

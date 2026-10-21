@@ -86,7 +86,8 @@ export const supabaseAuthMiddleware = new Middleware({
       token,
       user,
       farmContext,
-      ...sessionApi(rlsDb(token, farmContext.farmId), request.t, request.headers["accept-language"] ?? "de"),
+      // Pass the resolved locale, the raw header (e.g. "de-CH,de;q=0.9" or "*") is not a valid Intl locale
+      ...sessionApi(rlsDb(token, farmContext.farmId), request.t, requestLocale ?? user.locale),
     };
   },
 });

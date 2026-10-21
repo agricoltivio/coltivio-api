@@ -32,10 +32,10 @@ export type SplitPlotInput = {
   size: number;
 };
 
-export type PlotCreateInput = Omit<typeof plots.$inferInsert, "id" | "farmId" | "geometry"> & {
+export type PlotCreateInput = Omit<typeof plots.$inferInsert, "id" | "farmId" | "geometry" | "archivedAt"> & {
   geometry: MultiPolygon;
 };
-export type PlotUpdateInput = Partial<PlotCreateInput>;
+export type PlotUpdateInput = Partial<Omit<PlotCreateInput, "archivedAt">> & { archived?: boolean };
 export type Plot = Omit<typeof plots.$inferSelect, "geometry"> & {
   geometry: MultiPolygon;
   currentCropRotation: CropRotation | null;
@@ -102,7 +102,9 @@ export function plotsApi(rlsDb: RlsDb, t: TFunction) {
               geometry: sql<MultiPolygon>`ST_ForcePolygonCCW(ST_Multi(ST_Difference(${plots.geometry}, ${plot.geom})))`,
               size: sql<number>`ST_Area(ST_Transform(ST_Difference(${plots.geometry}, ${plot.geom}),2056))`,
             })
-            .where(and(ne(plots.id, plot.id), sql`ST_Intersects(${plots.geometry}, ${plot.geom})`));
+            .where(
+              and(ne(plots.id, plot.id), isNull(plots.archivedAt), sql`ST_Intersects(${plots.geometry}, ${plot.geom})`)
+            );
           createdPlotIds.push(plot.id);
         }
         return createdPlotIds;
@@ -166,7 +168,8 @@ export function plotsApi(rlsDb: RlsDb, t: TFunction) {
               COALESCE((
                 SELECT json_agg(${plots.id})
                 FROM ${plots}
-                WHERE ${overlapsSignificantly(sql`${plots.geometry}`, sql`import_geometry.geom`)}
+                WHERE ${plots.archivedAt} IS NULL
+                  AND ${overlapsSignificantly(sql`${plots.geometry}`, sql`import_geometry.geom`)}
               ), '[]'::json) AS overlapping_plot_ids
             FROM import_geometry
           `);
@@ -274,7 +277,8 @@ export function plotsApi(rlsDb: RlsDb, t: TFunction) {
             FROM json_array_elements(${JSON.stringify(rows.map((row) => row.geometry))}::json)
               WITH ORDINALITY AS import_rows(geometry, row_number)
             JOIN ${plots}
-              ON ${overlapsSignificantly(sql`${plots.geometry}`, sql`ST_GeomFromGeoJSON(import_rows.geometry::text)`)}
+              ON ${plots.archivedAt} IS NULL
+              AND ${overlapsSignificantly(sql`${plots.geometry}`, sql`ST_GeomFromGeoJSON(import_rows.geometry::text)`)}
             ORDER BY import_rows.row_number
           `);
           if (overlaps.length > 0) {
@@ -336,11 +340,11 @@ export function plotsApi(rlsDb: RlsDb, t: TFunction) {
       });
     },
 
-    async getPlotsForFarm(farmId: string): Promise<Plot[]> {
+    async getPlotsForFarm(farmId: string, includeArchived: boolean = false): Promise<Plot[]> {
       return rlsDb.rls(async (tx) => {
         const today = new Date();
         const plots = await tx.query.plots.findMany({
-          where: { farmId },
+          where: includeArchived ? { farmId } : { farmId, archivedAt: { isNull: true } },
           orderBy: (plots, { asc }) => [asc(plots.name), asc(plots.localId), asc(plots.usage)],
           with: {
             cropRotations: {
@@ -378,11 +382,13 @@ export function plotsApi(rlsDb: RlsDb, t: TFunction) {
     },
 
     async updatePlot(id: string, data: PlotUpdateInput): Promise<Plot> {
+      const { archived, ...plotData } = data;
       const result = await rlsDb.rls(async (tx) => {
         const [plot] = await tx
           .update(plots)
           .set({
-            ...data,
+            ...plotData,
+            ...(archived !== undefined ? { archivedAt: archived ? new Date() : null } : {}),
             geometry: data.geometry
               ? sql<MultiPolygon>`ST_GeomFromGeoJSON(${JSON.stringify(data.geometry)})`
               : undefined,
@@ -397,7 +403,13 @@ export function plotsApi(rlsDb: RlsDb, t: TFunction) {
               geometry: sql<MultiPolygon>`ST_ForcePolygonCCW(ST_Multi(ST_Difference(${plots.geometry}, ${plot.geometry})))`,
               size: sql<number>`ST_Area(ST_Transform(ST_Difference(${plots.geometry}, ${plot.geometry}),2056))`,
             })
-            .where(and(ne(plots.id, plot.id), sql`ST_Intersects(${plots.geometry}, ${plot.geometry})`));
+            .where(
+              and(
+                ne(plots.id, plot.id),
+                isNull(plots.archivedAt),
+                sql`ST_Intersects(${plots.geometry}, ${plot.geometry})`
+              )
+            );
         }
         return plot;
       });
