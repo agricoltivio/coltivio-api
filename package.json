@@ -23,6 +23,7 @@
     "db:seed": "ts-node ./src/db/seed.ts",
     "db:push": "npx drizzle-kit push",
     "db:generate": "yarn drizzle-kit generate",
+    "release:app": "ts-node ./scripts/add-app-release.ts",
     "db:migrate": "yarn drizzle-kit migrate",
     "db:backup": "supabase db dump --data-only --exclude=public.federal_farm_plots -f backup_data_$(date +%Y%m%d).sql",
     "db:backup:prod": "bash scripts/backup-prod-db.sh",

@@ -294,6 +294,7 @@ import { downloadTreatmentReport } from "./reports/treatment-reports.endpoint";
 import { downloadOutdoorJournalReport } from "./reports/outdoor-journal-reports.endpoint";
 import { downloadAnimalsReport } from "./reports/animals-reports.endpoint";
 import { healthEndpoint } from "./chore/chore.endpoint";
+import { getAppVersionEndpoint } from "./app-version/app-version.endpoint";
 import { verifyCaptchaEndpoint } from "./captcha/turnstile.endpoint";
 import {
   listPublishedWikiEntriesEndpoint,
@@ -404,6 +405,7 @@ export const routing: Routing = {
     captcha: {
       verify: verifyCaptchaEndpoint,
     },
+    "app-version": { get: getAppVersionEndpoint },
     farms: {
       "": { get: listMyFarmsEndpoint },
     },

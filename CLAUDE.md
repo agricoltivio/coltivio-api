@@ -28,6 +28,9 @@ yarn db:migrate     # Apply pending Drizzle migrations
 yarn db:generate    # Generate migration from schema changes
 yarn db:push        # Push schema directly (dev only)
 yarn db:reset       # Full local reset (Supabase + migrations + seed)
+
+# App release: migration that inserts the new store version (after rollout: yarn db:migrate on prod)
+yarn release:app 1.0.8
 ```
 
 ## Architecture

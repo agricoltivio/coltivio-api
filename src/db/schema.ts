@@ -350,6 +350,25 @@ export const handoffTokens = pgTable.withRLS("handoff_tokens", {
   createdAt: timestamp({ mode: "date" }).defaultNow().notNull(),
 });
 
+// Store releases per platform, read by the public /v1/app-version endpoint.
+// No policy on purpose: only the service role touches it, rows come in via
+// migrations generated with `yarn release:app <version>`.
+export const appReleases = pgTable.withRLS(
+  "app_releases",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    platform: text().$type<"ios" | "android">().notNull(),
+    version: text().notNull(),
+    // Oldest version still allowed to run, null = no floor. The app does not
+    // enforce it yet, it is here so a forced-update gate needs no schema change.
+    minSupportedVersion: text(),
+    // Rows with a future date are ignored, so a row can precede a scheduled rollout.
+    releasedAt: timestamp({ mode: "date" }).defaultNow().notNull(),
+    createdAt: timestamp({ mode: "date" }).defaultNow().notNull(),
+  },
+  (table) => [unique("app_releases_platform_version_unique").on(table.platform, table.version)]
+);
+
 export const emailVerificationTokens = pgTable.withRLS("email_verification_tokens", {
   id: uuid().primaryKey().defaultRandom(),
   userId: uuid()
@@ -2596,6 +2615,7 @@ const tables = {
   donations,
   handoffTokens,
   pushTokens,
+  appReleases,
   taskDueNotifications,
   userSettings,
   emailVerificationTokens,
