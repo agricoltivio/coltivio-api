@@ -8,6 +8,10 @@ const plotSelectColumns = {
   geometry: sql<MultiPolygon>`ST_AsGeoJSON(${federalFarmPlots.geometry})::json`,
 };
 
+// Backstop for the extent limits in layer.endpoint.ts: a dense 0.1 degree box
+// holds under 10k plots, and every row carries its full polygon as GeoJSON.
+export const MAX_PLOT_ROWS = 10000;
+
 export function federalPlotsLayerApi(authDb: RlsDb) {
   return {
     async getPlotsForFederalFarmId(federalFarmId: string) {
@@ -44,7 +48,8 @@ export function federalPlotsLayerApi(authDb: RlsDb) {
           .from(federalFarmPlots)
           .where(
             sql`ST_Intersects(${federalFarmPlots.geometry}, ${sql`(select ${bufferedBbox.bbox} from ${bufferedBbox})`})`
-          );
+          )
+          .limit(MAX_PLOT_ROWS);
       });
     },
     async getPlotsWithinRadiusOfPoint(longitude: number, latitude: number, radiusInKm: number) {
@@ -52,21 +57,33 @@ export function federalPlotsLayerApi(authDb: RlsDb) {
         // we nee to convert the meters in radius. this is a very rough approximation but good enough for us
         const radiusInDegrees = (radiusInKm * 1000) / 111000.0;
 
-        return tx.select(plotSelectColumns).from(federalFarmPlots).where(sql`ST_DWithin(
+        return tx
+          .select(plotSelectColumns)
+          .from(federalFarmPlots)
+          .where(
+            sql`ST_DWithin(
         ${federalFarmPlots.geometry},
         ST_SetSRID(ST_MakePoint(${longitude}, ${latitude}), 4326), 
         ${radiusInDegrees}
-      )`);
+      )`
+          )
+          .limit(MAX_PLOT_ROWS);
       });
     },
     async getPlotsLayerForBoundingBox(xmin: number, ymin: number, xmax: number, ymax: number) {
       return authDb.rls(async (tx) => {
-        return tx.select(plotSelectColumns).from(federalFarmPlots).where(sql`
+        return tx
+          .select(plotSelectColumns)
+          .from(federalFarmPlots)
+          .where(
+            sql`
         ST_Intersects(
            geometry,
         ST_MakeEnvelope(${xmin}, ${ymin}, ${xmax}, ${ymax}, 4326)
       )
-      `);
+      `
+          )
+          .limit(MAX_PLOT_ROWS);
       });
     },
     async getFederalFarmIds(
