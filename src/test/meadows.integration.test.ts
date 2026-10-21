@@ -609,9 +609,11 @@ describe("Herd membership changes in meadow history", () => {
       jwt
     );
     expect(res.status).toBe(200);
-    const { result } = ((await res.json()) as {
-      data: { result: { animalId: string; earliestDate: string | null }[] };
-    }).data;
+    const { result } = (
+      (await res.json()) as {
+        data: { result: { animalId: string; earliestDate: string | null }[] };
+      }
+    ).data;
 
     // In a herd: the start of its active membership; never in a herd: no limit
     const db = getAdminDb();
