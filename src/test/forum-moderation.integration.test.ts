@@ -77,4 +77,38 @@ describe("Forum moderation — access control", () => {
     const res = await request("POST", `/v1/forum/threads/byId/${threadId}/status`, { status: "closed" }, otherJwt);
     expect(res.status).toBe(403);
   });
+
+  it("moderator with active membership can close and reopen someone else's thread", async () => {
+    const { jwt: authorJwt } = await createUserWithPaidMembership("author@test.com");
+    const threadId = await createThread(authorJwt);
+
+    const { jwt: modJwt, userId: modUserId } = await createUserWithPaidMembership("mod@test.com");
+    await makeModerator(modUserId);
+
+    const closeRes = await request("POST", `/v1/forum/threads/byId/${threadId}/status`, { status: "closed" }, modJwt);
+    expect(closeRes.status).toBe(200);
+    const reopenRes = await request("POST", `/v1/forum/threads/byId/${threadId}/status`, { status: "open" }, modJwt);
+    expect(reopenRes.status).toBe(200);
+  });
+});
+
+describe("Forum moderation — isForumModerator on /me", () => {
+  beforeEach(cleanDb);
+
+  async function getMe(jwt: string) {
+    const res = await request("GET", "/v1/me", undefined, jwt);
+    expect(res.status).toBe(200);
+    return ((await res.json()) as { data: { isForumModerator: boolean } }).data;
+  }
+
+  it("is false for a regular user", async () => {
+    const { jwt } = await createTestUser("user@test.com", "password123");
+    expect((await getMe(jwt)).isForumModerator).toBe(false);
+  });
+
+  it("is true for a forum moderator", async () => {
+    const { jwt, userId } = await createTestUser("mod@test.com", "password123");
+    await makeModerator(userId);
+    expect((await getMe(jwt)).isForumModerator).toBe(true);
+  });
 });
