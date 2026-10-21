@@ -11,6 +11,7 @@ import {
   getAnimalChildrenEndpoint,
   getFarmAnimalsEndpoint,
   getFarmHerdsEndpoint,
+  getEarliestHerdChangeDatesEndpoint,
   getHerdByIdEndpoint,
   getHerdOutdoorSchedulesEndpoint,
   getOutdoorScheduleByIdEndpoint,
@@ -829,6 +830,7 @@ export const routing: Routing = {
       outdoorJournal: getOutdoorJournalEndpoint,
       herds: {
         "": { get: getFarmHerdsEndpoint, post: createHerdEndpoint },
+        earliestChangeDates: { get: getEarliestHerdChangeDatesEndpoint },
         byId: {
           ":herdId": {
             "": {

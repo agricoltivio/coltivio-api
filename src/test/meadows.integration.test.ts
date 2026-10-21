@@ -595,4 +595,48 @@ describe("Herd membership changes in meadow history", () => {
     const unchangedAnimal = await db.query.animals.findFirst({ where: { id: sheep.id } });
     expect(unchangedAnimal!.herdId).not.toBe(otherHerd.id);
   });
+  it("reports the earliest herd change date per animal, matching what herd updates accept", async () => {
+    const { jwt } = await createUserWithFarm();
+    const sheepInHerd = await createSheep(jwt);
+    const looseSheep = await createSheep(jwt);
+    await herdOnMeadowInMay(jwt, "North", [sheepInHerd.id]);
+    const otherHerd = await createHerd(jwt, { name: "Other" });
+
+    const res = await request(
+      "GET",
+      `/v1/animals/herds/earliestChangeDates?animalIds=${sheepInHerd.id}&animalIds=${looseSheep.id}`,
+      undefined,
+      jwt
+    );
+    expect(res.status).toBe(200);
+    const { result } = ((await res.json()) as {
+      data: { result: { animalId: string; earliestDate: string | null }[] };
+    }).data;
+
+    // In a herd: the start of its active membership; never in a herd: no limit
+    const db = getAdminDb();
+    const activeMembership = await db.query.herdMemberships.findFirst({
+      where: { animalId: sheepInHerd.id, toDate: { isNull: true } },
+    });
+    const earliestDate = result.find((entry) => entry.animalId === sheepInHerd.id)!.earliestDate!;
+    expect(earliestDate.slice(0, 10)).toBe(activeMembership!.fromDate.toISOString().slice(0, 10));
+    expect(result.find((entry) => entry.animalId === looseSheep.id)!.earliestDate).toBeNull();
+
+    // The day before is rejected, the reported day itself is accepted
+    const dayBefore = new Date(new Date(earliestDate).getTime() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const rejected = await request(
+      "PATCH",
+      `/v1/animals/byId/${sheepInHerd.id}`,
+      { herdId: otherHerd.id, herdEffectiveDate: dayBefore },
+      jwt
+    );
+    expect(rejected.status).toBe(400);
+    const accepted = await request(
+      "PATCH",
+      `/v1/animals/byId/${sheepInHerd.id}`,
+      { herdId: otherHerd.id, herdEffectiveDate: earliestDate.slice(0, 10) },
+      jwt
+    );
+    expect(accepted.status).toBe(200);
+  });
 });

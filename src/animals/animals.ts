@@ -231,29 +231,17 @@ export function todayUtcDay(): Date {
   return new Date(`${parts}T00:00:00.000Z`);
 }
 
-// Moves animals into targetHerdId (or out of any herd when null) as of effectiveDate.
-// Membership ranges are inclusive on both ends, so the previous membership ends the day before effectiveDate.
-// Animals whose active membership already is in the target herd are left untouched.
-// An effectiveDate before the animal's existing history would create overlapping memberships:
-// mode "strict" rejects it (explicit user input), mode "clamp" moves it to the first free day (implicit defaults).
-async function changeHerdMemberships(
-  tx: Transaction,
-  animalIds: string[],
-  targetHerdId: string | null,
-  requestedEffectiveDate: Date,
-  mode: "strict" | "clamp"
-) {
-  // Duplicates would otherwise insert the same membership twice
-  const uniqueAnimalIds = [...new Set(animalIds)];
-  if (uniqueAnimalIds.length === 0) return;
-
+// Per animal: its active membership, and the first day a herd change can take effect without overlapping its
+// history (the active membership's start, else the day after the last closed one; null without any history).
+// Shared by changeHerdMemberships and the endpoint the clients use to limit the effective date they offer.
+async function loadHerdMembershipLimits(tx: Transaction, animalIds: string[]) {
   const activeMemberships = await tx.query.herdMemberships.findMany({
-    where: { animalId: { in: uniqueAnimalIds }, toDate: { isNull: true } },
+    where: { animalId: { in: animalIds }, toDate: { isNull: true } },
   });
   const activeMembershipByAnimalId = new Map(activeMemberships.map((membership) => [membership.animalId, membership]));
 
   // Latest closed membership per animal, only needed for animals without an active one
-  const animalIdsWithoutActive = uniqueAnimalIds.filter((animalId) => !activeMembershipByAnimalId.has(animalId));
+  const animalIdsWithoutActive = animalIds.filter((animalId) => !activeMembershipByAnimalId.has(animalId));
   const latestClosedMemberships =
     animalIdsWithoutActive.length > 0
       ? await tx
@@ -274,6 +262,43 @@ async function changeHerdMemberships(
     latestClosedMemberships.map((membership) => [membership.animalId, membership.toDate])
   );
 
+  const earliestHerdChangeDateByAnimalId = new Map<string, Date | null>();
+  for (const animalId of animalIds) {
+    const activeMembership = activeMembershipByAnimalId.get(animalId);
+    const latestClosedToDate = latestClosedToDateByAnimalId.get(animalId);
+    earliestHerdChangeDateByAnimalId.set(
+      animalId,
+      activeMembership
+        ? activeMembership.fromDate
+        : latestClosedToDate
+          ? new Date(latestClosedToDate.getTime() + DAY_MS)
+          : null
+    );
+  }
+  return { activeMembershipByAnimalId, earliestHerdChangeDateByAnimalId };
+}
+
+// Moves animals into targetHerdId (or out of any herd when null) as of effectiveDate.
+// Membership ranges are inclusive on both ends, so the previous membership ends the day before effectiveDate.
+// Animals whose active membership already is in the target herd are left untouched.
+// An effectiveDate before the animal's existing history would create overlapping memberships:
+// mode "strict" rejects it (explicit user input), mode "clamp" moves it to the first free day (implicit defaults).
+async function changeHerdMemberships(
+  tx: Transaction,
+  animalIds: string[],
+  targetHerdId: string | null,
+  requestedEffectiveDate: Date,
+  mode: "strict" | "clamp"
+) {
+  // Duplicates would otherwise insert the same membership twice
+  const uniqueAnimalIds = [...new Set(animalIds)];
+  if (uniqueAnimalIds.length === 0) return;
+
+  const { activeMembershipByAnimalId, earliestHerdChangeDateByAnimalId } = await loadHerdMembershipLimits(
+    tx,
+    uniqueAnimalIds
+  );
+
   const membershipIdsToDelete: string[] = [];
   // Active memberships to close, grouped by their new toDate so each date needs one update
   const membershipIdsToCloseByToDate = new Map<number, string[]>();
@@ -284,14 +309,7 @@ async function changeHerdMemberships(
     const activeMembership = activeMembershipByAnimalId.get(animalId);
     if ((activeMembership?.herdId ?? null) === targetHerdId) continue;
 
-    // First day a new membership can start without overlapping this animal's history
-    let earliestAllowedDate: Date | null = null;
-    const latestClosedToDate = latestClosedToDateByAnimalId.get(animalId);
-    if (activeMembership) {
-      earliestAllowedDate = activeMembership.fromDate;
-    } else if (latestClosedToDate) {
-      earliestAllowedDate = new Date(latestClosedToDate.getTime() + DAY_MS);
-    }
+    const earliestAllowedDate = earliestHerdChangeDateByAnimalId.get(animalId) ?? null;
 
     let effectiveDate = toUtcDay(requestedEffectiveDate);
     if (earliestAllowedDate && effectiveDate < earliestAllowedDate) {
@@ -522,6 +540,19 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
           ...result,
           treatments: result.animalTreatments.map((at) => at.treatment),
         };
+      });
+    },
+
+    // First day a herd change can take effect for each animal (null: no herd history yet)
+    async getEarliestHerdChangeDates(animalIds: string[]): Promise<{ animalId: string; earliestDate: Date | null }[]> {
+      const uniqueAnimalIds = [...new Set(animalIds)];
+      if (uniqueAnimalIds.length === 0) return [];
+      return rlsDb.rls(async (tx) => {
+        const { earliestHerdChangeDateByAnimalId } = await loadHerdMembershipLimits(tx, uniqueAnimalIds);
+        return uniqueAnimalIds.map((animalId) => ({
+          animalId,
+          earliestDate: earliestHerdChangeDateByAnimalId.get(animalId) ?? null,
+        }));
       });
     },
 

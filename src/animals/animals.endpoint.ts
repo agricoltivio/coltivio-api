@@ -594,3 +594,18 @@ export const deleteOutdoorScheduleEndpoint = animalsWrite.build({
     return {};
   },
 });
+
+// First day a herd change (effectiveDate when editing a herd) can take effect for each animal, so the clients
+// only offer dates the update accepts. Earlier dates are rejected there, as they'd overlap the animal's history.
+export const getEarliestHerdChangeDatesEndpoint = animalsRead.build({
+  method: "get",
+  input: z.object({
+    animalIds: z.preprocess((val) => (typeof val === "string" ? [val] : val), z.array(z.string())),
+  }),
+  output: z.object({
+    result: z.array(z.object({ animalId: z.string(), earliestDate: ez.dateOut().nullable() })),
+  }),
+  handler: async ({ input, ctx: { animals } }) => {
+    return { result: await animals.getEarliestHerdChangeDates(input.animalIds) };
+  },
+});
