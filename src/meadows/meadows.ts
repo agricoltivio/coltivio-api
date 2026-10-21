@@ -3,7 +3,9 @@ import createHttpError from "http-errors";
 import { RlsDb } from "../db/db";
 import { farmIdColumnValue, meadows } from "../db/schema";
 import { MultiPolygon } from "../geo/geojson";
-import { buildMeadowJournal, MeadowJournalEntry } from "../animals/outdoor-journal";
+import { addYears } from "date-fns";
+import { buildMeadowJournal, expandOutdoorSchedule, MeadowJournalEntry } from "../animals/outdoor-journal";
+import { todayUtcDay } from "../animals/animals";
 
 export type Meadow = Omit<typeof meadows.$inferSelect, "geometry"> & {
   geometry: MultiPolygon;
@@ -70,8 +72,25 @@ export function meadowsApi(rlsDb: RlsDb) {
 
     async updateMeadow(id: string, input: MeadowUpdateInput): Promise<Meadow> {
       await rlsDb.rls(async (tx) => {
-        const existing = await tx.query.meadows.findFirst({ where: { id }, columns: { id: true } });
+        const existing = await tx.query.meadows.findFirst({ where: { id }, columns: { id: true, archivedAt: true } });
         if (!existing) throw createHttpError(404, "Meadow not found");
+
+        // A meadow can only be archived once no schedule on it runs today or later (open-ended, ending in the
+        // future or with upcoming recurrences). Those schedules have to be ended or moved to another meadow first.
+        if (input.archived && !existing.archivedAt) {
+          const meadowSchedules = await tx.query.outdoorSchedules.findMany({
+            where: { meadowId: id },
+            with: { recurrence: true },
+          });
+          const today = todayUtcDay();
+          const farFuture = addYears(today, 100);
+          const hasRunningSchedule = meadowSchedules.some(
+            (schedule) => expandOutdoorSchedule(schedule, today, farFuture).length > 0
+          );
+          if (hasRunningSchedule) {
+            throw createHttpError(409, "Meadow has running outdoor schedules");
+          }
+        }
 
         // Only run the update if there are fields to set (avoids Drizzle "No values to set" error)
         if (

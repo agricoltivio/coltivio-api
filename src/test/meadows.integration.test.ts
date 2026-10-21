@@ -164,6 +164,103 @@ describe("Meadows CRUD", () => {
   });
 });
 
+describe("Archiving meadows with outdoor schedules", () => {
+  beforeEach(cleanDb);
+
+  async function addSchedule(jwt: string, herdId: string, payload: Record<string, unknown>) {
+    return request("POST", `/v1/animals/herds/byId/${herdId}/outdoorSchedules`, payload, jwt);
+  }
+
+  it("blocks archiving while an open-ended schedule runs on the meadow", async () => {
+    const { jwt } = await createUserWithFarm();
+    const meadow = await createMeadow(jwt, { name: "M", geometry: square(8.0, 47.0) });
+    const herd = await createHerd(jwt);
+    const scheduleRes = await addSchedule(jwt, herd.id, {
+      startDate: "2025-05-01",
+      type: "pasture",
+      meadowId: meadow.id,
+    });
+    expect(scheduleRes.status).toBe(200);
+
+    const archiveRes = await request("PATCH", `/v1/meadows/byId/${meadow.id}`, { archived: true }, jwt);
+    expect(archiveRes.status).toBe(409);
+  });
+
+  it("blocks archiving while a recurring schedule has upcoming occurrences", async () => {
+    const { jwt } = await createUserWithFarm();
+    const meadow = await createMeadow(jwt, { name: "M", geometry: square(8.0, 47.0) });
+    const herd = await createHerd(jwt);
+    const scheduleRes = await addSchedule(jwt, herd.id, {
+      startDate: "2024-05-01",
+      endDate: "2024-05-31",
+      type: "pasture",
+      meadowId: meadow.id,
+      recurrence: { frequency: "yearly", interval: 1 },
+    });
+    expect(scheduleRes.status).toBe(200);
+
+    const archiveRes = await request("PATCH", `/v1/meadows/byId/${meadow.id}`, { archived: true }, jwt);
+    expect(archiveRes.status).toBe(409);
+  });
+
+  it("rejects new schedules on an archived meadow but keeps existing links when re-saving", async () => {
+    const { jwt } = await createUserWithFarm();
+    const meadow = await createMeadow(jwt, { name: "M", geometry: square(8.0, 47.0) });
+    const otherMeadow = await createMeadow(jwt, { name: "N", geometry: square(8.1, 47.0) });
+    const herd = await createHerd(jwt);
+    const pastSchedule = { startDate: "2025-05-01", endDate: "2025-05-31", type: "pasture", meadowId: meadow.id };
+    const scheduleRes = await addSchedule(jwt, herd.id, pastSchedule);
+    expect(scheduleRes.status).toBe(200);
+    const schedule = ((await scheduleRes.json()) as { data: { id: string } }).data;
+
+    const archiveRes = await request("PATCH", `/v1/meadows/byId/${meadow.id}`, { archived: true }, jwt);
+    expect(archiveRes.status).toBe(200);
+
+    const newScheduleRes = await addSchedule(jwt, herd.id, {
+      startDate: "2025-07-01",
+      endDate: "2025-07-31",
+      type: "pasture",
+      meadowId: meadow.id,
+    });
+    expect(newScheduleRes.status).toBe(400);
+
+    // Updating the existing schedule without changing its meadow still works
+    const updateRes = await request(
+      "PATCH",
+      `/v1/animals/herds/outdoorSchedules/byId/${schedule.id}`,
+      { notes: "dry", meadowId: meadow.id },
+      jwt
+    );
+    expect(updateRes.status).toBe(200);
+
+    // Re-saving the herd with its schedules keeps the link to the archived meadow
+    const herdRes = await request(
+      "PATCH",
+      `/v1/animals/herds/byId/${herd.id}`,
+      { outdoorSchedules: [pastSchedule] },
+      jwt
+    );
+    expect(herdRes.status).toBe(200);
+
+    // Moving a schedule of another herd onto the archived meadow is rejected
+    const otherHerd = await createHerd(jwt, { name: "Other" });
+    const otherScheduleRes = await addSchedule(jwt, otherHerd.id, {
+      startDate: "2025-05-01",
+      endDate: "2025-05-31",
+      type: "pasture",
+      meadowId: otherMeadow.id,
+    });
+    const otherSchedule = ((await otherScheduleRes.json()) as { data: { id: string } }).data;
+    const moveRes = await request(
+      "PATCH",
+      `/v1/animals/herds/outdoorSchedules/byId/${otherSchedule.id}`,
+      { meadowId: meadow.id },
+      jwt
+    );
+    expect(moveRes.status).toBe(400);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Meadows in outdoor schedules and the outdoor journal
 // ---------------------------------------------------------------------------

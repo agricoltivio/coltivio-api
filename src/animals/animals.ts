@@ -191,16 +191,24 @@ function inputToSchedule(input: OutdoorScheduleCreateInput): OutdoorScheduleWith
   };
 }
 
-// Meadow FK checks bypass RLS, so make sure referenced meadows are visible to (= belong to) the current farm
-async function assertMeadowsAccessible(tx: Transaction, meadowIds: (string | null | undefined)[]) {
+// Meadow FK checks bypass RLS, so make sure referenced meadows are visible to (= belong to) the current farm.
+// Archived meadows can't get new schedules; meadowIds the caller already used before (unchanged links) are allowed.
+async function assertMeadowsAccessible(
+  tx: Transaction,
+  meadowIds: (string | null | undefined)[],
+  previouslyLinkedMeadowIds: (string | null)[] = []
+) {
   const uniqueMeadowIds = [...new Set(meadowIds.filter((meadowId): meadowId is string => !!meadowId))];
   if (uniqueMeadowIds.length === 0) return;
   const foundMeadows = await tx.query.meadows.findMany({
     where: { id: { in: uniqueMeadowIds } },
-    columns: { id: true },
+    columns: { id: true, archivedAt: true },
   });
   if (foundMeadows.length !== uniqueMeadowIds.length) {
     throw createHttpError(400, "Meadow not found");
+  }
+  if (foundMeadows.some((meadow) => meadow.archivedAt && !previouslyLinkedMeadowIds.includes(meadow.id))) {
+    throw createHttpError(400, "Meadow is archived");
   }
 }
 
@@ -213,7 +221,7 @@ function toUtcDay(date: Date): Date {
 
 // Today's calendar day in Swiss local time as UTC midnight. new Date() + toUtcDay would still give yesterday
 // between 00:00 and 01:00/02:00 local time.
-function todayUtcDay(): Date {
+export function todayUtcDay(): Date {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Europe/Zurich",
     year: "numeric",
@@ -797,7 +805,17 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
       }
 
       return rlsDb.rls(async (tx) => {
-        await assertMeadowsAccessible(tx, outdoorSchedules?.map((schedule) => schedule.meadowId) ?? []);
+        if (outdoorSchedules !== undefined) {
+          const existingSchedules = await tx.query.outdoorSchedules.findMany({
+            where: { herdId: id },
+            columns: { meadowId: true },
+          });
+          await assertMeadowsAccessible(
+            tx,
+            outdoorSchedules.map((schedule) => schedule.meadowId),
+            existingSchedules.map((schedule) => schedule.meadowId)
+          );
+        }
 
         // Only run the update if there are fields to set (avoids Drizzle "No values to set" error)
         const [herd] =
@@ -969,7 +987,7 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
       }
 
       await rlsDb.rls(async (tx) => {
-        await assertMeadowsAccessible(tx, [scheduleData.meadowId]);
+        await assertMeadowsAccessible(tx, [scheduleData.meadowId], [current.meadowId]);
 
         // Update schedule fields if any provided
         if (Object.keys(scheduleData).length > 0) {

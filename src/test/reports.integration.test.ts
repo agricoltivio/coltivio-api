@@ -1,5 +1,8 @@
 import { describe, it, expect, beforeEach } from "@jest/globals";
-import { cleanDb, request } from "./helpers";
+import ExcelJS from "exceljs";
+import { eq } from "drizzle-orm";
+import { cleanDb, getAdminDb, request } from "./helpers";
+import * as schema from "../db/schema";
 import {
   createUserWithFarm,
   createPlot,
@@ -49,6 +52,66 @@ describe("Field Calendar Reports", () => {
     expect(body.data.base64).toBeDefined();
     expect(body.data.base64.length).toBeGreaterThan(0);
     expect(body.data.fileName).toBeDefined();
+  });
+});
+
+describe("Field Calendar Reports with archived plots", () => {
+  beforeEach(cleanDb);
+
+  async function reportCellTexts(jwt: string, fromDate: string, toDate: string): Promise<string[]> {
+    const res = await request(
+      "POST",
+      "/v1/reports/fieldcalendar/download",
+      {
+        fromDate,
+        toDate,
+        generateCropRotations: true,
+        generateTillages: false,
+        generateFertilizerApplications: false,
+        generateCropProtectionApplications: false,
+        generateHarvests: false,
+      },
+      jwt
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { data: { base64: string } };
+    const workbook = new ExcelJS.Workbook();
+    const reportBytes = Buffer.from(body.data.base64, "base64");
+    await workbook.xlsx.load(
+      reportBytes.buffer.slice(reportBytes.byteOffset, reportBytes.byteOffset + reportBytes.byteLength)
+    );
+    const cellTexts: string[] = [];
+    workbook.eachSheet((sheet) => {
+      sheet.eachRow((row) => {
+        row.eachCell((cell) => {
+          cellTexts.push(String(cell.value));
+        });
+      });
+    });
+    return cellTexts;
+  }
+
+  it("shows archived plots only up to their archive date", async () => {
+    const { jwt } = await createUserWithFarm();
+    const crop = await createCrop(jwt, { name: "Grass", category: "grass" });
+    const archivedPlot = await createPlot(jwt, { name: "ArchivedField" });
+    await createCropRotation(jwt, archivedPlot.id, crop.id, { fromDate: "2025-01-01", toDate: "2025-12-31" });
+    const activePlot = await createPlot(jwt, { name: "ActiveField" });
+    await createCropRotation(jwt, activePlot.id, crop.id, { fromDate: "2025-01-01", toDate: "2026-12-31" });
+
+    const archivedAt = new Date("2025-06-15T12:00:00Z");
+    await getAdminDb().update(schema.plots).set({ archivedAt }).where(eq(schema.plots.id, archivedPlot.id));
+
+    // Archived during the period: included, its crop rotation ends on the archive date
+    const reportArchivedDuring = await reportCellTexts(jwt, "2025-01-01", "2025-12-31");
+    expect(reportArchivedDuring.some((text) => text.includes("ArchivedField"))).toBe(true);
+    expect(reportArchivedDuring).toContain(archivedAt.toLocaleDateString("de"));
+    expect(reportArchivedDuring).not.toContain(new Date("2025-12-31").toLocaleDateString("de"));
+
+    // Archived before the period: left out
+    const reportArchivedBefore = await reportCellTexts(jwt, "2026-01-01", "2026-12-31");
+    expect(reportArchivedBefore.some((text) => text.includes("ArchivedField"))).toBe(false);
+    expect(reportArchivedBefore.some((text) => text.includes("ActiveField"))).toBe(true);
   });
 });
 
