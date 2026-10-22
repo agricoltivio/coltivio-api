@@ -24,6 +24,8 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO authenticate
 -- Ensure search_path includes extensions (for PostGIS, pg_trgm)
 ALTER ROLE app SET search_path TO public, extensions;
 ALTER ROLE rls_client SET search_path TO "$user", public, extensions;
+-- SET LOCAL ROLE does not apply the target role's settings, so the login role carries the timeout
+ALTER ROLE rls_client SET statement_timeout = '10s';
 ALTER ROLE authenticated SET search_path TO public, extensions;
 
 -- Enable PostGIS and pg_trgm, then set search_path so geometry type is visible
