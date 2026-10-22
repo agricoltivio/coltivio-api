@@ -48,6 +48,8 @@ export const adminOnlyDb: RlsDb = {
     throw new Error("rls() not available in admin-only context — use db.admin");
   },
 };
+const RLS_STATEMENT_TIMEOUT = "10s";
+
 export function rlsDb(token: SupabaseToken, farmId?: string | null) {
   const validatedRole = validateRole(token.role);
 
@@ -61,6 +63,11 @@ export function rlsDb(token: SupabaseToken, farmId?: string | null) {
 
         // Using sql.raw() is safe here because validatedRole is guaranteed to be one of the ALLOWED_ROLES
         await tx.execute(sql`set local role ${sql.raw(validatedRole)}`);
+        // Bounds runaway queries such as oversized plot layer requests. Set per
+        // transaction rather than via ALTER ROLE: on hosted Supabase the
+        // migration user may not alter rls_client, and SET LOCAL ROLE would not
+        // apply the target role's settings anyway.
+        await tx.execute(sql`set local statement_timeout = ${sql.raw(`'${RLS_STATEMENT_TIMEOUT}'`)}`);
         const result = await transaction(tx);
         await tx.execute(sql`select set_config('request.jwt.claim.sub', NULL, TRUE)`);
         if (farmId) {
