@@ -23,7 +23,9 @@ export function fieldCalendarReportsApi(rlsDb: RlsDb, t: TFunction, locale: stri
         harvests,
       };
       return await rlsDb.rls(async (tx) => {
+        // Plots archived before the report period are left out, plots archived during it are shown up to that day
         const plots = await tx.query.plots.findMany({
+          where: { OR: [{ archivedAt: { isNull: true } }, { archivedAt: { gte: fromDate } }] },
           with: {
             cropRotations: {
               orderBy: { fromDate: "asc" },
@@ -153,11 +155,12 @@ export function fieldCalendarReportsApi(rlsDb: RlsDb, t: TFunction, locale: stri
         const COL_BORDER: Partial<ExcelJS.Border> = { style: "thin", color: { argb: "FF808080" } };
 
         // Expand a crop rotation (with optional yearly recurrence) into concrete fromDate/toDate
-        // pairs that overlap [rangeFrom, rangeTo]
+        // pairs that overlap [rangeFrom, rangeTo]. On archived plots occurrences end on the archive date.
         const expandCropRotation = (
           rotation: (typeof plots)[0]["cropRotations"][0],
           rangeFrom: Date,
-          rangeTo: Date
+          rangeTo: Date,
+          archivedAt: Date | null
         ): { fromDate: Date; toDate: Date }[] => {
           const base = rotation.fromDate;
           const durationMs = rotation.toDate.getTime() - base.getTime();
@@ -177,8 +180,10 @@ export function fieldCalendarReportsApi(rlsDb: RlsDb, t: TFunction, locale: stri
             if (occFrom > rangeTo) break;
             if (rec?.until && occFrom > rec.until) break;
 
+            if (archivedAt && occFrom > archivedAt) break;
+
             if (occTo >= rangeFrom) {
-              results.push({ fromDate: occFrom, toDate: occTo });
+              results.push({ fromDate: occFrom, toDate: archivedAt && occTo > archivedAt ? archivedAt : occTo });
             }
 
             if (!rec) break; // no recurrence, only one occurrence
@@ -193,14 +198,15 @@ export function fieldCalendarReportsApi(rlsDb: RlsDb, t: TFunction, locale: stri
         const writeRotationBars = (
           sheet: ExcelJS.Worksheet,
           row: number,
-          rotations: (typeof plots)[0]["cropRotations"]
+          rotations: (typeof plots)[0]["cropRotations"],
+          archivedAt: Date | null
         ) => {
           // Collect all expanded occurrences mapped to month indices
           type Occurrence = { monthIdx: number; label: string | null; cropId: string };
           const monthFill: Occurrence[] = [];
 
           for (const rotation of rotations) {
-            const occurrences = expandCropRotation(rotation, fromDate, toDate);
+            const occurrences = expandCropRotation(rotation, fromDate, toDate, archivedAt);
             for (const occ of occurrences) {
               let isFirstCell = true;
               for (let i = 0; i < timelineMonths.length; i++) {
@@ -525,7 +531,7 @@ export function fieldCalendarReportsApi(rlsDb: RlsDb, t: TFunction, locale: stri
             // Crop rotation table: one row per expanded occurrence, columns crop / from / to
             if (cropRotations && plot.cropRotations.length > 0) {
               const rotationTableRows = plot.cropRotations.flatMap((rotation) =>
-                expandCropRotation(rotation, fromDate, toDate).map((occ) => [
+                expandCropRotation(rotation, fromDate, toDate, plot.archivedAt).map((occ) => [
                   rotation.crop.name,
                   occ.fromDate.toLocaleDateString(locale),
                   occ.toDate.toLocaleDateString(locale),
@@ -742,7 +748,7 @@ export function fieldCalendarReportsApi(rlsDb: RlsDb, t: TFunction, locale: stri
             nameCell.font = { bold: true };
             nameCell.alignment = { vertical: "middle" };
             nameCell.border = { bottom: ROW_BORDER };
-            writeRotationBars(sheet, rowIndex, plot.cropRotations);
+            writeRotationBars(sheet, rowIndex, plot.cropRotations, plot.archivedAt);
             sheet.getRow(rowIndex).height = 36;
             rowIndex++;
           }

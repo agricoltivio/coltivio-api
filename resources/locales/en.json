@@ -329,6 +329,19 @@
       "9": "October",
       "10": "November",
       "11": "December"
+    },
+    "meadows_sheet": "Meadows",
+    "meadow": "Meadow",
+    "meadow_size": "Area (a)",
+    "herd": "Herd",
+    "type": "Type",
+    "from": "From",
+    "to": "To",
+    "days": "Days",
+    "animal_count": "Number of animals",
+    "types": {
+      "pasture": "Pasture",
+      "exercise_yard": "Exercise yard"
     }
   },
   "application_units": {

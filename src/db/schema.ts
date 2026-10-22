@@ -800,6 +800,8 @@ export const plots = pgTable.withRLS(
     geometry: polygon().notNull(),
     size: integer().notNull(),
     additionalNotes: text(),
+    // Archived plots are hidden from the plot list but keep their history (crop rotations, field calendar)
+    archivedAt: timestamp({ withTimezone: true }),
   },
 
   (table) => [
@@ -1473,6 +1475,36 @@ export const customOutdoorJournalCategories = pgTable.withRLS(
   ]
 );
 
+export const meadows = pgTable.withRLS(
+  "meadows",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    farmId: uuid()
+      .notNull()
+      .references(() => farms.id, {
+        onDelete: "cascade",
+      }),
+    name: text().notNull(),
+    geometry: polygon().notNull(),
+    size: integer().notNull(),
+    additionalNotes: text(),
+    // Archived meadows are hidden from the meadow list but keep their history in schedules and reports
+    archivedAt: timestamp({ withTimezone: true }),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("meadow_geometries_idx").using("gist", table.geometry),
+    // Target of composite FKs that guarantee referencing rows belong to the same farm
+    unique("meadows_id_farm_id_unique").on(table.id, table.farmId),
+    pgPolicy("only farm members", {
+      as: "permissive",
+      to: authenticatedRole,
+      using: eq(table.farmId, currentFarmId),
+      withCheck: eq(table.farmId, currentFarmId),
+    }),
+  ]
+);
+
 export const outdoorScheduleType = pgEnum("outdoor_schedule_type", ["pasture", "exercise_yard"]);
 
 export const outdoorSchedules = pgTable.withRLS(
@@ -1487,12 +1519,21 @@ export const outdoorSchedules = pgTable.withRLS(
     herdId: uuid()
       .notNull()
       .references(() => herds.id, { onDelete: "cascade" }),
+    meadowId: uuid(),
     startDate: date({ mode: "date" }).notNull(),
     endDate: date({ mode: "date" }),
     type: outdoorScheduleType().notNull(),
     notes: text(),
   },
   (table) => [
+    // Composite FK including farmId: FK checks bypass RLS, so this keeps a schedule from referencing another farm's
+    // meadow. Deleting a meadow deletes its schedules (archive the meadow to keep its history).
+    foreignKey({
+      columns: [table.meadowId, table.farmId],
+      foreignColumns: [meadows.id, meadows.farmId],
+      name: "outdoor_schedules_meadow_farm_fk",
+    }).onDelete("cascade"),
+    index("outdoor_schedules_meadow_id_idx").on(table.meadowId),
     pgPolicy("only farm members", {
       as: "permissive",
       to: authenticatedRole,
@@ -2562,6 +2603,7 @@ const tables = {
   customOutdoorJournalCategories,
   outdoorSchedules,
   outdoorScheduleRecurrences,
+  meadows,
   wikiCategories,
   wikiCategoryTranslations,
   wikiEntries,
@@ -3090,7 +3132,19 @@ export const relations = defineRelations(tables, (r) => ({
       to: r.herds.id,
       optional: false,
     }),
+    meadow: r.one.meadows({
+      from: r.outdoorSchedules.meadowId,
+      to: r.meadows.id,
+    }),
     recurrence: r.one.outdoorScheduleRecurrences(),
+  },
+  meadows: {
+    farm: r.one.farms({
+      from: r.meadows.farmId,
+      to: r.farms.id,
+      optional: false,
+    }),
+    outdoorSchedules: r.many.outdoorSchedules(),
   },
   outdoorScheduleRecurrences: {
     outdoorSchedule: r.one.outdoorSchedules({

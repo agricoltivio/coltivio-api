@@ -17,6 +17,8 @@ import {
   CustomOutdoorJournalCategory,
   HerdMembership,
   OutdoorScheduleWithRecurrence,
+  OutdoorScheduleType,
+  AnimalType,
   Herd,
 } from "./animals";
 import { getAnimalCategoryTransitions } from "./animal-key-mapping";
@@ -376,4 +378,104 @@ export function buildOutdoorJournal(
     entries,
     uncategorizedAnimals,
   };
+}
+
+export type MeadowJournalEntry = {
+  meadowId: string;
+  meadowName: string;
+  meadowSize: number;
+  herdId: string;
+  herdName: string;
+  type: OutdoorScheduleType;
+  startDate: Date;
+  endDate: Date;
+  animalCount: number;
+  animalCountsByType: Partial<Record<AnimalType, number>>;
+};
+
+type MeadowSummary = { id: string; name: string; size: number };
+
+type HerdForMeadowJournal = Herd & {
+  herdMemberships: (HerdMembership & { animal: Pick<Animal, "dateOfDeath" | "type"> })[];
+  outdoorSchedules: (OutdoorScheduleWithRecurrence & { meadow: MeadowSummary | null })[];
+};
+
+// Lists which herd was on which meadow and for how long. Each occurrence of a meadow-linked schedule is split into
+// segments with a constant number of animals per animal type (memberships starting/ending or animals dying change it).
+export function buildMeadowJournal(
+  herds: HerdForMeadowJournal[],
+  queryFrom: Date,
+  queryTo: Date
+): MeadowJournalEntry[] {
+  const entries: MeadowJournalEntry[] = [];
+
+  for (const herd of herds) {
+    for (const schedule of herd.outdoorSchedules) {
+      const meadow = schedule.meadow;
+      if (!meadow) continue;
+
+      for (const occurrence of expandOutdoorSchedule(schedule, queryFrom, queryTo)) {
+        // Per animal type: +1 on the first day an animal is present, -1 on the day after its last day
+        const deltaByDate = new Map<number, Map<AnimalType, number>>();
+        const addDelta = (date: number, animalType: AnimalType, delta: number) => {
+          const deltasOnDate = deltaByDate.get(date) ?? new Map<AnimalType, number>();
+          deltasOnDate.set(animalType, (deltasOnDate.get(animalType) ?? 0) + delta);
+          deltaByDate.set(date, deltasOnDate);
+        };
+        for (const membership of herd.herdMemberships) {
+          const presentEndCandidates = [membership.toDate ?? occurrence.endDate, occurrence.endDate];
+          if (membership.animal.dateOfDeath) presentEndCandidates.push(membership.animal.dateOfDeath);
+          const presentStart = max([membership.fromDate, occurrence.startDate]);
+          const presentEnd = min(presentEndCandidates);
+          if (isAfter(presentStart, presentEnd)) continue;
+
+          addDelta(presentStart.getTime(), membership.animal.type, 1);
+          addDelta(addDays(presentEnd, 1).getTime(), membership.animal.type, -1);
+        }
+
+        const sortedDates = [...deltaByDate.keys()].sort((a, b) => a - b);
+        const runningCountsByType = new Map<AnimalType, number>();
+        let runningCount = 0;
+        let segmentStart: number | null = null;
+        for (const date of sortedDates) {
+          const deltasOnDate = [...(deltaByDate.get(date) ?? new Map<AnimalType, number>())].filter(
+            ([, delta]) => delta !== 0
+          );
+          // Same-day arrivals and departures of the same type cancel out and don't split the segment
+          if (deltasOnDate.length === 0) continue;
+          if (runningCount > 0 && segmentStart !== null) {
+            const animalCountsByType: Partial<Record<AnimalType, number>> = {};
+            for (const [animalType, count] of runningCountsByType) {
+              if (count > 0) animalCountsByType[animalType] = count;
+            }
+            entries.push({
+              meadowId: meadow.id,
+              meadowName: meadow.name,
+              meadowSize: meadow.size,
+              herdId: herd.id,
+              herdName: herd.name,
+              type: schedule.type,
+              startDate: new Date(segmentStart),
+              endDate: addDays(new Date(date), -1),
+              animalCount: runningCount,
+              animalCountsByType,
+            });
+          }
+          for (const [animalType, delta] of deltasOnDate) {
+            runningCountsByType.set(animalType, (runningCountsByType.get(animalType) ?? 0) + delta);
+            runningCount += delta;
+          }
+          segmentStart = runningCount > 0 ? date : null;
+        }
+      }
+    }
+  }
+
+  entries.sort(
+    (a, b) =>
+      a.meadowName.localeCompare(b.meadowName) ||
+      a.startDate.getTime() - b.startDate.getTime() ||
+      a.herdName.localeCompare(b.herdName)
+  );
+  return entries;
 }

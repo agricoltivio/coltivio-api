@@ -1,7 +1,7 @@
 {
-  "id": "ff674af6-ccc1-4deb-b8b4-23717f27fbc0",
+  "id": "d150542a-f648-405f-88a0-0bb6a9be51b6",
   "prevIds": [
-    "d3258daa-8136-4b3a-8409-aab96f57ca3f"
+    "fbac536d-c745-4ce8-843a-654b8b14c2c4"
   ],
   "version": "8",
   "dialect": "postgres",
@@ -742,6 +742,12 @@
     {
       "isRlsEnabled": true,
       "name": "invoice_settings",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": true,
+      "name": "meadows",
       "entityType": "tables",
       "schema": "public"
     },
@@ -4981,6 +4987,110 @@
       "name": "id",
       "entityType": "columns",
       "schema": "public",
+      "table": "meadows"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "farm_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "meadows"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "name",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "meadows"
+    },
+    {
+      "type": "geometry(MultiPolygon,4326)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "geometry",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "meadows"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "size",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "meadows"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "additional_notes",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "meadows"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "archived_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "meadows"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "meadows"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
       "table": "membership_expiry_notifications"
     },
     {
@@ -5551,6 +5661,19 @@
       "generated": null,
       "identity": null,
       "name": "herd_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "outdoor_shedules"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "meadow_id",
       "entityType": "columns",
       "schema": "public",
       "table": "outdoor_shedules"
@@ -6240,6 +6363,19 @@
       "generated": null,
       "identity": null,
       "name": "additional_notes",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "plots"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "archived_at",
       "entityType": "columns",
       "schema": "public",
       "table": "plots"
@@ -8960,6 +9096,48 @@
       "with": "",
       "method": "gist",
       "concurrently": false,
+      "name": "meadow_geometries_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "meadows"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "meadow_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "outdoor_schedules_meadow_id_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "outdoor_shedules"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "geometry",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "gist",
+      "concurrently": false,
       "name": "parcel_geometries_idx",
       "entityType": "indexes",
       "schema": "public",
@@ -10590,6 +10768,23 @@
     {
       "nameExplicit": false,
       "columns": [
+        "farm_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "farms",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "meadows_farm_id_farms_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "meadows"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
         "user_id"
       ],
       "schemaTo": "public",
@@ -10770,6 +10965,25 @@
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "name": "outdoor_shedules_herd_id_herds_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "outdoor_shedules"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "meadow_id",
+        "farm_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "meadows",
+      "columnsTo": [
+        "id",
+        "farm_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "outdoor_schedules_meadow_farm_fk",
       "entityType": "fks",
       "schema": "public",
       "table": "outdoor_shedules"
@@ -12185,6 +12399,16 @@
         "id"
       ],
       "nameExplicit": false,
+      "name": "meadows_pkey",
+      "schema": "public",
+      "table": "meadows",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
       "name": "membership_expiry_notifications_pkey",
       "schema": "public",
       "table": "membership_expiry_notifications",
@@ -12654,6 +12878,18 @@
       "entityType": "uniques",
       "schema": "public",
       "table": "invoice_settings"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "id",
+        "farm_id"
+      ],
+      "nullsNotDistinct": false,
+      "name": "meadows_id_farm_id_unique",
+      "entityType": "uniques",
+      "schema": "public",
+      "table": "meadows"
     },
     {
       "nameExplicit": false,
@@ -13533,6 +13769,19 @@
       "entityType": "policies",
       "schema": "public",
       "table": "invoice_settings"
+    },
+    {
+      "as": "PERMISSIVE",
+      "for": "ALL",
+      "roles": [
+        "authenticated"
+      ],
+      "using": "\"meadows\".\"farm_id\" = (select farm_id())",
+      "withCheck": "\"meadows\".\"farm_id\" = (select farm_id())",
+      "name": "only farm members",
+      "entityType": "policies",
+      "schema": "public",
+      "table": "meadows"
     },
     {
       "as": "PERMISSIVE",

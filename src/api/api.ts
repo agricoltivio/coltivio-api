@@ -26,6 +26,7 @@ import { harvestsApi } from "../harvests/harvests";
 import { federalPlotsLayerApi } from "../layer/federal-farm-plots";
 import { cropProtectionApplicationsApi } from "../crop-protection/crop-protection-applications";
 import { plotsApi } from "../plots/plots";
+import { meadowsApi } from "../meadows/meadows";
 import { tillagesApi } from "../tillages/tillages";
 import { usersApi } from "../user/users";
 import { cropProtectionProductsApi } from "../crop-protection/crop-protection-products";
@@ -48,6 +49,7 @@ import { pushTokensApi } from "../push/push-tokens";
 export function sessionApi(db: RlsDb, t: TFunction, locale: string) {
   return {
     plots: plotsApi(db, t),
+    meadows: meadowsApi(db),
     dashboard: dashboardApi(db, t),
     users: usersApi(db),
     farms: farmsApi(db, t),

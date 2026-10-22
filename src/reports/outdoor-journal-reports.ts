@@ -3,8 +3,9 @@ import { TFunction } from "i18next";
 import { getDaysInMonth } from "date-fns";
 import { RlsDb } from "../db/db";
 import { AnimalCategory } from "../animals/animals";
-import { expandOutdoorSchedule } from "../animals/outdoor-journal";
+import { buildMeadowJournal, expandOutdoorSchedule } from "../animals/outdoor-journal";
 import { mapAnimalToCategory } from "../animals/animal-key-mapping";
+import { addMeadowSheet } from "./meadow-report-sheet";
 
 export function outdoorJournalReportsApi(rlsDb: RlsDb, t: TFunction, locale: string = "de") {
   return {
@@ -16,7 +17,7 @@ export function outdoorJournalReportsApi(rlsDb: RlsDb, t: TFunction, locale: str
               with: { animal: true },
             },
             outdoorSchedules: {
-              with: { recurrence: true },
+              with: { recurrence: true, meadow: { columns: { id: true, name: true, size: true } } },
             },
           },
         });
@@ -257,6 +258,8 @@ export function outdoorJournalReportsApi(rlsDb: RlsDb, t: TFunction, locale: str
             cell.border = borderFor(c);
           }
         }
+
+        addMeadowSheet(workbook, buildMeadowJournal(herds, fromDate, toDate), t, locale);
 
         const fileName = `${t("outdoor_journal_report.file_name", { fromDate: fromDate.toLocaleDateString(locale), toDate: toDate.toLocaleDateString(locale) })}.xlsx`;
         const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
