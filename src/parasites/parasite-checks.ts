@@ -4,7 +4,9 @@ import createHttpError from "http-errors";
 import { RlsDb, Transaction } from "../db/db";
 import {
   animals,
+  currentFarmId,
   farmIdColumnValue,
+  farmMembers,
   herdMemberships,
   parasiteCheckAnimals,
   parasiteChecks,
@@ -178,32 +180,86 @@ function summarizeCheck(check: LoadedCheck): ParasiteCheckSummary {
   };
 }
 
-function compareToPrevious(
-  summary: ParasiteCheckSummary,
-  previousCheck: LoadedCheck,
-  previousSummary: ParasiteCheckSummary
-): ParasiteCheckComparison {
-  const fecReduction = summary.fecByParasite.flatMap((after) => {
-    const before = previousSummary.fecByParasite.find((entry) => entry.parasiteType === after.parasiteType);
-    if (!before) return [];
+function average(values: number[]) {
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+// Compares a re-check with its base check. Only like is compared with like, so a
+// smaller re-check group doesn't show a reduction that isn't there:
+// - FAMACHA: average change over the animals scored in both checks
+// - individual samples: only animals with a result in both checks
+// - pooled vs pooled: the pooled values
+// - pooled vs individual: no reduction percent
+function compareToPrevious(recheck: LoadedCheck, baseCheck: LoadedCheck): ParasiteCheckComparison {
+  const baseScores = new Map<string, number>();
+  for (const baseAnimal of baseCheck.animals) {
+    if (baseAnimal.famachaScore !== null) baseScores.set(baseAnimal.animalId, baseAnimal.famachaScore);
+  }
+  const scorePairs = recheck.animals.flatMap((recheckAnimal) => {
+    const before = baseScores.get(recheckAnimal.animalId);
+    return recheckAnimal.famachaScore !== null && before !== undefined
+      ? [{ before, after: recheckAnimal.famachaScore }]
+      : [];
+  });
+
+  const recheckParasiteTypes = [
+    ...new Set(recheck.fecSamples.flatMap((sample) => sample.results.map((result) => result.parasiteType))),
+  ];
+  const fecReduction = recheckParasiteTypes.flatMap((parasiteType) => {
+    const samplesWithType = (check: LoadedCheck) =>
+      check.fecSamples.flatMap((sample) => {
+        const result = sample.results.find((entry) => entry.parasiteType === parasiteType);
+        return result
+          ? [
+              {
+                pooled: sample.animals.length > 1,
+                animalIds: sample.animals.map((sampleAnimal) => sampleAnimal.animalId),
+                countPerGram: result.countPerGram,
+              },
+            ]
+          : [];
+      });
+    const afterSamples = samplesWithType(recheck);
+    const beforeSamples = samplesWithType(baseCheck);
+    if (afterSamples.length === 0 || beforeSamples.length === 0) return [];
+
+    const afterPooled = afterSamples.some((sample) => sample.pooled);
+    const beforePooled = beforeSamples.some((sample) => sample.pooled);
+
+    let beforeValues = beforeSamples.map((sample) => sample.countPerGram);
+    let afterValues = afterSamples.map((sample) => sample.countPerGram);
+    const comparable = afterPooled === beforePooled;
+    if (!afterPooled && !beforePooled) {
+      // Individual samples: pair up results of the same animal
+      const beforeByAnimal = new Map(beforeSamples.map((sample) => [sample.animalIds[0], sample.countPerGram]));
+      const pairs = afterSamples.flatMap((sample) => {
+        const before = beforeByAnimal.get(sample.animalIds[0]);
+        return before !== undefined ? [{ before, after: sample.countPerGram }] : [];
+      });
+      if (pairs.length === 0) return [];
+      beforeValues = pairs.map((pair) => pair.before);
+      afterValues = pairs.map((pair) => pair.after);
+    }
+
+    const beforeAverage = average(beforeValues);
+    const afterAverage = average(afterValues);
     return [
       {
-        parasiteType: after.parasiteType,
-        beforeAvgCountPerGram: before.avgCountPerGram,
-        afterAvgCountPerGram: after.avgCountPerGram,
-        afterSampleCount: after.sampleCount,
-        reductionPercent:
-          before.avgCountPerGram > 0 ? (1 - after.avgCountPerGram / before.avgCountPerGram) * 100 : null,
+        parasiteType,
+        beforeAvgCountPerGram: beforeAverage,
+        afterAvgCountPerGram: afterAverage,
+        afterSampleCount: afterValues.length,
+        reductionPercent: comparable && beforeAverage > 0 ? (1 - afterAverage / beforeAverage) * 100 : null,
       },
     ];
   });
 
   return {
-    previousCheckId: previousCheck.id,
-    previousDate: previousCheck.date,
+    previousCheckId: baseCheck.id,
+    previousDate: baseCheck.date,
     famachaAverageChange:
-      summary.famachaAverage !== null && previousSummary.famachaAverage !== null
-        ? summary.famachaAverage - previousSummary.famachaAverage
+      scorePairs.length > 0
+        ? average(scorePairs.map((pair) => pair.after)) - average(scorePairs.map((pair) => pair.before))
         : null,
     fecReduction,
   };
@@ -279,14 +335,12 @@ async function toDetails(tx: Transaction, checks: LoadedCheck[]): Promise<Parasi
         .filter((taskRow) => taskRow.checkId === check.id)
         .map(({ checkId: _checkId, ...taskRow }) => taskRow),
       summary,
-      comparisonToPrevious: previousCheck
-        ? compareToPrevious(summary, previousCheck, summarizeCheck(previousCheck))
-        : null,
+      comparisonToPrevious: previousCheck ? compareToPrevious(check, previousCheck) : null,
       rechecks: rechecks
         .filter((recheck) => recheck.previousCheckId === check.id)
         .map((recheck) => {
           const recheckSummary = summarizeCheck(recheck);
-          const comparison = compareToPrevious(recheckSummary, check, summary);
+          const comparison = compareToPrevious(recheck, check);
           return {
             id: recheck.id,
             date: recheck.date,
@@ -403,24 +457,39 @@ async function replaceFecSamples(tx: Transaction, checkId: string, fecSamples: P
 }
 
 // Re-checks always belong to a base check (not chained) and repeat its measurement:
-// same method, same herd and only animals of the base check
+// same method, same herd, only animals of the base check and not before it
 async function assertRecheckLinkValid(tx: Transaction, check: LoadedCheck) {
-  // A base check's herd must stay in line with its re-checks
-  const ownRechecks = await tx.query.parasiteChecks.findMany({ where: { previousCheckId: check.id } });
+  // A base check must stay in line with its re-checks
+  const ownRechecks = await tx.query.parasiteChecks.findMany({
+    where: { previousCheckId: check.id },
+    with: { animals: true },
+  });
   if (ownRechecks.length > 0) {
     if (check.previousCheckId) {
       throw createHttpError(400, "A check with re-checks cannot become a re-check");
     }
-    if (ownRechecks.some((recheck) => recheck.herdId !== check.herdId)) {
-      throw createHttpError(400, "The herd of a check with re-checks cannot be changed");
+    if (ownRechecks.some((recheck) => recheck.method !== check.method || recheck.herdId !== check.herdId)) {
+      throw createHttpError(400, "Method and herd of a check with re-checks cannot be changed");
+    }
+    const checkAnimalIds = new Set(check.animals.map((checkAnimal) => checkAnimal.animalId));
+    const recheckHasForeignAnimal = ownRechecks.some((recheck) =>
+      recheck.animals.some((recheckAnimal) => !checkAnimalIds.has(recheckAnimal.animalId))
+    );
+    if (recheckHasForeignAnimal) {
+      throw createHttpError(400, "Animals of a check with re-checks cannot be removed");
+    }
+    if (ownRechecks.some((recheck) => recheck.date < check.date)) {
+      throw createHttpError(400, "A check cannot be dated after its re-checks");
     }
   }
 
   if (!check.previousCheckId) return;
-  const baseCheck = await tx.query.parasiteChecks.findFirst({
-    where: { id: check.previousCheckId },
-    with: { animals: true },
-  });
+  // Locks the base check so it cannot become a re-check or change concurrently
+  const [baseCheck] = await tx
+    .select()
+    .from(parasiteChecks)
+    .where(eq(parasiteChecks.id, check.previousCheckId))
+    .for("update");
   if (!baseCheck) throw createHttpError(404, "Previous check not found");
   if (baseCheck.previousCheckId) {
     throw createHttpError(400, "A re-check can only follow up on a base check");
@@ -431,7 +500,11 @@ async function assertRecheckLinkValid(tx: Transaction, check: LoadedCheck) {
   if (baseCheck.herdId !== check.herdId) {
     throw createHttpError(400, "A re-check must be for the same herd as its base check");
   }
-  const baseAnimalIds = new Set(baseCheck.animals.map((baseAnimal) => baseAnimal.animalId));
+  if (check.date < baseCheck.date) {
+    throw createHttpError(400, "A re-check cannot be dated before its base check");
+  }
+  const baseAnimals = await tx.query.parasiteCheckAnimals.findMany({ where: { checkId: baseCheck.id } });
+  const baseAnimalIds = new Set(baseAnimals.map((baseAnimal) => baseAnimal.animalId));
   if (check.animals.some((checkAnimal) => !baseAnimalIds.has(checkAnimal.animalId))) {
     throw createHttpError(400, "A re-check can only include animals of its base check");
   }
@@ -511,6 +584,13 @@ export function parasiteChecksApi(rlsDb: RlsDb, t: TFunction) {
         await assertRecheckLinkValid(tx, loadedCheck);
 
         // Optional reminder to re-check (client-side toggle)
+        if (input.followUp?.assigneeId) {
+          const [assigneeMembership] = await tx
+            .select({ id: farmMembers.id })
+            .from(farmMembers)
+            .where(and(eq(farmMembers.userId, input.followUp.assigneeId), eq(farmMembers.farmId, currentFarmId)));
+          if (!assigneeMembership) throw createHttpError(404, "Assignee not found");
+        }
         if (input.followUp) {
           const followUpName =
             input.followUp.name ??
@@ -585,10 +665,29 @@ export function parasiteChecksApi(rlsDb: RlsDb, t: TFunction) {
 
     async updateCheck(id: string, input: ParasiteCheckUpdateInput): Promise<ParasiteCheckDetail> {
       return rlsDb.rls(async (tx) => {
-        const existingCheck = await tx.query.parasiteChecks.findFirst({ where: { id } });
+        const existingCheck = await tx.query.parasiteChecks.findFirst({
+          where: { id },
+          with: { animals: true },
+        });
         if (!existingCheck) throw createHttpError(404, "Parasite check not found");
         if (input.previousCheckId === id) {
           throw createHttpError(400, "A check cannot be its own previous check");
+        }
+
+        // A base check with re-checks keeps its method, herd and animals
+        const hasRechecks = await tx.query.parasiteChecks.findFirst({ where: { previousCheckId: id } });
+        if (hasRechecks) {
+          const methodChanged = input.method !== undefined && input.method !== existingCheck.method;
+          const herdChanged = input.herdId !== undefined && (input.herdId ?? null) !== existingCheck.herdId;
+          const existingAnimalIds = new Set(existingCheck.animals.map((checkAnimal) => checkAnimal.animalId));
+          const inputAnimalIds = new Set((input.animals ?? []).map((checkAnimal) => checkAnimal.animalId));
+          const animalsChanged =
+            input.animals !== undefined &&
+            (inputAnimalIds.size !== existingAnimalIds.size ||
+              [...inputAnimalIds].some((animalId) => !existingAnimalIds.has(animalId)));
+          if (methodChanged || herdChanged || animalsChanged) {
+            throw createHttpError(400, "Method, herd and animals of a check with re-checks cannot be changed");
+          }
         }
 
         await assertReferencesVisible(tx, {

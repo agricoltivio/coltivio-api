@@ -1,7 +1,7 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "257fbd65-f31c-4fbe-8a27-df4625cddef0",
+  "id": "d3c412fa-52f7-49f0-9dc2-91e7411c52c9",
   "prevIds": [
     "fbac536d-c745-4ce8-843a-654b8b14c2c4"
   ],
@@ -11671,7 +11671,7 @@
         "id"
       ],
       "onUpdate": "NO ACTION",
-      "onDelete": "SET NULL",
+      "onDelete": "CASCADE",
       "name": "parasite_checks_previous_check_id_parasite_checks_id_fkey",
       "entityType": "fks",
       "schema": "public",
@@ -14026,6 +14026,20 @@
       "schema": "public",
       "table": "wiki_tags",
       "entityType": "uniques"
+    },
+    {
+      "value": "\"famacha_score\" between 1 and 5",
+      "name": "parasite_check_animals_famacha_score_range",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "parasite_check_animals"
+    },
+    {
+      "value": "\"count_per_gram\" >= 0",
+      "name": "parasite_fec_results_count_non_negative",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "parasite_fec_results"
     },
     {
       "as": "PERMISSIVE",

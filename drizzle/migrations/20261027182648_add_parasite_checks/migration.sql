@@ -7,7 +7,8 @@ CREATE TABLE "parasite_check_animals" (
 	"check_id" uuid NOT NULL,
 	"animal_id" uuid NOT NULL,
 	"famacha_score" integer,
-	CONSTRAINT "parasite_check_animals_unique" UNIQUE("check_id","animal_id")
+	CONSTRAINT "parasite_check_animals_unique" UNIQUE("check_id","animal_id"),
+	CONSTRAINT "parasite_check_animals_famacha_score_range" CHECK ("famacha_score" between 1 and 5)
 );
 --> statement-breakpoint
 ALTER TABLE "parasite_check_animals" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
@@ -33,7 +34,8 @@ CREATE TABLE "parasite_fec_results" (
 	"sample_id" uuid NOT NULL,
 	"parasite_type" "parasite_type" NOT NULL,
 	"count_per_gram" real NOT NULL,
-	CONSTRAINT "parasite_fec_results_unique" UNIQUE("sample_id","parasite_type")
+	CONSTRAINT "parasite_fec_results_unique" UNIQUE("sample_id","parasite_type"),
+	CONSTRAINT "parasite_fec_results_count_non_negative" CHECK ("count_per_gram" >= 0)
 );
 --> statement-breakpoint
 ALTER TABLE "parasite_fec_results" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
@@ -66,7 +68,7 @@ ALTER TABLE "parasite_checks" ADD CONSTRAINT "parasite_checks_farm_id_farms_id_f
 ALTER TABLE "parasite_checks" ADD CONSTRAINT "parasite_checks_herd_id_herds_id_fkey" FOREIGN KEY ("herd_id") REFERENCES "herds"("id") ON DELETE SET NULL;--> statement-breakpoint
 ALTER TABLE "parasite_checks" ADD CONSTRAINT "parasite_checks_treatment_id_treatments_id_fkey" FOREIGN KEY ("treatment_id") REFERENCES "treatments"("id") ON DELETE SET NULL;--> statement-breakpoint
 ALTER TABLE "parasite_checks" ADD CONSTRAINT "parasite_checks_created_by_profiles_id_fkey" FOREIGN KEY ("created_by") REFERENCES "profiles"("id") ON DELETE SET NULL;--> statement-breakpoint
-ALTER TABLE "parasite_checks" ADD CONSTRAINT "parasite_checks_previous_check_id_parasite_checks_id_fkey" FOREIGN KEY ("previous_check_id") REFERENCES "parasite_checks"("id") ON DELETE SET NULL;--> statement-breakpoint
+ALTER TABLE "parasite_checks" ADD CONSTRAINT "parasite_checks_previous_check_id_parasite_checks_id_fkey" FOREIGN KEY ("previous_check_id") REFERENCES "parasite_checks"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "parasite_fec_results" ADD CONSTRAINT "parasite_fec_results_farm_id_farms_id_fkey" FOREIGN KEY ("farm_id") REFERENCES "farms"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "parasite_fec_results" ADD CONSTRAINT "parasite_fec_results_sample_id_parasite_fec_samples_id_fkey" FOREIGN KEY ("sample_id") REFERENCES "parasite_fec_samples"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "parasite_fec_sample_animals" ADD CONSTRAINT "parasite_fec_sample_animals_farm_id_farms_id_fkey" FOREIGN KEY ("farm_id") REFERENCES "farms"("id") ON DELETE CASCADE;--> statement-breakpoint

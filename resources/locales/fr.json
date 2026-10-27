@@ -518,6 +518,10 @@
   },
   "parasite_checks": {
     "follow_up_task_name": "Contrôle infestation vermineuse",
-    "follow_up_task_name_herd": "Contrôle infestation vermineuse – {{herd}}"
+    "follow_up_task_name_herd": "Contrôle infestation vermineuse – {{herd}}",
+    "methods": {
+      "famacha": "FAMACHA",
+      "fecal_egg_count": "Coprologie"
+    }
   }
 }

@@ -89,7 +89,7 @@ export function sessionApi(db: RlsDb, t: TFunction, locale: string) {
     wikiModeration: wikiModerationApi(db),
     forum: forumApi(db),
     forumModeration: forumModerationApi(db),
-    tasks: tasksApi(db, locale),
+    tasks: tasksApi(db, t, locale),
     membership: membershipApi(db),
     donations: donationsApi(db),
     handoff: handoffApi(db),

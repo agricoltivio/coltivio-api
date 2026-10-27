@@ -518,6 +518,10 @@
   },
   "parasite_checks": {
     "follow_up_task_name": "Controllo infestazione da vermi",
-    "follow_up_task_name_herd": "Controllo infestazione da vermi – {{herd}}"
+    "follow_up_task_name_herd": "Controllo infestazione da vermi – {{herd}}",
+    "methods": {
+      "famacha": "FAMACHA",
+      "fecal_egg_count": "Esame coprologico"
+    }
   }
 }

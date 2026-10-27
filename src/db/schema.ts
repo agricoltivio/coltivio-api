@@ -1,6 +1,7 @@
 import { and, defineRelations, eq, or, sql } from "drizzle-orm";
 import {
   boolean,
+  check,
   customType,
   date,
   foreignKey,
@@ -1748,7 +1749,8 @@ export const parasiteChecks = pgTable.withRLS(
     updatedAt: timestamp().notNull().defaultNow(),
   },
   (table) => [
-    foreignKey({ columns: [table.previousCheckId], foreignColumns: [table.id] }).onDelete("set null"),
+    // Re-checks are deleted together with their base check
+    foreignKey({ columns: [table.previousCheckId], foreignColumns: [table.id] }).onDelete("cascade"),
     index("parasite_checks_date_idx").on(table.date),
     index("parasite_checks_herd_id_idx").on(table.herdId),
     pgPolicy("only farm members", {
@@ -1778,6 +1780,7 @@ export const parasiteCheckAnimals = pgTable.withRLS(
   },
   (table) => [
     unique("parasite_check_animals_unique").on(table.checkId, table.animalId),
+    check("parasite_check_animals_famacha_score_range", sql`${table.famachaScore} between 1 and 5`),
     index("parasite_check_animals_animal_id_idx").on(table.animalId),
     pgPolicy("only farm members", {
       as: "permissive",
@@ -1854,6 +1857,7 @@ export const parasiteFecResults = pgTable.withRLS(
   },
   (table) => [
     unique("parasite_fec_results_unique").on(table.sampleId, table.parasiteType),
+    check("parasite_fec_results_count_non_negative", sql`${table.countPerGram} >= 0`),
     pgPolicy("only farm members", {
       as: "permissive",
       to: authenticatedRole,
