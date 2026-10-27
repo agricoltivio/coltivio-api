@@ -515,5 +515,9 @@
     "cta": "Beitrag öffnen",
     "reason_moderator": "Du erhältst diese E-Mail, weil du den Treffpunkt moderierst.",
     "reason_subscribed": "Du erhältst diese E-Mail, weil du diesen Beitrag abonniert hast. Im Beitrag kannst du die Benachrichtigungen ausschalten."
+  },
+  "parasite_checks": {
+    "follow_up_task_name": "Kontrolle Wurmbefall",
+    "follow_up_task_name_herd": "Kontrolle Wurmbefall – {{herd}}"
   }
 }

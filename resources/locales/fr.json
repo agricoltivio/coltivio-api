@@ -515,5 +515,9 @@
     "cta": "Ouvrir la contribution",
     "reason_moderator": "Tu reçois cet e-mail parce que tu modères le Treffpunkt.",
     "reason_subscribed": "Tu reçois cet e-mail parce que tu suis cette contribution. Tu peux désactiver les notifications dans la contribution."
+  },
+  "parasite_checks": {
+    "follow_up_task_name": "Contrôle infestation vermineuse",
+    "follow_up_task_name_herd": "Contrôle infestation vermineuse – {{herd}}"
   }
 }

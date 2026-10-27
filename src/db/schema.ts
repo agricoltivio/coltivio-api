@@ -500,6 +500,7 @@ export const taskLinkType = pgEnum("task_link_type", [
   "wiki_entry",
   "treatment",
   "herd",
+  "parasite_check",
 ]);
 
 export const weekday = pgEnum("weekday", ["MO", "TU", "WE", "TH", "FR", "SA", "SU"]);
@@ -1706,6 +1707,162 @@ export const animalTreatments = pgTable.withRLS(
   ]
 );
 
+// Parasite control (worm monitoring): FAMACHA eyelid checks and lab fecal egg counts
+
+export const parasiteCheckMethod = pgEnum("parasite_check_method", ["famacha", "fecal_egg_count"]);
+
+export const parasiteType = pgEnum("parasite_type", [
+  "strongyles",
+  // Blood-sucking abomasal worm (part of the strongyles), only when the lab reports it separately
+  "haemonchus",
+  "nematodirus",
+  "trichuris",
+  "strongyloides",
+  "moniezia",
+  "coccidia",
+  "liver_fluke",
+  "small_liver_fluke",
+  "lungworm",
+  "other",
+]);
+
+export const parasiteChecks = pgTable.withRLS(
+  "parasite_checks",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    farmId: uuid()
+      .notNull()
+      .references(() => farms.id, { onDelete: "cascade" }),
+    date: date({ mode: "date" }).notNull(),
+    method: parasiteCheckMethod().notNull(),
+    // Optional: the herd the check was done for. Checks can also be done for loose animals.
+    herdId: uuid().references(() => herds.id, { onDelete: "set null" }),
+    labName: text(),
+    notes: text(),
+    // Set when this check is a re-check of an earlier one (e.g. 2 weeks after treatment)
+    previousCheckId: uuid(),
+    // Action taken based on this check
+    treatmentId: uuid().references(() => treatments.id, { onDelete: "set null" }),
+    createdBy: uuid().references(() => profiles.id, { onDelete: "set null" }),
+    createdAt: timestamp().notNull().defaultNow(),
+    updatedAt: timestamp().notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({ columns: [table.previousCheckId], foreignColumns: [table.id] }).onDelete("set null"),
+    index("parasite_checks_date_idx").on(table.date),
+    index("parasite_checks_herd_id_idx").on(table.herdId),
+    pgPolicy("only farm members", {
+      as: "permissive",
+      to: authenticatedRole,
+      using: eq(table.farmId, currentFarmId),
+      withCheck: eq(table.farmId, currentFarmId),
+    }),
+  ]
+);
+
+export const parasiteCheckAnimals = pgTable.withRLS(
+  "parasite_check_animals",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    farmId: uuid()
+      .notNull()
+      .references(() => farms.id, { onDelete: "cascade" }),
+    checkId: uuid()
+      .notNull()
+      .references(() => parasiteChecks.id, { onDelete: "cascade" }),
+    animalId: uuid()
+      .notNull()
+      .references(() => animals.id, { onDelete: "cascade" }),
+    // FAMACHA score 1 (red, healthy) - 5 (white, severely anaemic); only for famacha checks
+    famachaScore: integer(),
+  },
+  (table) => [
+    unique("parasite_check_animals_unique").on(table.checkId, table.animalId),
+    index("parasite_check_animals_animal_id_idx").on(table.animalId),
+    pgPolicy("only farm members", {
+      as: "permissive",
+      to: authenticatedRole,
+      using: eq(table.farmId, currentFarmId),
+      withCheck: eq(table.farmId, currentFarmId),
+    }),
+  ]
+);
+
+export const parasiteFecSamples = pgTable.withRLS(
+  "parasite_fec_samples",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    farmId: uuid()
+      .notNull()
+      .references(() => farms.id, { onDelete: "cascade" }),
+    checkId: uuid()
+      .notNull()
+      .references(() => parasiteChecks.id, { onDelete: "cascade" }),
+    label: text(),
+  },
+  (table) => [
+    index("parasite_fec_samples_check_id_idx").on(table.checkId),
+    pgPolicy("only farm members", {
+      as: "permissive",
+      to: authenticatedRole,
+      using: eq(table.farmId, currentFarmId),
+      withCheck: eq(table.farmId, currentFarmId),
+    }),
+  ]
+);
+
+// One animal = individual sample, several animals = pooled sample
+export const parasiteFecSampleAnimals = pgTable.withRLS(
+  "parasite_fec_sample_animals",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    farmId: uuid()
+      .notNull()
+      .references(() => farms.id, { onDelete: "cascade" }),
+    sampleId: uuid()
+      .notNull()
+      .references(() => parasiteFecSamples.id, { onDelete: "cascade" }),
+    animalId: uuid()
+      .notNull()
+      .references(() => animals.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    unique("parasite_fec_sample_animals_unique").on(table.sampleId, table.animalId),
+    index("parasite_fec_sample_animals_animal_id_idx").on(table.animalId),
+    pgPolicy("only farm members", {
+      as: "permissive",
+      to: authenticatedRole,
+      using: eq(table.farmId, currentFarmId),
+      withCheck: eq(table.farmId, currentFarmId),
+    }),
+  ]
+);
+
+export const parasiteFecResults = pgTable.withRLS(
+  "parasite_fec_results",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    farmId: uuid()
+      .notNull()
+      .references(() => farms.id, { onDelete: "cascade" }),
+    sampleId: uuid()
+      .notNull()
+      .references(() => parasiteFecSamples.id, { onDelete: "cascade" }),
+    parasiteType: parasiteType().notNull(),
+    // Eggs, oocysts (coccidia) or larvae (lungworms) per gram of feces
+    countPerGram: real().notNull(),
+  },
+  (table) => [
+    unique("parasite_fec_results_unique").on(table.sampleId, table.parasiteType),
+    pgPolicy("only farm members", {
+      as: "permissive",
+      to: authenticatedRole,
+      using: eq(table.farmId, currentFarmId),
+      withCheck: eq(table.farmId, currentFarmId),
+    }),
+  ]
+);
+
 // Wiki knowledgebase tables
 
 export const wikiEntryStatus = pgEnum("wiki_entry_status", [
@@ -2599,6 +2756,11 @@ const tables = {
   treatments,
   animalTreatments,
   herds,
+  parasiteChecks,
+  parasiteCheckAnimals,
+  parasiteFecSamples,
+  parasiteFecSampleAnimals,
+  parasiteFecResults,
   herdMemberships,
   customOutdoorJournalCategories,
   outdoorSchedules,
@@ -3196,6 +3358,71 @@ export const relations = defineRelations(tables, (r) => ({
       optional: false,
     }),
   },
+  parasiteChecks: {
+    farm: r.one.farms({
+      from: r.parasiteChecks.farmId,
+      to: r.farms.id,
+      optional: false,
+    }),
+    herd: r.one.herds({
+      from: r.parasiteChecks.herdId,
+      to: r.herds.id,
+    }),
+    treatment: r.one.treatments({
+      from: r.parasiteChecks.treatmentId,
+      to: r.treatments.id,
+    }),
+    previousCheck: r.one.parasiteChecks({
+      from: r.parasiteChecks.previousCheckId,
+      to: r.parasiteChecks.id,
+      alias: "previous_check",
+    }),
+    recheck: r.many.parasiteChecks({
+      alias: "previous_check",
+    }),
+    animals: r.many.parasiteCheckAnimals(),
+    fecSamples: r.many.parasiteFecSamples(),
+  },
+  parasiteCheckAnimals: {
+    check: r.one.parasiteChecks({
+      from: r.parasiteCheckAnimals.checkId,
+      to: r.parasiteChecks.id,
+      optional: false,
+    }),
+    animal: r.one.animals({
+      from: r.parasiteCheckAnimals.animalId,
+      to: r.animals.id,
+      optional: false,
+    }),
+  },
+  parasiteFecSamples: {
+    check: r.one.parasiteChecks({
+      from: r.parasiteFecSamples.checkId,
+      to: r.parasiteChecks.id,
+      optional: false,
+    }),
+    animals: r.many.parasiteFecSampleAnimals(),
+    results: r.many.parasiteFecResults(),
+  },
+  parasiteFecSampleAnimals: {
+    sample: r.one.parasiteFecSamples({
+      from: r.parasiteFecSampleAnimals.sampleId,
+      to: r.parasiteFecSamples.id,
+      optional: false,
+    }),
+    animal: r.one.animals({
+      from: r.parasiteFecSampleAnimals.animalId,
+      to: r.animals.id,
+      optional: false,
+    }),
+  },
+  parasiteFecResults: {
+    sample: r.one.parasiteFecSamples({
+      from: r.parasiteFecResults.sampleId,
+      to: r.parasiteFecSamples.id,
+      optional: false,
+    }),
+  },
   wikiCategories: {
     translations: r.many.wikiCategoryTranslations(),
     entries: r.many.wikiEntries(),
@@ -3458,6 +3685,8 @@ export const deathReasonSchema = z.enum(deathReason.enumValues);
 export const drugDoseUnitSchema = z.enum(drugDoseUnit.enumValues);
 export const drugDosePerUnitSchema = z.enum(drugDosePerUnit.enumValues);
 export const outdoorScheduleTypeSchema = z.enum(outdoorScheduleType.enumValues);
+export const parasiteCheckMethodSchema = z.enum(parasiteCheckMethod.enumValues);
+export const parasiteTypeSchema = z.enum(parasiteType.enumValues);
 
 export const preferredCommunicationSchema = z.enum(preferredCommunication.enumValues);
 

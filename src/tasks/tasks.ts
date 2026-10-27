@@ -43,7 +43,7 @@ export type TaskRecurrenceInput = {
 };
 
 export type TaskLinkInput = {
-  linkType: "animal" | "plot" | "contact" | "order" | "wiki_entry" | "treatment" | "herd";
+  linkType: typeof taskLinks.$inferInsert.linkType;
   linkedId: string;
 };
 
@@ -150,6 +150,18 @@ async function resolveLinks(
             where: { id: link.linkedId },
           });
           displayName = row?.name ?? null;
+          break;
+        }
+        case "parasite_check": {
+          const row = await tx.query.parasiteChecks.findFirst({
+            where: { id: link.linkedId },
+            with: { herd: true },
+          });
+          if (row) {
+            const methodLabel = row.method === "famacha" ? "FAMACHA" : "FEC";
+            const dateLabel = row.date.toISOString().slice(0, 10);
+            displayName = [methodLabel, dateLabel, row.herd?.name].filter(Boolean).join(" · ");
+          }
           break;
         }
       }
