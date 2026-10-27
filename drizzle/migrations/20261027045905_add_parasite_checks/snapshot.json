@@ -1,9 +1,9 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "0f37e00b-c0f7-4d46-9ea7-a0184f128293",
+  "id": "257fbd65-f31c-4fbe-8a27-df4625cddef0",
   "prevIds": [
-    "1db6e7c0-133f-434c-a69c-2cbefc152529"
+    "fbac536d-c745-4ce8-843a-654b8b14c2c4"
   ],
   "ddl": [
     {
@@ -15339,7 +15339,5 @@
       "schema": "public"
     }
   ],
-  "renames": [
-    "public.parasite_fec_results.eggs_per_gram->public.parasite_fec_results.count_per_gram"
-  ]
+  "renames": []
 }
