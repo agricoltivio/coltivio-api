@@ -86,8 +86,8 @@ export type ParasiteCheckSummary = {
     parasiteType: ParasiteType;
     sampleCount: number;
     highestGrade: ParasiteResultGrade;
-    // Index in GRADE_ORDER (0 = negative … 3 = high), each sample weighted by its
-    // number of animals; lies between the steps, e.g. 1.5 = between low and medium
+    // Index in GRADE_ORDER (0 = negative … 3 = high), averaged per sample like the
+    // counts; lies between the steps, e.g. 1.5 = between low and medium
     averageGrade: number;
   }[];
 };
@@ -177,7 +177,7 @@ function summarizeCheck(check: LoadedCheck): ParasiteCheckSummary {
   }));
 
   const countPerGramByParasite = new Map<ParasiteType, number[]>();
-  const gradesByParasiteType = new Map<ParasiteType, { grade: ParasiteResultGrade; animalCount: number }[]>();
+  const gradesByParasiteType = new Map<ParasiteType, ParasiteResultGrade[]>();
   for (const sample of check.fecSamples) {
     for (const result of sample.results) {
       if (result.countPerGram !== null) {
@@ -187,20 +187,18 @@ function summarizeCheck(check: LoadedCheck): ParasiteCheckSummary {
       }
       if (result.grade !== null) {
         const grades = gradesByParasiteType.get(result.parasiteType) ?? [];
-        grades.push({ grade: result.grade, animalCount: sample.animals.length });
+        grades.push(result.grade);
         gradesByParasiteType.set(result.parasiteType, grades);
       }
     }
   }
   const gradesByParasite = [...gradesByParasiteType.entries()].map(([parasiteType, grades]) => {
-    const gradeIndexes = grades.map((entry) => GRADE_ORDER.indexOf(entry.grade));
-    const animalCount = grades.reduce((sum, entry) => sum + entry.animalCount, 0);
-    const weightedSum = grades.reduce((sum, entry, index) => sum + gradeIndexes[index] * entry.animalCount, 0);
+    const gradeIndexes = grades.map((grade) => GRADE_ORDER.indexOf(grade));
     return {
       parasiteType,
       sampleCount: grades.length,
       highestGrade: GRADE_ORDER[Math.max(...gradeIndexes)],
-      averageGrade: animalCount > 0 ? weightedSum / animalCount : 0,
+      averageGrade: average(gradeIndexes),
     };
   });
   const fecByParasite = [...countPerGramByParasite.entries()].map(([parasiteType, values]) => ({
@@ -583,7 +581,8 @@ export function parasiteChecksApi(rlsDb: RlsDb, t: TFunction) {
           .values({
             ...farmIdColumnValue,
             date: input.date,
-            name: input.name || null,
+            // An empty name means no name (same as on update)
+            name: input.name?.trim() || null,
             method: input.method,
             labName: input.labName ?? null,
             notes: input.notes ?? null,

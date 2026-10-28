@@ -631,13 +631,15 @@ describe("Parasite re-check rules", () => {
     const renamedBody = (await renamed.json()) as { data: CheckResponse };
     expect(renamedBody.data.name).toBeNull();
 
-    // A check whose animals were all deleted stays editable
+    // A check whose animals were all deleted stays editable; a blank name is no name on create too
     const lonely = await createCheck(jwt, {
       date: "2025-07-01",
+      name: "  ",
       method: "famacha",
       animals: [{ animalId: a1.id }],
       followUp: { dueDate: "2025-07-15" },
     });
+    expect(lonely.body.data.name).toBeNull();
     const deleteAnimalRes = await request("DELETE", `/v1/animals/byId/${a1.id}`, undefined, jwt);
     expect(deleteAnimalRes.status).toBe(200);
     const notesRes = await request(
@@ -683,8 +685,8 @@ describe("Parasite re-check rules", () => {
     expect(summary.fecByParasite.map((entry) => entry.parasiteType).sort()).toEqual(["capillaria", "strongyles"]);
     expect(summary.gradesByParasite.find((entry) => entry.parasiteType === "lungworm")!.highestGrade).toBe("high");
 
-    // Average grade weighted by animals: pooled "high" (2 animals) + individual "negative" (1) = 2 of 3
-    const weighted = await createCheck(jwt, {
+    // Average grade per sample like the counts: pooled "high" (3) + individual "negative" (0) = 1.5
+    const perSample = await createCheck(jwt, {
       date: "2025-06-03",
       method: "fecal_egg_count",
       animals: [...animals, { animalId: a3.id }],
@@ -693,10 +695,10 @@ describe("Parasite re-check rules", () => {
         { animalIds: [a3.id], results: [{ parasiteType: "coccidia", grade: "negative" }] },
       ],
     });
-    expect(weighted.status).toBe(200);
-    const coccidia = weighted.body.data.summary.gradesByParasite.find((entry) => entry.parasiteType === "coccidia")!;
+    expect(perSample.status).toBe(200);
+    const coccidia = perSample.body.data.summary.gradesByParasite.find((entry) => entry.parasiteType === "coccidia")!;
     expect(coccidia.highestGrade).toBe("high");
-    expect(coccidia.averageGrade).toBeCloseTo(2);
+    expect(coccidia.averageGrade).toBeCloseTo(1.5);
 
     // A result needs exactly one of count and grade
     const neither = await createCheck(jwt, {
