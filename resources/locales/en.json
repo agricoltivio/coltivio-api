@@ -5,7 +5,14 @@
     "error_sex_unknown": "Unknown sex value: {{value}}",
     "error_dob_required": "Date of birth is required",
     "error_dob_invalid": "Invalid date format",
-    "error_ear_tag_assigned": "Ear tag {{number}} is already assigned to another animal"
+    "error_ear_tag_assigned": "Ear tag {{number}} is already assigned to another animal",
+    "error_missing_columns": "The file is missing required columns: {{columns}}. These columns also need to be selected when exporting from the TVD.",
+    "columns": {
+      "earTag": "Ear tag number",
+      "name": "Name",
+      "sex": "Sex",
+      "dateOfBirth": "Date of birth"
+    }
   },
   "field_calendar_report": {
     "mail_subject": "Field Calendar",

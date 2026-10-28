@@ -1308,7 +1308,13 @@ async function buildExcelBuffer(rows: [string, string, string, string, string?][
 
 // Sends a multipart/form-data POST with an xlsx file attached. Returns the
 // raw Response so callers can inspect status and body.
-async function uploadExcel(path: string, buffer: Buffer, fields: Record<string, string>, jwt: string) {
+async function uploadExcel(
+  path: string,
+  buffer: Buffer,
+  fields: Record<string, string>,
+  jwt: string,
+  extraHeaders: Record<string, string> = {}
+) {
   const baseUrl = process.env.SERVER_URL!;
   const formData = new FormData();
   formData.append(
@@ -1323,7 +1329,7 @@ async function uploadExcel(path: string, buffer: Buffer, fields: Record<string, 
   }
   return fetch(`${baseUrl}${path}`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${jwt}` },
+    headers: { Authorization: `Bearer ${jwt}`, ...extraHeaders },
     body: formData,
   });
 }
@@ -1615,7 +1621,31 @@ describe("Animal import — preview + commit", () => {
     const res = await uploadExcel("/v1/animals/import/preview", buffer, { skipHeaderRow: "true" }, jwt);
     expect(res.status).toBe(400);
     const body = (await res.json()) as { error: string };
-    expect(body.error).toContain("dateOfBirth");
+    expect(body.error).toContain('"Geburtsdatum"');
+  });
+
+  it("preview names the missing columns in the request locale", async () => {
+    const { jwt } = await createUserWithFarm();
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet("Tiere");
+    // Only the optional columns were picked in the TVD export, the standard ones are missing.
+    sheet.addRow([
+      "Numero di marca auricolare",
+      "Data del decesso",
+      "Numero di marca auricolare (madre)",
+      "Numero di marca auricolare (padre)",
+    ]);
+    sheet.addRow(["CH900", "", "CH901", "CH902"]);
+    const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
+
+    const res = await uploadExcel("/v1/animals/import/preview", buffer, { skipHeaderRow: "true" }, jwt, {
+      "Accept-Language": "it",
+    });
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toBe(
+      `Nel file mancano colonne obbligatorie: "Nome", "Sesso", "Data di nascita". Queste colonne vanno selezionate anche nell'esportazione dalla TVD.`
+    );
   });
 
   it("full two-phase flow: preview then commit", async () => {

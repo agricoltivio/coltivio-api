@@ -103,6 +103,24 @@ function resolveHeaderField(headerText: string, preferredHeaderMap: Record<strin
   return undefined;
 }
 
+const REQUIRED_IMPORT_COLUMNS = ["earTag", "name", "sex", "dateOfBirth"] as const;
+
+// Throws a localized 400 listing the TVD column names the user has to add to their export.
+function assertRequiredImportColumns(columnIndex: Record<string, number>, presentHeaders: string[], t: TFunction) {
+  const missingColumns = REQUIRED_IMPORT_COLUMNS.filter((col) => !columnIndex[col]);
+  if (missingColumns.length === 0) {
+    return;
+  }
+  console.error(
+    `[animals-import] Missing required columns: ${missingColumns.join(", ")}. Headers present in file: ${presentHeaders.join(", ") || "none"}`
+  );
+  const columns = missingColumns.map((col) => `"${t(`animal_import.columns.${col}`)}"`).join(", ");
+  throw createHttpError(
+    400,
+    t("animal_import.error_missing_columns", { columns, interpolation: { escapeValue: false } })
+  );
+}
+
 // Parses a date string — supports ISO (YYYY-MM-DD) and DD.MM.YYYY (used in Italian/Swiss TVD exports)
 function parseDateString(value: string): Date | null {
   const dotFormat = value.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
@@ -1190,21 +1208,7 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
         }
       });
 
-      // Validate all required columns were detected — collect all missing before failing
-      const requiredColumns = ["earTag", "name", "sex", "dateOfBirth"] as const;
-      const missingColumns = requiredColumns.filter((col) => !columnIndex[col]);
-      if (missingColumns.length > 0) {
-        const knownHeaders = Object.values(HEADER_MAP)
-          .flatMap((map) => Object.keys(map))
-          .join(", ");
-        console.error(
-          `[animals-import] Missing required columns: ${missingColumns.join(", ")}. Headers present in file: ${presentHeaders.join(", ") || "none"}`
-        );
-        throw createHttpError(
-          400,
-          `Missing required columns: ${missingColumns.join(", ")}. Known header names: ${knownHeaders}`
-        );
-      }
+      assertRequiredImportColumns(columnIndex, presentHeaders, t);
 
       // Fetch all existing ear tags for this farm to check for duplicates (with animal assignment info)
       const existingEarTags = await rlsDb.rls(async (tx) => {
@@ -1434,20 +1438,7 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
         }
       });
 
-      const requiredColumns = ["earTag", "name", "sex", "dateOfBirth"] as const;
-      const missingColumns = requiredColumns.filter((col) => !columnIndex[col]);
-      if (missingColumns.length > 0) {
-        const knownHeaders = Object.values(HEADER_MAP)
-          .flatMap((map) => Object.keys(map))
-          .join(", ");
-        console.error(
-          `[animals-import] Missing required columns: ${missingColumns.join(", ")}. Headers present in file: ${presentHeaders.join(", ") || "none"}`
-        );
-        throw createHttpError(
-          400,
-          `Missing required columns: ${missingColumns.join(", ")}. Known header names: ${knownHeaders}`
-        );
-      }
+      assertRequiredImportColumns(columnIndex, presentHeaders, t);
 
       // Fetch all existing ear tags for this farm to check assignment status
       const existingEarTags = await rlsDb.rls(async (tx) => {

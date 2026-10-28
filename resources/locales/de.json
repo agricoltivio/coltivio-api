@@ -5,7 +5,14 @@
     "error_sex_unknown": "Unbekannter Geschlechtswert: {{value}}",
     "error_dob_required": "Geburtsdatum ist erforderlich",
     "error_dob_invalid": "Ungültiges Datumsformat",
-    "error_ear_tag_assigned": "Ohrmarke {{number}} ist bereits einem anderen Tier zugewiesen"
+    "error_ear_tag_assigned": "Ohrmarke {{number}} ist bereits einem anderen Tier zugewiesen",
+    "error_missing_columns": "In der Datei fehlen Pflichtspalten: {{columns}}. Diese Spalten beim Export in der TVD zusätzlich auswählen.",
+    "columns": {
+      "earTag": "Ohrmarkennummer",
+      "name": "Tiername",
+      "sex": "Geschlecht",
+      "dateOfBirth": "Geburtsdatum"
+    }
   },
   "field_calendar_report": {
     "mail_subject": "Feldkalender",
