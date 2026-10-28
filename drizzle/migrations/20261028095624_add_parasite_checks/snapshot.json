@@ -1,7 +1,7 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "d3c412fa-52f7-49f0-9dc2-91e7411c52c9",
+  "id": "15377312-7349-4090-acd6-52e8fa971a07",
   "prevIds": [
     "fbac536d-c745-4ce8-843a-654b8b14c2c4"
   ],
@@ -5893,6 +5893,19 @@
       "table": "parasite_checks"
     },
     {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "name",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "parasite_checks"
+    },
+    {
       "type": "parasite_check_method",
       "typeSchema": "public",
       "notNull": true,
@@ -5901,19 +5914,6 @@
       "generated": null,
       "identity": null,
       "name": "method",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "parasite_checks"
-    },
-    {
-      "type": "uuid",
-      "typeSchema": null,
-      "notNull": false,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "herd_id",
       "entityType": "columns",
       "schema": "public",
       "table": "parasite_checks"
@@ -9616,27 +9616,6 @@
       "nameExplicit": true,
       "columns": [
         {
-          "value": "herd_id",
-          "isExpression": false,
-          "asc": true,
-          "nullsFirst": false,
-          "opclass": null
-        }
-      ],
-      "isUnique": false,
-      "where": null,
-      "with": "",
-      "method": "btree",
-      "concurrently": false,
-      "name": "parasite_checks_herd_id_idx",
-      "entityType": "indexes",
-      "schema": "public",
-      "table": "parasite_checks"
-    },
-    {
-      "nameExplicit": true,
-      "columns": [
-        {
           "value": "animal_id",
           "isExpression": false,
           "asc": true,
@@ -11605,23 +11584,6 @@
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "name": "parasite_checks_farm_id_farms_id_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "parasite_checks"
-    },
-    {
-      "nameExplicit": false,
-      "columns": [
-        "herd_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "herds",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "SET NULL",
-      "name": "parasite_checks_herd_id_herds_id_fkey",
       "entityType": "fks",
       "schema": "public",
       "table": "parasite_checks"

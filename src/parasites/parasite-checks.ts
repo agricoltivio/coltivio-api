@@ -1,4 +1,4 @@
-import { and, eq, gte, inArray, isNull, lte, or } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { TFunction } from "i18next";
 import createHttpError from "http-errors";
 import { RlsDb, Transaction } from "../db/db";
@@ -7,7 +7,6 @@ import {
   currentFarmId,
   farmIdColumnValue,
   farmMembers,
-  herdMemberships,
   parasiteCheckAnimals,
   parasiteChecks,
   parasiteFecResults,
@@ -18,6 +17,7 @@ import {
 } from "../db/schema";
 
 export type ParasiteCheck = typeof parasiteChecks.$inferSelect;
+type AnimalType = typeof animals.$inferSelect.type;
 export type ParasiteCheckMethod = ParasiteCheck["method"];
 export type ParasiteType = typeof parasiteFecResults.$inferSelect.parasiteType;
 
@@ -40,10 +40,9 @@ export type ParasiteCheckFollowUpInput = {
 
 export type ParasiteCheckCreateInput = {
   date: Date;
+  name?: string | null;
   method: ParasiteCheckMethod;
-  herdId?: string | null;
-  // Omitted → current members of `herdId` at the check date are used
-  animals?: ParasiteCheckAnimalInput[];
+  animals: ParasiteCheckAnimalInput[];
   fecSamples?: ParasiteFecSampleInput[];
   labName?: string | null;
   notes?: string | null;
@@ -56,7 +55,6 @@ export type ParasiteCheckCreateInput = {
 export type ParasiteCheckUpdateInput = Partial<Omit<ParasiteCheckCreateInput, "followUp">>;
 
 export type ParasiteCheckListFilters = {
-  herdId?: string;
   animalId?: string;
   from?: Date;
   to?: Date;
@@ -93,7 +91,8 @@ export type ParasiteCheckComparison = {
 };
 
 export type ParasiteCheckDetail = ParasiteCheck & {
-  herd: { id: string; name: string } | null;
+  // All animals of a check are of the same type
+  animalType: AnimalType | null;
   treatment: { id: string; name: string; startDate: Date } | null;
   animals: { animalId: string; name: string; earTagNumber: string | null; famachaScore: number | null }[];
   fecSamples: {
@@ -110,6 +109,7 @@ export type ParasiteCheckDetail = ParasiteCheck & {
   rechecks: {
     id: string;
     date: Date;
+    name: string | null;
     method: ParasiteCheckMethod;
     treatment: { id: string; name: string; startDate: Date } | null;
     // Per-animal FAMACHA scores and their average, for charting the re-check
@@ -134,7 +134,6 @@ export type AnimalParasiteHistory = {
 };
 
 const checkWith = {
-  herd: true,
   treatment: true,
   animals: { with: { animal: { with: { earTag: true } } } },
   fecSamples: { with: { animals: true, results: true } },
@@ -309,11 +308,11 @@ async function toDetails(tx: Transaction, checks: LoadedCheck[]): Promise<Parasi
   return checks.map((check) => {
     const summary = summarizeCheck(check);
     const previousCheck = check.previousCheckId ? checksById.get(check.previousCheckId) : undefined;
-    const { herd, treatment, animals: checkAnimals, fecSamples, ...checkColumns } = check;
+    const { treatment, animals: checkAnimals, fecSamples, ...checkColumns } = check;
 
     return {
       ...checkColumns,
-      herd: herd ? { id: herd.id, name: herd.name } : null,
+      animalType: checkAnimals[0]?.animal.type ?? null,
       treatment: treatment ? { id: treatment.id, name: treatment.name, startDate: treatment.startDate } : null,
       animals: checkAnimals.map((checkAnimal) => ({
         animalId: checkAnimal.animalId,
@@ -344,6 +343,7 @@ async function toDetails(tx: Transaction, checks: LoadedCheck[]): Promise<Parasi
           return {
             id: recheck.id,
             date: recheck.date,
+            name: recheck.name,
             method: recheck.method,
             treatment: recheck.treatment
               ? { id: recheck.treatment.id, name: recheck.treatment.name, startDate: recheck.treatment.startDate }
@@ -361,37 +361,15 @@ async function toDetails(tx: Transaction, checks: LoadedCheck[]): Promise<Parasi
   });
 }
 
-// Animals of a herd at a given date (membership active on that date, not dead before it)
-async function resolveHerdAnimalIds(tx: Transaction, herdId: string, date: Date): Promise<string[]> {
-  const rows = await tx
-    .selectDistinct({ animalId: herdMemberships.animalId })
-    .from(herdMemberships)
-    .innerJoin(animals, eq(animals.id, herdMemberships.animalId))
-    .where(
-      and(
-        eq(herdMemberships.herdId, herdId),
-        lte(herdMemberships.fromDate, date),
-        or(isNull(herdMemberships.toDate), gte(herdMemberships.toDate, date)),
-        or(isNull(animals.dateOfDeath), gte(animals.dateOfDeath, date))
-      )
-    );
-  return rows.map((row) => row.animalId);
-}
-
 // FKs bypass RLS, so referenced ids must be checked explicitly to belong to the current farm
 async function assertReferencesVisible(
   tx: Transaction,
   references: {
-    herdId?: string | null;
     treatmentId?: string | null;
     previousCheckId?: string | null;
     animalIds: string[];
   }
 ) {
-  if (references.herdId) {
-    const herd = await tx.query.herds.findFirst({ where: { id: references.herdId } });
-    if (!herd) throw createHttpError(404, "Herd not found");
-  }
   if (references.treatmentId) {
     const treatment = await tx.query.treatments.findFirst({ where: { id: references.treatmentId } });
     if (!treatment) throw createHttpError(404, "Treatment not found");
@@ -457,7 +435,7 @@ async function replaceFecSamples(tx: Transaction, checkId: string, fecSamples: P
 }
 
 // Re-checks always belong to a base check (not chained) and repeat its measurement:
-// same method, same herd, only animals of the base check and not before it
+// same method, only animals of the base check and not before it
 async function assertRecheckLinkValid(tx: Transaction, check: LoadedCheck) {
   // A base check must stay in line with its re-checks
   const ownRechecks = await tx.query.parasiteChecks.findMany({
@@ -468,8 +446,8 @@ async function assertRecheckLinkValid(tx: Transaction, check: LoadedCheck) {
     if (check.previousCheckId) {
       throw createHttpError(400, "A check with re-checks cannot become a re-check");
     }
-    if (ownRechecks.some((recheck) => recheck.method !== check.method || recheck.herdId !== check.herdId)) {
-      throw createHttpError(400, "Method and herd of a check with re-checks cannot be changed");
+    if (ownRechecks.some((recheck) => recheck.method !== check.method)) {
+      throw createHttpError(400, "The method of a check with re-checks cannot be changed");
     }
     const checkAnimalIds = new Set(check.animals.map((checkAnimal) => checkAnimal.animalId));
     const recheckHasForeignAnimal = ownRechecks.some((recheck) =>
@@ -497,9 +475,6 @@ async function assertRecheckLinkValid(tx: Transaction, check: LoadedCheck) {
   if (baseCheck.method !== check.method) {
     throw createHttpError(400, "A re-check must use the same method as its base check");
   }
-  if (baseCheck.herdId !== check.herdId) {
-    throw createHttpError(400, "A re-check must be for the same herd as its base check");
-  }
   if (check.date < baseCheck.date) {
     throw createHttpError(400, "A re-check cannot be dated before its base check");
   }
@@ -514,6 +489,10 @@ async function assertRecheckLinkValid(tx: Transaction, check: LoadedCheck) {
 function assertCheckConsistent(check: LoadedCheck) {
   if (check.animals.length === 0) {
     throw createHttpError(400, "A check needs at least one animal");
+  }
+  // Mixed animal types would make averages and charts meaningless
+  if (new Set(check.animals.map((checkAnimal) => checkAnimal.animal.type)).size > 1) {
+    throw createHttpError(400, "All animals of a check must be of the same animal type");
   }
   if (check.method !== "famacha" && check.animals.some((checkAnimal) => checkAnimal.famachaScore !== null)) {
     throw createHttpError(400, "FAMACHA scores are only allowed for famacha checks");
@@ -539,34 +518,25 @@ function assertCheckConsistent(check: LoadedCheck) {
 export function parasiteChecksApi(rlsDb: RlsDb, t: TFunction) {
   return {
     async createCheck(input: ParasiteCheckCreateInput, userId: string): Promise<ParasiteCheckDetail> {
-      if (!input.animals && !input.herdId) {
-        throw createHttpError(400, "Either animals or herdId is required");
-      }
-
       return rlsDb.rls(async (tx) => {
         await assertReferencesVisible(tx, {
-          herdId: input.herdId,
           treatmentId: input.treatmentId,
           previousCheckId: input.previousCheckId,
           animalIds: [
-            ...(input.animals ?? []).map((checkAnimal) => checkAnimal.animalId),
+            ...input.animals.map((checkAnimal) => checkAnimal.animalId),
             ...(input.fecSamples ?? []).flatMap((sample) => sample.animalIds),
           ],
         });
 
-        let checkAnimals: ParasiteCheckAnimalInput[] = input.animals ?? [];
-        if (!input.animals && input.herdId) {
-          const herdAnimalIds = await resolveHerdAnimalIds(tx, input.herdId, input.date);
-          checkAnimals = herdAnimalIds.map((animalId) => ({ animalId }));
-        }
+        const checkAnimals = input.animals;
 
         const [check] = await tx
           .insert(parasiteChecks)
           .values({
             ...farmIdColumnValue,
             date: input.date,
+            name: input.name || null,
             method: input.method,
-            herdId: input.herdId ?? null,
             labName: input.labName ?? null,
             notes: input.notes ?? null,
             previousCheckId: input.previousCheckId ?? null,
@@ -594,8 +564,8 @@ export function parasiteChecksApi(rlsDb: RlsDb, t: TFunction) {
         if (input.followUp) {
           const followUpName =
             input.followUp.name ??
-            (loadedCheck.herd
-              ? t("parasite_checks.follow_up_task_name_herd", { herd: loadedCheck.herd.name })
+            (loadedCheck.name
+              ? t("parasite_checks.follow_up_task_name_with_name", { name: loadedCheck.name })
               : t("parasite_checks.follow_up_task_name"));
           const [task] = await tx
             .insert(tasks)
@@ -610,11 +580,6 @@ export function parasiteChecksApi(rlsDb: RlsDb, t: TFunction) {
           await tx
             .insert(taskLinks)
             .values({ ...farmIdColumnValue, taskId: task.id, linkType: "parasite_check", linkedId: check.id });
-          if (check.herdId) {
-            await tx
-              .insert(taskLinks)
-              .values({ ...farmIdColumnValue, taskId: task.id, linkType: "herd", linkedId: check.herdId });
-          }
         }
 
         const [detail] = await toDetails(tx, [loadedCheck]);
@@ -645,7 +610,6 @@ export function parasiteChecksApi(rlsDb: RlsDb, t: TFunction) {
 
         const checks = await tx.query.parasiteChecks.findMany({
           where: {
-            ...(filters.herdId ? { herdId: filters.herdId } : {}),
             ...(checkIdsForAnimal ? { id: { in: checkIdsForAnimal } } : {}),
             ...(filters.from || filters.to
               ? {
@@ -674,24 +638,22 @@ export function parasiteChecksApi(rlsDb: RlsDb, t: TFunction) {
           throw createHttpError(400, "A check cannot be its own previous check");
         }
 
-        // A base check with re-checks keeps its method, herd and animals
+        // A base check with re-checks keeps its method and animals
         const hasRechecks = await tx.query.parasiteChecks.findFirst({ where: { previousCheckId: id } });
         if (hasRechecks) {
           const methodChanged = input.method !== undefined && input.method !== existingCheck.method;
-          const herdChanged = input.herdId !== undefined && (input.herdId ?? null) !== existingCheck.herdId;
           const existingAnimalIds = new Set(existingCheck.animals.map((checkAnimal) => checkAnimal.animalId));
           const inputAnimalIds = new Set((input.animals ?? []).map((checkAnimal) => checkAnimal.animalId));
           const animalsChanged =
             input.animals !== undefined &&
             (inputAnimalIds.size !== existingAnimalIds.size ||
               [...inputAnimalIds].some((animalId) => !existingAnimalIds.has(animalId)));
-          if (methodChanged || herdChanged || animalsChanged) {
-            throw createHttpError(400, "Method, herd and animals of a check with re-checks cannot be changed");
+          if (methodChanged || animalsChanged) {
+            throw createHttpError(400, "Method and animals of a check with re-checks cannot be changed");
           }
         }
 
         await assertReferencesVisible(tx, {
-          herdId: input.herdId,
           treatmentId: input.treatmentId,
           previousCheckId: input.previousCheckId,
           animalIds: [

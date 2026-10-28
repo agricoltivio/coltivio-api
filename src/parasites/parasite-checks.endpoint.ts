@@ -1,7 +1,7 @@
 import { ez } from "express-zod-api";
 import createHttpError from "http-errors";
 import { z } from "zod";
-import { parasiteCheckMethodSchema, parasiteTypeSchema, taskStatusSchema } from "../db/schema";
+import { animalTypeSchema, parasiteCheckMethodSchema, parasiteTypeSchema, taskStatusSchema } from "../db/schema";
 import { permissionFarmEndpoint } from "../endpoint-factory";
 
 const parasiteChecksRead = permissionFarmEndpoint("animals", "read");
@@ -16,8 +16,8 @@ export const parasiteCheckSchema = z.object({
   id: z.string(),
   farmId: z.string(),
   date: ez.dateOut(),
+  name: z.string().nullable(),
   method: parasiteCheckMethodSchema,
-  herdId: z.string().nullable(),
   labName: z.string().nullable(),
   notes: z.string().nullable(),
   previousCheckId: z.string().nullable(),
@@ -25,7 +25,7 @@ export const parasiteCheckSchema = z.object({
   createdBy: z.string().nullable(),
   createdAt: ez.dateOut(),
   updatedAt: ez.dateOut(),
-  herd: z.object({ id: z.string(), name: z.string() }).nullable(),
+  animalType: animalTypeSchema.nullable(),
   treatment: z.object({ id: z.string(), name: z.string(), startDate: ez.dateOut() }).nullable(),
   animals: z.array(
     z.object({
@@ -86,6 +86,7 @@ export const parasiteCheckSchema = z.object({
     z.object({
       id: z.string(),
       date: ez.dateOut(),
+      name: z.string().nullable(),
       method: parasiteCheckMethodSchema,
       treatment: z.object({ id: z.string(), name: z.string(), startDate: ez.dateOut() }).nullable(),
       animals: z.array(z.object({ animalId: z.string(), famachaScore: z.number().nullable() })),
@@ -122,10 +123,9 @@ const fecSampleInputSchema = z.object({
 
 const checkFieldsSchema = z.object({
   date: ez.dateIn(),
+  name: z.string().optional().nullable(),
   method: parasiteCheckMethodSchema,
-  herdId: z.string().optional().nullable(),
-  // Omitted → members of herdId at the check date
-  animals: z.array(checkAnimalInputSchema).optional(),
+  animals: z.array(checkAnimalInputSchema).min(1),
   fecSamples: z.array(fecSampleInputSchema).optional(),
   labName: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
@@ -156,7 +156,6 @@ const dateRangeSchema = z.object({
 export const listParasiteChecksEndpoint = parasiteChecksRead.build({
   method: "get",
   input: dateRangeSchema.extend({
-    herdId: z.string().optional(),
     animalId: z.string().optional(),
   }),
   output: z.object({
@@ -246,18 +245,5 @@ export const getAnimalParasiteHistoryEndpoint = parasiteChecksRead.build({
   handler: async ({ input, ctx: { parasiteChecks } }) => {
     const { animalId, ...range } = input;
     return parasiteChecks.getAnimalParasiteHistory(animalId, range);
-  },
-});
-
-export const getHerdParasiteOverviewEndpoint = parasiteChecksRead.build({
-  method: "get",
-  input: dateRangeSchema.extend({ herdId: z.string() }),
-  output: z.object({
-    result: z.array(parasiteCheckSchema),
-    count: z.number(),
-  }),
-  handler: async ({ input, ctx: { parasiteChecks } }) => {
-    const result = await parasiteChecks.listChecks(input);
-    return { result, count: result.length };
   },
 });

@@ -1735,9 +1735,9 @@ export const parasiteChecks = pgTable.withRLS(
       .notNull()
       .references(() => farms.id, { onDelete: "cascade" }),
     date: date({ mode: "date" }).notNull(),
+    // Optional own name; clients fall back to method and date
+    name: text(),
     method: parasiteCheckMethod().notNull(),
-    // Optional: the herd the check was done for. Checks can also be done for loose animals.
-    herdId: uuid().references(() => herds.id, { onDelete: "set null" }),
     labName: text(),
     notes: text(),
     // Set when this check is a re-check of an earlier one (e.g. 2 weeks after treatment)
@@ -1752,7 +1752,6 @@ export const parasiteChecks = pgTable.withRLS(
     // Re-checks are deleted together with their base check
     foreignKey({ columns: [table.previousCheckId], foreignColumns: [table.id] }).onDelete("cascade"),
     index("parasite_checks_date_idx").on(table.date),
-    index("parasite_checks_herd_id_idx").on(table.herdId),
     pgPolicy("only farm members", {
       as: "permissive",
       to: authenticatedRole,
@@ -3367,10 +3366,6 @@ export const relations = defineRelations(tables, (r) => ({
       from: r.parasiteChecks.farmId,
       to: r.farms.id,
       optional: false,
-    }),
-    herd: r.one.herds({
-      from: r.parasiteChecks.herdId,
-      to: r.herds.id,
     }),
     treatment: r.one.treatments({
       from: r.parasiteChecks.treatmentId,

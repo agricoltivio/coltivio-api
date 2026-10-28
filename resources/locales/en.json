@@ -518,10 +518,10 @@
   },
   "parasite_checks": {
     "follow_up_task_name": "Worm infestation check",
-    "follow_up_task_name_herd": "Worm infestation check – {{herd}}",
     "methods": {
       "famacha": "FAMACHA",
       "fecal_egg_count": "Fecal egg count"
-    }
+    },
+    "follow_up_task_name_with_name": "Worm infestation check – {{name}}"
   }
 }

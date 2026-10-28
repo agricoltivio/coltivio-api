@@ -89,7 +89,6 @@ import {
   createParasiteCheckEndpoint,
   deleteParasiteCheckEndpoint,
   getAnimalParasiteHistoryEndpoint,
-  getHerdParasiteOverviewEndpoint,
   getParasiteCheckEndpoint,
   listParasiteChecksEndpoint,
   updateParasiteCheckEndpoint,
@@ -854,7 +853,6 @@ export const routing: Routing = {
                 post: createOutdoorScheduleEndpoint,
               },
             },
-            parasiteOverview: getHerdParasiteOverviewEndpoint,
           },
         },
         outdoorSchedules: {

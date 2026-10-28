@@ -1,12 +1,13 @@
 import { describe, it, expect, beforeEach } from "@jest/globals";
 
 import { cleanDb, getAdminDb, request } from "./helpers";
-import { createUserWithFarm, createAnimal, createHerd, createTreatment } from "./test-utils";
+import { createUserWithFarm, createAnimal, createTreatment } from "./test-utils";
 
 type CheckResponse = {
   id: string;
+  name: string | null;
+  animalType: string | null;
   method: string;
-  herdId: string | null;
   previousCheckId: string | null;
   treatmentId: string | null;
   animals: Array<{ animalId: string; famachaScore: number | null }>;
@@ -38,28 +39,27 @@ async function createCheck(jwt: string, payload: Record<string, unknown>) {
 describe("Parasite checks", () => {
   beforeEach(cleanDb);
 
-  it("creates a FAMACHA check for a herd, resolving herd members at the check date", async () => {
+  it("rejects a check with mixed animal types", async () => {
     const { jwt } = await createUserWithFarm();
-    const a1 = await createAnimal(jwt, { name: "Sheep1", type: "sheep" });
-    const a2 = await createAnimal(jwt, { name: "Sheep2", type: "sheep" });
-    await createAnimal(jwt, { name: "NotInHerd", type: "sheep" });
-    const herd = await createHerd(jwt, { name: "Sheep Herd", animalIds: [a1.id, a2.id], effectiveDate: "2025-01-01" });
+    const sheep = await createAnimal(jwt, { name: "Sheep1", type: "sheep" });
+    const goat = await createAnimal(jwt, { name: "Goat1", type: "goat" });
 
-    const { status, body } = await createCheck(jwt, { date: "2025-06-01", method: "famacha", herdId: herd.id });
-    expect(status).toBe(200);
-    expect(body.data.herdId).toBe(herd.id);
-    expect(body.data.animals.map((checkAnimal) => checkAnimal.animalId).sort()).toEqual([a1.id, a2.id].sort());
-    expect(body.data.summary.animalCount).toBe(2);
-    expect(body.data.followUpTasks).toHaveLength(0);
+    const { status } = await createCheck(jwt, {
+      date: "2025-06-01",
+      method: "famacha",
+      animals: [{ animalId: sheep.id }, { animalId: goat.id }],
+    });
+    expect(status).toBe(400);
   });
 
-  it("creates a check with only animals (no herd) with FAMACHA scores", async () => {
+  it("creates a FAMACHA check with scores", async () => {
     const { jwt } = await createUserWithFarm();
     const a1 = await createAnimal(jwt, { name: "Goat1", type: "goat" });
     const a2 = await createAnimal(jwt, { name: "Goat2", type: "goat" });
 
     const { status, body } = await createCheck(jwt, {
       date: "2025-06-01",
+      name: "Frühjahrskontrolle",
       method: "famacha",
       animals: [
         { animalId: a1.id, famachaScore: 2 },
@@ -67,7 +67,8 @@ describe("Parasite checks", () => {
       ],
     });
     expect(status).toBe(200);
-    expect(body.data.herdId).toBeNull();
+    expect(body.data.name).toBe("Frühjahrskontrolle");
+    expect(body.data.animalType).toBe("goat");
     expect(body.data.summary.famachaAverage).toBe(3);
     expect(body.data.summary.famachaDistribution.find((entry) => entry.score === 4)!.count).toBe(1);
 
@@ -82,16 +83,14 @@ describe("Parasite checks", () => {
     expect(historyBody.data.checks[0].famachaScore).toBe(4);
   });
 
-  it("dedupes animals given twice and in herd + animals", async () => {
+  it("dedupes animals given twice", async () => {
     const { jwt } = await createUserWithFarm();
     const a1 = await createAnimal(jwt, { name: "S1", type: "sheep" });
     const a2 = await createAnimal(jwt, { name: "S2", type: "sheep" });
-    const herd = await createHerd(jwt, { name: "Flock", animalIds: [a1.id, a2.id], effectiveDate: "2025-01-01" });
 
     const famacha = await createCheck(jwt, {
       date: "2025-06-01",
       method: "famacha",
-      herdId: herd.id,
       animals: [{ animalId: a1.id, famachaScore: 3 }, { animalId: a1.id }],
     });
     expect(famacha.status).toBe(200);
@@ -101,7 +100,7 @@ describe("Parasite checks", () => {
     const fec = await createCheck(jwt, {
       date: "2025-06-01",
       method: "fecal_egg_count",
-      herdId: herd.id,
+      animals: [{ animalId: a1.id }, { animalId: a2.id }],
       fecSamples: [{ animalIds: [a1.id, a1.id], results: [{ parasiteType: "strongyles", countPerGram: 100 }] }],
     });
     expect(fec.status).toBe(200);
@@ -111,7 +110,7 @@ describe("Parasite checks", () => {
     const duplicateParasite = await createCheck(jwt, {
       date: "2025-06-01",
       method: "fecal_egg_count",
-      herdId: herd.id,
+      animals: [{ animalId: a1.id }, { animalId: a2.id }],
       fecSamples: [
         {
           animalIds: [a1.id],
@@ -125,7 +124,7 @@ describe("Parasite checks", () => {
     expect(duplicateParasite.status).toBe(400);
   });
 
-  it("rejects a check without animals and herd", async () => {
+  it("rejects a check without animals", async () => {
     const { jwt } = await createUserWithFarm();
     const { status } = await createCheck(jwt, { date: "2025-06-01", method: "famacha" });
     expect(status).toBe(400);
@@ -221,12 +220,11 @@ describe("Parasite checks", () => {
   it("creates a follow-up task only when requested", async () => {
     const { jwt } = await createUserWithFarm();
     const a1 = await createAnimal(jwt, { name: "S1", type: "sheep" });
-    const herd = await createHerd(jwt, { name: "Flock", animalIds: [a1.id], effectiveDate: "2025-01-01" });
 
     const { status, body } = await createCheck(jwt, {
       date: "2025-06-01",
       method: "famacha",
-      herdId: herd.id,
+      animals: [{ animalId: a1.id }],
       followUp: { dueDate: "2025-06-15" },
     });
     expect(status).toBe(200);
@@ -235,7 +233,7 @@ describe("Parasite checks", () => {
 
     const db = getAdminDb();
     const links = await db.query.taskLinks.findMany({ where: { taskId: body.data.followUpTasks[0].id } });
-    expect(links.map((link) => link.linkType).sort()).toEqual(["herd", "parasite_check"]);
+    expect(links.map((link) => link.linkType)).toEqual(["parasite_check"]);
 
     const taskRes = await request("GET", `/v1/tasks/byId/${body.data.followUpTasks[0].id}`, undefined, jwt);
     expect(taskRes.status).toBe(200);
@@ -243,24 +241,23 @@ describe("Parasite checks", () => {
       data: { links: Array<{ linkType: string; displayName: string | null }> };
     };
     const checkLink = taskBody.data.links.find((link) => link.linkType === "parasite_check")!;
-    expect(checkLink.displayName).toBe("FAMACHA · 2025-06-01 · Flock");
+    expect(checkLink.displayName).toBe("FAMACHA · 2025-06-01");
 
-    await createCheck(jwt, { date: "2025-07-01", method: "famacha", herdId: herd.id });
+    await createCheck(jwt, { date: "2025-07-01", method: "famacha", animals: [{ animalId: a1.id }] });
     const tasks = await db.query.tasks.findMany();
     expect(tasks).toHaveLength(1);
   });
 
   it("links a treatment and computes reduction on re-check", async () => {
-    const { jwt, farmId } = await createUserWithFarm();
+    const { jwt } = await createUserWithFarm();
     const a1 = await createAnimal(jwt, { name: "S1", type: "sheep" });
     const a2 = await createAnimal(jwt, { name: "S2", type: "sheep" });
-    const herd = await createHerd(jwt, { name: "Flock", animalIds: [a1.id, a2.id], effectiveDate: "2025-01-01" });
     const treatment = await createTreatment(jwt, [a1.id, a2.id], { name: "Dewormer" });
 
     const before = await createCheck(jwt, {
       date: "2025-06-01",
       method: "fecal_egg_count",
-      herdId: herd.id,
+      animals: [{ animalId: a1.id }, { animalId: a2.id }],
       treatmentId: treatment.id,
       fecSamples: [{ animalIds: [a1.id, a2.id], results: [{ parasiteType: "strongyles", countPerGram: 1000 }] }],
     });
@@ -270,7 +267,7 @@ describe("Parasite checks", () => {
     const after = await createCheck(jwt, {
       date: "2025-06-15",
       method: "fecal_egg_count",
-      herdId: herd.id,
+      animals: [{ animalId: a1.id }, { animalId: a2.id }],
       previousCheckId: before.body.data.id,
       fecSamples: [{ animalIds: [a1.id, a2.id], results: [{ parasiteType: "strongyles", countPerGram: 50 }] }],
     });
@@ -291,13 +288,17 @@ describe("Parasite checks", () => {
     const chained = await createCheck(jwt, {
       date: "2025-07-01",
       method: "fecal_egg_count",
-      herdId: herd.id,
+      animals: [{ animalId: a1.id }],
       previousCheckId: after.body.data.id,
     });
     expect(chained.status).toBe(400);
 
     // A base check with re-checks cannot become a re-check itself
-    const other = await createCheck(jwt, { date: "2025-05-01", method: "fecal_egg_count", herdId: herd.id });
+    const other = await createCheck(jwt, {
+      date: "2025-05-01",
+      method: "fecal_egg_count",
+      animals: [{ animalId: a1.id }],
+    });
     const baseToRecheck = await request(
       "PATCH",
       `/v1/parasiteChecks/byId/${before.body.data.id}`,
@@ -306,28 +307,18 @@ describe("Parasite checks", () => {
     );
     expect(baseToRecheck.status).toBe(400);
 
-    // A re-check repeats the base measurement: same method, same herd, only base animals
+    // A re-check repeats the base measurement: same method, only base animals
     const otherMethod = await createCheck(jwt, {
       date: "2025-06-20",
       method: "famacha",
-      herdId: herd.id,
-      previousCheckId: before.body.data.id,
-    });
-    expect(otherMethod.status).toBe(400);
-    const otherHerd = await createHerd(jwt, { name: "Other", animalIds: [], effectiveDate: "2025-01-01" });
-    const differentHerd = await createCheck(jwt, {
-      date: "2025-06-20",
-      method: "fecal_egg_count",
-      herdId: otherHerd.id,
       animals: [{ animalId: a1.id }],
       previousCheckId: before.body.data.id,
     });
-    expect(differentHerd.status).toBe(400);
+    expect(otherMethod.status).toBe(400);
     const newcomer = await createAnimal(jwt, { name: "Newcomer", type: "sheep" });
     const foreignAnimal = await createCheck(jwt, {
       date: "2025-06-20",
       method: "fecal_egg_count",
-      herdId: herd.id,
       animals: [{ animalId: a1.id }, { animalId: newcomer.id }],
       previousCheckId: before.body.data.id,
     });
@@ -335,35 +326,15 @@ describe("Parasite checks", () => {
     const subset = await createCheck(jwt, {
       date: "2025-06-20",
       method: "fecal_egg_count",
-      herdId: herd.id,
       animals: [{ animalId: a1.id }],
       previousCheckId: before.body.data.id,
     });
     expect(subset.status).toBe(200);
 
-    // The herd of a base check with re-checks is locked
-    const changeBaseHerd = await request(
-      "PATCH",
-      `/v1/parasiteChecks/byId/${before.body.data.id}`,
-      { herdId: otherHerd.id },
-      jwt
-    );
-    expect(changeBaseHerd.status).toBe(400);
-
-    // Herd overview also contains the comparison
-    const overviewRes = await request(
-      "GET",
-      `/v1/animals/herds/byId/${herd.id}/parasiteOverview?from=2025-06-10`,
-      undefined,
-      jwt,
-      farmId
-    );
-    expect(overviewRes.status).toBe(200);
-    const overviewBody = (await overviewRes.json()) as { data: { count: number; result: CheckResponse[] } };
-    // The re-check from 06-15 and the subset re-check from 06-20
-    expect(overviewBody.data.count).toBe(2);
-    const afterInOverview = overviewBody.data.result.find((check) => check.id === after.body.data.id)!;
-    expect(afterInOverview.comparisonToPrevious!.fecReduction[0].reductionPercent).toBeCloseTo(95);
+    // The list includes re-checks: the one from 06-15 and the subset from 06-20
+    const listRes = await request("GET", "/v1/parasiteChecks?from=2025-06-10", undefined, jwt);
+    const listBody = (await listRes.json()) as { data: { count: number } };
+    expect(listBody.data.count).toBe(2);
 
     // Animal history includes the linked treatment, but not unrelated ones
     const unrelatedTreatment = await createTreatment(jwt, [a1.id], { name: "Antibiotic" });
@@ -411,7 +382,6 @@ describe("Parasite checks", () => {
     const owner = await createUserWithFarm({}, "owner@test.com");
     const other = await createUserWithFarm({ name: "Other Farm" }, "other@test.com");
     const ownerAnimal = await createAnimal(owner.jwt, { name: "Mine", type: "sheep" });
-    const ownerHerd = await createHerd(owner.jwt, { name: "Mine", animalIds: [ownerAnimal.id] });
     const { body } = await createCheck(owner.jwt, {
       date: "2025-06-01",
       method: "famacha",
@@ -424,15 +394,13 @@ describe("Parasite checks", () => {
     const deleteRes = await request("DELETE", `/v1/parasiteChecks/byId/${body.data.id}`, undefined, other.jwt);
     expect(deleteRes.status).toBe(404);
 
-    // Referencing another farm's animal or herd is rejected
+    // Referencing another farm's animal is rejected
     const foreignAnimal = await createCheck(other.jwt, {
       date: "2025-06-01",
       method: "famacha",
       animals: [{ animalId: ownerAnimal.id }],
     });
     expect(foreignAnimal.status).toBe(404);
-    const foreignHerd = await createCheck(other.jwt, { date: "2025-06-01", method: "famacha", herdId: ownerHerd.id });
-    expect(foreignHerd.status).toBe(404);
 
     const historyRes = await request("GET", `/v1/animals/byId/${ownerAnimal.id}/parasiteHistory`, undefined, other.jwt);
     expect(historyRes.status).toBe(404);
@@ -446,11 +414,9 @@ describe("Parasite re-check rules", () => {
     const { jwt, userId } = await createUserWithFarm();
     const a1 = await createAnimal(jwt, { name: "S1", type: "sheep" });
     const a2 = await createAnimal(jwt, { name: "S2", type: "sheep" });
-    const herd = await createHerd(jwt, { name: "Flock", animalIds: [a1.id, a2.id], effectiveDate: "2025-01-01" });
     const base = await createCheck(jwt, {
       date: "2025-06-01",
       method: "fecal_egg_count",
-      herdId: herd.id,
       animals: [{ animalId: a1.id }, { animalId: a2.id }],
       fecSamples: [
         { animalIds: [a1.id], results: [{ parasiteType: "strongyles", countPerGram: 1000 }] },
@@ -458,15 +424,14 @@ describe("Parasite re-check rules", () => {
       ],
     });
     expect(base.status).toBe(200);
-    return { jwt, userId, a1, a2, herd, base: base.body.data };
+    return { jwt, userId, a1, a2, base: base.body.data };
   }
 
   it("deletes re-checks together with their base check", async () => {
-    const { jwt, a1, herd, base } = await setupFecBase();
+    const { jwt, a1, base } = await setupFecBase();
     const recheck = await createCheck(jwt, {
       date: "2025-06-15",
       method: "fecal_egg_count",
-      herdId: herd.id,
       animals: [{ animalId: a1.id }],
       previousCheckId: base.id,
     });
@@ -478,12 +443,11 @@ describe("Parasite re-check rules", () => {
     expect(await db.query.parasiteChecks.findMany()).toHaveLength(0);
   });
 
-  it("locks method, herd and animals of a base check with re-checks and enforces dates", async () => {
-    const { jwt, a1, a2, herd, base } = await setupFecBase();
+  it("locks method and animals of a base check with re-checks and enforces dates", async () => {
+    const { jwt, a1, a2, base } = await setupFecBase();
     const recheck = await createCheck(jwt, {
       date: "2025-06-15",
       method: "fecal_egg_count",
-      herdId: herd.id,
       animals: [{ animalId: a1.id }],
       previousCheckId: base.id,
     });
@@ -491,7 +455,6 @@ describe("Parasite re-check rules", () => {
 
     const patch = (body: Record<string, unknown>) => request("PATCH", `/v1/parasiteChecks/byId/${base.id}`, body, jwt);
     expect((await patch({ method: "famacha" })).status).toBe(400);
-    expect((await patch({ herdId: null })).status).toBe(400);
     expect((await patch({ animals: [{ animalId: a2.id }] })).status).toBe(400);
     expect((await patch({ date: "2025-06-20" })).status).toBe(400);
     // Results and notes stay editable
@@ -501,7 +464,6 @@ describe("Parasite re-check rules", () => {
     const tooEarly = await createCheck(jwt, {
       date: "2025-05-01",
       method: "fecal_egg_count",
-      herdId: herd.id,
       animals: [{ animalId: a1.id }],
       previousCheckId: base.id,
     });
@@ -509,12 +471,11 @@ describe("Parasite re-check rules", () => {
   });
 
   it("computes the reduction on the same animals only", async () => {
-    const { jwt, a1, herd, base } = await setupFecBase();
+    const { jwt, a1, base } = await setupFecBase();
     // Only a1 re-checked: compared against a1's 1000, not the base average of 750
     const recheck = await createCheck(jwt, {
       date: "2025-06-15",
       method: "fecal_egg_count",
-      herdId: herd.id,
       animals: [{ animalId: a1.id }],
       fecSamples: [{ animalIds: [a1.id], results: [{ parasiteType: "strongyles", countPerGram: 50 }] }],
       previousCheckId: base.id,
@@ -525,11 +486,10 @@ describe("Parasite re-check rules", () => {
   });
 
   it("returns no reduction percent when pooled and individual samples are mixed", async () => {
-    const { jwt, a1, a2, herd, base } = await setupFecBase();
+    const { jwt, a1, a2, base } = await setupFecBase();
     const recheck = await createCheck(jwt, {
       date: "2025-06-15",
       method: "fecal_egg_count",
-      herdId: herd.id,
       animals: [{ animalId: a1.id }, { animalId: a2.id }],
       fecSamples: [{ animalIds: [a1.id, a2.id], results: [{ parasiteType: "strongyles", countPerGram: 50 }] }],
       previousCheckId: base.id,

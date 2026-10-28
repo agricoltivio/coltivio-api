@@ -157,12 +157,11 @@ async function resolveLinks(
         case "parasite_check": {
           const row = await tx.query.parasiteChecks.findFirst({
             where: { id: link.linkedId },
-            with: { herd: true },
           });
           if (row) {
             const methodLabel = t(`parasite_checks.methods.${row.method}`);
             const dateLabel = row.date.toISOString().slice(0, 10);
-            displayName = [methodLabel, dateLabel, row.herd?.name].filter(Boolean).join(" · ");
+            displayName = row.name || `${methodLabel} · ${dateLabel}`;
           }
           break;
         }
