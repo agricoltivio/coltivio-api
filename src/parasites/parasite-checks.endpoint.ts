@@ -70,6 +70,8 @@ export const parasiteCheckSchema = z.object({
     .object({
       previousCheckId: z.string(),
       previousDate: ez.dateOut(),
+      famachaBeforeAverage: z.number().nullable(),
+      famachaAfterAverage: z.number().nullable(),
       famachaAverageChange: z.number().nullable(),
       fecReduction: z.array(
         z.object({
@@ -91,6 +93,8 @@ export const parasiteCheckSchema = z.object({
       treatment: z.object({ id: z.string(), name: z.string(), startDate: ez.dateOut() }).nullable(),
       animals: z.array(z.object({ animalId: z.string(), famachaScore: z.number().nullable() })),
       famachaAverage: z.number().nullable(),
+      famachaBeforeAverage: z.number().nullable(),
+      famachaAfterAverage: z.number().nullable(),
       famachaAverageChange: z.number().nullable(),
       fecReduction: z.array(
         z.object({

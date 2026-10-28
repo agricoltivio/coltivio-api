@@ -26,6 +26,8 @@ type CheckResponse = {
   };
   comparisonToPrevious: {
     previousCheckId: string;
+    famachaBeforeAverage: number | null;
+    famachaAfterAverage: number | null;
     famachaAverageChange: number | null;
     fecReduction: Array<{ parasiteType: string; reductionPercent: number | null }>;
   } | null;
@@ -536,5 +538,119 @@ describe("Parasite re-check rules", () => {
       followUp: { dueDate: "2025-07-15", assigneeId: other.userId },
     });
     expect(foreignAssignee.status).toBe(404);
+  });
+
+  it("compares pooled samples only when they contain the same animals", async () => {
+    const { jwt } = await createUserWithFarm();
+    const [a1, a2, a3, a4] = await Promise.all(
+      ["P1", "P2", "P3", "P4"].map((name) => createAnimal(jwt, { name, type: "sheep" }))
+    );
+    const base = await createCheck(jwt, {
+      date: "2025-06-01",
+      method: "fecal_egg_count",
+      animals: [a1, a2, a3, a4].map((animal) => ({ animalId: animal.id })),
+      fecSamples: [
+        { animalIds: [a1.id, a2.id], results: [{ parasiteType: "strongyles", countPerGram: 1000 }] },
+        { animalIds: [a3.id, a4.id], results: [{ parasiteType: "strongyles", countPerGram: 200 }] },
+      ],
+    });
+    expect(base.status).toBe(200);
+
+    // Same pool a1+a2: compared with its own 1000, not the base average of 600
+    const samePool = await createCheck(jwt, {
+      date: "2025-06-15",
+      method: "fecal_egg_count",
+      animals: [{ animalId: a1.id }, { animalId: a2.id }],
+      fecSamples: [{ animalIds: [a2.id, a1.id], results: [{ parasiteType: "strongyles", countPerGram: 900 }] }],
+      previousCheckId: base.body.data.id,
+    });
+    expect(samePool.status).toBe(200);
+    const samePoolReduction = samePool.body.data.comparisonToPrevious!.fecReduction[0];
+    expect(samePoolReduction.reductionPercent).toBeCloseTo(10);
+
+    // Pool a1+a3 matches no base pool: no percent
+    const otherPool = await createCheck(jwt, {
+      date: "2025-06-16",
+      method: "fecal_egg_count",
+      animals: [{ animalId: a1.id }, { animalId: a3.id }],
+      fecSamples: [{ animalIds: [a1.id, a3.id], results: [{ parasiteType: "strongyles", countPerGram: 100 }] }],
+      previousCheckId: base.body.data.id,
+    });
+    expect(otherPool.status).toBe(200);
+    expect(otherPool.body.data.comparisonToPrevious!.fecReduction[0].reductionPercent).toBeNull();
+  });
+
+  it("compares FAMACHA scores on the animals scored in both checks", async () => {
+    const { jwt } = await createUserWithFarm();
+    const a1 = await createAnimal(jwt, { name: "F1", type: "goat" });
+    const a2 = await createAnimal(jwt, { name: "F2", type: "goat" });
+    const base = await createCheck(jwt, {
+      date: "2025-06-01",
+      method: "famacha",
+      animals: [
+        { animalId: a1.id, famachaScore: 4 },
+        { animalId: a2.id, famachaScore: 2 },
+      ],
+    });
+    // Only a1 re-scored: compared with a1's 4, not the base average of 3
+    const recheck = await createCheck(jwt, {
+      date: "2025-06-15",
+      method: "famacha",
+      animals: [{ animalId: a1.id, famachaScore: 2 }, { animalId: a2.id }],
+      previousCheckId: base.body.data.id,
+    });
+    expect(recheck.status).toBe(200);
+    const comparison = recheck.body.data.comparisonToPrevious!;
+    expect(comparison.famachaBeforeAverage).toBe(4);
+    expect(comparison.famachaAfterAverage).toBe(2);
+    expect(comparison.famachaAverageChange).toBe(-2);
+  });
+
+  it("rejects moving a re-check before its base check", async () => {
+    const { jwt, a1, base } = await setupFecBase();
+    const recheck = await createCheck(jwt, {
+      date: "2025-06-15",
+      method: "fecal_egg_count",
+      animals: [{ animalId: a1.id }],
+      previousCheckId: base.id,
+    });
+    const moveRes = await request(
+      "PATCH",
+      `/v1/parasiteChecks/byId/${recheck.body.data.id}`,
+      { date: "2025-05-01" },
+      jwt
+    );
+    expect(moveRes.status).toBe(400);
+  });
+
+  it("stores an empty name as null, removes task links on delete and keeps empty checks editable", async () => {
+    const { jwt, a1, base } = await setupFecBase();
+
+    const renamed = await request("PATCH", `/v1/parasiteChecks/byId/${base.id}`, { name: "  " }, jwt);
+    const renamedBody = (await renamed.json()) as { data: CheckResponse };
+    expect(renamedBody.data.name).toBeNull();
+
+    // A check whose animals were all deleted stays editable
+    const lonely = await createCheck(jwt, {
+      date: "2025-07-01",
+      method: "famacha",
+      animals: [{ animalId: a1.id }],
+      followUp: { dueDate: "2025-07-15" },
+    });
+    const deleteAnimalRes = await request("DELETE", `/v1/animals/byId/${a1.id}`, undefined, jwt);
+    expect(deleteAnimalRes.status).toBe(200);
+    const notesRes = await request(
+      "PATCH",
+      `/v1/parasiteChecks/byId/${lonely.body.data.id}`,
+      { notes: "animal sold" },
+      jwt
+    );
+    expect(notesRes.status).toBe(200);
+
+    // Deleting the check removes its follow-up task link
+    await request("DELETE", `/v1/parasiteChecks/byId/${lonely.body.data.id}`, undefined, jwt);
+    const db = getAdminDb();
+    const links = await db.query.taskLinks.findMany({ where: { linkType: "parasite_check" } });
+    expect(links).toHaveLength(0);
   });
 });
