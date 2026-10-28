@@ -94,7 +94,10 @@ const PARENT_SUFFIX = /^(.+?)\s*\((mutter|mère|madre|vater|père|padre)\)$/;
 const MOTHER_WORDS = new Set(["mutter", "mère", "madre"]);
 
 function lookupHeader(headerText: string, preferredHeaderMap: Record<string, string>): string | undefined {
-  return preferredHeaderMap[headerText] ?? Object.values(HEADER_MAP).find((map) => map[headerText])?.[headerText];
+  if (Object.hasOwn(preferredHeaderMap, headerText)) {
+    return preferredHeaderMap[headerText];
+  }
+  return Object.values(HEADER_MAP).find((map) => Object.hasOwn(map, headerText))?.[headerText];
 }
 
 // Looks up a header's field name, preferring the request's locale but falling back to every other
@@ -450,6 +453,7 @@ export type ParsedImportRow = {
   earTagId: string | null; // non-null if an existing unassigned ear tag was found in DB
   earTagAssigned: boolean; // true if the ear tag is already assigned to a different animal
   assignedToAnimalId: string | null; // the animal that currently holds this ear tag (if earTagAssigned)
+  assignedToAnimalName: string | null;
   name: string | null;
   sex: "male" | "female" | null;
   dateOfBirth: Date | null;
@@ -1518,12 +1522,14 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
         let earTagId: string | null = null;
         let earTagAssigned = false;
         let assignedToAnimalId: string | null = null;
+        let assignedToAnimalName: string | null = null;
         if (earTagNumber) {
           const existingTag = earTagByNumber.get(earTagNumber.toLowerCase());
           if (existingTag) {
             if (existingTag.animal) {
               earTagAssigned = true;
               assignedToAnimalId = existingTag.animal.id;
+              assignedToAnimalName = existingTag.animal.name;
             } else {
               earTagId = existingTag.id;
             }
@@ -1536,6 +1542,7 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
           earTagId,
           earTagAssigned,
           assignedToAnimalId,
+          assignedToAnimalName,
           name: resolvedName,
           sex,
           dateOfBirth,

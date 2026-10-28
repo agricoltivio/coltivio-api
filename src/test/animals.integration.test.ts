@@ -1472,10 +1472,17 @@ describe("Animal import — preview + commit", () => {
     expect(res.status).toBe(200);
 
     const body = (await res.json()) as {
-      data: { rows: Array<{ earTagAssigned: boolean; assignedToAnimalId: string | null }> };
+      data: {
+        rows: Array<{
+          earTagAssigned: boolean;
+          assignedToAnimalId: string | null;
+          assignedToAnimalName: string | null;
+        }>;
+      };
     };
     expect(body.data.rows[0].earTagAssigned).toBe(true);
     expect(body.data.rows[0].assignedToAnimalId).toBe(existing.id);
+    expect(body.data.rows[0].assignedToAnimalName).toBe("Taken");
   });
 
   it("commit creates new animals and returns correct counts", async () => {
