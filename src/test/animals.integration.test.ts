@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from "@jest/globals";
 import ExcelJS from "exceljs";
+import JSZip from "jszip";
 import { eq } from "drizzle-orm";
 
 import { cleanDb, getAdminDb, request } from "./helpers";
@@ -1306,6 +1307,66 @@ async function buildExcelBuffer(rows: [string, string, string, string, string?][
   return Buffer.from(await workbook.xlsx.writeBuffer());
 }
 
+const TVD_OVERVIEW_HEADER = [
+  "Ohrmarken-Nr.",
+  "Name",
+  "Geburtsdatum",
+  "Geschlecht",
+  "Rasse",
+  "Tiergeschichte",
+  "Todesdatum",
+];
+const TVD_PEDIGREE_HEADER = [
+  "Ohrmarken-Nr.",
+  "Name",
+  "Geburtsdatum",
+  "Geschlecht",
+  "Rasse",
+  "Ohrmarken-Nr. (Mutter)",
+  "Name (Mutter)",
+  "Rasse (Mutter)",
+  "Ohrmarken-Nr. (Vater)",
+  "Name (Vater)",
+  "Rasse (Vater)",
+];
+
+// Mirrors the structure of the TVD "Daten exportieren" file: x:-prefixed SpreadsheetML, inline
+// strings and no r attributes on rows or cells.
+async function buildTvdExportBuffer(rows: string[][], header: string[] = TVD_OVERVIEW_HEADER) {
+  const escape = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+  const headerCells = header.map((h) => `<x:c t="str"><x:v>${escape(h)}</x:v></x:c>`).join("");
+  const dataRows = rows
+    .map(
+      (row) =>
+        `<x:row>${row.map((v) => `<x:c t="inlineStr"><x:is><x:t xml:space="preserve">${escape(v)}</x:t></x:is></x:c>`).join("")}</x:row>`
+    )
+    .join("");
+  const ns = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+  const relNs = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+  const zip = new JSZip();
+  zip.file(
+    "[Content_Types].xml",
+    `<?xml version="1.0" encoding="utf-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml" /><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml" /><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml" /></Types>`
+  );
+  zip.file(
+    "_rels/.rels",
+    `<?xml version="1.0" encoding="utf-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Type="${relNs}/officeDocument" Target="/xl/workbook.xml" Id="R1" /></Relationships>`
+  );
+  zip.file(
+    "xl/workbook.xml",
+    `<?xml version="1.0" encoding="utf-8"?><x:workbook xmlns:x="${ns}"><x:sheets><x:sheet name="Übersicht" sheetId="1" r:id="R2" xmlns:r="${relNs}" /></x:sheets></x:workbook>`
+  );
+  zip.file(
+    "xl/_rels/workbook.xml.rels",
+    `<?xml version="1.0" encoding="utf-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Type="${relNs}/worksheet" Target="/xl/worksheets/sheet1.xml" Id="R2" /></Relationships>`
+  );
+  zip.file(
+    "xl/worksheets/sheet1.xml",
+    `<?xml version="1.0" encoding="utf-8"?><x:worksheet xmlns:x="${ns}"><x:sheetData><x:row>${headerCells}</x:row>${dataRows}</x:sheetData></x:worksheet>`
+  );
+  return zip.generateAsync({ type: "nodebuffer" });
+}
+
 // Sends a multipart/form-data POST with an xlsx file attached. Returns the
 // raw Response so callers can inspect status and body.
 async function uploadExcel(
@@ -1644,7 +1705,167 @@ describe("Animal import — preview + commit", () => {
     expect(res.status).toBe(400);
     const body = (await res.json()) as { error: string };
     expect(body.error).toBe(
-      `Nel file mancano colonne obbligatorie: "Nome", "Sesso", "Data di nascita". Queste colonne vanno selezionate anche nell'esportazione dalla TVD.`
+      `Nel file mancano colonne obbligatorie: "Nome", "Sesso", "Data di nascita". Creare il file nella TVD tramite «Esportare i dati» e caricarlo senza modificarlo.`
+    );
+  });
+
+  it("preview reads the TVD 'Daten exportieren' format (prefixed namespace, no cell references)", async () => {
+    const { jwt } = await createUserWithFarm();
+    const buffer = await buildTvdExportBuffer([
+      ["CH910", "Biala", "05.12.2023", "weiblich", "Engadinerschaf", "OK", ""],
+      ["CH911", "Donnat", "20.10.2025", "männlich", "Engadinerschaf", "fehlerhaft", "13.05.2026"],
+    ]);
+
+    const res = await uploadExcel("/v1/animals/import/preview", buffer, { skipHeaderRow: "true" }, jwt);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      data: {
+        rows: Array<{
+          earTagNumber: string | null;
+          name: string | null;
+          sex: string | null;
+          dateOfBirth: string | null;
+          dateOfDeath: string | null;
+          parseErrors: string[];
+        }>;
+      };
+    };
+    expect(body.data.rows).toHaveLength(2);
+    expect(body.data.rows[0]).toMatchObject({
+      earTagNumber: "CH910",
+      name: "Biala",
+      sex: "female",
+      dateOfBirth: "2023-12-05T00:00:00.000Z",
+      dateOfDeath: null,
+      parseErrors: [],
+    });
+    expect(body.data.rows[1]).toMatchObject({
+      earTagNumber: "CH911",
+      name: "Donnat",
+      sex: "male",
+      // The "Bestandsverlauf" variant of the export also lists animals that have left the farm.
+      dateOfDeath: "2026-05-13T00:00:00.000Z",
+    });
+  });
+
+  it("one-step import reads the TVD 'Daten exportieren' format", async () => {
+    const { jwt } = await createUserWithFarm();
+    const buffer = await buildTvdExportBuffer([
+      ["CH920", "Samira", "06.01.2026", "weiblich", "Engadinerschaf", "OK", ""],
+    ]);
+
+    const res = await uploadExcel("/v1/animals/import", buffer, { skipHeaderRow: "true", type: "sheep" }, jwt);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { data: { summary: { imported: number; skipped: number } } };
+    expect(body.data.summary).toMatchObject({ imported: 1, skipped: 0 });
+  });
+
+  it("imports parents from the TVD 'Abstammung' view of the export", async () => {
+    const { jwt } = await createUserWithFarm();
+    const buffer = await buildTvdExportBuffer(
+      [
+        ["CH930", "Mama", "01.02.2018", "weiblich", "Capra Grigia", "", "", "", "", "", ""],
+        [
+          "CH931",
+          "Kitz",
+          "03.03.2025",
+          "weiblich",
+          "Kreuzung",
+          "CH930",
+          "Mama",
+          "Capra Grigia",
+          "CH999",
+          "Bock",
+          "andere",
+        ],
+      ],
+      TVD_PEDIGREE_HEADER
+    );
+
+    const previewRes = await uploadExcel("/v1/animals/import/preview", buffer, { skipHeaderRow: "true" }, jwt);
+    expect(previewRes.status).toBe(200);
+    const previewBody = (await previewRes.json()) as {
+      data: {
+        rows: Array<{ name: string | null; motherEarTagNumber: string | null; fatherEarTagNumber: string | null }>;
+      };
+    };
+    const rows = previewBody.data.rows;
+    expect(rows[1]).toMatchObject({ name: "Kitz", motherEarTagNumber: "CH930", fatherEarTagNumber: "CH999" });
+
+    const commitRes = await request("POST", "/v1/animals/import/commit", { type: "goat", rows }, jwt);
+    expect(commitRes.status).toBe(200);
+
+    const db = getAdminDb();
+    const mother = await db.query.animals.findFirst({ where: { name: "Mama" } });
+    const kid = await db.query.animals.findFirst({ where: { name: "Kitz" } });
+    expect(kid!.motherId).toBe(mother!.id);
+  });
+
+  it("preview reads the French 'ascendance' export headers", async () => {
+    const { jwt } = await createUserWithFarm();
+    const buffer = await buildTvdExportBuffer(
+      [["CH940", "Neige", "10.04.2024", "femelle", "Mouton", "CH941", "Mère", "Mouton", "CH942", "Père", "Mouton"]],
+      [
+        // The real export separates "No" and "de" with a non-breaking space.
+        "No\u00a0de marque auriculaire",
+        "Nom",
+        "Date de naissance",
+        "Sexe",
+        "Race",
+        "No marque auriculaire (mère)",
+        "Nom (mère)",
+        "Race (mère)",
+        "No marque auriculaire (père)",
+        "Nom (père)",
+        "Race (père)",
+      ]
+    );
+
+    const res = await uploadExcel("/v1/animals/import/preview", buffer, { skipHeaderRow: "true" }, jwt, {
+      "Accept-Language": "fr",
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      data: { rows: Array<Record<string, unknown>> };
+    };
+    expect(body.data.rows[0]).toMatchObject({
+      earTagNumber: "CH940",
+      name: "Neige",
+      sex: "female",
+      motherEarTagNumber: "CH941",
+      fatherEarTagNumber: "CH942",
+    });
+  });
+
+  it("preview reads the Italian 'panoramica' export headers", async () => {
+    const { jwt } = await createUserWithFarm();
+    const buffer = await buildTvdExportBuffer(
+      [["CH950", "Bianca", "05.12.2023", "femmina", "Pecora", "OK", "13.05.2026"]],
+      ["Numero marca auricolare", "Nome", "Data di nascita", "Sesso", "Razza", "Storia dell’animale", "Data di morte"]
+    );
+
+    const res = await uploadExcel("/v1/animals/import/preview", buffer, { skipHeaderRow: "true" }, jwt, {
+      "Accept-Language": "it",
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      data: { rows: Array<Record<string, unknown>> };
+    };
+    expect(body.data.rows[0]).toMatchObject({
+      earTagNumber: "CH950",
+      name: "Bianca",
+      sex: "female",
+      dateOfDeath: "2026-05-13T00:00:00.000Z",
+    });
+  });
+
+  it("preview rejects a file that is not an Excel workbook with a localized 400", async () => {
+    const { jwt } = await createUserWithFarm();
+    const res = await uploadExcel("/v1/animals/import/preview", Buffer.from("not a workbook"), {}, jwt);
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toBe(
+      "Die Datei konnte nicht gelesen werden. Bitte die Excel-Datei aus der TVD unverändert hochladen."
     );
   });
 

@@ -6,10 +6,11 @@
     "error_dob_required": "Geburtsdatum ist erforderlich",
     "error_dob_invalid": "Ungültiges Datumsformat",
     "error_ear_tag_assigned": "Ohrmarke {{number}} ist bereits einem anderen Tier zugewiesen",
-    "error_missing_columns": "In der Datei fehlen Pflichtspalten: {{columns}}. Diese Spalten beim Export in der TVD zusätzlich auswählen.",
+    "error_missing_columns": "In der Datei fehlen Pflichtspalten: {{columns}}. Bitte die Tabelle in der TVD über «Daten exportieren» exportieren und die Datei unverändert hochladen.",
+    "error_file_unreadable": "Die Datei konnte nicht gelesen werden. Bitte die Excel-Datei aus der TVD unverändert hochladen.",
     "columns": {
-      "earTag": "Ohrmarkennummer",
-      "name": "Tiername",
+      "earTag": "Ohrmarken-Nr.",
+      "name": "Name",
       "sex": "Geschlecht",
       "dateOfBirth": "Geburtsdatum"
     }

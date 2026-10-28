@@ -1,12 +1,12 @@
 import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { addYears } from "date-fns";
-import ExcelJS from "exceljs";
 import createHttpError from "http-errors";
 import { TFunction } from "i18next";
 import { RlsDb, Transaction } from "../db/db";
 import * as tables from "../db/schema";
 import { EarTag } from "../ear-tags/ear-tags";
 import { Treatment } from "../treatments/treatments";
+import { loadImportWorksheet } from "./import-workbook";
 import {
   buildMeadowJournal,
   buildOutdoorJournal,
@@ -53,54 +53,64 @@ const USAGE_MAP: Record<string, AnimalUsage> = {
   autre: "other",
 };
 
-// Header name to logical field mapping, keyed by locale
+// Header name to logical field mapping, keyed by locale. Parent ear tag columns are derived from the
+// ear tag headers, see PARENT_SUFFIX.
 const HEADER_MAP: Record<string, Record<string, string>> = {
   de: {
     ohrmarkennummer: "earTag",
+    "ohrmarken-nr.": "earTag",
     tiername: "name",
+    name: "name",
     geschlecht: "sex",
     geburtsdatum: "dateOfBirth",
     nutzungsart: "usage",
     todesdatum: "dateOfDeath",
-    "ohrmarkennummer (mutter)": "motherEarTag",
-    "ohrmarkennummer (vater)": "fatherEarTag",
   },
   it: {
     "numero di marca auricolare": "earTag",
+    "numero marca auricolare": "earTag",
     nome: "name",
     sesso: "sex",
     "data di nascita": "dateOfBirth",
     "tipo d'utilizzo": "usage",
     "data del decesso": "dateOfDeath",
-    "numero di marca auricolare (madre)": "motherEarTag",
-    "numero di marca auricolare (padre)": "fatherEarTag",
+    "data di morte": "dateOfDeath",
   },
   fr: {
     "numéro de marque auriculaire": "earTag",
+    "no de marque auriculaire": "earTag",
+    "no marque auriculaire": "earTag",
     nom: "name",
     sexe: "sex",
     "date de naissance": "dateOfBirth",
     "type d'utilisation": "usage",
     "date de mort": "dateOfDeath",
-    "numéro de marque auriculaire (mère)": "motherEarTag",
-    "numéro de marque auriculaire (père)": "fatherEarTag",
   },
 };
 
+// TVD names parent columns "<ear tag header> (Mutter)", but the ear tag header itself is worded
+// slightly differently per export and language (e.g. "No de marque auriculaire" vs "No marque auriculaire (mère)").
+const PARENT_SUFFIX = /^(.+?)\s*\((mutter|mère|madre|vater|père|padre)\)$/;
+const MOTHER_WORDS = new Set(["mutter", "mère", "madre"]);
+
+function lookupHeader(headerText: string, preferredHeaderMap: Record<string, string>): string | undefined {
+  return preferredHeaderMap[headerText] ?? Object.values(HEADER_MAP).find((map) => map[headerText])?.[headerText];
+}
+
 // Looks up a header's field name, preferring the request's locale but falling back to every other
 // known locale before giving up — TVD exports are not always in the farm's configured locale.
-function resolveHeaderField(headerText: string, preferredHeaderMap: Record<string, string>): string | undefined {
-  const preferredMatch = preferredHeaderMap[headerText];
-  if (preferredMatch) {
-    return preferredMatch;
-  }
-  for (const headerMap of Object.values(HEADER_MAP)) {
-    const match = headerMap[headerText];
-    if (match) {
-      return match;
+function resolveHeaderField(rawHeaderText: string, preferredHeaderMap: Record<string, string>): string | undefined {
+  // TVD headers contain non-breaking spaces ("No de marque") and typographic apostrophes.
+  const headerText = rawHeaderText.replace(/\s+/g, " ").replace(/’/g, "'");
+  const parent = headerText.match(PARENT_SUFFIX);
+  if (parent) {
+    // Only the parent's ear tag is imported, "Name (Mutter)" and the like are ignored.
+    if (lookupHeader(parent[1], preferredHeaderMap) !== "earTag") {
+      return undefined;
     }
+    return MOTHER_WORDS.has(parent[2]) ? "motherEarTag" : "fatherEarTag";
   }
-  return undefined;
+  return lookupHeader(headerText, preferredHeaderMap);
 }
 
 const REQUIRED_IMPORT_COLUMNS = ["earTag", "name", "sex", "dateOfBirth"] as const;
@@ -1179,13 +1189,7 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
       farmId: string,
       locale: string = "de"
     ): Promise<ImportResult> {
-      // Load Excel workbook from buffer
-      const workbook = new ExcelJS.Workbook();
-      await workbook.xlsx.load(fileBuffer as unknown as ExcelJS.Buffer);
-      const worksheet = workbook.worksheets[0];
-      if (!worksheet) {
-        throw new Error("Excel file has no worksheets");
-      }
+      const worksheet = await loadImportWorksheet(fileBuffer, t);
 
       // Build column index map from header row
       const headerMap = HEADER_MAP[locale] ?? HEADER_MAP["de"];
@@ -1411,12 +1415,7 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
       farmId: string,
       locale: string = "de"
     ): Promise<ParsedImportRow[]> {
-      const workbook = new ExcelJS.Workbook();
-      await workbook.xlsx.load(fileBuffer as unknown as ExcelJS.Buffer);
-      const worksheet = workbook.worksheets[0];
-      if (!worksheet) {
-        throw new Error("Excel file has no worksheets");
-      }
+      const worksheet = await loadImportWorksheet(fileBuffer, t);
 
       const headerMap = HEADER_MAP[locale] ?? HEADER_MAP["de"];
       const columnIndex: Record<string, number> = {};
