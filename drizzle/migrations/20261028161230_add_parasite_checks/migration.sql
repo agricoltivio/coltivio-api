@@ -1,5 +1,6 @@
 CREATE TYPE "parasite_check_method" AS ENUM('famacha', 'fecal_egg_count');--> statement-breakpoint
-CREATE TYPE "parasite_type" AS ENUM('strongyles', 'haemonchus', 'nematodirus', 'trichuris', 'strongyloides', 'moniezia', 'coccidia', 'liver_fluke', 'small_liver_fluke', 'lungworm', 'other');--> statement-breakpoint
+CREATE TYPE "parasite_result_grade" AS ENUM('negative', 'low', 'medium', 'high');--> statement-breakpoint
+CREATE TYPE "parasite_type" AS ENUM('strongyles', 'haemonchus', 'nematodirus', 'trichuris', 'capillaria', 'strongyloides', 'moniezia', 'coccidia', 'liver_fluke', 'small_liver_fluke', 'lungworm', 'other');--> statement-breakpoint
 ALTER TYPE "task_link_type" ADD VALUE 'parasite_check';--> statement-breakpoint
 CREATE TABLE "parasite_check_animals" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -33,9 +34,11 @@ CREATE TABLE "parasite_fec_results" (
 	"farm_id" uuid NOT NULL,
 	"sample_id" uuid NOT NULL,
 	"parasite_type" "parasite_type" NOT NULL,
-	"count_per_gram" real NOT NULL,
+	"count_per_gram" real,
+	"grade" "parasite_result_grade",
 	CONSTRAINT "parasite_fec_results_unique" UNIQUE("sample_id","parasite_type"),
-	CONSTRAINT "parasite_fec_results_count_non_negative" CHECK ("count_per_gram" >= 0)
+	CONSTRAINT "parasite_fec_results_count_non_negative" CHECK ("count_per_gram" >= 0),
+	CONSTRAINT "parasite_fec_results_count_or_grade" CHECK (num_nonnulls("count_per_gram", "grade") = 1)
 );
 --> statement-breakpoint
 ALTER TABLE "parasite_fec_results" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint

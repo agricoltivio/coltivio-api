@@ -23,6 +23,7 @@ type CheckResponse = {
     famachaAverage: number | null;
     famachaDistribution: Array<{ score: number; count: number }>;
     fecByParasite: Array<{ parasiteType: string; avgCountPerGram: number; sampleCount: number }>;
+    gradesByParasite: Array<{ parasiteType: string; highestGrade: string }>;
   };
   comparisonToPrevious: {
     previousCheckId: string;
@@ -652,5 +653,49 @@ describe("Parasite re-check rules", () => {
     const db = getAdminDb();
     const links = await db.query.taskLinks.findMany({ where: { linkType: "parasite_check" } });
     expect(links).toHaveLength(0);
+  });
+
+  it("stores graded results next to counts and keeps them out of averages", async () => {
+    const { jwt } = await createUserWithFarm();
+    const a1 = await createAnimal(jwt, { name: "G1", type: "goat" });
+    const a2 = await createAnimal(jwt, { name: "G2", type: "goat" });
+    const animals = [{ animalId: a1.id }, { animalId: a2.id }];
+
+    const graded = await createCheck(jwt, {
+      date: "2025-06-01",
+      method: "fecal_egg_count",
+      animals,
+      fecSamples: [
+        {
+          animalIds: [a1.id, a2.id],
+          results: [
+            { parasiteType: "strongyles", countPerGram: 150 },
+            { parasiteType: "capillaria", countPerGram: 0 },
+            { parasiteType: "coccidia", grade: "low" },
+            { parasiteType: "lungworm", grade: "high" },
+          ],
+        },
+      ],
+    });
+    expect(graded.status).toBe(200);
+    const summary = graded.body.data.summary;
+    expect(summary.fecByParasite.map((entry) => entry.parasiteType).sort()).toEqual(["capillaria", "strongyles"]);
+    expect(summary.gradesByParasite.find((entry) => entry.parasiteType === "lungworm")!.highestGrade).toBe("high");
+
+    // A result needs exactly one of count and grade
+    const neither = await createCheck(jwt, {
+      date: "2025-06-02",
+      method: "fecal_egg_count",
+      animals,
+      fecSamples: [{ animalIds: [a1.id], results: [{ parasiteType: "coccidia" }] }],
+    });
+    expect(neither.status).toBe(400);
+    const both = await createCheck(jwt, {
+      date: "2025-06-02",
+      method: "fecal_egg_count",
+      animals,
+      fecSamples: [{ animalIds: [a1.id], results: [{ parasiteType: "coccidia", countPerGram: 10, grade: "low" }] }],
+    });
+    expect(both.status).toBe(400);
   });
 });

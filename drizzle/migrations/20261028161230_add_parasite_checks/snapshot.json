@@ -1,7 +1,7 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "15377312-7349-4090-acd6-52e8fa971a07",
+  "id": "a8a652ae-7f3a-4e0b-b83b-3cd1a044424c",
   "prevIds": [
     "fbac536d-c745-4ce8-843a-654b8b14c2c4"
   ],
@@ -332,10 +332,22 @@
     },
     {
       "values": [
+        "negative",
+        "low",
+        "medium",
+        "high"
+      ],
+      "name": "parasite_result_grade",
+      "entityType": "enums",
+      "schema": "public"
+    },
+    {
+      "values": [
         "strongyles",
         "haemonchus",
         "nematodirus",
         "trichuris",
+        "capillaria",
         "strongyloides",
         "moniezia",
         "coccidia",
@@ -6064,12 +6076,25 @@
     {
       "type": "real",
       "typeSchema": null,
-      "notNull": true,
+      "notNull": false,
       "dimensions": 0,
       "default": null,
       "generated": null,
       "identity": null,
       "name": "count_per_gram",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "parasite_fec_results"
+    },
+    {
+      "type": "parasite_result_grade",
+      "typeSchema": "public",
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "grade",
       "entityType": "columns",
       "schema": "public",
       "table": "parasite_fec_results"
@@ -13999,6 +14024,13 @@
     {
       "value": "\"count_per_gram\" >= 0",
       "name": "parasite_fec_results_count_non_negative",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "parasite_fec_results"
+    },
+    {
+      "value": "num_nonnulls(\"count_per_gram\", \"grade\") = 1",
+      "name": "parasite_fec_results_count_or_grade",
       "entityType": "checks",
       "schema": "public",
       "table": "parasite_fec_results"

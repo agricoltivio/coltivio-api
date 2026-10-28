@@ -1718,6 +1718,7 @@ export const parasiteType = pgEnum("parasite_type", [
   "haemonchus",
   "nematodirus",
   "trichuris",
+  "capillaria",
   "strongyloides",
   "moniezia",
   "coccidia",
@@ -1840,6 +1841,10 @@ export const parasiteFecSampleAnimals = pgTable.withRLS(
   ]
 );
 
+// Labs report some parasites only semi-quantitatively (e.g. coccidia +/++/+++,
+// tapeworm eggs detected or not)
+export const parasiteResultGrade = pgEnum("parasite_result_grade", ["negative", "low", "medium", "high"]);
+
 export const parasiteFecResults = pgTable.withRLS(
   "parasite_fec_results",
   {
@@ -1851,12 +1856,15 @@ export const parasiteFecResults = pgTable.withRLS(
       .notNull()
       .references(() => parasiteFecSamples.id, { onDelete: "cascade" }),
     parasiteType: parasiteType().notNull(),
-    // Eggs, oocysts (coccidia) or larvae (lungworms) per gram of feces
-    countPerGram: real().notNull(),
+    // Either a count: eggs, oocysts (coccidia) or larvae (lungworms) per gram of feces
+    countPerGram: real(),
+    // ... or a grade when the lab only reports + / ++ / +++
+    grade: parasiteResultGrade(),
   },
   (table) => [
     unique("parasite_fec_results_unique").on(table.sampleId, table.parasiteType),
     check("parasite_fec_results_count_non_negative", sql`${table.countPerGram} >= 0`),
+    check("parasite_fec_results_count_or_grade", sql`num_nonnulls(${table.countPerGram}, ${table.grade}) = 1`),
     pgPolicy("only farm members", {
       as: "permissive",
       to: authenticatedRole,
@@ -3686,6 +3694,7 @@ export const drugDosePerUnitSchema = z.enum(drugDosePerUnit.enumValues);
 export const outdoorScheduleTypeSchema = z.enum(outdoorScheduleType.enumValues);
 export const parasiteCheckMethodSchema = z.enum(parasiteCheckMethod.enumValues);
 export const parasiteTypeSchema = z.enum(parasiteType.enumValues);
+export const parasiteResultGradeSchema = z.enum(parasiteResultGrade.enumValues);
 
 export const preferredCommunicationSchema = z.enum(preferredCommunication.enumValues);
 

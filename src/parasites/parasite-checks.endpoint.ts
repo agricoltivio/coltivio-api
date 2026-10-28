@@ -1,16 +1,35 @@
 import { ez } from "express-zod-api";
 import createHttpError from "http-errors";
 import { z } from "zod";
-import { animalTypeSchema, parasiteCheckMethodSchema, parasiteTypeSchema, taskStatusSchema } from "../db/schema";
+import {
+  animalTypeSchema,
+  parasiteCheckMethodSchema,
+  parasiteResultGradeSchema,
+  parasiteTypeSchema,
+  taskStatusSchema,
+} from "../db/schema";
 import { permissionFarmEndpoint } from "../endpoint-factory";
 
 const parasiteChecksRead = permissionFarmEndpoint("animals", "read");
 const parasiteChecksWrite = permissionFarmEndpoint("animals", "write");
 
+// A result is either a count per gram or a grade (+/++/+++)
 const fecResultSchema = z.object({
   parasiteType: parasiteTypeSchema,
-  countPerGram: z.number().min(0),
+  countPerGram: z.number().nullable(),
+  grade: parasiteResultGradeSchema.nullable(),
 });
+
+const fecResultInputSchema = z
+  .object({
+    parasiteType: parasiteTypeSchema,
+    countPerGram: z.number().min(0).optional().nullable(),
+    grade: parasiteResultGradeSchema.optional().nullable(),
+  })
+  .refine(
+    (result) => ((result.countPerGram ?? null) !== null) !== ((result.grade ?? null) !== null),
+    "A result needs either a count or a grade"
+  );
 
 export const parasiteCheckSchema = z.object({
   id: z.string(),
@@ -63,6 +82,13 @@ export const parasiteCheckSchema = z.object({
         minCountPerGram: z.number(),
         avgCountPerGram: z.number(),
         maxCountPerGram: z.number(),
+      })
+    ),
+    gradesByParasite: z.array(
+      z.object({
+        parasiteType: parasiteTypeSchema,
+        sampleCount: z.number(),
+        highestGrade: parasiteResultGradeSchema,
       })
     ),
   }),
@@ -118,7 +144,7 @@ const fecSampleInputSchema = z.object({
   label: z.string().optional().nullable(),
   animalIds: z.array(z.string()).min(1),
   results: z
-    .array(fecResultSchema)
+    .array(fecResultInputSchema)
     .refine(
       (results) => new Set(results.map((result) => result.parasiteType)).size === results.length,
       "Each parasite type may only appear once per sample"

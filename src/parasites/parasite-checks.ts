@@ -20,11 +20,19 @@ export type ParasiteCheck = typeof parasiteChecks.$inferSelect;
 type AnimalType = typeof animals.$inferSelect.type;
 export type ParasiteCheckMethod = ParasiteCheck["method"];
 export type ParasiteType = typeof parasiteFecResults.$inferSelect.parasiteType;
+export type ParasiteResultGrade = NonNullable<typeof parasiteFecResults.$inferSelect.grade>;
+// A result is either a count per gram or a grade (+/++/+++)
+export type ParasiteResult = {
+  parasiteType: ParasiteType;
+  countPerGram: number | null;
+  grade: ParasiteResultGrade | null;
+};
+const GRADE_ORDER: ParasiteResultGrade[] = ["negative", "low", "medium", "high"];
 
 export type ParasiteFecSampleInput = {
   label?: string | null;
   animalIds: string[];
-  results: { parasiteType: ParasiteType; countPerGram: number }[];
+  results: { parasiteType: ParasiteType; countPerGram?: number | null; grade?: ParasiteResultGrade | null }[];
 };
 
 export type ParasiteCheckAnimalInput = {
@@ -72,7 +80,9 @@ export type ParasiteCheckSummary = {
   animalCount: number;
   famachaAverage: number | null;
   famachaDistribution: { score: number; count: number }[];
+  // Counts only; graded results are summarized separately
   fecByParasite: FecParasiteSummary[];
+  gradesByParasite: { parasiteType: ParasiteType; sampleCount: number; highestGrade: ParasiteResultGrade }[];
 };
 
 export type ParasiteCheckComparison = {
@@ -103,7 +113,7 @@ export type ParasiteCheckDetail = ParasiteCheck & {
     label: string | null;
     pooled: boolean;
     animalIds: string[];
-    results: { parasiteType: ParasiteType; countPerGram: number }[];
+    results: ParasiteResult[];
   }[];
   followUpTasks: { id: string; name: string; dueDate: Date | null; status: "todo" | "done" }[];
   summary: ParasiteCheckSummary;
@@ -133,7 +143,7 @@ export type AnimalParasiteHistory = {
     date: Date;
     pooled: boolean;
     poolSize: number;
-    results: { parasiteType: ParasiteType; countPerGram: number }[];
+    results: ParasiteResult[];
   }[];
   treatments: { id: string; name: string; startDate: Date; endDate: Date; drugName: string | null }[];
 };
@@ -160,13 +170,26 @@ function summarizeCheck(check: LoadedCheck): ParasiteCheckSummary {
   }));
 
   const countPerGramByParasite = new Map<ParasiteType, number[]>();
+  const gradesByParasiteType = new Map<ParasiteType, ParasiteResultGrade[]>();
   for (const sample of check.fecSamples) {
     for (const result of sample.results) {
-      const values = countPerGramByParasite.get(result.parasiteType) ?? [];
-      values.push(result.countPerGram);
-      countPerGramByParasite.set(result.parasiteType, values);
+      if (result.countPerGram !== null) {
+        const values = countPerGramByParasite.get(result.parasiteType) ?? [];
+        values.push(result.countPerGram);
+        countPerGramByParasite.set(result.parasiteType, values);
+      }
+      if (result.grade !== null) {
+        const grades = gradesByParasiteType.get(result.parasiteType) ?? [];
+        grades.push(result.grade);
+        gradesByParasiteType.set(result.parasiteType, grades);
+      }
     }
   }
+  const gradesByParasite = [...gradesByParasiteType.entries()].map(([parasiteType, grades]) => ({
+    parasiteType,
+    sampleCount: grades.length,
+    highestGrade: GRADE_ORDER[Math.max(...grades.map((grade) => GRADE_ORDER.indexOf(grade)))],
+  }));
   const fecByParasite = [...countPerGramByParasite.entries()].map(([parasiteType, values]) => ({
     parasiteType,
     sampleCount: values.length,
@@ -181,6 +204,7 @@ function summarizeCheck(check: LoadedCheck): ParasiteCheckSummary {
       famachaScores.length > 0 ? famachaScores.reduce((sum, score) => sum + score, 0) / famachaScores.length : null,
     famachaDistribution,
     fecByParasite,
+    gradesByParasite,
   };
 }
 
@@ -214,8 +238,9 @@ function compareToPrevious(recheck: LoadedCheck, baseCheck: LoadedCheck): Parasi
   const fecReduction = recheckParasiteTypes.flatMap((parasiteType) => {
     const samplesWithType = (check: LoadedCheck) =>
       check.fecSamples.flatMap((sample) => {
+        // Graded results (+/++/+++) can't be compared as numbers
         const result = sample.results.find((entry) => entry.parasiteType === parasiteType);
-        return result
+        return result && result.countPerGram !== null
           ? [
               {
                 pooled: sample.animals.length > 1,
@@ -332,6 +357,7 @@ async function toDetails(tx: Transaction, checks: LoadedCheck[]): Promise<Parasi
         results: sample.results.map((result) => ({
           parasiteType: result.parasiteType,
           countPerGram: result.countPerGram,
+          grade: result.grade,
         })),
       })),
       followUpTasks: followUpTaskRows
@@ -433,7 +459,8 @@ async function replaceFecSamples(tx: Transaction, checkId: string, fecSamples: P
           ...farmIdColumnValue,
           sampleId: sample.id,
           parasiteType: result.parasiteType,
-          countPerGram: result.countPerGram,
+          countPerGram: result.countPerGram ?? null,
+          grade: result.grade ?? null,
         }))
       );
     }
@@ -750,6 +777,7 @@ export function parasiteChecksApi(rlsDb: RlsDb, t: TFunction) {
             results: row.sample.results.map((result) => ({
               parasiteType: result.parasiteType,
               countPerGram: result.countPerGram,
+              grade: result.grade,
             })),
           }))
           .sort((a, b) => b.date.getTime() - a.date.getTime());
