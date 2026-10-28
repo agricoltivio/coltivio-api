@@ -23,7 +23,7 @@ type CheckResponse = {
     famachaAverage: number | null;
     famachaDistribution: Array<{ score: number; count: number }>;
     fecByParasite: Array<{ parasiteType: string; avgCountPerGram: number; sampleCount: number }>;
-    gradesByParasite: Array<{ parasiteType: string; highestGrade: string }>;
+    gradesByParasite: Array<{ parasiteType: string; highestGrade: string; averageGrade: number }>;
   };
   comparisonToPrevious: {
     previousCheckId: string;
@@ -659,6 +659,7 @@ describe("Parasite re-check rules", () => {
     const { jwt } = await createUserWithFarm();
     const a1 = await createAnimal(jwt, { name: "G1", type: "goat" });
     const a2 = await createAnimal(jwt, { name: "G2", type: "goat" });
+    const a3 = await createAnimal(jwt, { name: "G3", type: "goat" });
     const animals = [{ animalId: a1.id }, { animalId: a2.id }];
 
     const graded = await createCheck(jwt, {
@@ -681,6 +682,21 @@ describe("Parasite re-check rules", () => {
     const summary = graded.body.data.summary;
     expect(summary.fecByParasite.map((entry) => entry.parasiteType).sort()).toEqual(["capillaria", "strongyles"]);
     expect(summary.gradesByParasite.find((entry) => entry.parasiteType === "lungworm")!.highestGrade).toBe("high");
+
+    // Average grade weighted by animals: pooled "high" (2 animals) + individual "negative" (1) = 2 of 3
+    const weighted = await createCheck(jwt, {
+      date: "2025-06-03",
+      method: "fecal_egg_count",
+      animals: [...animals, { animalId: a3.id }],
+      fecSamples: [
+        { animalIds: [a1.id, a2.id], results: [{ parasiteType: "coccidia", grade: "high" }] },
+        { animalIds: [a3.id], results: [{ parasiteType: "coccidia", grade: "negative" }] },
+      ],
+    });
+    expect(weighted.status).toBe(200);
+    const coccidia = weighted.body.data.summary.gradesByParasite.find((entry) => entry.parasiteType === "coccidia")!;
+    expect(coccidia.highestGrade).toBe("high");
+    expect(coccidia.averageGrade).toBeCloseTo(2);
 
     // A result needs exactly one of count and grade
     const neither = await createCheck(jwt, {

@@ -88,7 +88,10 @@ export const parasiteCheckSchema = z.object({
       z.object({
         parasiteType: parasiteTypeSchema,
         sampleCount: z.number(),
-        highestGrade: parasiteResultGradeSchema,
+        // Own enum instance: the shared one is also used as nullable above, and the
+        // documentation would then mark this field nullable too
+        highestGrade: z.enum(parasiteResultGradeSchema.options),
+        averageGrade: z.number(),
       })
     ),
   }),

@@ -82,7 +82,14 @@ export type ParasiteCheckSummary = {
   famachaDistribution: { score: number; count: number }[];
   // Counts only; graded results are summarized separately
   fecByParasite: FecParasiteSummary[];
-  gradesByParasite: { parasiteType: ParasiteType; sampleCount: number; highestGrade: ParasiteResultGrade }[];
+  gradesByParasite: {
+    parasiteType: ParasiteType;
+    sampleCount: number;
+    highestGrade: ParasiteResultGrade;
+    // Index in GRADE_ORDER (0 = negative … 3 = high), each sample weighted by its
+    // number of animals; lies between the steps, e.g. 1.5 = between low and medium
+    averageGrade: number;
+  }[];
 };
 
 export type ParasiteCheckComparison = {
@@ -170,7 +177,7 @@ function summarizeCheck(check: LoadedCheck): ParasiteCheckSummary {
   }));
 
   const countPerGramByParasite = new Map<ParasiteType, number[]>();
-  const gradesByParasiteType = new Map<ParasiteType, ParasiteResultGrade[]>();
+  const gradesByParasiteType = new Map<ParasiteType, { grade: ParasiteResultGrade; animalCount: number }[]>();
   for (const sample of check.fecSamples) {
     for (const result of sample.results) {
       if (result.countPerGram !== null) {
@@ -180,16 +187,22 @@ function summarizeCheck(check: LoadedCheck): ParasiteCheckSummary {
       }
       if (result.grade !== null) {
         const grades = gradesByParasiteType.get(result.parasiteType) ?? [];
-        grades.push(result.grade);
+        grades.push({ grade: result.grade, animalCount: sample.animals.length });
         gradesByParasiteType.set(result.parasiteType, grades);
       }
     }
   }
-  const gradesByParasite = [...gradesByParasiteType.entries()].map(([parasiteType, grades]) => ({
-    parasiteType,
-    sampleCount: grades.length,
-    highestGrade: GRADE_ORDER[Math.max(...grades.map((grade) => GRADE_ORDER.indexOf(grade)))],
-  }));
+  const gradesByParasite = [...gradesByParasiteType.entries()].map(([parasiteType, grades]) => {
+    const gradeIndexes = grades.map((entry) => GRADE_ORDER.indexOf(entry.grade));
+    const animalCount = grades.reduce((sum, entry) => sum + entry.animalCount, 0);
+    const weightedSum = grades.reduce((sum, entry, index) => sum + gradeIndexes[index] * entry.animalCount, 0);
+    return {
+      parasiteType,
+      sampleCount: grades.length,
+      highestGrade: GRADE_ORDER[Math.max(...gradeIndexes)],
+      averageGrade: animalCount > 0 ? weightedSum / animalCount : 0,
+    };
+  });
   const fecByParasite = [...countPerGramByParasite.entries()].map(([parasiteType, values]) => ({
     parasiteType,
     sampleCount: values.length,
