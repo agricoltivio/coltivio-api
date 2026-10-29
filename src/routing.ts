@@ -86,6 +86,14 @@ import {
   updateTreatmentEndpoint,
 } from "./treatments/treatments.endpoint";
 import {
+  createParasiteCheckEndpoint,
+  deleteParasiteCheckEndpoint,
+  getAnimalParasiteHistoryEndpoint,
+  getParasiteCheckEndpoint,
+  listParasiteChecksEndpoint,
+  updateParasiteCheckEndpoint,
+} from "./parasites/parasite-checks.endpoint";
+import {
   createFarmEndpoint,
   deleteFarmEndpoint,
   getFarmEndpoint,
@@ -809,6 +817,7 @@ export const routing: Routing = {
           sponsorships: getAnimalSponsorshipsEndpoint,
           customOutdoorJournalCategories: setCustomOutdoorJournalCategoriesEndpoint,
           journal: { "": { get: listAnimalJournalEntriesEndpoint, post: createAnimalJournalEntryEndpoint } },
+          parasiteHistory: getAnimalParasiteHistoryEndpoint,
         },
       },
       journal: {
@@ -880,6 +889,19 @@ export const routing: Routing = {
             delete: deleteDrugEndpoint,
           },
           inUse: drugInUseEndpoint,
+        },
+      },
+    },
+    parasiteChecks: {
+      "": {
+        get: listParasiteChecksEndpoint,
+        post: createParasiteCheckEndpoint,
+      },
+      byId: {
+        ":checkId": {
+          get: getParasiteCheckEndpoint,
+          patch: updateParasiteCheckEndpoint,
+          delete: deleteParasiteCheckEndpoint,
         },
       },
     },

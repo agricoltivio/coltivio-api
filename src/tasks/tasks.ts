@@ -1,4 +1,5 @@
 import { and, arrayContains, eq, inArray } from "drizzle-orm";
+import { TFunction } from "i18next";
 import { RlsDb } from "../db/db";
 import { farmIdColumnValue, taskChecklistItems, taskLinks, taskRecurrences, tasks } from "../db/schema";
 
@@ -43,7 +44,7 @@ export type TaskRecurrenceInput = {
 };
 
 export type TaskLinkInput = {
-  linkType: "animal" | "plot" | "contact" | "order" | "wiki_entry" | "treatment" | "herd";
+  linkType: typeof taskLinks.$inferInsert.linkType;
   linkedId: string;
 };
 
@@ -90,6 +91,7 @@ export type TaskListFilters = {
 async function resolveLinks(
   links: TaskLink[],
   tx: Parameters<Parameters<RlsDb["rls"]>[0]>[0],
+  t: TFunction,
   locale: string
 ): Promise<ResolvedTaskLink[]> {
   return Promise.all(
@@ -150,6 +152,17 @@ async function resolveLinks(
             where: { id: link.linkedId },
           });
           displayName = row?.name ?? null;
+          break;
+        }
+        case "parasite_check": {
+          const row = await tx.query.parasiteChecks.findFirst({
+            where: { id: link.linkedId },
+          });
+          if (row) {
+            const methodLabel = t(`parasite_checks.methods.${row.method}`);
+            const dateLabel = row.date.toISOString().slice(0, 10);
+            displayName = row.name || `${methodLabel} · ${dateLabel}`;
+          }
           break;
         }
       }
@@ -234,7 +247,7 @@ async function upsertRecurrence(
   }
 }
 
-export function tasksApi(rlsDb: RlsDb, locale: string) {
+export function tasksApi(rlsDb: RlsDb, t: TFunction, locale: string) {
   return {
     async listTasks(filters: TaskListFilters): Promise<TaskListItem[]> {
       return rlsDb.rls(async (tx) => {
@@ -291,7 +304,7 @@ export function tasksApi(rlsDb: RlsDb, locale: string) {
 
         if (!row) return undefined;
 
-        const resolvedLinks = await resolveLinks(row.links, tx, locale);
+        const resolvedLinks = await resolveLinks(row.links, tx, t, locale);
 
         return {
           ...row,
@@ -355,7 +368,7 @@ export function tasksApi(rlsDb: RlsDb, locale: string) {
             assignee: true,
           },
         });
-        const resolvedLinks = await resolveLinks(created!.links, tx, locale);
+        const resolvedLinks = await resolveLinks(created!.links, tx, t, locale);
         return {
           ...created!,
 
@@ -448,7 +461,7 @@ export function tasksApi(rlsDb: RlsDb, locale: string) {
             assignee: true,
           },
         });
-        const resolvedLinks = await resolveLinks(updated!.links, tx, locale);
+        const resolvedLinks = await resolveLinks(updated!.links, tx, t, locale);
         return {
           ...updated!,
 

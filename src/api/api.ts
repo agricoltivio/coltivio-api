@@ -9,6 +9,7 @@ import { cropRotationDraftPlansApi } from "../crop-rotations/crop-rotation-draft
 import { drugsApi } from "../drugs/drugs";
 import { earTagsApi } from "../ear-tags/ear-tags";
 import { treatmentsApi } from "../treatments/treatments";
+import { parasiteChecksApi } from "../parasites/parasite-checks";
 import { ordersApi } from "../orders/orders";
 import { invoiceSettingsApi } from "../orders/invoice-settings";
 import { invoicesApi } from "../orders/invoice";
@@ -75,6 +76,7 @@ export function sessionApi(db: RlsDb, t: TFunction, locale: string) {
     earTags: earTagsApi(db),
     drugs: drugsApi(db),
     treatments: treatmentsApi(db),
+    parasiteChecks: parasiteChecksApi(db, t),
     contacts: contactsApi(db),
     products: productsApi(db),
     orders: ordersApi(db),
@@ -87,7 +89,7 @@ export function sessionApi(db: RlsDb, t: TFunction, locale: string) {
     wikiModeration: wikiModerationApi(db),
     forum: forumApi(db),
     forumModeration: forumModerationApi(db),
-    tasks: tasksApi(db, locale),
+    tasks: tasksApi(db, t, locale),
     membership: membershipApi(db),
     donations: donationsApi(db),
     handoff: handoffApi(db),
