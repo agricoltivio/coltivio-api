@@ -5,7 +5,15 @@
     "error_sex_unknown": "Valore del sesso sconosciuto: {{value}}",
     "error_dob_required": "La data di nascita è obbligatoria",
     "error_dob_invalid": "Formato data non valido",
-    "error_ear_tag_assigned": "Il marchio auricolare {{number}} è già assegnato a un altro animale"
+    "error_ear_tag_assigned": "Il marchio auricolare {{number}} è già assegnato a un altro animale",
+    "error_missing_columns": "Nel file mancano colonne obbligatorie: {{columns}}. Creare il file nella TVD tramite «Esportare i dati» e caricarlo senza modificarlo.",
+    "error_file_unreadable": "Non è stato possibile leggere il file. Caricare il file Excel della TVD senza modificarlo.",
+    "columns": {
+      "earTag": "Numero marca auricolare",
+      "name": "Nome",
+      "sex": "Sesso",
+      "dateOfBirth": "Data di nascita"
+    }
   },
   "field_calendar_report": {
     "mail_subject": "Calendario dei campi",
