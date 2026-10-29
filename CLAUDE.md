@@ -4,30 +4,30 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Rules
 
-- Always use `yarn` for package installation, never `npm install`.
-- After adding or modifying code: run `yarn format`, `yarn lint`, and `npx tsc --noEmit`.
+- Always use `pnpm` for package installation, never `npm install`.
+- After adding or modifying code: run `pnpm format`, `pnpm lint`, and `npx tsc --noEmit`.
 - Always add integration tests for new endpoints/features and ensure they pass before finishing.
-- Never run `yarn db:migrate` or `yarn db:generate` — the user always handles migrations manually. Do not suggest or remind them to run these commands either.
+- Never run `pnpm db:migrate` or `pnpm db:generate` — the user always handles migrations manually. Do not suggest or remind them to run these commands either.
 - Always keep REST API backwards compatibility. New fields must be optional or have defaults. If a change could break existing clients, double-check and ask before proceeding.
 
 ## Commands
 
 ```bash
-yarn start          # Run the API server (ts-node)
-yarn test           # Run all integration tests (spins up Docker)
-yarn lint           # ESLint with auto-fix
-yarn format         # Prettier
+pnpm start          # Run the API server (ts-node)
+pnpm test           # Run all integration tests (spins up Docker)
+pnpm lint           # ESLint with auto-fix
+pnpm format         # Prettier
 npx tsc --noEmit    # Type-check without emitting
 
 # Run specific test files (always prefer this over running all tests)
-yarn test --testPathPattern=membership
-yarn test --testPathPatterns="permissions|security"  # run multiple patterns
+pnpm test --testPathPattern=membership
+pnpm test --testPathPatterns="permissions|security"  # run multiple patterns
 
 # Database
-yarn db:migrate     # Apply pending Drizzle migrations
-yarn db:generate    # Generate migration from schema changes
-yarn db:push        # Push schema directly (dev only)
-yarn db:reset       # Full local reset (Supabase + migrations + seed)
+pnpm db:migrate     # Apply pending Drizzle migrations
+pnpm db:generate    # Generate migration from schema changes
+pnpm db:push        # Push schema directly (dev only)
+pnpm db:reset       # Full local reset (Supabase + migrations + seed)
 ```
 
 ## Architecture
@@ -89,9 +89,9 @@ Test helpers (`src/test/helpers.ts`):
 - `SERVER_URL` env var — set automatically by globalSetup, used to make requests
 
 **IMPORTANT — when asked to fix failing tests:**
-- NEVER run `yarn test` (all tests) — it takes many minutes and wastes a full Docker spin-up cycle.
+- NEVER run `pnpm test` (all tests) — it takes many minutes and wastes a full Docker spin-up cycle.
 - Ask the user which test file(s) are failing, OR infer from context (e.g. if wiki code changed, run `--testPathPatterns=wiki`).
-- Only run `yarn test` (all) when the user explicitly asks to run the full suite.
+- Only run `pnpm test` (all) when the user explicitly asks to run the full suite.
 
 ### Stripe
 

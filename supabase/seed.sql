@@ -10,11 +10,11 @@
 -- Profile created by handle_new_user trigger.
 --
 -- Usage:
---   yarn db:reset
+--   pnpm db:reset
 --
 -- Switch branches:
 --   git checkout <branch>
---   yarn db:reset
+--   pnpm db:reset
 -- =============================================================================
 
 -- =============================================================================

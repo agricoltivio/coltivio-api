@@ -1,0 +1,23 @@
+# Supply-chain policy, keep identical across Coltivio repos.
+minimumReleaseAge: 10080 # 7 days
+minimumReleaseAgeStrict: true
+# Urgent security fixes only, as 'pkg@x.y.z' with a removal date.
+minimumReleaseAgeExclude: []
+blockExoticSubdeps: true
+strictDepBuilds: true
+trustPolicy: no-downgrade
+# Older releases often predate provenance; the check matters for fresh publishes.
+trustPolicyIgnoreAfter: 43200 # 30 days
+
+# Like Yarn 1: missing peers stay missing instead of pulling e.g. the mssql/Azure stack via drizzle.
+autoInstallPeers: false
+
+# Dependency install scripts. Unlisted packages fail the install; only allow what breaks without.
+allowBuilds:
+  '@scarf/scarf': false
+  '@sentry/cli': false
+  cpu-features: false
+  esbuild: false
+  protobufjs: false
+  ssh2: false
+  unrs-resolver: false
