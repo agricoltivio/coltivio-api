@@ -401,6 +401,38 @@ describe("Plot geometry validation", () => {
     expect(row.parts).toBe(2);
   });
 
+  it("removes repeated points, which clients report as crossing edges", async () => {
+    const { jwt } = await createUserWithFarm();
+    // same point three times in a row, the last one a fraction of a millimetre off (as left by a cut)
+    const plot = await createPlot(jwt, {
+      geometry: {
+        type: "MultiPolygon",
+        coordinates: [
+          [
+            [
+              [8.0, 47.0],
+              [8.001, 47.0],
+              [8.001, 47.001],
+              [8.001, 47.001],
+              [8.0010000001, 47.0010000001],
+              [8.0, 47.001],
+              [8.0, 47.0],
+            ],
+          ],
+        ],
+      },
+    });
+
+    const res = await request("GET", `/v1/plots/byId/${plot.id}`, undefined, jwt);
+    const body = (await res.json()) as { data: { geometry: { coordinates: number[][][][] } } };
+    const ring = body.data.geometry.coordinates[0][0];
+    expect(ring).toHaveLength(5);
+    const hasConsecutiveDuplicate = ring.some(
+      (point, index) => index > 0 && point[0] === ring[index - 1][0] && point[1] === ring[index - 1][1]
+    );
+    expect(hasConsecutiveDuplicate).toBe(false);
+  });
+
   it("rejects a geometry without area with an error code", async () => {
     const { jwt } = await createUserWithFarm();
     const collinearRing = [
