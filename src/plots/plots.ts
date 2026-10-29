@@ -76,8 +76,9 @@ function overlapsSignificantly(existingGeometry: SQL, importGeometry: SQL): SQL 
       > 0.01 * LEAST(ST_Area(${existingGeometry}), ST_Area(${importGeometry}))`;
 }
 
-// Gaps between merged plots narrower than twice this are closed, same tolerance as merging plots into a meadow
-const MERGE_GAP_TOLERANCE_METERS = 1;
+// Gaps between merged plots narrower than twice this are closed. Digitising gaps between neighbouring plots are
+// centimetres; real features (ditches, paths, streams) are wider and must stay.
+const MERGE_GAP_TOLERANCE_METERS = 0.25;
 
 // Turns a GEOS failure that slips through the repair into a coded error the client can show.
 function toGeometryApiError(error: unknown): unknown {
