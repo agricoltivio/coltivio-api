@@ -15,7 +15,7 @@ type CheckResponse = {
     id: string;
     pooled: boolean;
     animalIds: string[];
-    results: Array<{ parasiteType: string; countPerGram: number }>;
+    results: Array<{ parasiteType: string; countPerGram: number | null; grade: string | null }>;
   }>;
   followUpTasks: Array<{ id: string; name: string; dueDate: string | null }>;
   summary: {
@@ -23,14 +23,14 @@ type CheckResponse = {
     famachaAverage: number | null;
     famachaDistribution: Array<{ score: number; count: number }>;
     fecByParasite: Array<{ parasiteType: string; avgCountPerGram: number; sampleCount: number }>;
-    gradesByParasite: Array<{ parasiteType: string; highestGrade: string; averageGrade: number }>;
+    gradesByParasite: Array<{ parasiteType: string; sampleCount: number; highestGrade: string; averageGrade: number }>;
   };
   comparisonToPrevious: {
     previousCheckId: string;
     famachaBeforeAverage: number | null;
     famachaAfterAverage: number | null;
     famachaAverageChange: number | null;
-    fecReduction: Array<{ parasiteType: string; reductionPercent: number | null }>;
+    fecReduction: Array<{ parasiteType: string; afterSampleCount: number; reductionPercent: number | null }>;
   } | null;
 };
 
@@ -715,5 +715,110 @@ describe("Parasite re-check rules", () => {
       fecSamples: [{ animalIds: [a1.id], results: [{ parasiteType: "coccidia", countPerGram: 10, grade: "low" }] }],
     });
     expect(both.status).toBe(400);
+  });
+
+  it("updates results from counts to grades and returns grades in the animal history", async () => {
+    const { jwt, a1, a2, base } = await setupFecBase();
+
+    const patchRes = await request(
+      "PATCH",
+      `/v1/parasiteChecks/byId/${base.id}`,
+      {
+        fecSamples: [
+          { animalIds: [a1.id], results: [{ parasiteType: "strongyles", grade: "medium" }] },
+          { animalIds: [a2.id], results: [{ parasiteType: "strongyles", grade: "low" }] },
+        ],
+      },
+      jwt
+    );
+    expect(patchRes.status).toBe(200);
+    const patchBody = (await patchRes.json()) as { data: CheckResponse };
+    const results = patchBody.data.fecSamples.flatMap((sample) => sample.results);
+    expect(results.map((result) => result.countPerGram)).toEqual([null, null]);
+    expect(results.map((result) => result.grade).sort()).toEqual(["low", "medium"]);
+    expect(patchBody.data.summary.fecByParasite).toHaveLength(0);
+    const strongyles = patchBody.data.summary.gradesByParasite.find((entry) => entry.parasiteType === "strongyles")!;
+    expect(strongyles.sampleCount).toBe(2);
+    expect(strongyles.highestGrade).toBe("medium");
+    expect(strongyles.averageGrade).toBeCloseTo(1.5);
+
+    const historyRes = await request("GET", `/v1/animals/byId/${a1.id}/parasiteHistory`, undefined, jwt);
+    const historyBody = (await historyRes.json()) as {
+      data: {
+        fecResults: Array<{
+          results: Array<{ parasiteType: string; countPerGram: number | null; grade: string | null }>;
+        }>;
+      };
+    };
+    expect(historyBody.data.fecResults[0].results).toEqual([
+      { parasiteType: "strongyles", countPerGram: null, grade: "medium" },
+    ]);
+
+    // The update applies the same exactly-one-of rule as create
+    const both = await request(
+      "PATCH",
+      `/v1/parasiteChecks/byId/${base.id}`,
+      {
+        fecSamples: [{ animalIds: [a1.id], results: [{ parasiteType: "strongyles", countPerGram: 10, grade: "low" }] }],
+      },
+      jwt
+    );
+    expect(both.status).toBe(400);
+  });
+
+  it("leaves graded results out of the reduction", async () => {
+    const { jwt, a1, a2, base } = await setupFecBase();
+
+    // Only grades in the re-check: nothing to compare against the base counts
+    const allGraded = await createCheck(jwt, {
+      date: "2025-06-15",
+      method: "fecal_egg_count",
+      animals: [{ animalId: a1.id }],
+      fecSamples: [{ animalIds: [a1.id], results: [{ parasiteType: "strongyles", grade: "low" }] }],
+      previousCheckId: base.id,
+    });
+    expect(allGraded.status).toBe(200);
+    expect(allGraded.body.data.comparisonToPrevious!.fecReduction).toHaveLength(0);
+
+    // a1 graded, a2 counted: only a2's 500 -> 50 is paired
+    const partlyGraded = await createCheck(jwt, {
+      date: "2025-06-16",
+      method: "fecal_egg_count",
+      animals: [{ animalId: a1.id }, { animalId: a2.id }],
+      fecSamples: [
+        { animalIds: [a1.id], results: [{ parasiteType: "strongyles", grade: "low" }] },
+        { animalIds: [a2.id], results: [{ parasiteType: "strongyles", countPerGram: 50 }] },
+      ],
+      previousCheckId: base.id,
+    });
+    expect(partlyGraded.status).toBe(200);
+    const reduction = partlyGraded.body.data.comparisonToPrevious!.fecReduction;
+    expect(reduction).toHaveLength(1);
+    expect(reduction[0].afterSampleCount).toBe(1);
+    expect(reduction[0].reductionPercent).toBeCloseTo(90);
+  });
+
+  it("summarizes a parasite counted in one sample and graded in another separately", async () => {
+    const { jwt } = await createUserWithFarm();
+    const a1 = await createAnimal(jwt, { name: "M1", type: "sheep" });
+    const a2 = await createAnimal(jwt, { name: "M2", type: "sheep" });
+
+    const mixed = await createCheck(jwt, {
+      date: "2025-06-01",
+      method: "fecal_egg_count",
+      animals: [{ animalId: a1.id }, { animalId: a2.id }],
+      fecSamples: [
+        { animalIds: [a1.id], results: [{ parasiteType: "coccidia", countPerGram: 300 }] },
+        { animalIds: [a2.id], results: [{ parasiteType: "coccidia", grade: "medium" }] },
+      ],
+    });
+    expect(mixed.status).toBe(200);
+    const summary = mixed.body.data.summary;
+    const counted = summary.fecByParasite.find((entry) => entry.parasiteType === "coccidia")!;
+    expect(counted.sampleCount).toBe(1);
+    expect(counted.avgCountPerGram).toBe(300);
+    const graded = summary.gradesByParasite.find((entry) => entry.parasiteType === "coccidia")!;
+    expect(graded.sampleCount).toBe(1);
+    expect(graded.averageGrade).toBe(2);
   });
 });
