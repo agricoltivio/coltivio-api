@@ -49,7 +49,6 @@ export const sentryResultHandler = new ResultHandler({
 
 const statusByErrorCode: Record<ApiErrorCode, number> = {
   invalid_geometry: 400,
-  geometry_processing_failed: 500,
 };
 
 const getPublicErrorMessage = (error: HttpError): string =>

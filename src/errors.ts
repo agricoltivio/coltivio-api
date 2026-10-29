@@ -4,8 +4,6 @@ import { z } from "zod";
 export const apiErrorCodeSchema = z.enum([
   // the geometry has no area left after repairing it (e.g. fewer than 3 distinct points)
   "invalid_geometry",
-  // PostGIS could not cut the geometry out of the overlapping plots
-  "geometry_processing_failed",
 ]);
 export type ApiErrorCode = z.infer<typeof apiErrorCodeSchema>;
 
@@ -13,8 +11,8 @@ export type ApiErrorCode = z.infer<typeof apiErrorCodeSchema>;
 export class CodedError extends Error {
   readonly code: ApiErrorCode;
 
-  constructor(code: ApiErrorCode, message: string, options?: { cause?: unknown }) {
-    super(message, options);
+  constructor(code: ApiErrorCode, message: string) {
+    super(message);
     this.name = "CodedError";
     this.code = code;
   }
