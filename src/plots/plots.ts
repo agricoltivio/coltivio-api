@@ -531,9 +531,11 @@ export function plotsApi(rlsDb: RlsDb, t: TFunction) {
       options: { strategy: "keep_reference" } | { strategy: "delete_and_migrate" }
     ): Promise<Plot> {
       const newPlotId = await rlsDb.rls(async (tx) => {
-        // Collect source plot geometries into a single MultiPolygon (preserving individual polygon boundaries for future splitting)
-        const collectedGeometry = sql<MultiPolygon>`(SELECT ST_CollectionExtract(ST_Collect(${plots.geometry}), 3) FROM ${plots} WHERE ${inArray(plots.id, plotIds)})`;
-        const collectedSize = sql<number>`(SELECT ST_Area(ST_Transform(ST_Collect(${plots.geometry}), 2056)) FROM ${plots} WHERE ${inArray(plots.id, plotIds)})`;
+        // Union of the source plots: adjacent plots become one polygon, plots that don't touch stay separate parts.
+        // Collecting them instead would keep the shared edges, which makes the MultiPolygon invalid.
+        const unionGeometry = sql`(SELECT ST_Union(${repairedMultiPolygon(sql`${plots.geometry}`)}) FROM ${plots} WHERE ${inArray(plots.id, plotIds)})`;
+        const collectedGeometry = repairedMultiPolygon(unionGeometry);
+        const collectedSize = sql<number>`ST_Area(ST_Transform(${unionGeometry}, 2056))`;
 
         const [newPlot] = await tx
           .insert(plots)

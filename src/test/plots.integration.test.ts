@@ -278,6 +278,46 @@ describe("Plot geometry validation", () => {
     expect(await isStoredGeometryValid(invalidPlot.id)).toBe(true);
   });
 
+  it("merges adjacent plots into one valid polygon", async () => {
+    const { jwt } = await createUserWithFarm();
+    const square = (west: number) => ({
+      type: "MultiPolygon",
+      coordinates: [
+        [
+          [
+            [west, 47.0],
+            [west + 0.1, 47.0],
+            [west + 0.1, 47.1],
+            [west, 47.1],
+            [west, 47.0],
+          ],
+        ],
+      ],
+    });
+    const left = await createPlot(jwt, { name: "Left", geometry: square(8.0) });
+    const right = await createPlot(jwt, { name: "Right", geometry: square(8.1) });
+    const separate = await createPlot(jwt, { name: "Separate", geometry: square(8.3) });
+
+    const res = await request(
+      "POST",
+      "/v1/plots/merge",
+      { strategy: "delete_and_migrate", plotIds: [left.id, right.id, separate.id], name: "Merged" },
+      jwt
+    );
+    expect(res.status).toBe(200);
+    const merged = ((await res.json()) as { data: { id: string; size: number } }).data;
+
+    expect(await isStoredGeometryValid(merged.id)).toBe(true);
+    const db = getAdminDb();
+    const [row] = await db
+      .select({ parts: sql<number>`ST_NumGeometries(${schema.plots.geometry})` })
+      .from(schema.plots)
+      .where(eq(schema.plots.id, merged.id));
+    // the adjacent plots became one part, the separate plot stays its own part
+    expect(row.parts).toBe(2);
+    expect(merged.size).toBeGreaterThan(0);
+  });
+
   it("rejects a geometry without area with an error code", async () => {
     const { jwt } = await createUserWithFarm();
     const collinearRing = [
