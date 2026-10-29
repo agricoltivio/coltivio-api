@@ -3,7 +3,8 @@ import createHttpError from "http-errors";
 import escapeRegExp from "lodash/escapeRegExp";
 import { CropRotation, expandRecurrence } from "../crop-rotations/crop-rotations";
 import { TFunction } from "i18next";
-import { RlsDb } from "../db/db";
+import { RlsDb, Transaction } from "../db/db";
+import { CodedError } from "../errors";
 import {
   cropProtectionApplications,
   cropRotations,
@@ -74,6 +75,34 @@ function overlapsSignificantly(existingGeometry: SQL, importGeometry: SQL): SQL 
       > 0.01 * LEAST(ST_Area(${existingGeometry}), ST_Area(${importGeometry}))`;
 }
 
+// Same repair as "Fix geometries" in QGIS (and the shapefile import): resolves self-intersections, keeps only the
+// polygon parts and forces a counter-clockwise MultiPolygon. Invalid geometries make ST_Difference fail with a
+// GEOS TopologyException, which blocks every plot drawn next to them.
+export function repairedMultiPolygon(geometry: SQL): SQL<MultiPolygon> {
+  return sql<MultiPolygon>`ST_ForcePolygonCCW(ST_Multi(ST_CollectionExtract(ST_MakeValid(${geometry}, 'method=structure'), 3)))`;
+}
+
+// Turns a GEOS failure that slips through the repair into a coded error the client can show.
+function toGeometryApiError(error: unknown): unknown {
+  if (error instanceof Error && error.cause instanceof Error && error.cause.message.includes("GEOS Error")) {
+    return new CodedError("geometry_processing_failed", "Could not process plot geometry", { cause: error });
+  }
+  return error;
+}
+
+// Cuts the given (already repaired) geometry out of all other active plots it overlaps. The overlapping plots
+// are repaired first, so a plot that was stored invalid does not block saving new ones.
+async function cutOutOfOverlappingPlots(tx: Transaction, plotId: string, geometry: string) {
+  const remainingGeometry = sql`ST_Difference(${repairedMultiPolygon(sql`${plots.geometry}`)}, ${geometry})`;
+  await tx
+    .update(plots)
+    .set({
+      geometry: repairedMultiPolygon(remainingGeometry),
+      size: sql<number>`ST_Area(ST_Transform(${remainingGeometry}, 2056))`,
+    })
+    .where(and(ne(plots.id, plotId), isNull(plots.archivedAt), sql`ST_Intersects(${plots.geometry}, ${geometry})`));
+}
+
 export function plotsApi(rlsDb: RlsDb, t: TFunction) {
   return {
     async createPlot(plotInput: PlotCreateInput): Promise<Plot> {
@@ -84,31 +113,30 @@ export function plotsApi(rlsDb: RlsDb, t: TFunction) {
 
     // Creates all plots in a single transaction. Each new plot is cut out of the existing plots it overlaps.
     async createPlots(plotInputs: PlotCreateInput[]): Promise<string[]> {
-      return rlsDb.rls(async (tx) => {
-        const createdPlotIds: string[] = [];
-        for (const plotInput of plotInputs) {
-          const [plot] = await tx
-            .insert(plots)
-            .values({
-              ...plotInput,
-              ...farmIdColumnValue,
-              geometry: sql<MultiPolygon>`ST_GeomFromGeoJSON(${JSON.stringify(plotInput.geometry)})`,
-            })
-            .returning({ id: plots.id, geom: plots.geometry });
+      return rlsDb
+        .rls(async (tx) => {
+          const createdPlotIds: string[] = [];
+          for (const plotInput of plotInputs) {
+            const [plot] = await tx
+              .insert(plots)
+              .values({
+                ...plotInput,
+                ...farmIdColumnValue,
+                geometry: repairedMultiPolygon(sql`ST_GeomFromGeoJSON(${JSON.stringify(plotInput.geometry)})`),
+              })
+              .returning({ id: plots.id, geom: plots.geometry, isEmpty: sql<boolean>`ST_IsEmpty(${plots.geometry})` });
+            if (plot.isEmpty) {
+              throw new CodedError("invalid_geometry", "Plot geometry has no area");
+            }
 
-          await tx
-            .update(plots)
-            .set({
-              geometry: sql<MultiPolygon>`ST_ForcePolygonCCW(ST_Multi(ST_Difference(${plots.geometry}, ${plot.geom})))`,
-              size: sql<number>`ST_Area(ST_Transform(ST_Difference(${plots.geometry}, ${plot.geom}),2056))`,
-            })
-            .where(
-              and(ne(plots.id, plot.id), isNull(plots.archivedAt), sql`ST_Intersects(${plots.geometry}, ${plot.geom})`)
-            );
-          createdPlotIds.push(plot.id);
-        }
-        return createdPlotIds;
-      });
+            await cutOutOfOverlappingPlots(tx, plot.id, plot.geom);
+            createdPlotIds.push(plot.id);
+          }
+          return createdPlotIds;
+        })
+        .catch((error: unknown) => {
+          throw toGeometryApiError(error);
+        });
     },
 
     async previewShapefileImport(zipBuffer: Buffer): Promise<ShapefileImportPreview> {
@@ -383,36 +411,35 @@ export function plotsApi(rlsDb: RlsDb, t: TFunction) {
 
     async updatePlot(id: string, data: PlotUpdateInput): Promise<Plot> {
       const { archived, ...plotData } = data;
-      const result = await rlsDb.rls(async (tx) => {
-        const [plot] = await tx
-          .update(plots)
-          .set({
-            ...plotData,
-            ...(archived !== undefined ? { archivedAt: archived ? new Date() : null } : {}),
-            geometry: data.geometry
-              ? sql<MultiPolygon>`ST_GeomFromGeoJSON(${JSON.stringify(data.geometry)})`
-              : undefined,
-          })
-          .where(eq(plots.id, id))
-          .returning();
-
-        if (data.geometry) {
-          await tx
+      const result = await rlsDb
+        .rls(async (tx) => {
+          const [plot] = await tx
             .update(plots)
             .set({
-              geometry: sql<MultiPolygon>`ST_ForcePolygonCCW(ST_Multi(ST_Difference(${plots.geometry}, ${plot.geometry})))`,
-              size: sql<number>`ST_Area(ST_Transform(ST_Difference(${plots.geometry}, ${plot.geometry}),2056))`,
+              ...plotData,
+              ...(archived !== undefined ? { archivedAt: archived ? new Date() : null } : {}),
+              geometry: data.geometry
+                ? repairedMultiPolygon(sql`ST_GeomFromGeoJSON(${JSON.stringify(data.geometry)})`)
+                : undefined,
             })
-            .where(
-              and(
-                ne(plots.id, plot.id),
-                isNull(plots.archivedAt),
-                sql`ST_Intersects(${plots.geometry}, ${plot.geometry})`
-              )
-            );
-        }
-        return plot;
-      });
+            .where(eq(plots.id, id))
+            .returning({
+              id: plots.id,
+              geometry: plots.geometry,
+              isEmpty: sql<boolean>`ST_IsEmpty(${plots.geometry})`,
+            });
+
+          if (data.geometry) {
+            if (plot.isEmpty) {
+              throw new CodedError("invalid_geometry", "Plot geometry has no area");
+            }
+            await cutOutOfOverlappingPlots(tx, plot.id, plot.geometry);
+          }
+          return plot;
+        })
+        .catch((error: unknown) => {
+          throw toGeometryApiError(error);
+        });
       const plot = await this.getPlotById(result.id);
       return plot!;
     },
@@ -449,7 +476,7 @@ export function plotsApi(rlsDb: RlsDb, t: TFunction) {
               usage: originalPlot.usage,
               cuttingDate: originalPlot.cuttingDate,
               localId: originalPlot.localId,
-              geometry: sql<MultiPolygon>`ST_GeomFromGeoJSON(${JSON.stringify(subPlot.geometry)})`,
+              geometry: repairedMultiPolygon(sql`ST_GeomFromGeoJSON(${JSON.stringify(subPlot.geometry)})`),
             })
             .returning({ id: plots.id });
           ids.push(created.id);

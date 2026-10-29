@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from "@jest/globals";
+import { eq, sql } from "drizzle-orm";
 
 import { cleanDb, getAdminDb, request } from "./helpers";
 import * as schema from "../db/schema";
@@ -196,5 +197,107 @@ describe("Plots CRUD", () => {
       where: { id: body.data.id },
     });
     expect(dbMerged!.name).toBe("Merged Field");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Invalid geometries
+// ---------------------------------------------------------------------------
+describe("Plot geometry validation", () => {
+  beforeEach(cleanDb);
+
+  // Edges cross in the middle of the square
+  const BOWTIE_RING = [
+    [8.0, 47.0],
+    [8.1, 47.1],
+    [8.1, 47.0],
+    [8.0, 47.1],
+    [8.0, 47.0],
+  ];
+
+  async function isStoredGeometryValid(plotId: string) {
+    const db = getAdminDb();
+    const [row] = await db
+      .select({ isValid: sql<boolean>`ST_IsValid(${schema.plots.geometry})` })
+      .from(schema.plots)
+      .where(eq(schema.plots.id, plotId));
+    return row.isValid;
+  }
+
+  it("repairs a self-intersecting plot on create", async () => {
+    const { jwt } = await createUserWithFarm();
+    const plot = await createPlot(jwt, { geometry: { type: "MultiPolygon", coordinates: [[BOWTIE_RING]] } });
+
+    expect(await isStoredGeometryValid(plot.id)).toBe(true);
+  });
+
+  it("repairs a self-intersecting plot on update", async () => {
+    const { jwt } = await createUserWithFarm();
+    const plot = await createPlot(jwt);
+
+    const res = await request(
+      "PATCH",
+      `/v1/plots/byId/${plot.id}`,
+      { geometry: { type: "MultiPolygon", coordinates: [[BOWTIE_RING]] } },
+      jwt
+    );
+    expect(res.status).toBe(200);
+    expect(await isStoredGeometryValid(plot.id)).toBe(true);
+  });
+
+  it("cuts a new plot out of an overlapping plot that is stored invalid", async () => {
+    const { jwt } = await createUserWithFarm();
+    const invalidPlot = await createPlot(jwt, { name: "Invalid" });
+    const db = getAdminDb();
+    await db.execute(sql`
+      update ${schema.plots}
+      set geometry = ST_SetSRID(ST_GeomFromGeoJSON(${JSON.stringify({ type: "MultiPolygon", coordinates: [[BOWTIE_RING]] })}), 4326)
+      where id = ${invalidPlot.id}
+    `);
+    expect(await isStoredGeometryValid(invalidPlot.id)).toBe(false);
+
+    const newPlot = await createPlot(jwt, {
+      name: "New",
+      geometry: {
+        type: "MultiPolygon",
+        coordinates: [
+          [
+            [
+              [8.05, 47.0],
+              [8.15, 47.0],
+              [8.15, 47.1],
+              [8.05, 47.1],
+              [8.05, 47.0],
+            ],
+          ],
+        ],
+      },
+    });
+
+    expect(await isStoredGeometryValid(newPlot.id)).toBe(true);
+    expect(await isStoredGeometryValid(invalidPlot.id)).toBe(true);
+  });
+
+  it("rejects a geometry without area with an error code", async () => {
+    const { jwt } = await createUserWithFarm();
+    const collinearRing = [
+      [8.0, 47.0],
+      [8.1, 47.0],
+      [8.2, 47.0],
+      [8.0, 47.0],
+    ];
+
+    const res = await request(
+      "POST",
+      "/v1/plots",
+      { name: "Line", size: 0, geometry: { type: "MultiPolygon", coordinates: [[collinearRing]] } },
+      jwt
+    );
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { error: string; code?: string };
+    expect(body.code).toBe("invalid_geometry");
+
+    const db = getAdminDb();
+    expect(await db.query.plots.findMany()).toHaveLength(0);
   });
 });
