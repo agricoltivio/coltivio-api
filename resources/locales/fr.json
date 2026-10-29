@@ -5,7 +5,15 @@
     "error_sex_unknown": "Valeur de sexe inconnue: {{value}}",
     "error_dob_required": "La date de naissance est obligatoire",
     "error_dob_invalid": "Format de date invalide",
-    "error_ear_tag_assigned": "La boucle auriculaire {{number}} est déjà attribuée à un autre animal"
+    "error_ear_tag_assigned": "La boucle auriculaire {{number}} est déjà attribuée à un autre animal",
+    "error_missing_columns": "Il manque des colonnes obligatoires dans le fichier: {{columns}}. Veuillez exporter le tableau dans la TVD via «Exporter les données» et téléverser le fichier sans le modifier.",
+    "error_file_unreadable": "Le fichier n'a pas pu être lu. Veuillez téléverser le fichier Excel de la TVD sans le modifier.",
+    "columns": {
+      "earTag": "No de marque auriculaire",
+      "name": "Nom",
+      "sex": "Sexe",
+      "dateOfBirth": "Date de naissance"
+    }
   },
   "field_calendar_report": {
     "mail_subject": "Calendrier des champs",

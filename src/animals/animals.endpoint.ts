@@ -381,6 +381,7 @@ const parsedImportRowSchema = z.object({
   earTagId: z.string().nullable(),
   earTagAssigned: z.boolean(),
   assignedToAnimalId: z.string().nullable(),
+  assignedToAnimalName: z.string().nullable(),
   name: z.string().nullable(),
   sex: animalSexSchema.nullable(),
   dateOfBirth: ez.dateOut().nullable(),
