@@ -76,6 +76,9 @@ function overlapsSignificantly(existingGeometry: SQL, importGeometry: SQL): SQL 
       > 0.01 * LEAST(ST_Area(${existingGeometry}), ST_Area(${importGeometry}))`;
 }
 
+// Gaps between merged plots narrower than twice this are closed, same tolerance as merging plots into a meadow
+const MERGE_GAP_TOLERANCE_METERS = 1;
+
 // Turns a GEOS failure that slips through the repair into a coded error the client can show.
 function toGeometryApiError(error: unknown): unknown {
   if (error instanceof Error && error.cause instanceof Error && error.cause.message.includes("GEOS Error")) {
@@ -533,7 +536,9 @@ export function plotsApi(rlsDb: RlsDb, t: TFunction) {
       const newPlotId = await rlsDb.rls(async (tx) => {
         // Union of the source plots: adjacent plots become one polygon, plots that don't touch stay separate parts.
         // Collecting them instead would keep the shared edges, which makes the MultiPolygon invalid.
-        const unionGeometry = sql`(SELECT ST_Union(${repairedMultiPolygon(sql`${plots.geometry}`)}) FROM ${plots} WHERE ${inArray(plots.id, plotIds)})`;
+        // Neighbouring plots rarely share the exact same border, so the union keeps thin slivers (holes or notches)
+        // where they don't quite touch. Growing the union and shrinking it back (in metres) closes those gaps.
+        const unionGeometry = sql`(SELECT ST_Transform(ST_Buffer(ST_Buffer(ST_Transform(ST_Union(${repairedMultiPolygon(sql`${plots.geometry}`)}), 2056), ${MERGE_GAP_TOLERANCE_METERS}), ${-MERGE_GAP_TOLERANCE_METERS}), 4326) FROM ${plots} WHERE ${inArray(plots.id, plotIds)})`;
         const collectedGeometry = repairedMultiPolygon(unionGeometry);
         const collectedSize = sql<number>`ST_Area(ST_Transform(${unionGeometry}, 2056))`;
 

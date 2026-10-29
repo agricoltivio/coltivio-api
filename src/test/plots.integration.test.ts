@@ -318,6 +318,51 @@ describe("Plot geometry validation", () => {
     expect(merged.size).toBeGreaterThan(0);
   });
 
+  it("closes small gaps between merged plots", async () => {
+    const { jwt } = await createUserWithFarm();
+    // ~20 cm gap along the shared border, as with plots digitised separately
+    const gap = 0.0000025;
+    const rectangle = (west: number, east: number) => ({
+      type: "MultiPolygon",
+      coordinates: [
+        [
+          [
+            [west, 47.0],
+            [east, 47.0],
+            [east, 47.001],
+            [west, 47.001],
+            [west, 47.0],
+          ],
+        ],
+      ],
+    });
+    const left = await createPlot(jwt, { name: "Left", geometry: rectangle(8.0, 8.001) });
+    const right = await createPlot(jwt, { name: "Right", geometry: rectangle(8.001 + gap, 8.002) });
+
+    const res = await request(
+      "POST",
+      "/v1/plots/merge",
+      { strategy: "delete_and_migrate", plotIds: [left.id, right.id], name: "Merged" },
+      jwt
+    );
+    expect(res.status).toBe(200);
+    const merged = ((await res.json()) as { data: { id: string } }).data;
+
+    const db = getAdminDb();
+    const [row] = await db
+      .select({
+        parts: sql<number>`ST_NumGeometries(${schema.plots.geometry})`,
+        holes: sql<number>`ST_NumInteriorRings(ST_GeometryN(${schema.plots.geometry}, 1))`,
+        // the outline is kept: area of the merged plot vs. the bounding box of both plots
+        areaRatio: sql<number>`ST_Area(${schema.plots.geometry}) / ST_Area(ST_Envelope(${schema.plots.geometry}))`,
+      })
+      .from(schema.plots)
+      .where(eq(schema.plots.id, merged.id));
+    expect(row.parts).toBe(1);
+    expect(row.holes).toBe(0);
+    expect(row.areaRatio).toBeCloseTo(1, 3);
+  });
+
   it("rejects a geometry without area with an error code", async () => {
     const { jwt } = await createUserWithFarm();
     const collinearRing = [
