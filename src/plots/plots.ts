@@ -25,6 +25,7 @@ import {
   PlotOverlayInput,
 } from "./plot-overlays";
 import { createPlotsWithCrops, PlotWithCropInput } from "./create-plots-with-crops";
+import { repairedMultiPolygon } from "./plot-geometry";
 import { isKnownUsageCode } from "../crops/codeToCropsMapper";
 
 export type SplitPlotInput = {
@@ -73,13 +74,6 @@ function overlapsSignificantly(existingGeometry: SQL, importGeometry: SQL): SQL 
   return sql`ST_Intersects(${existingGeometry}, ${importGeometry})
     AND ST_Area(ST_Intersection(${existingGeometry}, ${importGeometry}))
       > 0.01 * LEAST(ST_Area(${existingGeometry}), ST_Area(${importGeometry}))`;
-}
-
-// Same repair as "Fix geometries" in QGIS (and the shapefile import): resolves self-intersections, keeps only the
-// polygon parts and forces a counter-clockwise MultiPolygon. Invalid geometries make ST_Difference fail with a
-// GEOS TopologyException, which blocks every plot drawn next to them.
-export function repairedMultiPolygon(geometry: SQL): SQL<MultiPolygon> {
-  return sql<MultiPolygon>`ST_ForcePolygonCCW(ST_Multi(ST_CollectionExtract(ST_MakeValid(${geometry}, 'method=structure'), 3)))`;
 }
 
 // Turns a GEOS failure that slips through the repair into a coded error the client can show.

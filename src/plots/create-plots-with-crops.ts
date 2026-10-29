@@ -4,7 +4,7 @@ import { mapCodesToCrops, UNKNOWN_CROP_CODE } from "../crops/codeToCropsMapper";
 import { Transaction } from "../db/db";
 import { cropRotations, cropRotationYearlyRecurrences, crops, plots } from "../db/schema";
 import { MultiPolygon } from "../geo/geojson";
-import { repairedMultiPolygon } from "./plots";
+import { repairedMultiPolygon } from "./plot-geometry";
 
 export type PlotWithCropInput = {
   name: string;
