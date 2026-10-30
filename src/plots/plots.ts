@@ -87,15 +87,25 @@ const MERGE_GAP_TOLERANCE_METERS = 0.25;
 
 // Cuts the given (already repaired) geometry out of all other active plots it overlaps. The overlapping plots
 // are repaired first, so a plot that was stored invalid does not block saving new ones.
+// Plots that only share a border are left alone: cutting changes nothing there, but the repair would rewrite
+// them (e.g. join the parts of an old merged plot) and replace their size.
 async function cutOutOfOverlappingPlots(tx: Transaction, plotId: string, geometry: string) {
-  const remainingGeometry = sql`ST_Difference(${repairedMultiPolygon(sql`${plots.geometry}`)}, ${geometry})`;
+  const repairedPlotGeometry = repairedMultiPolygon(sql`${plots.geometry}`);
+  const remainingGeometry = sql`ST_Difference(${repairedPlotGeometry}, ${geometry})`;
   await tx
     .update(plots)
     .set({
       geometry: repairedMultiPolygon(remainingGeometry),
       size: areaSquareMeters(remainingGeometry),
     })
-    .where(and(ne(plots.id, plotId), isNull(plots.archivedAt), sql`ST_Intersects(${plots.geometry}, ${geometry})`));
+    .where(
+      and(
+        ne(plots.id, plotId),
+        isNull(plots.archivedAt),
+        sql`ST_Intersects(${plots.geometry}, ${geometry})`,
+        sql`NOT ST_Touches(${repairedPlotGeometry}, ${geometry})`
+      )
+    );
 }
 
 export function plotsApi(rlsDb: RlsDb, t: TFunction) {

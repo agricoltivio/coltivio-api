@@ -501,6 +501,41 @@ describe("Plot geometry validation", () => {
     expect(res.status).toBe(404);
   });
 
+  it("leaves a plot that only shares a border with a new plot unchanged", async () => {
+    const { jwt } = await createUserWithFarm();
+    // Size differs from the geometry's area: it would be replaced if the neighbour were rewritten
+    const neighbour = await createPlot(jwt, { name: "Neighbour", size: 1234 });
+
+    await createPlot(jwt, {
+      name: "New",
+      geometry: {
+        type: "MultiPolygon",
+        coordinates: [
+          [
+            [
+              [8.1, 47.0],
+              [8.2, 47.0],
+              [8.2, 47.1],
+              [8.1, 47.1],
+              [8.1, 47.0],
+            ],
+          ],
+        ],
+      },
+    });
+
+    const db = getAdminDb();
+    const [row] = await db
+      .select({
+        size: schema.plots.size,
+        unchanged: sql<boolean>`ST_Equals(${schema.plots.geometry}, ST_SetSRID(ST_GeomFromGeoJSON(${JSON.stringify(TEST_GEOMETRY)}), 4326))`,
+      })
+      .from(schema.plots)
+      .where(eq(schema.plots.id, neighbour.id));
+    expect(row.size).toBe(1234);
+    expect(row.unchanged).toBe(true);
+  });
+
   it("removes repeated points, which clients report as crossing edges", async () => {
     const { jwt } = await createUserWithFarm();
     // same point three times in a row, the last one a fraction of a millimetre off (as left by a cut)
