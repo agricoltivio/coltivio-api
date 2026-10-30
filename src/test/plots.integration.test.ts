@@ -401,6 +401,106 @@ describe("Plot geometry validation", () => {
     expect(row.parts).toBe(2);
   });
 
+  it("keeps the corners of merged plots sharp and does not overlap neighbouring plots", async () => {
+    const { jwt } = await createUserWithFarm();
+    // ~20 cm gap between the two plots that are merged into an L shape
+    const gap = 0.0000025;
+    const rectangle = (west: number, south: number, east: number, north: number) => ({
+      type: "MultiPolygon",
+      coordinates: [
+        [
+          [
+            [west, south],
+            [east, south],
+            [east, north],
+            [west, north],
+            [west, south],
+          ],
+        ],
+      ],
+    });
+    const left = await createPlot(jwt, { name: "Left", geometry: rectangle(8.0, 47.0, 8.001, 47.002) });
+    const bottom = await createPlot(jwt, { name: "Bottom", geometry: rectangle(8.001 + gap, 47.0, 8.002, 47.001) });
+    // fills the inner corner of the L, not merged
+    const neighbour = await createPlot(jwt, {
+      name: "Neighbour",
+      geometry: rectangle(8.001 + gap, 47.001, 8.002, 47.002),
+    });
+
+    const res = await request(
+      "POST",
+      "/v1/plots/merge",
+      { strategy: "delete_and_migrate", plotIds: [left.id, bottom.id], name: "Merged" },
+      jwt
+    );
+    expect(res.status).toBe(200);
+    const merged = ((await res.json()) as { data: { id: string } }).data;
+
+    const db = getAdminDb();
+    const [row] = await db.execute<{ points: number; overlap: number; neighbourValid: boolean }>(sql`
+      SELECT
+        ST_NPoints(merged.geometry) AS points,
+        ST_Area(ST_Transform(ST_Intersection(merged.geometry, neighbour.geometry), 2056)) AS overlap,
+        ST_IsValid(neighbour.geometry) AS "neighbourValid"
+      FROM ${schema.plots} merged, ${schema.plots} neighbour
+      WHERE merged.id = ${merged.id} AND neighbour.id = ${neighbour.id}
+    `);
+    // an L shape has 6 corners plus the closing point, and closing the gap leaves two points on the bottom edge;
+    // round joins would add an arc of ~8 points at the inner corner
+    expect(row.points).toBeLessThanOrEqual(9);
+    expect(row.overlap).toBeLessThan(0.001);
+    expect(row.neighbourValid).toBe(true);
+  });
+
+  it("rejects a split with a sub-plot without area", async () => {
+    const { jwt } = await createUserWithFarm();
+    const plot = await createPlot(jwt, { name: "Original" });
+    const collinearGeometry = {
+      type: "MultiPolygon",
+      coordinates: [
+        [
+          [
+            [8.0, 47.0],
+            [8.05, 47.0],
+            [8.1, 47.0],
+            [8.0, 47.0],
+          ],
+        ],
+      ],
+    };
+
+    const res = await request(
+      "POST",
+      `/v1/plots/byId/${plot.id}/split`,
+      {
+        strategy: "keep_reference",
+        subPlots: [
+          { geometry: TEST_GEOMETRY, name: "Split A", size: 5000 },
+          { geometry: collinearGeometry, name: "Split B", size: 0 },
+        ],
+      },
+      jwt
+    );
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { code?: string };
+    expect(body.code).toBe("invalid_geometry");
+
+    const db = getAdminDb();
+    expect(await db.query.plots.findMany()).toHaveLength(1);
+  });
+
+  it("returns 404 when updating the geometry of a plot that does not exist", async () => {
+    const { jwt } = await createUserWithFarm();
+
+    const res = await request(
+      "PATCH",
+      "/v1/plots/byId/00000000-0000-0000-0000-000000000000",
+      { geometry: TEST_GEOMETRY },
+      jwt
+    );
+    expect(res.status).toBe(404);
+  });
+
   it("removes repeated points, which clients report as crossing edges", async () => {
     const { jwt } = await createUserWithFarm();
     // same point three times in a row, the last one a fraction of a millimetre off (as left by a cut)
