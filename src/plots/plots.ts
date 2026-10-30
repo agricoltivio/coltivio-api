@@ -456,7 +456,7 @@ export function plotsApi(rlsDb: RlsDb, t: TFunction) {
       plotId: string,
       subPlots: SplitPlotInput[],
       options:
-        | { strategy: "keep_reference"; originalPlotName?: string }
+        | { strategy: "keep_reference"; originalPlotName?: string; archiveReference?: boolean }
         | { strategy: "delete_and_migrate"; migrateToIndex: number }
     ): Promise<Plot[]> {
       const createdIds = await rlsDb.rls(async (tx) => {
@@ -497,6 +497,7 @@ export function plotsApi(rlsDb: RlsDb, t: TFunction) {
               geometry: sql<MultiPolygon>`ST_GeomFromGeoJSON(${JSON.stringify({ type: "MultiPolygon", coordinates: [] })})`,
               size: 0,
               ...(options.originalPlotName ? { name: options.originalPlotName } : {}),
+              ...(options.archiveReference ? { archivedAt: new Date() } : {}),
             })
             .where(eq(plots.id, plotId));
         } else {
@@ -540,7 +541,7 @@ export function plotsApi(rlsDb: RlsDb, t: TFunction) {
         cuttingDate?: Date | null;
         additionalNotes?: string;
       },
-      options: { strategy: "keep_reference" } | { strategy: "delete_and_migrate" }
+      options: { strategy: "keep_reference"; archiveReference?: boolean } | { strategy: "delete_and_migrate" }
     ): Promise<Plot> {
       const newPlotId = await rlsDb.rls(async (tx) => {
         // Union of the source plots: adjacent plots become one polygon, plots that don't touch stay separate parts.
@@ -587,6 +588,7 @@ export function plotsApi(rlsDb: RlsDb, t: TFunction) {
                 coordinates: [],
               })})`,
               size: 0,
+              ...(options.archiveReference ? { archivedAt: new Date() } : {}),
             })
             .where(inArray(plots.id, plotIds));
         }

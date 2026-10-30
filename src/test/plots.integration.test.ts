@@ -198,6 +198,92 @@ describe("Plots CRUD", () => {
     });
     expect(dbMerged!.name).toBe("Merged Field");
   });
+
+  it("archives the kept original plot on split when archiveReference is set", async () => {
+    const { jwt } = await createUserWithFarm();
+    const plot = await createPlot(jwt, { name: "Original" });
+    const half = (west: number) => ({
+      type: "MultiPolygon" as const,
+      coordinates: [
+        [
+          [
+            [west, 47.0],
+            [west + 0.05, 47.0],
+            [west + 0.05, 47.1],
+            [west, 47.1],
+            [west, 47.0],
+          ],
+        ],
+      ],
+    });
+
+    const res = await request(
+      "POST",
+      `/v1/plots/byId/${plot.id}/split`,
+      {
+        strategy: "keep_reference",
+        archiveReference: true,
+        subPlots: [
+          { geometry: half(8.0), name: "Split A", size: 5000 },
+          { geometry: half(8.05), name: "Split B", size: 5000 },
+        ],
+      },
+      jwt
+    );
+    expect(res.status).toBe(200);
+
+    const db = getAdminDb();
+    const original = await db.query.plots.findFirst({ where: { id: plot.id } });
+    expect(original!.archivedAt).not.toBeNull();
+    expect(original!.size).toBe(0);
+    const subPlots = await db.query.plots.findMany({ where: { name: { in: ["Split A", "Split B"] } } });
+    expect(subPlots.map((subPlot) => subPlot.archivedAt)).toEqual([null, null]);
+  });
+
+  it("archives the kept source plots on merge only when archiveReference is set", async () => {
+    const { jwt } = await createUserWithFarm();
+    const archivedSource1 = await createPlot(jwt, { name: "A1" });
+    const archivedSource2 = await createPlot(jwt, { name: "A2" });
+
+    const res = await request(
+      "POST",
+      "/v1/plots/merge",
+      {
+        strategy: "keep_reference",
+        archiveReference: true,
+        plotIds: [archivedSource1.id, archivedSource2.id],
+        name: "Merged",
+      },
+      jwt
+    );
+    expect(res.status).toBe(200);
+    const merged = ((await res.json()) as { data: { id: string } }).data;
+
+    const db = getAdminDb();
+    const sources = await db.query.plots.findMany({
+      where: { id: { in: [archivedSource1.id, archivedSource2.id] } },
+    });
+    expect(sources.every((source) => source.archivedAt !== null)).toBe(true);
+    const mergedPlot = await db.query.plots.findFirst({ where: { id: merged.id } });
+    expect(mergedPlot!.archivedAt).toBeNull();
+    // archiveReference is not stored as plot data
+    expect(mergedPlot!.name).toBe("Merged");
+
+    // without the option the source plots stay active
+    const activeSource1 = await createPlot(jwt, { name: "B1" });
+    const activeSource2 = await createPlot(jwt, { name: "B2" });
+    const res2 = await request(
+      "POST",
+      "/v1/plots/merge",
+      { strategy: "keep_reference", plotIds: [activeSource1.id, activeSource2.id], name: "Merged 2" },
+      jwt
+    );
+    expect(res2.status).toBe(200);
+    const activeSources = await db.query.plots.findMany({
+      where: { id: { in: [activeSource1.id, activeSource2.id] } },
+    });
+    expect(activeSources.every((source) => source.archivedAt === null)).toBe(true);
+  });
 });
 
 // ---------------------------------------------------------------------------
