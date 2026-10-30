@@ -192,6 +192,8 @@ const splitPlotInputSchema = z.discriminatedUnion("strategy", [
     plotId: z.string(),
     strategy: z.literal("keep_reference"),
     originalPlotName: z.string().optional(),
+    // archive the kept original plot, which has no area left
+    archiveReference: z.boolean().optional(),
     subPlots: z.array(subPlotSchema).min(1),
   }),
   z.object({
@@ -216,6 +218,8 @@ export const splitPlotEndpoint = plotsWrite.build({
 const mergePlotsInputSchema = z.discriminatedUnion("strategy", [
   z.object({
     strategy: z.literal("keep_reference"),
+    // archive the kept source plots, which have no area left
+    archiveReference: z.boolean().optional(),
     plotIds: z.array(z.string()).min(2),
     name: z.string(),
     localId: z.string().optional(),
@@ -241,6 +245,10 @@ export const mergePlotsEndpoint = plotsWrite.build({
   input: mergePlotsInputSchema,
   output: plotSchema,
   handler: async ({ input, ctx: { plots } }) => {
+    if (input.strategy === "keep_reference") {
+      const { strategy, plotIds, archiveReference, ...plotData } = input;
+      return plots.mergePlots(plotIds, plotData, { strategy, archiveReference });
+    }
     const { strategy, plotIds, ...plotData } = input;
     return plots.mergePlots(plotIds, plotData, { strategy });
   },

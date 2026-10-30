@@ -3,7 +3,8 @@ import createHttpError from "http-errors";
 import escapeRegExp from "lodash/escapeRegExp";
 import { CropRotation, expandRecurrence } from "../crop-rotations/crop-rotations";
 import { TFunction } from "i18next";
-import { RlsDb } from "../db/db";
+import { RlsDb, Transaction } from "../db/db";
+import { CodedError } from "../errors";
 import {
   cropProtectionApplications,
   cropRotations,
@@ -24,6 +25,7 @@ import {
   PlotOverlayInput,
 } from "./plot-overlays";
 import { createPlotsWithCrops, PlotWithCropInput } from "./create-plots-with-crops";
+import { repairedMultiPolygon } from "./plot-geometry";
 import { isKnownUsageCode } from "../crops/codeToCropsMapper";
 
 export type SplitPlotInput = {
@@ -74,6 +76,38 @@ function overlapsSignificantly(existingGeometry: SQL, importGeometry: SQL): SQL 
       > 0.01 * LEAST(ST_Area(${existingGeometry}), ST_Area(${importGeometry}))`;
 }
 
+// Area in m² of the given geometry, in the Swiss projection like everywhere else
+function areaSquareMeters(geometry: SQL): SQL<number> {
+  return sql<number>`ST_Area(ST_Transform(${geometry}, 2056))`;
+}
+
+// Gaps between merged plots narrower than twice this are closed. Digitising gaps between neighbouring plots are
+// centimetres; real features (ditches, paths, streams) are wider and must stay.
+const MERGE_GAP_TOLERANCE_METERS = 0.25;
+
+// Cuts the given (already repaired) geometry out of all other active plots it overlaps. The overlapping plots
+// are repaired first, so a plot that was stored invalid does not block saving new ones.
+// Plots that only share a border are left alone: cutting changes nothing there, but the repair would rewrite
+// them (e.g. join the parts of an old merged plot) and replace their size.
+async function cutOutOfOverlappingPlots(tx: Transaction, plotId: string, geometry: string) {
+  const repairedPlotGeometry = repairedMultiPolygon(sql`${plots.geometry}`);
+  const remainingGeometry = sql`ST_Difference(${repairedPlotGeometry}, ${geometry})`;
+  await tx
+    .update(plots)
+    .set({
+      geometry: repairedMultiPolygon(remainingGeometry),
+      size: areaSquareMeters(remainingGeometry),
+    })
+    .where(
+      and(
+        ne(plots.id, plotId),
+        isNull(plots.archivedAt),
+        sql`ST_Intersects(${plots.geometry}, ${geometry})`,
+        sql`NOT ST_Touches(${repairedPlotGeometry}, ${geometry})`
+      )
+    );
+}
+
 export function plotsApi(rlsDb: RlsDb, t: TFunction) {
   return {
     async createPlot(plotInput: PlotCreateInput): Promise<Plot> {
@@ -92,19 +126,14 @@ export function plotsApi(rlsDb: RlsDb, t: TFunction) {
             .values({
               ...plotInput,
               ...farmIdColumnValue,
-              geometry: sql<MultiPolygon>`ST_GeomFromGeoJSON(${JSON.stringify(plotInput.geometry)})`,
+              geometry: repairedMultiPolygon(sql`ST_GeomFromGeoJSON(${JSON.stringify(plotInput.geometry)})`),
             })
-            .returning({ id: plots.id, geom: plots.geometry });
+            .returning({ id: plots.id, geom: plots.geometry, isEmpty: sql<boolean>`ST_IsEmpty(${plots.geometry})` });
+          if (plot.isEmpty) {
+            throw new CodedError("invalid_geometry", "Plot geometry has no area");
+          }
 
-          await tx
-            .update(plots)
-            .set({
-              geometry: sql<MultiPolygon>`ST_ForcePolygonCCW(ST_Multi(ST_Difference(${plots.geometry}, ${plot.geom})))`,
-              size: sql<number>`ST_Area(ST_Transform(ST_Difference(${plots.geometry}, ${plot.geom}),2056))`,
-            })
-            .where(
-              and(ne(plots.id, plot.id), isNull(plots.archivedAt), sql`ST_Intersects(${plots.geometry}, ${plot.geom})`)
-            );
+          await cutOutOfOverlappingPlots(tx, plot.id, plot.geom);
           createdPlotIds.push(plot.id);
         }
         return createdPlotIds;
@@ -390,26 +419,26 @@ export function plotsApi(rlsDb: RlsDb, t: TFunction) {
             ...plotData,
             ...(archived !== undefined ? { archivedAt: archived ? new Date() : null } : {}),
             geometry: data.geometry
-              ? sql<MultiPolygon>`ST_GeomFromGeoJSON(${JSON.stringify(data.geometry)})`
+              ? repairedMultiPolygon(sql`ST_GeomFromGeoJSON(${JSON.stringify(data.geometry)})`)
               : undefined,
           })
           .where(eq(plots.id, id))
-          .returning();
+          .returning({
+            id: plots.id,
+            geometry: plots.geometry,
+            archivedAt: plots.archivedAt,
+            isEmpty: sql<boolean>`ST_IsEmpty(${plots.geometry})`,
+          });
+        if (!plot) throw createHttpError(404, "Plot not found");
 
         if (data.geometry) {
-          await tx
-            .update(plots)
-            .set({
-              geometry: sql<MultiPolygon>`ST_ForcePolygonCCW(ST_Multi(ST_Difference(${plots.geometry}, ${plot.geometry})))`,
-              size: sql<number>`ST_Area(ST_Transform(ST_Difference(${plots.geometry}, ${plot.geometry}),2056))`,
-            })
-            .where(
-              and(
-                ne(plots.id, plot.id),
-                isNull(plots.archivedAt),
-                sql`ST_Intersects(${plots.geometry}, ${plot.geometry})`
-              )
-            );
+          if (plot.isEmpty) {
+            throw new CodedError("invalid_geometry", "Plot geometry has no area");
+          }
+          // Archived plots may overlap active ones, so they don't cut anything
+          if (!plot.archivedAt) {
+            await cutOutOfOverlappingPlots(tx, plot.id, plot.geometry);
+          }
         }
         return plot;
       });
@@ -427,7 +456,7 @@ export function plotsApi(rlsDb: RlsDb, t: TFunction) {
       plotId: string,
       subPlots: SplitPlotInput[],
       options:
-        | { strategy: "keep_reference"; originalPlotName?: string }
+        | { strategy: "keep_reference"; originalPlotName?: string; archiveReference?: boolean }
         | { strategy: "delete_and_migrate"; migrateToIndex: number }
     ): Promise<Plot[]> {
       const createdIds = await rlsDb.rls(async (tx) => {
@@ -440,6 +469,7 @@ export function plotsApi(rlsDb: RlsDb, t: TFunction) {
 
         // Create sub-plots
         for (const subPlot of subPlots) {
+          const geometry = repairedMultiPolygon(sql`ST_GeomFromGeoJSON(${JSON.stringify(subPlot.geometry)})`);
           const [created] = await tx
             .insert(plots)
             .values({
@@ -449,9 +479,12 @@ export function plotsApi(rlsDb: RlsDb, t: TFunction) {
               usage: originalPlot.usage,
               cuttingDate: originalPlot.cuttingDate,
               localId: originalPlot.localId,
-              geometry: sql<MultiPolygon>`ST_GeomFromGeoJSON(${JSON.stringify(subPlot.geometry)})`,
+              geometry,
             })
-            .returning({ id: plots.id });
+            .returning({ id: plots.id, isEmpty: sql<boolean>`ST_IsEmpty(${plots.geometry})` });
+          if (created.isEmpty) {
+            throw new CodedError("invalid_geometry", "Sub-plot geometry has no area");
+          }
           ids.push(created.id);
         }
 
@@ -464,6 +497,7 @@ export function plotsApi(rlsDb: RlsDb, t: TFunction) {
               geometry: sql<MultiPolygon>`ST_GeomFromGeoJSON(${JSON.stringify({ type: "MultiPolygon", coordinates: [] })})`,
               size: 0,
               ...(options.originalPlotName ? { name: options.originalPlotName } : {}),
+              ...(options.archiveReference ? { archivedAt: new Date() } : {}),
             })
             .where(eq(plots.id, plotId));
         } else {
@@ -507,12 +541,17 @@ export function plotsApi(rlsDb: RlsDb, t: TFunction) {
         cuttingDate?: Date | null;
         additionalNotes?: string;
       },
-      options: { strategy: "keep_reference" } | { strategy: "delete_and_migrate" }
+      options: { strategy: "keep_reference"; archiveReference?: boolean } | { strategy: "delete_and_migrate" }
     ): Promise<Plot> {
       const newPlotId = await rlsDb.rls(async (tx) => {
-        // Collect source plot geometries into a single MultiPolygon (preserving individual polygon boundaries for future splitting)
-        const collectedGeometry = sql<MultiPolygon>`(SELECT ST_CollectionExtract(ST_Collect(${plots.geometry}), 3) FROM ${plots} WHERE ${inArray(plots.id, plotIds)})`;
-        const collectedSize = sql<number>`(SELECT ST_Area(ST_Transform(ST_Collect(${plots.geometry}), 2056)) FROM ${plots} WHERE ${inArray(plots.id, plotIds)})`;
+        // Union of the source plots: adjacent plots become one polygon, plots that don't touch stay separate parts.
+        // Collecting them instead would keep the shared edges, which makes the MultiPolygon invalid.
+        // Neighbouring plots rarely share the exact same border, so the union keeps thin slivers (holes or notches)
+        // where they don't quite touch. Growing the union and shrinking it back (in metres) closes those gaps.
+        // Mitre joins keep the corners sharp; round joins would turn every inner corner into an arc of extra vertices
+        // that also reaches into neighbouring plots.
+        const unionGeometry = sql`(SELECT ST_Transform(ST_Buffer(ST_Buffer(ST_Transform(ST_Union(${repairedMultiPolygon(sql`${plots.geometry}`)}), 2056), ${MERGE_GAP_TOLERANCE_METERS}, 'join=mitre'), ${-MERGE_GAP_TOLERANCE_METERS}, 'join=mitre'), 4326) FROM ${plots} WHERE ${inArray(plots.id, plotIds)})`;
+        const collectedGeometry = repairedMultiPolygon(unionGeometry);
 
         const [newPlot] = await tx
           .insert(plots)
@@ -522,10 +561,13 @@ export function plotsApi(rlsDb: RlsDb, t: TFunction) {
             localId: plotData.localId,
             usage: plotData.usage,
             cuttingDate: plotData.cuttingDate,
-            size: collectedSize,
+            size: areaSquareMeters(collectedGeometry),
             geometry: collectedGeometry,
           })
-          .returning({ id: plots.id });
+          .returning({ id: plots.id, geometry: plots.geometry, isEmpty: sql<boolean>`ST_IsEmpty(${plots.geometry})` });
+        if (newPlot.isEmpty) {
+          throw new CodedError("invalid_geometry", "Merged plot geometry has no area");
+        }
 
         if (options.strategy === "delete_and_migrate") {
           // Migrate relation tables (excluding cropRotations) from source plots to new plot
@@ -546,9 +588,14 @@ export function plotsApi(rlsDb: RlsDb, t: TFunction) {
                 coordinates: [],
               })})`,
               size: 0,
+              ...(options.archiveReference ? { archivedAt: new Date() } : {}),
             })
             .where(inArray(plots.id, plotIds));
         }
+
+        // Closing the gaps can grow the merged plot slightly into neighbouring plots; the source plots are
+        // already empty or deleted at this point, so only other plots are cut
+        await cutOutOfOverlappingPlots(tx, newPlot.id, newPlot.geometry);
 
         return newPlot.id;
       });

@@ -4,6 +4,7 @@ import { mapCodesToCrops, UNKNOWN_CROP_CODE } from "../crops/codeToCropsMapper";
 import { Transaction } from "../db/db";
 import { cropRotations, cropRotationYearlyRecurrences, crops, plots } from "../db/schema";
 import { MultiPolygon } from "../geo/geojson";
+import { repairedMultiPolygon } from "./plot-geometry";
 
 export type PlotWithCropInput = {
   name: string;
@@ -34,7 +35,7 @@ export async function createPlotsWithCrops(
         usage: input.usage,
         cuttingDate: input.cuttingDate,
         size: input.size,
-        geometry: sql`ST_GeomFromGeoJSON(${JSON.stringify(input.geometry)})`,
+        geometry: repairedMultiPolygon(sql`ST_GeomFromGeoJSON(${JSON.stringify(input.geometry)})`),
       }))
     )
     .returning({ id: plots.id, usage: plots.usage });
