@@ -401,43 +401,45 @@ describe("Plot geometry validation", () => {
     expect(row.parts).toBe(2);
   });
 
-  it("keeps the corners of merged plots sharp and does not overlap neighbouring plots", async () => {
-    const { jwt } = await createUserWithFarm();
-    // ~20 cm gap between the two plots that are merged into an L shape
-    const gap = 0.0000025;
-    const rectangle = (west: number, south: number, east: number, north: number) => ({
-      type: "MultiPolygon",
-      coordinates: [
-        [
+  it.each(["delete_and_migrate", "keep_reference"])(
+    "keeps the corners of merged plots sharp and does not overlap neighbouring plots (%s)",
+    async (strategy) => {
+      const { jwt } = await createUserWithFarm();
+      // ~20 cm gap between the two plots that are merged into an L shape
+      const gap = 0.0000025;
+      const rectangle = (west: number, south: number, east: number, north: number) => ({
+        type: "MultiPolygon",
+        coordinates: [
           [
-            [west, south],
-            [east, south],
-            [east, north],
-            [west, north],
-            [west, south],
+            [
+              [west, south],
+              [east, south],
+              [east, north],
+              [west, north],
+              [west, south],
+            ],
           ],
         ],
-      ],
-    });
-    const left = await createPlot(jwt, { name: "Left", geometry: rectangle(8.0, 47.0, 8.001, 47.002) });
-    const bottom = await createPlot(jwt, { name: "Bottom", geometry: rectangle(8.001 + gap, 47.0, 8.002, 47.001) });
-    // fills the inner corner of the L, not merged
-    const neighbour = await createPlot(jwt, {
-      name: "Neighbour",
-      geometry: rectangle(8.001 + gap, 47.001, 8.002, 47.002),
-    });
+      });
+      const left = await createPlot(jwt, { name: "Left", geometry: rectangle(8.0, 47.0, 8.001, 47.002) });
+      const bottom = await createPlot(jwt, { name: "Bottom", geometry: rectangle(8.001 + gap, 47.0, 8.002, 47.001) });
+      // fills the inner corner of the L, not merged
+      const neighbour = await createPlot(jwt, {
+        name: "Neighbour",
+        geometry: rectangle(8.001 + gap, 47.001, 8.002, 47.002),
+      });
 
-    const res = await request(
-      "POST",
-      "/v1/plots/merge",
-      { strategy: "delete_and_migrate", plotIds: [left.id, bottom.id], name: "Merged" },
-      jwt
-    );
-    expect(res.status).toBe(200);
-    const merged = ((await res.json()) as { data: { id: string } }).data;
+      const res = await request(
+        "POST",
+        "/v1/plots/merge",
+        { strategy, plotIds: [left.id, bottom.id], name: "Merged" },
+        jwt
+      );
+      expect(res.status).toBe(200);
+      const merged = ((await res.json()) as { data: { id: string } }).data;
 
-    const db = getAdminDb();
-    const [row] = await db.execute<{ points: number; overlap: number; neighbourValid: boolean }>(sql`
+      const db = getAdminDb();
+      const [row] = await db.execute<{ points: number; overlap: number; neighbourValid: boolean }>(sql`
       SELECT
         ST_NPoints(merged.geometry) AS points,
         ST_Area(ST_Transform(ST_Intersection(merged.geometry, neighbour.geometry), 2056)) AS overlap,
@@ -445,11 +447,53 @@ describe("Plot geometry validation", () => {
       FROM ${schema.plots} merged, ${schema.plots} neighbour
       WHERE merged.id = ${merged.id} AND neighbour.id = ${neighbour.id}
     `);
-    // an L shape has 6 corners plus the closing point, and closing the gap leaves two points on the bottom edge;
-    // round joins would add an arc of ~8 points at the inner corner
-    expect(row.points).toBeLessThanOrEqual(9);
-    expect(row.overlap).toBeLessThan(0.001);
-    expect(row.neighbourValid).toBe(true);
+      // an L shape has 6 corners plus the closing point, and closing the gap leaves two points on the bottom edge;
+      // round joins would add an arc of ~8 points at the inner corner
+      expect(row.points).toBeLessThanOrEqual(9);
+      expect(row.overlap).toBeLessThan(0.001);
+      expect(row.neighbourValid).toBe(true);
+    }
+  );
+
+  it("does not cut neighbouring plots with the new geometry of an archived plot", async () => {
+    const { jwt } = await createUserWithFarm();
+    const neighbour = await createPlot(jwt, { name: "Neighbour", size: 1234 });
+    const archivedPlot = await createPlot(jwt, {
+      name: "Archived",
+      geometry: {
+        type: "MultiPolygon",
+        coordinates: [
+          [
+            [
+              [8.2, 47.0],
+              [8.3, 47.0],
+              [8.3, 47.1],
+              [8.2, 47.1],
+              [8.2, 47.0],
+            ],
+          ],
+        ],
+      },
+    });
+
+    const res = await request(
+      "PATCH",
+      `/v1/plots/byId/${archivedPlot.id}`,
+      { archived: true, geometry: TEST_GEOMETRY },
+      jwt
+    );
+    expect(res.status).toBe(200);
+
+    const db = getAdminDb();
+    const [row] = await db
+      .select({
+        size: schema.plots.size,
+        unchanged: sql<boolean>`ST_Equals(${schema.plots.geometry}, ST_SetSRID(ST_GeomFromGeoJSON(${JSON.stringify(TEST_GEOMETRY)}), 4326))`,
+      })
+      .from(schema.plots)
+      .where(eq(schema.plots.id, neighbour.id));
+    expect(row.size).toBe(1234);
+    expect(row.unchanged).toBe(true);
   });
 
   it("rejects a split with a sub-plot without area", async () => {

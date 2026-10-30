@@ -426,6 +426,7 @@ export function plotsApi(rlsDb: RlsDb, t: TFunction) {
           .returning({
             id: plots.id,
             geometry: plots.geometry,
+            archivedAt: plots.archivedAt,
             isEmpty: sql<boolean>`ST_IsEmpty(${plots.geometry})`,
           });
         if (!plot) throw createHttpError(404, "Plot not found");
@@ -434,7 +435,10 @@ export function plotsApi(rlsDb: RlsDb, t: TFunction) {
           if (plot.isEmpty) {
             throw new CodedError("invalid_geometry", "Plot geometry has no area");
           }
-          await cutOutOfOverlappingPlots(tx, plot.id, plot.geometry);
+          // Archived plots may overlap active ones, so they don't cut anything
+          if (!plot.archivedAt) {
+            await cutOutOfOverlappingPlots(tx, plot.id, plot.geometry);
+          }
         }
         return plot;
       });
