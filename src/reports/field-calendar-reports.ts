@@ -116,11 +116,13 @@ export function fieldCalendarReportsApi(rlsDb: RlsDb, t: TFunction, locale: stri
         // Format date as DD.MM without year
         const fmtDate = (d: Date) => d.toLocaleDateString(locale, { day: "2-digit", month: "2-digit" });
 
-        // base amounts are grams (weight) or pieces (count); weight is shown in kg
-        const formatSowingTotal = (sowing: { unit: keyof typeof sowingUnits; totalBaseAmount: number }) =>
-          sowingUnits[sowing.unit].quantityKind === "weight"
-            ? `${(sowing.totalBaseAmount / 1000).toFixed(2)} kg`
-            : `${Math.round(sowing.totalBaseAmount)} ${t("sowings.pieces")}`;
+        // base amounts are grams (weight) or pieces (seeds / plants); weight is shown in kg
+        const formatSowingTotal = (sowing: { unit: keyof typeof sowingUnits; totalBaseAmount: number }) => {
+          const { countUnit } = sowingUnits[sowing.unit];
+          return countUnit
+            ? `${Math.round(sowing.totalBaseAmount)} ${t(`sowings.units.${countUnit}`)}`
+            : `${(sowing.totalBaseAmount / 1000).toFixed(2)} kg`;
+        };
 
         const PLOT_COL = 1;
         const MONTH_START_COL = 2;

@@ -4,10 +4,11 @@ import { crops, farmIdColumnValue, plots, seeds, sowingPresets, sowings } from "
 import { CodedError } from "../errors";
 import { MultiPolygon } from "../geo/geojson";
 import {
+  SeedQuantityKind,
+  SowingCountUnit,
+  SowingUnit,
   assertUnitMatchesQuantityKind,
   computeBaseAmounts,
-  SeedQuantityKind,
-  SowingUnit,
   sowingUnits,
 } from "./sowing-units";
 
@@ -55,6 +56,7 @@ interface SownSeed {
   seedId: string | null;
   seedName: string | null;
   quantityKind: SeedQuantityKind;
+  countUnit: SowingCountUnit | null;
   // grams for weight, pieces for count
   totalBaseAmount: number;
   totalSize: number;
@@ -313,9 +315,9 @@ export function sowingsApi(rlsDb: RlsDb) {
         monthEntry = { year, month, sownSeeds: new Map() };
         months.set(monthKey, monthEntry);
       }
-      // weight and count can never be summed together, so the kind is part of the key
-      const quantityKind = sowingUnits[sowing.unit].quantityKind;
-      const seedKey = `${sowing.cropId}-${sowing.seedId ?? "none"}-${quantityKind}`;
+      // weight, seeds and plants can never be summed together, so they're part of the key
+      const { quantityKind, countUnit } = sowingUnits[sowing.unit];
+      const seedKey = `${sowing.cropId}-${sowing.seedId ?? "none"}-${quantityKind}-${countUnit ?? "weight"}`;
       const sownSeed = monthEntry.sownSeeds.get(seedKey);
       if (sownSeed) {
         sownSeed.totalBaseAmount += sowing.totalBaseAmount;
@@ -327,6 +329,7 @@ export function sowingsApi(rlsDb: RlsDb) {
           seedId: sowing.seedId,
           seedName: sowing.seed?.name ?? null,
           quantityKind,
+          countUnit,
           totalBaseAmount: sowing.totalBaseAmount,
           totalSize: sowing.size,
         });

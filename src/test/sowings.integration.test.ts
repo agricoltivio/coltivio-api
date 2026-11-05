@@ -216,6 +216,32 @@ describe("Sowings", () => {
     expect(getRes.status).toBe(404);
   });
 
+  it("keeps seeds and plants of the same seed apart in the summary", async () => {
+    const { jwt } = await createUserWithFarm();
+    const crop = await createCrop(jwt, { name: "Salat" });
+    const seed = await createSeed(jwt, crop.id, { quantityKind: "count" });
+    const plot = await createPlot(jwt);
+    await createSowings(jwt, {
+      seedId: seed.id,
+      unit: "plants_per_m2",
+      plots: [{ plotId: plot.id, amount: 10, geometry: TEST_GEOMETRY, size: 100 }],
+    });
+    await createSowings(jwt, {
+      seedId: seed.id,
+      unit: "seeds",
+      plots: [{ plotId: plot.id, amount: 500, geometry: TEST_GEOMETRY, size: 100 }],
+    });
+
+    const res = await request("GET", "/v1/sowings/summaries", undefined, jwt);
+    const body = (await res.json()) as {
+      data: { monthlySowings: { sownSeeds: { countUnit: string | null; totalBaseAmount: number }[] }[] };
+    };
+    const sownSeeds = body.data.monthlySowings[0].sownSeeds;
+    expect(sownSeeds).toHaveLength(2);
+    expect(sownSeeds.find((entry) => entry.countUnit === "plants")?.totalBaseAmount).toBe(1000);
+    expect(sownSeeds.find((entry) => entry.countUnit === "seeds")?.totalBaseAmount).toBe(500);
+  });
+
   it("sums base amounts per seed and kind in the summary", async () => {
     const { jwt } = await createUserWithFarm();
     const crop = await createCrop(jwt, { name: "Weizen" });
@@ -261,8 +287,18 @@ describe("Sowings", () => {
     const body = (await res.json()) as {
       data: { result: { unit: string; quantityKind: string; perArea: boolean }[] };
     };
-    expect(body.data.result).toContainEqual({ unit: "kg_per_ha", quantityKind: "weight", perArea: true });
-    expect(body.data.result).toContainEqual({ unit: "plants", quantityKind: "count", perArea: false });
+    expect(body.data.result).toContainEqual({
+      unit: "kg_per_ha",
+      quantityKind: "weight",
+      countUnit: null,
+      perArea: true,
+    });
+    expect(body.data.result).toContainEqual({
+      unit: "plants",
+      quantityKind: "count",
+      countUnit: "plants",
+      perArea: false,
+    });
   });
 
   it("does not expose sowings of other farms", async () => {

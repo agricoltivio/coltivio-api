@@ -1,7 +1,7 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "0aa635a3-06da-43e2-9c64-97087ceb1013",
+  "id": "ed17f1b5-e088-4aee-95fb-e73d45732e4d",
   "prevIds": [
     "a8a652ae-7f3a-4e0b-b83b-3cd1a044424c"
   ],
@@ -7509,7 +7509,7 @@
       "table": "sowings"
     },
     {
-      "type": "real",
+      "type": "double precision",
       "typeSchema": null,
       "notNull": true,
       "dimensions": 0,
@@ -7522,7 +7522,7 @@
       "table": "sowings"
     },
     {
-      "type": "real",
+      "type": "double precision",
       "typeSchema": null,
       "notNull": true,
       "dimensions": 0,

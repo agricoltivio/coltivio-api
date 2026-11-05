@@ -34,8 +34,8 @@ CREATE TABLE "sowings" (
 	"seed_id" uuid,
 	"unit" "sowing_unit" NOT NULL,
 	"amount" real NOT NULL,
-	"total_base_amount" real NOT NULL,
-	"base_amount_per_hectare" real NOT NULL,
+	"total_base_amount" double precision NOT NULL,
+	"base_amount_per_hectare" double precision NOT NULL,
 	"geometry" geometry(MultiPolygon,4326) NOT NULL,
 	"size" integer NOT NULL,
 	"additional_notes" text

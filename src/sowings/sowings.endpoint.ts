@@ -6,7 +6,7 @@ import { ensureDateRange } from "../date-utils";
 import { multiPolygonSchema, seedQuantityKindSchema, sowingUnitSchema } from "../db/schema";
 import { permissionFarmEndpoint } from "../endpoint-factory";
 import { seedSchema } from "../seeds/seeds.endpoint";
-import { sowingUnits } from "./sowing-units";
+import { sowingCountUnitSchema, sowingUnits } from "./sowing-units";
 
 const sowingsRead = permissionFarmEndpoint("field_calendar", "read");
 const sowingsWrite = permissionFarmEndpoint("field_calendar", "write");
@@ -48,6 +48,8 @@ export const getSowingUnitsEndpoint = sowingsRead.build({
       z.object({
         unit: sowingUnitSchema,
         quantityKind: seedQuantityKindSchema,
+        // seeds or plants for count units, null for weight
+        countUnit: sowingCountUnitSchema.nullable(),
         perArea: z.boolean(),
       })
     ),
@@ -57,6 +59,7 @@ export const getSowingUnitsEndpoint = sowingsRead.build({
     const result = sowingUnitSchema.options.map((unit) => ({
       unit,
       quantityKind: sowingUnits[unit].quantityKind,
+      countUnit: sowingUnits[unit].countUnit,
       perArea: sowingUnits[unit].perArea,
     }));
     return { result, count: result.length };
@@ -121,7 +124,7 @@ export const createSowingsEndpoint = sowingsWrite.build({
         // per-area units: rate for this plot; total units: amount sown on this plot
         amount: z.number().nonnegative(),
         geometry: multiPolygonSchema,
-        size: z.number(),
+        size: z.number().positive(),
       })
       .array()
       .min(1),
@@ -193,6 +196,8 @@ const sowingSummaryResponseSchema = z.object({
           seedId: z.string().nullable(),
           seedName: z.string().nullable(),
           quantityKind: seedQuantityKindSchema,
+          // seeds and plants are separate entries, null for weight
+          countUnit: sowingCountUnitSchema.nullable(),
           totalBaseAmount: z.number(),
           totalSize: z.number(),
         })

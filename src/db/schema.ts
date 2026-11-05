@@ -4,6 +4,7 @@ import {
   check,
   customType,
   date,
+  doublePrecision,
   foreignKey,
   index,
   integer,
@@ -1406,9 +1407,10 @@ export const sowings = pgTable.withRLS(
     seedId: uuid().references(() => seeds.id),
     unit: sowingUnit().notNull(),
     amount: real().notNull(),
-    // normalized to grams (weight) or pieces (count)
-    totalBaseAmount: real().notNull(),
-    baseAmountPerHectare: real().notNull(),
+    // normalized to grams (weight) or pieces (count); double precision because
+    // seed counts on large areas exceed real's ~7 significant digits
+    totalBaseAmount: doublePrecision().notNull(),
+    baseAmountPerHectare: doublePrecision().notNull(),
     geometry: polygon().notNull(),
     size: integer().notNull(),
     additionalNotes: text(),
