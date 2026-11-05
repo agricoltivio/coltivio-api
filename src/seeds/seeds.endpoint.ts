@@ -24,7 +24,7 @@ export const seedSchema = z.object({
 });
 
 const createSeedSchema = z.object({
-  name: z.string(),
+  name: z.string().trim().min(1),
   description: z.string().optional(),
   cropId: z.string(),
   quantityKind: seedQuantityKindSchema,
@@ -34,7 +34,7 @@ const createSeedSchema = z.object({
 
 // quantityKind can't be changed after creation, a new seed has to be created instead
 const updateSeedSchema = z.object({
-  name: z.string().optional(),
+  name: z.string().trim().min(1).optional(),
   description: z.string().optional().nullable(),
   cropId: z.string().optional(),
   defaultAmount: z.number().nonnegative().optional().nullable(),

@@ -20,11 +20,19 @@ export function seedsApi(rlsDb: RlsDb) {
     }
   }
 
+  // a default unit can stand alone (preselected in a sowing), a default amount can't
+  function assertDefaultAmountHasUnit(defaultAmount: number | null | undefined, defaultUnit: unknown) {
+    if (defaultAmount != null && defaultUnit == null) {
+      throw new CodedError("seed_default_amount_without_unit", "A default amount needs a default unit");
+    }
+  }
+
   return {
     async createSeed(seedInput: SeedCreateInput): Promise<Seed> {
       if (seedInput.defaultUnit) {
         assertUnitMatchesQuantityKind(seedInput.defaultUnit, seedInput.quantityKind);
       }
+      assertDefaultAmountHasUnit(seedInput.defaultAmount, seedInput.defaultUnit);
       await assertCropExists(seedInput.cropId);
       const [createdSeed] = await rlsDb.rls(async (tx) => {
         return tx
@@ -57,10 +65,16 @@ export function seedsApi(rlsDb: RlsDb) {
       if (!existingSeed) {
         return undefined;
       }
-      const { name, description, cropId, defaultAmount, defaultUnit } = data;
+      const { name, description, cropId, defaultUnit } = data;
+      // clearing the unit also clears the amount, which would mean nothing on its own
+      const defaultAmount = defaultUnit === null ? null : data.defaultAmount;
       if (defaultUnit) {
         assertUnitMatchesQuantityKind(defaultUnit, existingSeed.quantityKind);
       }
+      assertDefaultAmountHasUnit(
+        defaultAmount === undefined ? existingSeed.defaultAmount : defaultAmount,
+        defaultUnit === undefined ? existingSeed.defaultUnit : defaultUnit
+      );
       if (cropId) {
         await assertCropExists(cropId);
       }

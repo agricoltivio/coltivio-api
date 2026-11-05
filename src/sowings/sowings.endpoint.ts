@@ -122,7 +122,7 @@ export const createSowingsEndpoint = sowingsWrite.build({
       .object({
         plotId: z.string(),
         // per-area units: rate for this plot; total units: amount sown on this plot
-        amount: z.number().nonnegative(),
+        amount: z.number().positive(),
         geometry: multiPolygonSchema,
         size: z.number().positive(),
       })
@@ -148,7 +148,7 @@ export const updateSowingEndpoint = sowingsWrite.build({
     cropId: z.string().optional(),
     seedId: z.string().optional().nullable(),
     unit: sowingUnitSchema.optional(),
-    amount: z.number().nonnegative().optional(),
+    amount: z.number().positive().optional(),
     additionalNotes: z.string().optional().nullable(),
   }),
   output: sowingSchema,
@@ -168,19 +168,6 @@ export const deleteSowingEndpoint = sowingsWrite.build({
   handler: async ({ input, ctx: { sowings } }) => {
     await sowings.deleteSowing(input.sowingId);
     return {};
-  },
-});
-
-export const getSowingYearsEndpoint = sowingsRead.build({
-  method: "get",
-  input: z.object({}),
-  output: z.object({
-    result: z.array(z.string()),
-    count: z.number(),
-  }),
-  handler: async ({ ctx: { sowings } }) => {
-    const result = await sowings.getSowingYears();
-    return { result, count: result.length };
   },
 });
 
@@ -265,12 +252,12 @@ export const getSowingPresetByIdEndpoint = sowingsRead.build({
 export const createSowingPresetEndpoint = sowingsWrite.build({
   method: "post",
   input: z.object({
-    name: z.string(),
+    name: z.string().trim().min(1),
     // required without a seed, otherwise taken from the seed
     cropId: z.string().optional(),
     seedId: z.string().optional(),
     unit: sowingUnitSchema,
-    amount: z.number().nonnegative(),
+    amount: z.number().positive(),
   }),
   output: sowingPresetSchema,
   handler: async ({ input, ctx: { sowings } }) => {
@@ -282,11 +269,11 @@ export const updateSowingPresetEndpoint = sowingsWrite.build({
   method: "patch",
   input: z.object({
     presetId: z.string(),
-    name: z.string().optional(),
+    name: z.string().trim().min(1).optional(),
     cropId: z.string().optional(),
     seedId: z.string().optional().nullable(),
     unit: sowingUnitSchema.optional(),
-    amount: z.number().nonnegative().optional(),
+    amount: z.number().positive().optional(),
   }),
   output: sowingPresetSchema,
   handler: async ({ input: { presetId, ...data }, ctx: { sowings } }) => {

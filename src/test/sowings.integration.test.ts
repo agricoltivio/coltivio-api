@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach } from "@jest/globals";
+import ExcelJS from "exceljs";
 
 import { cleanDb, getAdminDb, request } from "./helpers";
-import { createUserWithFarm, createCrop, createPlot, TEST_GEOMETRY } from "./test-utils";
+import { createUserWithFarm, createCrop, createFarmMember, createPlot, TEST_GEOMETRY } from "./test-utils";
 
 type SowingResponse = {
   id: string;
@@ -136,6 +137,57 @@ describe("Sowings", () => {
     expect(sowing.baseAmountPerHectare).toBe(20000);
   });
 
+  it("rejects an amount of 0", async () => {
+    const { jwt } = await createUserWithFarm();
+    const crop = await createCrop(jwt);
+    const plot = await createPlot(jwt);
+    const res = await request(
+      "POST",
+      "/v1/sowings",
+      {
+        date: "2025-04-20",
+        cropId: crop.id,
+        unit: "kg_per_ha",
+        plots: [{ plotId: plot.id, amount: 0, geometry: TEST_GEOMETRY, size: 10000 }],
+      },
+      jwt
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("lets read-only members read but not write sowings and seeds", async () => {
+    const { jwt: ownerJwt } = await createUserWithFarm({}, undefined, { withActiveMembership: true });
+    const crop = await createCrop(ownerJwt);
+    const plot = await createPlot(ownerJwt);
+    const { jwt: memberJwt } = await createFarmMember(ownerJwt, "member@test.com", {
+      permissions: [{ feature: "field_calendar", access: "read" }],
+    });
+
+    const listRes = await request("GET", "/v1/sowings", undefined, memberJwt);
+    expect(listRes.status).toBe(200);
+
+    const createRes = await request(
+      "POST",
+      "/v1/sowings",
+      {
+        date: "2025-04-20",
+        cropId: crop.id,
+        unit: "kg_per_ha",
+        plots: [{ plotId: plot.id, amount: 30, geometry: TEST_GEOMETRY, size: 10000 }],
+      },
+      memberJwt
+    );
+    expect(createRes.status).toBe(403);
+
+    const seedRes = await request(
+      "POST",
+      "/v1/seeds",
+      { name: "X", cropId: crop.id, quantityKind: "weight" },
+      memberJwt
+    );
+    expect(seedRes.status).toBe(403);
+  });
+
   it("rejects units that do not match the seed quantity kind", async () => {
     const { jwt } = await createUserWithFarm();
     const crop = await createCrop(jwt);
@@ -184,7 +236,7 @@ describe("Sowings", () => {
     expect(noSeedRes.status).toBe(200);
   });
 
-  it("lists sowings for farm and plot, returns years and deletes", async () => {
+  it("lists sowings for farm and plot, summarizes per plot and deletes", async () => {
     const { jwt } = await createUserWithFarm();
     const crop = await createCrop(jwt);
     const p1 = await createPlot(jwt, { name: "P1" });
@@ -207,8 +259,14 @@ describe("Sowings", () => {
     const plotRes = await request("GET", `/v1/plots/byId/${p1.id}/sowings`, undefined, jwt);
     expect(((await plotRes.json()) as { data: { count: number } }).data.count).toBe(1);
 
-    const yearsRes = await request("GET", "/v1/sowings/years", undefined, jwt);
-    expect(((await yearsRes.json()) as { data: { result: string[] } }).data.result).toEqual(["2025", "2024"]);
+    const plotSummaryRes = await request("GET", `/v1/plots/byId/${p1.id}/sowingSummary`, undefined, jwt);
+    const plotSummary = (await plotSummaryRes.json()) as {
+      data: { monthlySowings: { year: number; sownSeeds: { totalBaseAmount: number }[] }[] };
+    };
+    // only the 2025 sowing is on this plot: 30 kg/ha on 1 ha
+    expect(plotSummary.data.monthlySowings).toHaveLength(1);
+    expect(plotSummary.data.monthlySowings[0].year).toBe(2025);
+    expect(plotSummary.data.monthlySowings[0].sownSeeds[0].totalBaseAmount).toBe(30000);
 
     const deleteRes = await request("DELETE", `/v1/sowings/byId/${sowing.id}`, undefined, jwt);
     expect(deleteRes.status).toBe(200);
@@ -399,6 +457,20 @@ describe("Sowing presets", () => {
     const listRes = await request("GET", "/v1/sowings/presets", undefined, jwt);
     expect(((await listRes.json()) as { data: { count: number } }).data.count).toBe(1);
 
+    // a crop other than the seed's crop and a unit of the other kind are rejected
+    const otherCrop = await createCrop(jwt, { name: "Weizen" });
+    const cropMismatchRes = await request(
+      "PATCH",
+      `/v1/sowings/presets/byId/${preset.id}`,
+      { cropId: otherCrop.id },
+      jwt
+    );
+    expect(cropMismatchRes.status).toBe(400);
+    expect(((await cropMismatchRes.json()) as { code: string }).code).toBe("sowing_crop_mismatch");
+
+    const emptyNameRes = await request("PATCH", `/v1/sowings/presets/byId/${preset.id}`, { name: " " }, jwt);
+    expect(emptyNameRes.status).toBe(400);
+
     const deleteRes = await request("DELETE", `/v1/sowings/presets/byId/${preset.id}`, undefined, jwt);
     expect(deleteRes.status).toBe(200);
   });
@@ -449,12 +521,18 @@ describe("Sowing field events", () => {
 
   it("includes sowings in the field calendar report when requested", async () => {
     const { jwt } = await createUserWithFarm();
-    const crop = await createCrop(jwt);
+    const crop = await createCrop(jwt, { name: "Gerste" });
+    const seed = await createSeed(jwt, crop.id, { name: "Salat Lollo", quantityKind: "count" });
     const plot = await createPlot(jwt);
     await createSowings(jwt, {
       cropId: crop.id,
       unit: "kg_per_ha",
       plots: [{ plotId: plot.id, amount: 150, geometry: TEST_GEOMETRY, size: 10000 }],
+    });
+    await createSowings(jwt, {
+      seedId: seed.id,
+      unit: "plants",
+      plots: [{ plotId: plot.id, amount: 400, geometry: TEST_GEOMETRY, size: 10000 }],
     });
 
     const res = await request(
@@ -473,5 +551,24 @@ describe("Sowing field events", () => {
       jwt
     );
     expect(res.status).toBe(200);
+
+    const body = (await res.json()) as { data: { base64: string } };
+    const workbook = new ExcelJS.Workbook();
+    const reportBytes = Buffer.from(body.data.base64, "base64");
+    await workbook.xlsx.load(
+      reportBytes.buffer.slice(reportBytes.byteOffset, reportBytes.byteOffset + reportBytes.byteLength)
+    );
+    const cellTexts: string[] = [];
+    workbook.eachSheet((sheet) => {
+      sheet.eachRow((row) => {
+        row.eachCell((cell) => {
+          cellTexts.push(String(cell.value));
+        });
+      });
+    });
+    // weight shown in kg, counted plants with their own label
+    expect(cellTexts).toContain("Salat Lollo");
+    expect(cellTexts).toContain("150.00 kg");
+    expect(cellTexts).toContain("400 Pflanzen");
   });
 });

@@ -15,6 +15,8 @@ export const apiErrorCodeSchema = z.enum([
   // the referenced crop or plot doesn't exist (or belongs to another farm)
   "crop_not_found",
   "plot_not_found",
+  // a seed's default amount only means something together with a default unit
+  "seed_default_amount_without_unit",
 ]);
 export type ApiErrorCode = z.infer<typeof apiErrorCodeSchema>;
 

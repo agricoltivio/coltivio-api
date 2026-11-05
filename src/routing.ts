@@ -187,7 +187,6 @@ import {
   getSowingSummaryForFarmEndpoint,
   getSowingSummaryForPlotEndpoint,
   getSowingUnitsEndpoint,
-  getSowingYearsEndpoint,
   updateSowingEndpoint,
   updateSowingPresetEndpoint,
 } from "./sowings/sowings.endpoint";
@@ -834,7 +833,6 @@ export const routing: Routing = {
         },
       },
       summaries: getSowingSummaryForFarmEndpoint,
-      years: getSowingYearsEndpoint,
       units: getSowingUnitsEndpoint,
       presets: {
         "": {

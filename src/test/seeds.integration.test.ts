@@ -46,6 +46,37 @@ describe("Seeds CRUD", () => {
     expect(listBody.data.count).toBe(1);
   });
 
+  it("keeps the default amount tied to a default unit", async () => {
+    const { jwt } = await createUserWithFarm();
+    const crop = await createCrop(jwt);
+
+    const amountOnlyRes = await request(
+      "POST",
+      "/v1/seeds",
+      { name: "Nur Menge", cropId: crop.id, quantityKind: "weight", defaultAmount: 30 },
+      jwt
+    );
+    expect(amountOnlyRes.status).toBe(400);
+    expect(((await amountOnlyRes.json()) as { code: string }).code).toBe("seed_default_amount_without_unit");
+
+    // a unit alone is fine, it's preselected in a sowing
+    const seed = await createSeed(jwt, crop.id, { defaultUnit: "kg_per_ha" });
+    expect(seed.defaultUnit).toBe("kg_per_ha");
+    expect(seed.defaultAmount).toBeNull();
+
+    const withAmountRes = await request("PATCH", `/v1/seeds/byId/${seed.id}`, { defaultAmount: 30 }, jwt);
+    expect(withAmountRes.status).toBe(200);
+
+    // clearing the unit clears the amount as well
+    const clearedRes = await request("PATCH", `/v1/seeds/byId/${seed.id}`, { defaultUnit: null }, jwt);
+    const cleared = ((await clearedRes.json()) as { data: SeedResponse }).data;
+    expect(cleared.defaultUnit).toBeNull();
+    expect(cleared.defaultAmount).toBeNull();
+
+    const emptyNameRes = await request("POST", "/v1/seeds", { name: "", cropId: crop.id, quantityKind: "weight" }, jwt);
+    expect(emptyNameRes.status).toBe(400);
+  });
+
   it("rejects a default unit that does not match the quantity kind", async () => {
     const { jwt } = await createUserWithFarm();
     const crop = await createCrop(jwt);

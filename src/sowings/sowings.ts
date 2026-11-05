@@ -222,16 +222,6 @@ export function sowingsApi(rlsDb: RlsDb) {
       });
     },
 
-    async getSowingYears(): Promise<string[]> {
-      return rlsDb.rls(async (tx) => {
-        const result = await tx.query.sowings.findMany({
-          columns: { date: true },
-          orderBy: { date: "desc" },
-        });
-        return Array.from(new Set(result.map((sowing) => sowing.date.getFullYear().toString())));
-      });
-    },
-
     async getSowingSummaryForFarm(farmId: string): Promise<SowingSummary> {
       return rlsDb.rls(async (tx) => {
         const result = await tx.query.sowings.findMany({
