@@ -1,6 +1,7 @@
 import { count, eq } from "drizzle-orm";
 import { RlsDb } from "../db/db";
 import { crops, farmIdColumnValue, seeds, sowingPresets, sowings } from "../db/schema";
+import { CodedError } from "../errors";
 import { assertUnitMatchesQuantityKind } from "../sowings/sowing-units";
 
 export type SeedCreateInput = Omit<typeof seeds.$inferInsert, "id" | "farmId">;
@@ -11,11 +12,20 @@ export type Seed = typeof seeds.$inferSelect & {
 };
 
 export function seedsApi(rlsDb: RlsDb) {
+  // foreign keys bypass RLS, so a crop of another farm has to be caught here
+  async function assertCropExists(cropId: string) {
+    const crop = await rlsDb.rls(async (tx) => tx.query.crops.findFirst({ where: { id: cropId } }));
+    if (!crop) {
+      throw new CodedError("crop_not_found", "Crop not found");
+    }
+  }
+
   return {
     async createSeed(seedInput: SeedCreateInput): Promise<Seed> {
       if (seedInput.defaultUnit) {
         assertUnitMatchesQuantityKind(seedInput.defaultUnit, seedInput.quantityKind);
       }
+      await assertCropExists(seedInput.cropId);
       const [createdSeed] = await rlsDb.rls(async (tx) => {
         return tx
           .insert(seeds)
@@ -50,6 +60,9 @@ export function seedsApi(rlsDb: RlsDb) {
       const { name, description, cropId, defaultAmount, defaultUnit } = data;
       if (defaultUnit) {
         assertUnitMatchesQuantityKind(defaultUnit, existingSeed.quantityKind);
+      }
+      if (cropId) {
+        await assertCropExists(cropId);
       }
       const values = { name, description, cropId, defaultAmount, defaultUnit };
       const hasValues = Object.values(values).some((value) => value !== undefined);

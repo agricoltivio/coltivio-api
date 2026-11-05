@@ -301,6 +301,60 @@ describe("Sowings", () => {
     });
   });
 
+  it("rejects crops and plots of other farms", async () => {
+    const { jwt } = await createUserWithFarm();
+    const crop = await createCrop(jwt);
+    const plot = await createPlot(jwt);
+    const { jwt: otherJwt } = await createUserWithFarm({ name: "Other Farm" }, "other@test.com");
+    const otherCrop = await createCrop(otherJwt);
+    const otherPlot = await createPlot(otherJwt);
+
+    const foreignPlotRes = await request(
+      "POST",
+      "/v1/sowings",
+      {
+        date: "2025-04-20",
+        cropId: crop.id,
+        unit: "kg_per_ha",
+        plots: [{ plotId: otherPlot.id, amount: 30, geometry: TEST_GEOMETRY, size: 10000 }],
+      },
+      jwt
+    );
+    expect(foreignPlotRes.status).toBe(400);
+    expect(((await foreignPlotRes.json()) as { code: string }).code).toBe("plot_not_found");
+
+    const foreignCropRes = await request(
+      "POST",
+      "/v1/sowings",
+      {
+        date: "2025-04-20",
+        cropId: otherCrop.id,
+        unit: "kg_per_ha",
+        plots: [{ plotId: plot.id, amount: 30, geometry: TEST_GEOMETRY, size: 10000 }],
+      },
+      jwt
+    );
+    expect(foreignCropRes.status).toBe(400);
+    expect(((await foreignCropRes.json()) as { code: string }).code).toBe("crop_not_found");
+
+    const foreignSeedCropRes = await request(
+      "POST",
+      "/v1/seeds",
+      { name: "Fremd", cropId: otherCrop.id, quantityKind: "weight" },
+      jwt
+    );
+    expect(foreignSeedCropRes.status).toBe(400);
+  });
+
+  it("refuses to delete a crop that is in use", async () => {
+    const { jwt } = await createUserWithFarm();
+    const crop = await createCrop(jwt);
+    await createSeed(jwt, crop.id, {});
+
+    const res = await request("DELETE", `/v1/crops/byId/${crop.id}`, undefined, jwt);
+    expect(res.status).toBe(409);
+  });
+
   it("does not expose sowings of other farms", async () => {
     const { jwt } = await createUserWithFarm();
     const crop = await createCrop(jwt);

@@ -49,6 +49,8 @@ const statusByErrorCode: Record<ApiErrorCode, number> = {
   seed_not_found: 400,
   sowing_crop_mismatch: 400,
   sowing_crop_required: 400,
+  crop_not_found: 400,
+  plot_not_found: 400,
 };
 
 const getPublicErrorMessage = (error: HttpError): string =>

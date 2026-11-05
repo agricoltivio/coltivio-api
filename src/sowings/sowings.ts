@@ -96,12 +96,25 @@ export function sowingsApi(rlsDb: RlsDb) {
     if (!cropId) {
       throw new CodedError("sowing_crop_required", "cropId is required when no seed is given");
     }
+    // foreign keys bypass RLS, so a crop of another farm has to be caught here
+    const crop = await rlsDb.rls(async (tx) => tx.query.crops.findFirst({ where: { id: cropId } }));
+    if (!crop) {
+      throw new CodedError("crop_not_found", "Crop not found");
+    }
     return cropId;
   }
 
   return {
     async createSowings({ plots: plotInputs, ...base }: SowingBatchCreateInput): Promise<Sowing[]> {
       const cropId = await resolveCropForSeed({ seedId: base.seedId, cropId: base.cropId, unit: base.unit });
+      // foreign keys bypass RLS, so plots of another farm have to be caught here
+      const plotIds = [...new Set(plotInputs.map((plot) => plot.plotId))];
+      const visiblePlots = await rlsDb.rls(async (tx) =>
+        tx.query.plots.findMany({ where: { id: { in: plotIds } }, columns: { id: true } })
+      );
+      if (visiblePlots.length !== plotIds.length) {
+        throw new CodedError("plot_not_found", "Plot not found");
+      }
       const result = await rlsDb.rls(async (tx) => {
         return tx
           .insert(sowings)

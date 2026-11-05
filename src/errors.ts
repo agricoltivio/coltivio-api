@@ -12,6 +12,9 @@ export const apiErrorCodeSchema = z.enum([
   "sowing_crop_mismatch",
   // a sowing or sowing preset without a seed needs a crop
   "sowing_crop_required",
+  // the referenced crop or plot doesn't exist (or belongs to another farm)
+  "crop_not_found",
+  "plot_not_found",
 ]);
 export type ApiErrorCode = z.infer<typeof apiErrorCodeSchema>;
 
