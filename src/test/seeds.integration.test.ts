@@ -59,6 +59,15 @@ describe("Seeds CRUD", () => {
     expect(amountOnlyRes.status).toBe(400);
     expect(((await amountOnlyRes.json()) as { code: string }).code).toBe("seed_default_amount_without_unit");
 
+    // a default of 0 would prefill a sowing amount that can't be saved
+    const zeroAmountRes = await request(
+      "POST",
+      "/v1/seeds",
+      { name: "Null", cropId: crop.id, quantityKind: "weight", defaultAmount: 0, defaultUnit: "kg_per_ha" },
+      jwt
+    );
+    expect(zeroAmountRes.status).toBe(400);
+
     // a unit alone is fine, it's preselected in a sowing
     const seed = await createSeed(jwt, crop.id, { defaultUnit: "kg_per_ha" });
     expect(seed.defaultUnit).toBe("kg_per_ha");

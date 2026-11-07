@@ -28,7 +28,8 @@ const createSeedSchema = z.object({
   description: z.string().optional(),
   cropId: z.string(),
   quantityKind: seedQuantityKindSchema,
-  defaultAmount: z.number().nonnegative().optional(),
+  // a default of 0 would prefill a sowing amount that can't be saved
+  defaultAmount: z.number().positive().optional(),
   defaultUnit: sowingUnitSchema.optional(),
 });
 
@@ -37,7 +38,7 @@ const updateSeedSchema = z.object({
   name: z.string().trim().min(1).optional(),
   description: z.string().optional().nullable(),
   cropId: z.string().optional(),
-  defaultAmount: z.number().nonnegative().optional().nullable(),
+  defaultAmount: z.number().positive().optional().nullable(),
   defaultUnit: nullableSowingUnitSchema.optional(),
 });
 
