@@ -1,6 +1,6 @@
 import cron from "node-cron";
 import i18next from "i18next";
-import { and, eq, gte, inArray, isNotNull, isNull, lte, or, sql } from "drizzle-orm";
+import { and, eq, gte, inArray, isNotNull, isNull, or } from "drizzle-orm";
 import { captureException } from "@sentry/node";
 import { addUtcDays } from "../date-utils";
 import { adminDrizzle } from "../db/db";
@@ -18,6 +18,7 @@ import {
 import { sendPushMessages } from "../push/push";
 import { PushMessage, PushTicket } from "../push/expo-client";
 import { CRON_TIMEZONE, zurichDateString } from "../tasks/task-due-cron";
+import { resolveHeatOutcomes } from "./breeding";
 import { DEFAULT_GESTATION_DAYS } from "./gestation-defaults";
 
 const MAX_ANIMAL_NAMES_IN_BODY = 3;
@@ -73,12 +74,15 @@ async function runBreedingReminderNotifications(now: Date = new Date()): Promise
   if (recipientMembers.length === 0) return [];
   const farmIds = [...new Set(recipientMembers.map((member) => member.farmId))];
 
-  const [matedHeats, gestationSettings] = await Promise.all([
+  // All heats, not only mated ones: a later heat shows that an earlier mating didn't work
+  const [recentHeats, gestationSettings] = await Promise.all([
     adminDrizzle
       .select({
-        heatId: animalHeats.id,
+        id: animalHeats.id,
+        animalId: animalHeats.animalId,
         farmId: animalHeats.farmId,
         date: animalHeats.date,
+        mated: animalHeats.mated,
         animalName: animals.name,
         animalType: animals.type,
       })
@@ -87,26 +91,28 @@ async function runBreedingReminderNotifications(now: Date = new Date()): Promise
       .where(
         and(
           inArray(animalHeats.farmId, farmIds),
-          eq(animalHeats.mated, true),
           isNull(animals.dateOfDeath),
-          gte(animalHeats.date, addUtcDays(today, -MAX_GESTATION_DAYS_LOOKBACK)),
-          lte(animalHeats.date, sql`${todayString}::date`)
+          gte(animalHeats.date, addUtcDays(today, -MAX_GESTATION_DAYS_LOOKBACK))
         )
       ),
     adminDrizzle.select().from(farmGestationSettings).where(inArray(farmGestationSettings.farmId, farmIds)),
   ]);
-  if (matedHeats.length === 0) return [];
+  if (recentHeats.length === 0) return [];
 
   const gestationDaysByFarmAndType = new Map(
     gestationSettings.map((setting) => [`${setting.farmId}:${setting.animalType}`, setting.gestationDays])
   );
-  // Days from today until the expected birth, per heat
-  const heatsWithDaysUntilBirth = matedHeats.map((heat) => {
-    const gestationDays =
-      gestationDaysByFarmAndType.get(`${heat.farmId}:${heat.animalType}`) ?? DEFAULT_GESTATION_DAYS[heat.animalType];
-    const expectedBirthDate = addUtcDays(heat.date, gestationDays);
+  const outcomes = resolveHeatOutcomes(
+    recentHeats,
+    (heat) =>
+      gestationDaysByFarmAndType.get(`${heat.farmId}:${heat.animalType}`) ?? DEFAULT_GESTATION_DAYS[heat.animalType]
+  );
+  // Days from today until the expected birth, for matings that are still expected to lead to a birth
+  const heatsWithDaysUntilBirth = recentHeats.flatMap((heat) => {
+    const expectedBirthDate = outcomes.get(heat.id)?.expectedBirthDate;
+    if (!expectedBirthDate) return [];
     const daysUntilBirth = Math.round((expectedBirthDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-    return { ...heat, daysUntilBirth };
+    return [{ heatId: heat.id, farmId: heat.farmId, animalName: heat.animalName, daysUntilBirth }];
   });
 
   const userById = new Map(optedInUsers.map((user) => [user.userId, user]));

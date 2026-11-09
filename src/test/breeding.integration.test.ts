@@ -20,6 +20,7 @@ const mockPostToExpo = jest.mocked(postToExpo);
 type HeatResponse = { id: string; animalId: string; date: string; mated: boolean; sireId: string | null };
 type CalendarEntry = HeatResponse & {
   expectedBirthDate: string | null;
+  conceptionFailed: boolean;
   animal: { id: string; name: string };
   sire: { id: string; name: string } | null;
 };
@@ -187,6 +188,32 @@ describe("Breeding calendar", () => {
     expect(calendar[0].expectedBirthDate?.slice(0, 10)).toBe("2026-03-27");
   });
 
+  it("treats a mating followed by another heat as not conceived", async () => {
+    const { jwt } = await createUserWithFarm();
+    const goat = await createAnimal(jwt, { type: "goat", usage: "other" });
+    const firstMating = await addHeat(jwt, goat.id, { date: "2025-10-01", mated: true });
+    // Bockig again three weeks later and mated again: the first mating didn't work
+    const secondMating = await addHeat(jwt, goat.id, { date: "2025-10-22", mated: true });
+
+    const calendar = await getCalendar(jwt, "2025-09-01", "2026-12-31");
+    const first = calendar.find((entry) => entry.id === firstMating.id);
+    const second = calendar.find((entry) => entry.id === secondMating.id);
+    expect(first?.conceptionFailed).toBe(true);
+    expect(first?.expectedBirthDate).toBeNull();
+    expect(second?.conceptionFailed).toBe(false);
+    // 2025-10-22 + 150 days
+    expect(second?.expectedBirthDate?.slice(0, 10)).toBe("2026-03-21");
+
+    const listRes = await request("GET", `/v1/animals/byId/${goat.id}/heats`, undefined, jwt);
+    const heats = (
+      (await listRes.json()) as {
+        data: { result: { id: string; conceptionFailed: boolean; expectedBirthDate: string | null }[] };
+      }
+    ).data.result;
+    expect(heats.find((heat) => heat.id === firstMating.id)?.conceptionFailed).toBe(true);
+    expect(heats.find((heat) => heat.id === secondMating.id)?.expectedBirthDate?.slice(0, 10)).toBe("2026-03-21");
+  });
+
   it("excludes dead animals", async () => {
     const { jwt } = await createUserWithFarm();
     const goat = await createAnimal(jwt, { type: "goat", usage: "other" });
@@ -284,6 +311,14 @@ describe("Breeding reminder push", () => {
     await runBreedingReminderNotifications(new Date("2026-02-28T09:00:00Z"));
     expect(sentMessages()).toHaveLength(1);
     expect(sentMessages()[0].body).toBe("Heute: Zicklein");
+  });
+
+  it("does not remind for a mating that was followed by another heat", async () => {
+    const { owner, goat } = await setupGoatDueOn2026_02_28();
+    await addHeat(owner.jwt, goat.id, { date: "2025-10-22" });
+    await request("PATCH", "/v1/me", { breedingReminderDaysBefore1: 7 }, owner.jwt);
+    await runBreedingReminderNotifications(NOW);
+    expect(sentMessages()).toHaveLength(0);
   });
 
   it("skips members without animals access", async () => {

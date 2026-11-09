@@ -20,8 +20,17 @@ export const animalHeatSchema = z.object({
   createdBy: z.string().nullable(),
 });
 
+// Expected birth (mated heats only) and whether a later heat showed the mating didn't work
+const heatOutcomeFields = {
+  expectedBirthDate: ez.dateOut().nullable().optional(),
+  conceptionFailed: z.boolean().optional(),
+};
+
+const animalHeatWithOutcomeSchema = animalHeatSchema.extend(heatOutcomeFields);
+
 const breedingCalendarEntrySchema = animalHeatSchema.extend({
   expectedBirthDate: ez.dateOut().nullable(),
+  conceptionFailed: z.boolean(),
   animal: z.object({
     id: z.string(),
     name: z.string(),
@@ -40,9 +49,9 @@ const gestationSettingSchema = z.object({
 export const listAnimalHeatsEndpoint = animalsRead.build({
   method: "get",
   input: z.object({ animalId: z.string() }),
-  output: z.object({ result: z.array(animalHeatSchema) }),
-  handler: async ({ input, ctx: { breeding } }) => {
-    return { result: await breeding.listHeats(input.animalId) };
+  output: z.object({ result: z.array(animalHeatWithOutcomeSchema) }),
+  handler: async ({ input, ctx: { breeding, farmId } }) => {
+    return { result: await breeding.listHeats(input.animalId, farmId) };
   },
 });
 

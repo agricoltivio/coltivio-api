@@ -20,11 +20,41 @@ export type AnimalHeatUpdateInput = Partial<AnimalHeatCreateInput>;
 
 export type GestationSetting = { animalType: AnimalType; gestationDays: number; isDefault: boolean };
 
-export type BreedingCalendarEntry = AnimalHeat & {
+// A mated heat followed by another heat of the same animal before the expected birth didn't lead to a
+// pregnancy (e.g. bockig again three weeks later). It gets no expected birth.
+export type AnimalHeatWithOutcome = AnimalHeat & {
   expectedBirthDate: Date | null;
+  conceptionFailed: boolean;
+};
+
+export type BreedingCalendarEntry = AnimalHeatWithOutcome & {
   animal: { id: string; name: string; type: AnimalType; earTagNumber: string | null };
   sire: { id: string; name: string } | null;
 };
+
+// Expected birth and failed conception per heat. Heats of several animals may be mixed.
+export function resolveHeatOutcomes<T extends { id: string; animalId: string; date: Date; mated: boolean }>(
+  heats: T[],
+  gestationDaysOf: (heat: T) => number
+): Map<string, { expectedBirthDate: Date | null; conceptionFailed: boolean }> {
+  const heatsByAnimalId = new Map<string, T[]>();
+  for (const heat of heats) {
+    heatsByAnimalId.set(heat.animalId, [...(heatsByAnimalId.get(heat.animalId) ?? []), heat]);
+  }
+  const outcomes = new Map<string, { expectedBirthDate: Date | null; conceptionFailed: boolean }>();
+  for (const heat of heats) {
+    if (!heat.mated) {
+      outcomes.set(heat.id, { expectedBirthDate: null, conceptionFailed: false });
+      continue;
+    }
+    const expectedBirthDate = addUtcDays(heat.date, gestationDaysOf(heat));
+    const conceptionFailed = (heatsByAnimalId.get(heat.animalId) ?? []).some(
+      (laterHeat) => laterHeat.date > heat.date && laterHeat.date < expectedBirthDate
+    );
+    outcomes.set(heat.id, { expectedBirthDate: conceptionFailed ? null : expectedBirthDate, conceptionFailed });
+  }
+  return outcomes;
+}
 
 export function breedingApi(db: RlsDb) {
   async function getGestationSettings(farmId: string): Promise<GestationSetting[]> {
@@ -72,13 +102,26 @@ export function breedingApi(db: RlsDb) {
       return getGestationSettings(farmId);
     },
 
-    async listHeats(animalId: string): Promise<AnimalHeat[]> {
-      return db.rls(async (tx) => {
-        return tx.query.animalHeats.findMany({
-          where: { animalId },
-          orderBy: { date: "desc", createdAt: "desc" },
-        });
-      });
+    async listHeats(animalId: string, farmId: string): Promise<AnimalHeatWithOutcome[]> {
+      const [animal, heats, gestationSettings] = await Promise.all([
+        db.rls((tx) => tx.query.animals.findFirst({ where: { id: animalId }, columns: { type: true } })),
+        db.rls((tx) =>
+          tx.query.animalHeats.findMany({
+            where: { animalId },
+            orderBy: { date: "desc", createdAt: "desc" },
+          })
+        ),
+        getGestationSettings(farmId),
+      ]);
+      const gestationDays =
+        gestationSettings.find((setting) => setting.animalType === animal?.type)?.gestationDays ??
+        (animal ? DEFAULT_GESTATION_DAYS[animal.type] : 0);
+      const outcomes = resolveHeatOutcomes(heats, () => gestationDays);
+      return heats.map((heat) => ({
+        ...heat,
+        expectedBirthDate: outcomes.get(heat.id)?.expectedBirthDate ?? null,
+        conceptionFailed: outcomes.get(heat.id)?.conceptionFailed ?? false,
+      }));
     },
 
     async createHeat(animalId: string, createdBy: string, input: AnimalHeatCreateInput): Promise<AnimalHeat> {
@@ -121,7 +164,11 @@ export function breedingApi(db: RlsDb) {
         return tx.query.animalHeats.findMany({
           where: {
             farmId,
-            date: { gte: addUtcDays(rangeFrom, -longestGestationDays), lte: rangeTo },
+            // Later heats up to a gestation after the range can still mark a mating in it as failed
+            date: {
+              gte: addUtcDays(rangeFrom, -longestGestationDays),
+              lte: addUtcDays(rangeTo, longestGestationDays),
+            },
             animal: { dateOfDeath: { isNull: true } },
           },
           with: {
@@ -132,10 +179,14 @@ export function breedingApi(db: RlsDb) {
         });
       });
 
+      const outcomes = resolveHeatOutcomes(
+        heats,
+        (heat) => gestationDaysByType.get(heat.animal.type) ?? DEFAULT_GESTATION_DAYS[heat.animal.type]
+      );
       const entries: BreedingCalendarEntry[] = [];
       for (const heat of heats) {
-        const gestationDays = gestationDaysByType.get(heat.animal.type) ?? DEFAULT_GESTATION_DAYS[heat.animal.type];
-        const expectedBirthDate = heat.mated ? addUtcDays(heat.date, gestationDays) : null;
+        const expectedBirthDate = outcomes.get(heat.id)?.expectedBirthDate ?? null;
+        const conceptionFailed = outcomes.get(heat.id)?.conceptionFailed ?? false;
         const heatInRange = heat.date >= rangeFrom && heat.date <= rangeTo;
         const birthInRange =
           expectedBirthDate !== null && expectedBirthDate >= rangeFrom && expectedBirthDate <= rangeTo;
@@ -144,6 +195,7 @@ export function breedingApi(db: RlsDb) {
         entries.push({
           ...heatFields,
           expectedBirthDate,
+          conceptionFailed,
           animal: { id: animal.id, name: animal.name, type: animal.type, earTagNumber: animal.earTag?.number ?? null },
           sire: sire ? { id: sire.id, name: sire.name } : null,
         });
