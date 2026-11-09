@@ -1382,6 +1382,8 @@ export const animals = pgTable.withRLS(
     dateOfDeath: date({ mode: "date" }),
     deathReason: deathReason(),
     herdId: uuid().references(() => herds.id, { onDelete: "set null" }),
+    color: text(),
+    notes: text(),
   },
   (table) => [
     foreignKey({

@@ -31,6 +31,42 @@ describe("Ear Tags", () => {
     expect(numbers[5]).toBe("CH105");
   });
 
+  it("rejects a range that overlaps existing ear tags and creates none of it", async () => {
+    const { jwt } = await createUserWithFarm();
+    const firstRes = await request("POST", "/v1/earTags/range", { fromNumber: "CH100", toNumber: "CH105" }, jwt);
+    expect(firstRes.status).toBe(200);
+
+    const overlappingRes = await request("POST", "/v1/earTags/range", { fromNumber: "CH103", toNumber: "CH110" }, jwt);
+    expect(overlappingRes.status).toBe(409);
+    const body = (await overlappingRes.json()) as { error: string; code?: string };
+    expect(body.code).toBe("ear_tag_range_conflict");
+    expect(body.error).toContain("CH103, CH104, CH105");
+
+    // Nothing of the overlapping range was created, not even the free numbers 106..110
+    const db = getAdminDb();
+    const dbTags = await db.query.earTags.findMany({});
+    expect(dbTags).toHaveLength(6);
+  });
+
+  it("allows a range whose numbers only exist on another farm", async () => {
+    const otherFarm = await createUserWithFarm(undefined, "other-farm@test.com");
+    const otherRes = await request(
+      "POST",
+      "/v1/earTags/range",
+      { fromNumber: "CH100", toNumber: "CH102" },
+      otherFarm.jwt
+    );
+    expect(otherRes.status).toBe(200);
+
+    const { jwt, farmId } = await createUserWithFarm();
+    const res = await request("POST", "/v1/earTags/range", { fromNumber: "CH100", toNumber: "CH102" }, jwt);
+    expect(res.status).toBe(200);
+
+    const db = getAdminDb();
+    const ownTags = await db.query.earTags.findMany({ where: { farmId } });
+    expect(ownTags).toHaveLength(3);
+  });
+
   it("lists all ear tags", async () => {
     const { jwt } = await createUserWithFarm();
     await request("POST", "/v1/earTags/range", { fromNumber: "CH001", toNumber: "CH003" }, jwt);

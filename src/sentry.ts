@@ -49,6 +49,7 @@ export const sentryResultHandler = new ResultHandler({
 
 const statusByErrorCode: Record<ApiErrorCode, number> = {
   invalid_geometry: 400,
+  ear_tag_range_conflict: 409,
 };
 
 const getPublicErrorMessage = (error: HttpError): string =>

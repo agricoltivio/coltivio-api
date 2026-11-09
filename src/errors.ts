@@ -4,6 +4,8 @@ import { z } from "zod";
 export const apiErrorCodeSchema = z.enum([
   // the geometry has no area left after repairing it (e.g. fewer than 3 distinct points)
   "invalid_geometry",
+  // some ear tag numbers of the requested range already exist on the farm
+  "ear_tag_range_conflict",
 ]);
 export type ApiErrorCode = z.infer<typeof apiErrorCodeSchema>;
 

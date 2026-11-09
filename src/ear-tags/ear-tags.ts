@@ -2,6 +2,10 @@ import { and, eq, inArray, isNotNull, notInArray } from "drizzle-orm";
 import { RlsDb } from "../db/db";
 import { animals, earTags, farmIdColumnValue } from "../db/schema";
 import { Animal } from "../animals/animals";
+import { CodedError } from "../errors";
+
+// Conflicting numbers listed in the error message; the rest is summarized as a count
+const MAX_LISTED_CONFLICTS = 10;
 
 export type EarTag = typeof earTags.$inferSelect;
 export type EarTagWithAssignment = EarTag & { animal: Animal | null };
@@ -72,6 +76,26 @@ export function earTagsApi(rlsDb: RlsDb) {
         for (let i = fromNum; i <= toNum; i++) {
           const paddedNum = i.toString().padStart(padding, "0");
           tagsToCreate.push({ number: `${fromPrefix}${paddedNum}` });
+        }
+
+        // A range overlapping existing tags is rejected as a whole, so no duplicates are created
+        const conflictingTags = await tx
+          .select({ number: earTags.number })
+          .from(earTags)
+          .where(
+            inArray(
+              earTags.number,
+              tagsToCreate.map((tag) => tag.number)
+            )
+          )
+          .orderBy(earTags.number);
+        if (conflictingTags.length > 0) {
+          const listedNumbers = conflictingTags.slice(0, MAX_LISTED_CONFLICTS).map((tag) => tag.number);
+          const remainingCount = conflictingTags.length - listedNumbers.length;
+          throw new CodedError(
+            "ear_tag_range_conflict",
+            `These ear tags already exist: ${listedNumbers.join(", ")}${remainingCount > 0 ? ` and ${remainingCount} more` : ""}`
+          );
         }
 
         const createdTags = await tx
