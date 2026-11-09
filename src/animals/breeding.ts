@@ -124,8 +124,20 @@ export function breedingApi(db: RlsDb) {
       }));
     },
 
-    async createHeat(animalId: string, createdBy: string, input: AnimalHeatCreateInput): Promise<AnimalHeat> {
+    // undefined when the animal or the sire isn't visible to the caller (another farm or not existing).
+    // The FK check alone would accept any animal id, it doesn't go through RLS.
+    async createHeat(
+      animalId: string,
+      createdBy: string,
+      input: AnimalHeatCreateInput
+    ): Promise<AnimalHeat | undefined> {
       return db.rls(async (tx) => {
+        const animal = await tx.query.animals.findFirst({ where: { id: animalId }, columns: { id: true } });
+        if (!animal) return undefined;
+        if (input.sireId) {
+          const sire = await tx.query.animals.findFirst({ where: { id: input.sireId }, columns: { id: true } });
+          if (!sire) return undefined;
+        }
         const [heat] = await tx
           .insert(animalHeats)
           .values({ ...farmIdColumnValue, animalId, createdBy, ...input })
@@ -138,6 +150,10 @@ export function breedingApi(db: RlsDb) {
       return db.rls(async (tx) => {
         // Drizzle rejects an empty update set
         if (Object.keys(input).length === 0) return tx.query.animalHeats.findFirst({ where: { id: heatId } });
+        if (input.sireId) {
+          const sire = await tx.query.animals.findFirst({ where: { id: input.sireId }, columns: { id: true } });
+          if (!sire) return undefined;
+        }
         const [heat] = await tx.update(animalHeats).set(input).where(eq(animalHeats.id, heatId)).returning();
         return heat;
       });

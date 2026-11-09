@@ -37,7 +37,9 @@ export const createAnimalWeightEndpoint = animalsWrite.build({
   output: animalWeightSchema,
   handler: async ({ input, ctx: { animalWeights, user } }) => {
     const { animalId, ...weightInput } = input;
-    return animalWeights.createWeight(animalId, user.id, weightInput);
+    const weight = await animalWeights.createWeight(animalId, user.id, weightInput);
+    if (!weight) throw createHttpError(404, "Animal not found");
+    return weight;
   },
 });
 

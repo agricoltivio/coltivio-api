@@ -68,7 +68,9 @@ export const createAnimalHeatEndpoint = animalsWrite.build({
   output: animalHeatSchema,
   handler: async ({ input, ctx: { breeding, user } }) => {
     const { animalId, ...heatInput } = input;
-    return breeding.createHeat(animalId, user.id, heatInput);
+    const heat = await breeding.createHeat(animalId, user.id, heatInput);
+    if (!heat) throw createHttpError(404, "Animal or sire not found");
+    return heat;
   },
 });
 
@@ -86,7 +88,7 @@ export const updateAnimalHeatEndpoint = animalsWrite.build({
   handler: async ({ input, ctx: { breeding } }) => {
     const { heatId, ...updateInput } = input;
     const heat = await breeding.updateHeat(heatId, updateInput);
-    if (!heat) throw createHttpError(404, "Heat entry not found");
+    if (!heat) throw createHttpError(404, "Heat entry or sire not found");
     return heat;
   },
 });

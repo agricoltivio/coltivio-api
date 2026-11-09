@@ -259,6 +259,17 @@ export function treatmentsApi(rlsDb: RlsDb) {
             : [previousTreatment];
         if (!treatment || !previousTreatment) return treatment;
 
+        // Only recompute doses when something they depend on changed. Clients send the whole form on every
+        // edit, so recomputing always would replace amounts entered by hand with dose × weight.
+        const doseInputsChanged =
+          animalIds !== undefined ||
+          animalWeights !== undefined ||
+          effectiveDoseOverrides !== undefined ||
+          previousTreatment.startDate.getTime() !== treatment.startDate.getTime() ||
+          previousTreatment.drugDoseValue !== treatment.drugDoseValue ||
+          previousTreatment.drugDosePerUnit !== treatment.drugDosePerUnit;
+        if (!doseInputsChanged) return treatment;
+
         const existingRows = await tx.query.animalTreatments.findMany({ where: { treatmentId: id } });
         // Stored weights stay valid as long as the start date is unchanged, otherwise look them up again
         const startDateChanged = previousTreatment.startDate.getTime() !== treatment.startDate.getTime();

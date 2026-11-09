@@ -23,8 +23,15 @@ export function animalWeightsApi(db: RlsDb) {
       });
     },
 
-    async createWeight(animalId: string, createdBy: string, input: AnimalWeightCreateInput): Promise<AnimalWeight> {
+    // undefined when the animal isn't visible to the caller; the FK check alone doesn't go through RLS
+    async createWeight(
+      animalId: string,
+      createdBy: string,
+      input: AnimalWeightCreateInput
+    ): Promise<AnimalWeight | undefined> {
       return db.rls(async (tx) => {
+        const animal = await tx.query.animals.findFirst({ where: { id: animalId }, columns: { id: true } });
+        if (!animal) return undefined;
         const [weight] = await tx
           .insert(animalWeights)
           .values({ ...farmIdColumnValue, animalId, createdBy, ...input })

@@ -76,6 +76,19 @@ describe("Animal weights", () => {
     expect(list.find((entry) => entry.id === otherAnimal.id)?.latestWeight).toBeNull();
   });
 
+  it("rejects weights for an animal of another farm", async () => {
+    const { jwt: otherJwt } = await createUserWithFarm({}, "other@test.com");
+    const otherAnimal = await createAnimal(otherJwt);
+    const { jwt } = await createUserWithFarm();
+    const res = await request(
+      "POST",
+      `/v1/animals/byId/${otherAnimal.id}/weights`,
+      { date: "2025-01-01", weightKg: 400 },
+      jwt
+    );
+    expect(res.status).toBe(404);
+  });
+
   it("requires animals write access to add weights", async () => {
     const { jwt: ownerJwt } = await createUserWithFarm();
     const animal = await createAnimal(ownerJwt);
@@ -201,6 +214,27 @@ describe("Treatment effective dose", () => {
     expect(overridePatchRes.status).toBe(200);
     expect(await getTreatmentDoses(jwt, treatment.id)).toEqual([
       { animalId: animal.id, animalWeightKg: 400, effectiveDoseValue: 350 },
+    ]);
+  });
+
+  it("keeps amounts entered by hand when an edit doesn't touch the dose", async () => {
+    const { jwt } = await createUserWithFarm();
+    const animal = await createAnimal(jwt);
+    await addWeight(jwt, animal.id, "2024-12-01", 400);
+    const treatment = await createTreatment(jwt, [animal.id], {
+      ...PER_KG_DOSE,
+      effectiveDoseOverrides: [{ animalId: animal.id, effectiveDoseValue: 180 }],
+    });
+    // Same values as stored, like a client sending the whole form, plus a new name
+    const patchRes = await request(
+      "PATCH",
+      `/v1/treatments/byId/${treatment.id}`,
+      { ...PER_KG_DOSE, startDate: "2025-01-01", name: "Renamed" },
+      jwt
+    );
+    expect(patchRes.status).toBe(200);
+    expect(await getTreatmentDoses(jwt, treatment.id)).toEqual([
+      { animalId: animal.id, animalWeightKg: 400, effectiveDoseValue: 180 },
     ]);
   });
 

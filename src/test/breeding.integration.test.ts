@@ -96,6 +96,29 @@ describe("Animal heats", () => {
     expect(((await afterDelete.json()) as { data: { result: HeatResponse[] } }).data.result).toHaveLength(1);
   });
 
+  it("rejects heats for an animal or sire of another farm", async () => {
+    const { jwt: otherJwt } = await createUserWithFarm({}, "other@test.com");
+    const otherGoat = await createAnimal(otherJwt, { type: "goat", usage: "other" });
+    const otherBuck = await createAnimal(otherJwt, { type: "goat", sex: "male", usage: "other" });
+    const { jwt } = await createUserWithFarm();
+    const goat = await createAnimal(jwt, { type: "goat", usage: "other" });
+
+    const foreignAnimalRes = await request(
+      "POST",
+      `/v1/animals/byId/${otherGoat.id}/heats`,
+      { date: "2025-10-01" },
+      jwt
+    );
+    expect(foreignAnimalRes.status).toBe(404);
+    const foreignSireRes = await request(
+      "POST",
+      `/v1/animals/byId/${goat.id}/heats`,
+      { date: "2025-10-01", mated: true, sireId: otherBuck.id },
+      jwt
+    );
+    expect(foreignSireRes.status).toBe(404);
+  });
+
   it("requires animals write access to add heats", async () => {
     const { jwt: ownerJwt } = await createUserWithFarm();
     const goat = await createAnimal(ownerJwt, { type: "goat", usage: "other" });
