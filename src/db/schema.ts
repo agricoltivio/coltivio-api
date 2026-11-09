@@ -371,6 +371,9 @@ export const userSettings = pgTable.withRLS(
       .primaryKey()
       .references(() => profiles.id, { onDelete: "cascade" }),
     taskPushNotifications: boolean().notNull().default(false),
+    // Days before an expected birth to send a push reminder (0 = on the day), null = off
+    breedingReminderDaysBefore1: integer(),
+    breedingReminderDaysBefore2: integer(),
   },
   (table) => [
     pgPolicy("user can manage own settings", {
@@ -1696,6 +1699,9 @@ export const animalTreatments = pgTable.withRLS(
     farmId: uuid()
       .notNull()
       .references(() => farms.id, { onDelete: "cascade" }),
+    // Weight of the animal at treatment time and the resulting amount for per-kg doses
+    animalWeightKg: real(),
+    effectiveDoseValue: real(),
   },
   (table) => [
     index("animal_treatments_animal_id_idx").on(table.animalId),
@@ -1708,6 +1714,105 @@ export const animalTreatments = pgTable.withRLS(
       withCheck: eq(table.farmId, currentFarmId),
     }),
   ]
+);
+
+export const animalWeights = pgTable.withRLS(
+  "animal_weights",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    farmId: uuid()
+      .notNull()
+      .references(() => farms.id, { onDelete: "cascade" }),
+    animalId: uuid()
+      .notNull()
+      .references(() => animals.id, { onDelete: "cascade" }),
+    date: date({ mode: "date" }).notNull(),
+    weightKg: real().notNull(),
+    notes: text(),
+    createdAt: timestamp().notNull().defaultNow(),
+    createdBy: uuid().references(() => profiles.id, { onDelete: "set null" }),
+  },
+  (table) => [
+    index("animal_weights_animal_id_date_idx").on(table.animalId, table.date),
+    pgPolicy("only farm members", {
+      as: "permissive",
+      to: authenticatedRole,
+      using: eq(table.farmId, currentFarmId),
+      withCheck: eq(table.farmId, currentFarmId),
+    }),
+  ]
+);
+
+// Heat (in season / bockig) records of female animals, optionally mated. Mated heats drive the breeding calendar.
+export const animalHeats = pgTable.withRLS(
+  "animal_heats",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    farmId: uuid()
+      .notNull()
+      .references(() => farms.id, { onDelete: "cascade" }),
+    animalId: uuid()
+      .notNull()
+      .references(() => animals.id, { onDelete: "cascade" }),
+    date: date({ mode: "date" }).notNull(),
+    mated: boolean().notNull().default(false),
+    sireId: uuid().references(() => animals.id, { onDelete: "set null" }),
+    // Free text for sires that are not on the farm
+    sireName: text(),
+    notes: text(),
+    createdAt: timestamp().notNull().defaultNow(),
+    createdBy: uuid().references(() => profiles.id, { onDelete: "set null" }),
+  },
+  (table) => [
+    index("animal_heats_animal_id_idx").on(table.animalId),
+    index("animal_heats_farm_id_date_idx").on(table.farmId, table.date),
+    pgPolicy("only farm members", {
+      as: "permissive",
+      to: authenticatedRole,
+      using: eq(table.farmId, currentFarmId),
+      withCheck: eq(table.farmId, currentFarmId),
+    }),
+  ]
+);
+
+// Farm-wide gestation length per animal type. A missing row means the default from gestation-defaults.ts.
+export const farmGestationSettings = pgTable.withRLS(
+  "farm_gestation_settings",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    farmId: uuid()
+      .notNull()
+      .references(() => farms.id, { onDelete: "cascade" }),
+    animalType: animalType().notNull(),
+    gestationDays: integer().notNull(),
+  },
+  (table) => [
+    unique("farm_gestation_settings_farm_type_unique").on(table.farmId, table.animalType),
+    pgPolicy("only farm members", {
+      as: "permissive",
+      to: authenticatedRole,
+      using: eq(table.farmId, currentFarmId),
+      withCheck: eq(table.farmId, currentFarmId),
+    }),
+  ]
+);
+
+// RLS enabled without policies: only db.admin (breeding reminder cron) can read/write.
+// Dedup log so each user is notified once per heat and reminder date.
+export const breedingReminderNotifications = pgTable.withRLS(
+  "breeding_reminder_notifications",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    heatId: uuid()
+      .notNull()
+      .references(() => animalHeats.id, { onDelete: "cascade" }),
+    userId: uuid()
+      .notNull()
+      .references(() => profiles.id, { onDelete: "cascade" }),
+    reminderDate: date({ mode: "date" }).notNull(),
+    sentAt: timestamp({ mode: "date" }).defaultNow().notNull(),
+  },
+  (table) => [unique().on(table.heatId, table.userId, table.reminderDate)]
 );
 
 // Parasite control (worm monitoring): FAMACHA eyelid checks and lab fecal egg counts
@@ -2768,6 +2873,10 @@ const tables = {
   drugTreatment,
   treatments,
   animalTreatments,
+  animalWeights,
+  animalHeats,
+  farmGestationSettings,
+  breedingReminderNotifications,
   herds,
   parasiteChecks,
   parasiteCheckAnimals,
@@ -3256,6 +3365,28 @@ export const relations = defineRelations(tables, (r) => ({
     herdMemberships: r.many.herdMemberships(),
     customOutdoorJournalCategories: r.many.customOutdoorJournalCategories(),
     journalEntries: r.many.animalJournalEntries(),
+    weights: r.many.animalWeights(),
+    heats: r.many.animalHeats({ alias: "heats" }),
+  },
+  animalWeights: {
+    animal: r.one.animals({
+      from: r.animalWeights.animalId,
+      to: r.animals.id,
+      optional: false,
+    }),
+  },
+  animalHeats: {
+    animal: r.one.animals({
+      from: r.animalHeats.animalId,
+      to: r.animals.id,
+      optional: false,
+      alias: "heats",
+    }),
+    sire: r.one.animals({
+      from: r.animalHeats.sireId,
+      to: r.animals.id,
+      alias: "sire",
+    }),
   },
   customOutdoorJournalCategories: {
     farm: r.one.farms({

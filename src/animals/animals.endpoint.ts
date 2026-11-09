@@ -40,6 +40,12 @@ export const animalSchema = z.object({
   notes: z.string().nullable(),
 });
 
+export const latestAnimalWeightSchema = z.object({
+  id: z.string(),
+  date: ez.dateOut(),
+  weightKg: z.number(),
+});
+
 const herdSchema = z.object({
   id: z.string(),
   farmId: z.string(),
@@ -114,6 +120,7 @@ const customOutdoorJournalCategorySchema = z.object({
 });
 
 const animalWithRelationsSchema = animalSchema.extend({
+  latestWeight: latestAnimalWeightSchema.nullable().optional(),
   get earTag() {
     return earTagSchema.nullable();
   },
@@ -177,6 +184,7 @@ export const getFarmAnimalsEndpoint = animalsRead.build({
     result: z.array(
       animalSchema.extend({
         milkAndMeatUsable: z.boolean(),
+        latestWeight: latestAnimalWeightSchema.nullable().optional(),
       })
     ),
     count: z.number(),

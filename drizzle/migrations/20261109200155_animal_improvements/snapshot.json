@@ -1,7 +1,7 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "e96766ad-8ead-42a5-a998-a34730eefe5e",
+  "id": "f3b73817-0b71-4740-aea1-be5783773bac",
   "prevIds": [
     "a8a652ae-7f3a-4e0b-b83b-3cd1a044424c"
   ],
@@ -535,6 +535,12 @@
     },
     {
       "isRlsEnabled": true,
+      "name": "animal_heats",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": true,
       "name": "animal_journal_entries",
       "entityType": "tables",
       "schema": "public"
@@ -553,7 +559,19 @@
     },
     {
       "isRlsEnabled": true,
+      "name": "animal_weights",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": true,
       "name": "animals",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": true,
+      "name": "breeding_reminder_notifications",
       "entityType": "tables",
       "schema": "public"
     },
@@ -656,6 +674,12 @@
     {
       "isRlsEnabled": true,
       "name": "email_verification_tokens",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": true,
+      "name": "farm_gestation_settings",
       "entityType": "tables",
       "schema": "public"
     },
@@ -1066,6 +1090,136 @@
       "name": "id",
       "entityType": "columns",
       "schema": "public",
+      "table": "animal_heats"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "farm_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "animal_heats"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "animal_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "animal_heats"
+    },
+    {
+      "type": "date",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "date",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "animal_heats"
+    },
+    {
+      "type": "boolean",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "false",
+      "generated": null,
+      "identity": null,
+      "name": "mated",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "animal_heats"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "sire_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "animal_heats"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "sire_name",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "animal_heats"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "notes",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "animal_heats"
+    },
+    {
+      "type": "timestamp",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "animal_heats"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "created_by",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "animal_heats"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
       "table": "animal_journal_entries"
     },
     {
@@ -1277,6 +1431,136 @@
       "table": "animal_treatments"
     },
     {
+      "type": "real",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "animal_weight_kg",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "animal_treatments"
+    },
+    {
+      "type": "real",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "effective_dose_value",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "animal_treatments"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "animal_weights"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "farm_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "animal_weights"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "animal_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "animal_weights"
+    },
+    {
+      "type": "date",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "date",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "animal_weights"
+    },
+    {
+      "type": "real",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "weight_kg",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "animal_weights"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "notes",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "animal_weights"
+    },
+    {
+      "type": "timestamp",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "animal_weights"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "created_by",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "animal_weights"
+    },
+    {
       "type": "uuid",
       "typeSchema": null,
       "notNull": true,
@@ -1483,6 +1767,71 @@
       "entityType": "columns",
       "schema": "public",
       "table": "animals"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "breeding_reminder_notifications"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "heat_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "breeding_reminder_notifications"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "user_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "breeding_reminder_notifications"
+    },
+    {
+      "type": "date",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "reminder_date",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "breeding_reminder_notifications"
+    },
+    {
+      "type": "timestamp",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "sent_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "breeding_reminder_notifications"
     },
     {
       "type": "uuid",
@@ -3082,6 +3431,58 @@
       "entityType": "columns",
       "schema": "public",
       "table": "email_verification_tokens"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "farm_gestation_settings"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "farm_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "farm_gestation_settings"
+    },
+    {
+      "type": "animal_type",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "animal_type",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "farm_gestation_settings"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "gestation_days",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "farm_gestation_settings"
     },
     {
       "type": "uuid",
@@ -8349,6 +8750,32 @@
       "table": "user_settings"
     },
     {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "breeding_reminder_days_before1",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "user_settings"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "breeding_reminder_days_before2",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "user_settings"
+    },
+    {
       "type": "uuid",
       "typeSchema": null,
       "notNull": true,
@@ -9235,6 +9662,55 @@
       "with": "",
       "method": "btree",
       "concurrently": false,
+      "name": "animal_heats_animal_id_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "animal_heats"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "farm_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "date",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "animal_heats_farm_id_date_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "animal_heats"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "animal_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
       "name": "animal_journal_entries_animal_id_idx",
       "entityType": "indexes",
       "schema": "public",
@@ -9302,6 +9778,34 @@
       "entityType": "indexes",
       "schema": "public",
       "table": "animal_treatments"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "animal_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "date",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "animal_weights_animal_id_date_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "animal_weights"
     },
     {
       "nameExplicit": true,
@@ -10093,6 +10597,74 @@
     {
       "nameExplicit": false,
       "columns": [
+        "farm_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "farms",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "animal_heats_farm_id_farms_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "animal_heats"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "animal_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "animals",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "animal_heats_animal_id_animals_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "animal_heats"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "sire_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "animals",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "SET NULL",
+      "name": "animal_heats_sire_id_animals_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "animal_heats"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "created_by"
+      ],
+      "schemaTo": "public",
+      "tableTo": "profiles",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "SET NULL",
+      "name": "animal_heats_created_by_profiles_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "animal_heats"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
         "animal_id"
       ],
       "schemaTo": "public",
@@ -10204,6 +10776,57 @@
       ],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
+      "name": "animal_weights_farm_id_farms_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "animal_weights"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "animal_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "animals",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "animal_weights_animal_id_animals_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "animal_weights"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "created_by"
+      ],
+      "schemaTo": "public",
+      "tableTo": "profiles",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "SET NULL",
+      "name": "animal_weights_created_by_profiles_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "animal_weights"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "farm_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "farms",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
       "name": "animals_farm_id_farms_id_fkey",
       "entityType": "fks",
       "schema": "public",
@@ -10276,6 +10899,40 @@
       "entityType": "fks",
       "schema": "public",
       "table": "animals"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "heat_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "animal_heats",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "breeding_reminder_notifications_heat_id_animal_heats_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "breeding_reminder_notifications"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "user_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "profiles",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "breeding_reminder_notifications_user_id_profiles_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "breeding_reminder_notifications"
     },
     {
       "nameExplicit": false,
@@ -10769,6 +11426,23 @@
       "entityType": "fks",
       "schema": "public",
       "table": "email_verification_tokens"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "farm_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "farms",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "farm_gestation_settings_farm_id_farms_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "farm_gestation_settings"
     },
     {
       "nameExplicit": false,
@@ -12800,6 +13474,16 @@
         "id"
       ],
       "nameExplicit": false,
+      "name": "animal_heats_pkey",
+      "schema": "public",
+      "table": "animal_heats",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
       "name": "animal_journal_entries_pkey",
       "schema": "public",
       "table": "animal_journal_entries",
@@ -12830,9 +13514,29 @@
         "id"
       ],
       "nameExplicit": false,
+      "name": "animal_weights_pkey",
+      "schema": "public",
+      "table": "animal_weights",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
       "name": "animals_pkey",
       "schema": "public",
       "table": "animals",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "breeding_reminder_notifications_pkey",
+      "schema": "public",
+      "table": "breeding_reminder_notifications",
       "entityType": "pks"
     },
     {
@@ -13003,6 +13707,16 @@
       "name": "email_verification_tokens_pkey",
       "schema": "public",
       "table": "email_verification_tokens",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "farm_gestation_settings_pkey",
+      "schema": "public",
+      "table": "farm_gestation_settings",
       "entityType": "pks"
     },
     {
@@ -13678,6 +14392,19 @@
       "table": "animal_treatments"
     },
     {
+      "nameExplicit": false,
+      "columns": [
+        "heat_id",
+        "user_id",
+        "reminder_date"
+      ],
+      "nullsNotDistinct": false,
+      "name": "breeding_reminder_notifications_heat_id_user_id_reminder_date_unique",
+      "entityType": "uniques",
+      "schema": "public",
+      "table": "breeding_reminder_notifications"
+    },
+    {
       "nameExplicit": true,
       "columns": [
         "drug_id",
@@ -13688,6 +14415,18 @@
       "entityType": "uniques",
       "schema": "public",
       "table": "drug_treatment"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "farm_id",
+        "animal_type"
+      ],
+      "nullsNotDistinct": false,
+      "name": "farm_gestation_settings_farm_type_unique",
+      "entityType": "uniques",
+      "schema": "public",
+      "table": "farm_gestation_settings"
     },
     {
       "nameExplicit": true,
@@ -14067,6 +14806,19 @@
       "roles": [
         "authenticated"
       ],
+      "using": "\"animal_heats\".\"farm_id\" = (select farm_id())",
+      "withCheck": "\"animal_heats\".\"farm_id\" = (select farm_id())",
+      "name": "only farm members",
+      "entityType": "policies",
+      "schema": "public",
+      "table": "animal_heats"
+    },
+    {
+      "as": "PERMISSIVE",
+      "for": "ALL",
+      "roles": [
+        "authenticated"
+      ],
       "using": "\"animal_journal_entries\".\"farm_id\" = (select farm_id())",
       "withCheck": "\"animal_journal_entries\".\"farm_id\" = (select farm_id())",
       "name": "only farm members",
@@ -14099,6 +14851,19 @@
       "entityType": "policies",
       "schema": "public",
       "table": "animal_treatments"
+    },
+    {
+      "as": "PERMISSIVE",
+      "for": "ALL",
+      "roles": [
+        "authenticated"
+      ],
+      "using": "\"animal_weights\".\"farm_id\" = (select farm_id())",
+      "withCheck": "\"animal_weights\".\"farm_id\" = (select farm_id())",
+      "name": "only farm members",
+      "entityType": "policies",
+      "schema": "public",
+      "table": "animal_weights"
     },
     {
       "as": "PERMISSIVE",
@@ -14320,6 +15085,19 @@
       "entityType": "policies",
       "schema": "public",
       "table": "ear_tags"
+    },
+    {
+      "as": "PERMISSIVE",
+      "for": "ALL",
+      "roles": [
+        "authenticated"
+      ],
+      "using": "\"farm_gestation_settings\".\"farm_id\" = (select farm_id())",
+      "withCheck": "\"farm_gestation_settings\".\"farm_id\" = (select farm_id())",
+      "name": "only farm members",
+      "entityType": "policies",
+      "schema": "public",
+      "table": "farm_gestation_settings"
     },
     {
       "as": "PERMISSIVE",
