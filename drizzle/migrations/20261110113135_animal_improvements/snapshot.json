@@ -1,9 +1,9 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "f3b73817-0b71-4740-aea1-be5783773bac",
+  "id": "24349eec-a074-4df5-ad8a-d83fe5e98e23",
   "prevIds": [
-    "a8a652ae-7f3a-4e0b-b83b-3cd1a044424c"
+    "ed17f1b5-e088-4aee-95fb-e73d45732e4d"
   ],
   "ddl": [
     {
@@ -403,6 +403,32 @@
         "liter"
       ],
       "name": "product_unit",
+      "entityType": "enums",
+      "schema": "public"
+    },
+    {
+      "values": [
+        "weight",
+        "count"
+      ],
+      "name": "seed_quantity_kind",
+      "entityType": "enums",
+      "schema": "public"
+    },
+    {
+      "values": [
+        "kg_per_ha",
+        "g_per_m2",
+        "seeds_per_ha",
+        "seeds_per_m2",
+        "plants_per_ha",
+        "plants_per_m2",
+        "kg",
+        "g",
+        "seeds",
+        "plants"
+      ],
+      "name": "sowing_unit",
       "entityType": "enums",
       "schema": "public"
     },
@@ -932,6 +958,24 @@
     {
       "isRlsEnabled": true,
       "name": "push_tokens",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": true,
+      "name": "seeds",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": true,
+      "name": "sowing_presets",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": true,
+      "name": "sowings",
       "entityType": "tables",
       "schema": "public"
     },
@@ -7577,6 +7621,396 @@
       "name": "id",
       "entityType": "columns",
       "schema": "public",
+      "table": "seeds"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "farm_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "seeds"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "name",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "seeds"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "description",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "seeds"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "crop_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "seeds"
+    },
+    {
+      "type": "seed_quantity_kind",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "quantity_kind",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "seeds"
+    },
+    {
+      "type": "real",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "default_amount",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "seeds"
+    },
+    {
+      "type": "sowing_unit",
+      "typeSchema": "public",
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "default_unit",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "seeds"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "sowing_presets"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "farm_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "sowing_presets"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "name",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "sowing_presets"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "crop_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "sowing_presets"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "seed_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "sowing_presets"
+    },
+    {
+      "type": "sowing_unit",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "unit",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "sowing_presets"
+    },
+    {
+      "type": "real",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "amount",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "sowing_presets"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "sowings"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "farm_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "sowings"
+    },
+    {
+      "type": "timestamp",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "sowings"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "created_by",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "sowings"
+    },
+    {
+      "type": "date",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "date",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "sowings"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "plot_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "sowings"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "crop_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "sowings"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "seed_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "sowings"
+    },
+    {
+      "type": "sowing_unit",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "unit",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "sowings"
+    },
+    {
+      "type": "real",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "amount",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "sowings"
+    },
+    {
+      "type": "double precision",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "total_base_amount",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "sowings"
+    },
+    {
+      "type": "double precision",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "base_amount_per_hectare",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "sowings"
+    },
+    {
+      "type": "geometry(MultiPolygon,4326)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "geometry",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "sowings"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "size",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "sowings"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "additional_notes",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "sowings"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
       "table": "sponsorship_programs"
     },
     {
@@ -12716,6 +13150,176 @@
       ],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
+      "name": "seeds_farm_id_farms_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "seeds"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "crop_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "crops",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "seeds_crop_id_crops_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "seeds"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "farm_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "farms",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "sowing_presets_farm_id_farms_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "sowing_presets"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "crop_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "crops",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "sowing_presets_crop_id_crops_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "sowing_presets"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "seed_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "seeds",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "sowing_presets_seed_id_seeds_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "sowing_presets"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "farm_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "farms",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "sowings_farm_id_farms_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "sowings"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "created_by"
+      ],
+      "schemaTo": "public",
+      "tableTo": "profiles",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "SET NULL",
+      "name": "sowings_created_by_profiles_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "sowings"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "plot_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "plots",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "sowings_plot_id_plots_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "sowings"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "crop_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "crops",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "sowings_crop_id_crops_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "sowings"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "seed_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "seeds",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "sowings_seed_id_seeds_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "sowings"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "farm_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "farms",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
       "name": "sponsorship_programs_farm_id_farms_id_fkey",
       "entityType": "fks",
       "schema": "public",
@@ -14137,6 +14741,36 @@
       "name": "push_tokens_pkey",
       "schema": "public",
       "table": "push_tokens",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "seeds_pkey",
+      "schema": "public",
+      "table": "seeds",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "sowing_presets_pkey",
+      "schema": "public",
+      "table": "sowing_presets",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "sowings_pkey",
+      "schema": "public",
+      "table": "sowings",
       "entityType": "pks"
     },
     {
@@ -15761,6 +16395,45 @@
       "entityType": "policies",
       "schema": "public",
       "table": "push_tokens"
+    },
+    {
+      "as": "PERMISSIVE",
+      "for": "ALL",
+      "roles": [
+        "authenticated"
+      ],
+      "using": "\"seeds\".\"farm_id\" = (select farm_id())",
+      "withCheck": "\"seeds\".\"farm_id\" = (select farm_id())",
+      "name": "only farm members",
+      "entityType": "policies",
+      "schema": "public",
+      "table": "seeds"
+    },
+    {
+      "as": "PERMISSIVE",
+      "for": "ALL",
+      "roles": [
+        "authenticated"
+      ],
+      "using": "\"sowing_presets\".\"farm_id\" = (select farm_id())",
+      "withCheck": "\"sowing_presets\".\"farm_id\" = (select farm_id())",
+      "name": "only farm members",
+      "entityType": "policies",
+      "schema": "public",
+      "table": "sowing_presets"
+    },
+    {
+      "as": "PERMISSIVE",
+      "for": "ALL",
+      "roles": [
+        "authenticated"
+      ],
+      "using": "\"sowings\".\"farm_id\" = (select farm_id())",
+      "withCheck": "\"sowings\".\"farm_id\" = (select farm_id())",
+      "name": "only farm members",
+      "entityType": "policies",
+      "schema": "public",
+      "table": "sowings"
     },
     {
       "as": "PERMISSIVE",
