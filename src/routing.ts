@@ -182,6 +182,30 @@ import {
   updateFertilizerEndpoint,
 } from "./fertilization/fertilizers.endpoint";
 import {
+  createSeedEndpoint,
+  deleteSeedEndpoint,
+  getFarmSeedsEndpoint,
+  getSeedByIdEndpoint,
+  seedInUseEndpoint,
+  updateSeedEndpoint,
+} from "./seeds/seeds.endpoint";
+import {
+  createSowingPresetEndpoint,
+  createSowingsEndpoint,
+  deleteSowingEndpoint,
+  deleteSowingPresetEndpoint,
+  getSowingByIdEndpoint,
+  getSowingPresetByIdEndpoint,
+  getSowingPresetsEndpoint,
+  getSowingsForFarmEndpoint,
+  getSowingsForPlotEndpoint,
+  getSowingSummaryForFarmEndpoint,
+  getSowingSummaryForPlotEndpoint,
+  getSowingUnitsEndpoint,
+  updateSowingEndpoint,
+  updateSowingPresetEndpoint,
+} from "./sowings/sowings.endpoint";
+import {
   createCropEndpoint,
   deleteCropEndpoint,
   getFarmCropsEndpoint,
@@ -557,6 +581,8 @@ export const routing: Routing = {
           fertilizerApplicationSummary: getFertilizerApplicationSummaryForPlotEndpoint,
           harvests: getHarvestsForPlotEndpoint,
           harvestSummary: getHarvestSummaryForPlotEndpoint,
+          sowings: getSowingsForPlotEndpoint,
+          sowingSummary: getSowingSummaryForPlotEndpoint,
           split: splitPlotEndpoint,
           journal: { "": { get: listPlotJournalEntriesEndpoint, post: createPlotJournalEntryEndpoint } },
         },
@@ -790,6 +816,50 @@ export const routing: Routing = {
             delete: deleteFertilizerEndpoint,
           },
           inUse: fertilizerInUseEndpoint,
+        },
+      },
+    },
+    seeds: {
+      "": {
+        get: getFarmSeedsEndpoint,
+        post: createSeedEndpoint,
+      },
+      byId: {
+        ":seedId": {
+          "": {
+            get: getSeedByIdEndpoint,
+            patch: updateSeedEndpoint,
+            delete: deleteSeedEndpoint,
+          },
+          inUse: seedInUseEndpoint,
+        },
+      },
+    },
+    sowings: {
+      "": {
+        get: getSowingsForFarmEndpoint,
+        post: createSowingsEndpoint,
+      },
+      byId: {
+        ":sowingId": {
+          get: getSowingByIdEndpoint,
+          delete: deleteSowingEndpoint,
+          patch: updateSowingEndpoint,
+        },
+      },
+      summaries: getSowingSummaryForFarmEndpoint,
+      units: getSowingUnitsEndpoint,
+      presets: {
+        "": {
+          get: getSowingPresetsEndpoint,
+          post: createSowingPresetEndpoint,
+        },
+        byId: {
+          ":presetId": {
+            get: getSowingPresetByIdEndpoint,
+            patch: updateSowingPresetEndpoint,
+            delete: deleteSowingPresetEndpoint,
+          },
         },
       },
     },
