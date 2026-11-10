@@ -82,6 +82,7 @@ import {
 import {
   createEarTagRangeEndpoint,
   deleteEarTagRangeEndpoint,
+  deleteEarTagEndpoint,
   getAvailableEarTagsEndpoint,
   getEarTagsEndpoint,
 } from "./ear-tags/ear-tags.endpoint";
@@ -971,6 +972,9 @@ export const routing: Routing = {
           post: createEarTagRangeEndpoint,
           delete: deleteEarTagRangeEndpoint,
         },
+      },
+      byId: {
+        ":earTagId": { delete: deleteEarTagEndpoint },
       },
     },
     drugs: {

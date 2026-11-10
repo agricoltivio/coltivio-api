@@ -206,6 +206,21 @@ export function earTagsApi(rlsDb: RlsDb) {
       });
     },
 
+    // Deletes one ear tag by id, whatever its number looks like (imported numbers don't follow the
+    // range format). Returns false when the tag isn't visible to the caller.
+    async deleteEarTag(id: string): Promise<boolean> {
+      return rlsDb.rls(async (tx) => {
+        const earTag = await tx.query.earTags.findFirst({ where: { id }, columns: { id: true } });
+        if (!earTag) return false;
+        const assignedAnimal = await tx.query.animals.findFirst({ where: { earTagId: id }, columns: { id: true } });
+        if (assignedAnimal) {
+          throw new CodedError("ear_tag_assigned", "The ear tag is assigned to an animal");
+        }
+        await tx.delete(earTags).where(eq(earTags.id, id));
+        return true;
+      });
+    },
+
     async getEarTagById(id: string): Promise<EarTagWithAssignment | undefined> {
       return rlsDb.rls(async (tx) => {
         return tx.query.earTags.findFirst({

@@ -299,6 +299,20 @@ describe("Animal color and notes", () => {
     expect(animal.notes).toBeNull();
   });
 
+  it("clears the ear tag with null, which makes the tag available again", async () => {
+    const { jwt } = await createUserWithFarm();
+    const createRes = await request("POST", "/v1/earTags/range", { fromNumber: "CH060", toNumber: "CH060" }, jwt);
+    const [earTag] = ((await createRes.json()) as { data: { result: { id: string }[] } }).data.result;
+    const animal = await createAnimal(jwt, { earTagId: earTag.id });
+
+    const clearRes = await request("PATCH", `/v1/animals/byId/${animal.id}`, { earTagId: null }, jwt);
+    expect(clearRes.status).toBe(200);
+    expect(((await clearRes.json()) as { data: { earTagId: string | null } }).data.earTagId).toBeNull();
+    const availableRes = await request("GET", "/v1/earTags/available", undefined, jwt);
+    const available = ((await availableRes.json()) as { data: { result: { id: string }[] } }).data.result;
+    expect(available.map((tag) => tag.id)).toContain(earTag.id);
+  });
+
   it("creates, updates and clears color and notes", async () => {
     const { jwt } = await createUserWithFarm();
     const animal = await createAnimal(jwt, { name: "Bella", color: "brown", notes: "Calm, easy to milk" });

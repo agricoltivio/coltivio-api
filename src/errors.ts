@@ -21,6 +21,8 @@ export const apiErrorCodeSchema = z.enum([
   "ear_tag_range_conflict",
   // the ear tag range is malformed (format, prefix, order) or larger than the allowed size
   "invalid_ear_tag_range",
+  // the ear tag is assigned to an animal and can't be deleted
+  "ear_tag_assigned",
 ]);
 export type ApiErrorCode = z.infer<typeof apiErrorCodeSchema>;
 
