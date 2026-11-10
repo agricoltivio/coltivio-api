@@ -19,6 +19,8 @@ export const apiErrorCodeSchema = z.enum([
   "seed_default_amount_without_unit",
   // some ear tag numbers of the requested range already exist on the farm
   "ear_tag_range_conflict",
+  // the ear tag range is malformed (format, prefix, order) or larger than the allowed size
+  "invalid_ear_tag_range",
 ]);
 export type ApiErrorCode = z.infer<typeof apiErrorCodeSchema>;
 

@@ -53,6 +53,7 @@ const statusByErrorCode: Record<ApiErrorCode, number> = {
   plot_not_found: 400,
   seed_default_amount_without_unit: 400,
   ear_tag_range_conflict: 409,
+  invalid_ear_tag_range: 400,
 };
 
 const getPublicErrorMessage = (error: HttpError): string =>

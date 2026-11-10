@@ -48,6 +48,20 @@ describe("Ear Tags", () => {
     expect(dbTags).toHaveLength(6);
   });
 
+  it("rejects malformed and too large ranges with 400", async () => {
+    const { jwt } = await createUserWithFarm();
+    const tooLargeRes = await request("POST", "/v1/earTags/range", { fromNumber: "CH1", toNumber: "CH1001" }, jwt);
+    expect(tooLargeRes.status).toBe(400);
+    expect(((await tooLargeRes.json()) as { code: string }).code).toBe("invalid_ear_tag_range");
+    const reversedRes = await request("POST", "/v1/earTags/range", { fromNumber: "CH10", toNumber: "CH5" }, jwt);
+    expect(reversedRes.status).toBe(400);
+    const malformedRes = await request("POST", "/v1/earTags/range", { fromNumber: "CH 1.", toNumber: "CH5" }, jwt);
+    expect(malformedRes.status).toBe(400);
+    // The largest allowed range still works
+    const maxRes = await request("POST", "/v1/earTags/range", { fromNumber: "CH1", toNumber: "CH1000" }, jwt);
+    expect(maxRes.status).toBe(200);
+  });
+
   it("allows a range whose numbers only exist on another farm", async () => {
     const otherFarm = await createUserWithFarm(undefined, "other-farm@test.com");
     const otherRes = await request(

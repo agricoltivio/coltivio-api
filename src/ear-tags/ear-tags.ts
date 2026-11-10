@@ -6,6 +6,8 @@ import { CodedError } from "../errors";
 
 // Conflicting numbers listed in the error message; the rest is summarized as a count
 const MAX_LISTED_CONFLICTS = 10;
+// Largest range created at once; every number becomes a query parameter (Postgres allows 65535)
+export const MAX_EAR_TAG_RANGE_SIZE = 1000;
 
 export type EarTag = typeof earTags.$inferSelect;
 export type EarTagWithAssignment = EarTag & { animal: Animal | null };
@@ -53,21 +55,31 @@ export function earTagsApi(rlsDb: RlsDb) {
         const toMatch = toNumber.match(/^([A-Za-z]*)(\d+)$/);
 
         if (!fromMatch || !toMatch) {
-          throw new Error("Invalid ear tag format. Expected format: PREFIX + NUMBER (e.g., CH001)");
+          throw new CodedError(
+            "invalid_ear_tag_range",
+            "Invalid ear tag format. Expected format: PREFIX + NUMBER (e.g., CH001)"
+          );
         }
 
         const [, fromPrefix, fromNumStr] = fromMatch;
         const [, toPrefix, toNumStr] = toMatch;
 
         if (fromPrefix !== toPrefix) {
-          throw new Error("Prefix must be the same for both range boundaries");
+          throw new CodedError("invalid_ear_tag_range", "Prefix must be the same for both range boundaries");
         }
 
         const fromNum = parseInt(fromNumStr, 10);
         const toNum = parseInt(toNumStr, 10);
 
         if (fromNum > toNum) {
-          throw new Error("Start number must be less than or equal to end number");
+          throw new CodedError("invalid_ear_tag_range", "Start number must be less than or equal to end number");
+        }
+
+        if (toNum - fromNum + 1 > MAX_EAR_TAG_RANGE_SIZE) {
+          throw new CodedError(
+            "invalid_ear_tag_range",
+            `A range can contain at most ${MAX_EAR_TAG_RANGE_SIZE} ear tags`
+          );
         }
 
         const padding = fromNumStr.length;
@@ -124,21 +136,31 @@ export function earTagsApi(rlsDb: RlsDb) {
         const toMatch = toNumber.match(/^([A-Za-z]*)(\d+)$/);
 
         if (!fromMatch || !toMatch) {
-          throw new Error("Invalid ear tag format. Expected format: PREFIX + NUMBER (e.g., CH001)");
+          throw new CodedError(
+            "invalid_ear_tag_range",
+            "Invalid ear tag format. Expected format: PREFIX + NUMBER (e.g., CH001)"
+          );
         }
 
         const [, fromPrefix, fromNumStr] = fromMatch;
         const [, toPrefix, toNumStr] = toMatch;
 
         if (fromPrefix !== toPrefix) {
-          throw new Error("Prefix must be the same for both range boundaries");
+          throw new CodedError("invalid_ear_tag_range", "Prefix must be the same for both range boundaries");
         }
 
         const fromNum = parseInt(fromNumStr, 10);
         const toNum = parseInt(toNumStr, 10);
 
         if (fromNum > toNum) {
-          throw new Error("Start number must be less than or equal to end number");
+          throw new CodedError("invalid_ear_tag_range", "Start number must be less than or equal to end number");
+        }
+
+        if (toNum - fromNum + 1 > MAX_EAR_TAG_RANGE_SIZE) {
+          throw new CodedError(
+            "invalid_ear_tag_range",
+            `A range can contain at most ${MAX_EAR_TAG_RANGE_SIZE} ear tags`
+          );
         }
 
         // Generate all numbers in range
