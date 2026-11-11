@@ -640,31 +640,39 @@ export function plotsApi(rlsDb: RlsDb, t: TFunction) {
           .from(envelopes);
 
         const geoAdminParcels = await getParcelsForEnvelopes(plotGroups.map((group) => group.envelope));
+        // Only real-estate parcels: building rights (SelbstRecht.Baurecht) lie on top of them with their own number
+        const realEstateParcels = geoAdminParcels
+          .filter((parcel) => parcel.properties.realestate_type === "Liegenschaft" && parcel.properties.number)
+          .map((parcel) => ({ number: parcel.properties.number, geometry: parcel.geometry }));
+        if (realEstateParcels.length === 0) return;
 
-        const candidates = await tx.query.plots.findMany({
-          where: { localId: { isNull: true } },
-        });
-        const plotIds = candidates.map((candidate) => candidate.id);
         // Only generated names give way to the parcel number: "3" from farm creation, "Schlag 3" from a file
         // import. Names the farmer chose (e.g. from the Acorda export) are kept.
         const defaultNamePattern = `^(${escapeRegExp(t("plots.plot"))} )?[0-9]+$`;
 
-        for (const parcel of geoAdminParcels) {
-          if (parcel.properties.number) {
-            await tx
-              .update(plots)
-              .set({
-                localId: parcel.properties.number,
-                name: sql`CASE WHEN ${plots.name} ~ ${defaultNamePattern} THEN ${parcel.properties.number} ELSE ${plots.name} END`,
-              })
-              .where(
-                and(
-                  inArray(plots.id, plotIds),
-                  sql`ST_Within(${plots.geometry}, ST_Buffer(ST_MakeValid(ST_GeomFromGeoJSON(${JSON.stringify(parcel.geometry)})), 0.0001))`
-                )
-              );
-          }
-        }
+        // Each plot gets the number of the parcel it overlaps most. Fields often span several parcels, so
+        // requiring the plot to lie inside one parcel would leave many of them without a number.
+        await tx.execute(sql`
+          WITH parcels AS (
+            SELECT
+              parcel ->> 'number' AS number,
+              ST_MakeValid(ST_SetSRID(ST_GeomFromGeoJSON(parcel ->> 'geometry'), 4326)) AS geometry
+            FROM json_array_elements(${JSON.stringify(realEstateParcels)}::json) AS parcel
+          ),
+          best_parcels AS (
+            SELECT DISTINCT ON (${plots.id}) ${plots.id} AS plot_id, parcels.number
+            FROM ${plots}
+            JOIN parcels ON ST_Intersects(parcels.geometry, ${plots.geometry})
+            WHERE ${plots.localId} IS NULL
+              AND ST_Area(ST_Intersection(parcels.geometry, ${plots.geometry})) > 0
+            ORDER BY ${plots.id}, ST_Area(ST_Intersection(parcels.geometry, ${plots.geometry})) DESC
+          )
+          UPDATE ${plots}
+          SET local_id = best_parcels.number,
+              name = CASE WHEN ${plots.name} ~ ${defaultNamePattern} THEN best_parcels.number ELSE ${plots.name} END
+          FROM best_parcels
+          WHERE ${plots.id} = best_parcels.plot_id
+        `);
       });
     },
   };
