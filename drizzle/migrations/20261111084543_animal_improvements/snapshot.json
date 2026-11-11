@@ -1,7 +1,7 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "24349eec-a074-4df5-ad8a-d83fe5e98e23",
+  "id": "92148650-ba42-4460-8900-d237e2407083",
   "prevIds": [
     "ed17f1b5-e088-4aee-95fb-e73d45732e4d"
   ],
@@ -15049,6 +15049,18 @@
       "entityType": "uniques",
       "schema": "public",
       "table": "drug_treatment"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "farm_id",
+        "number"
+      ],
+      "nullsNotDistinct": false,
+      "name": "ear_tags_farm_id_number_unique",
+      "entityType": "uniques",
+      "schema": "public",
+      "table": "ear_tags"
     },
     {
       "nameExplicit": true,

@@ -49,6 +49,7 @@ ALTER TABLE "animals" ADD COLUMN "color" text;--> statement-breakpoint
 ALTER TABLE "animals" ADD COLUMN "notes" text;--> statement-breakpoint
 ALTER TABLE "user_settings" ADD COLUMN "breeding_reminder_days_before1" integer;--> statement-breakpoint
 ALTER TABLE "user_settings" ADD COLUMN "breeding_reminder_days_before2" integer;--> statement-breakpoint
+ALTER TABLE "ear_tags" ADD CONSTRAINT "ear_tags_farm_id_number_unique" UNIQUE("farm_id","number");--> statement-breakpoint
 CREATE INDEX "animal_heats_animal_id_idx" ON "animal_heats" ("animal_id");--> statement-breakpoint
 CREATE INDEX "animal_heats_farm_id_date_idx" ON "animal_heats" ("farm_id","date");--> statement-breakpoint
 CREATE INDEX "animal_weights_animal_id_date_idx" ON "animal_weights" ("animal_id","date");--> statement-breakpoint
