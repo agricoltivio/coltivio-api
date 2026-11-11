@@ -247,17 +247,5 @@ export function earTagsApi(rlsDb: RlsDb) {
         });
       });
     },
-
-    // Batch create ear tags from an array of numbers
-    async createEarTags(numbers: string[]): Promise<EarTag[]> {
-      if (numbers.length === 0) return [];
-      return rlsDb.rls(async (tx) => {
-        const createdTags = await tx
-          .insert(earTags)
-          .values(numbers.map((number) => ({ ...farmIdColumnValue, number })))
-          .returning();
-        return createdTags;
-      });
-    },
   };
 }

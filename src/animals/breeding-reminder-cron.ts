@@ -76,7 +76,7 @@ async function runBreedingReminderNotifications(now: Date = new Date()): Promise
   if (recipientMembers.length === 0) return [];
   const farmIds = [...new Set(recipientMembers.map((member) => member.farmId))];
 
-  // Only matings matter: a later mating shows that an earlier one didn't work
+  // All heats, not only mated ones: a later heat shows that an earlier mating didn't work
   const [recentHeats, gestationSettings] = await Promise.all([
     adminDrizzle
       .select({
@@ -93,7 +93,6 @@ async function runBreedingReminderNotifications(now: Date = new Date()): Promise
       .where(
         and(
           inArray(animalHeats.farmId, farmIds),
-          eq(animalHeats.mated, true),
           isNull(animals.dateOfDeath),
           gte(animalHeats.date, addUtcDays(today, -MAX_GESTATION_DAYS_LOOKBACK))
         )

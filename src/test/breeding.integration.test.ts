@@ -263,7 +263,7 @@ describe("Breeding calendar", () => {
     expect(calendar[0].expectedBirthDate?.slice(0, 10)).toBe("2026-03-27");
   });
 
-  it("treats a mating followed by another mating as not conceived, unmated heats don't count", async () => {
+  it("treats a mating followed by another heat two weeks or more later as not conceived", async () => {
     const { jwt } = await createUserWithFarm();
     const goat = await createAnimal(jwt, { type: "goat", usage: "other" });
     const firstMating = await addHeat(jwt, goat.id, { date: "2025-10-01", mated: true });
@@ -291,6 +291,41 @@ describe("Breeding calendar", () => {
     ).data.result;
     expect(heats.find((heat) => heat.id === firstMating.id)?.conceptionFailed).toBe(true);
     expect(heats.find((heat) => heat.id === secondMating.id)?.expectedBirthDate?.slice(0, 10)).toBe("2026-03-21");
+  });
+
+  it("marks a mating as failed when only an unmated heat follows three weeks later", async () => {
+    const { jwt } = await createUserWithFarm();
+    const goat = await createAnimal(jwt, { type: "goat", usage: "other" });
+    const mating = await addHeat(jwt, goat.id, { date: "2025-10-01", mated: true });
+    await addHeat(jwt, goat.id, { date: "2025-10-22" });
+    const calendar = await getCalendar(jwt, "2025-09-01", "2026-12-31");
+    const entry = calendar.find((calendarEntry) => calendarEntry.id === mating.id);
+    expect(entry?.conceptionFailed).toBe(true);
+    expect(entry?.expectedBirthDate).toBeNull();
+  });
+
+  it("counts two matings in the same heat as one, the last one carries the expected birth", async () => {
+    const { jwt } = await createUserWithFarm();
+    const cow = await createAnimal(jwt, { type: "cow" });
+    // Inseminated twice in one heat
+    const firstInsemination = await addHeat(jwt, cow.id, { date: "2025-10-01", mated: true });
+    const secondInsemination = await addHeat(jwt, cow.id, { date: "2025-10-02", mated: true });
+    const calendar = await getCalendar(jwt, "2025-09-01", "2026-12-31");
+    const first = calendar.find((entry) => entry.id === firstInsemination.id);
+    const second = calendar.find((entry) => entry.id === secondInsemination.id);
+    expect(first).toMatchObject({ conceptionFailed: false, expectedBirthDate: null });
+    expect(second?.conceptionFailed).toBe(false);
+    // 2025-10-02 + 283 days
+    expect(second?.expectedBirthDate?.slice(0, 10)).toBe("2026-07-12");
+
+    // Back in heat three weeks later: both matings of the first heat failed
+    await addHeat(jwt, cow.id, { date: "2025-10-23" });
+    const afterRepeatHeat = await getCalendar(jwt, "2025-09-01", "2026-12-31");
+    expect(afterRepeatHeat.find((entry) => entry.id === firstInsemination.id)?.conceptionFailed).toBe(true);
+    expect(afterRepeatHeat.find((entry) => entry.id === secondInsemination.id)).toMatchObject({
+      conceptionFailed: true,
+      expectedBirthDate: null,
+    });
   });
 
   it("excludes dead animals", async () => {
@@ -398,6 +433,24 @@ describe("Breeding reminder push", () => {
     await request("PATCH", "/v1/me", { breedingReminderDaysBefore1: 7 }, owner.jwt);
     await runBreedingReminderNotifications(NOW);
     expect(sentMessages()).toHaveLength(0);
+  });
+
+  it("does not remind for a mating that was followed by an unmated heat", async () => {
+    const { owner, goat } = await setupGoatDueOn2026_02_28();
+    await addHeat(owner.jwt, goat.id, { date: "2025-10-22" });
+    await request("PATCH", "/v1/me", { breedingReminderDaysBefore1: 7 }, owner.jwt);
+    await runBreedingReminderNotifications(NOW);
+    expect(sentMessages()).toHaveLength(0);
+  });
+
+  it("sends one reminder for two matings in the same heat", async () => {
+    const { owner, goat } = await setupGoatDueOn2026_02_28();
+    // Mated again the next day: the expected birth moves to 2026-03-01, 8 days after NOW
+    await addHeat(owner.jwt, goat.id, { date: "2025-10-02", mated: true });
+    await request("PATCH", "/v1/me", { breedingReminderDaysBefore1: 8 }, owner.jwt);
+    await runBreedingReminderNotifications(NOW);
+    expect(sentMessages()).toHaveLength(1);
+    expect(sentMessages()[0].body).toBe("In 8 Tagen: Zicklein");
   });
 
   it("catches up a missed reminder within a few days, once", async () => {

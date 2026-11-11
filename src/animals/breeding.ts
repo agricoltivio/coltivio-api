@@ -21,9 +21,14 @@ export type AnimalHeatUpdateInput = Partial<AnimalHeatCreateInput>;
 
 export type GestationSetting = { animalType: AnimalType; gestationDays: number; isDefault: boolean };
 
-// A mating followed by another mating of the same animal before the expected birth didn't lead to a
-// pregnancy: an animal can't conceive again while pregnant. It gets no expected birth. Heats without a
-// mating don't count, a heat lasts several days and is often logged more than once.
+// Heats and matings less than this many days apart belong to the same heat: a heat lasts several days, is often
+// logged more than once, and animals are often mated or inseminated twice in one heat. The shortest cycle
+// (sheep, goats) is longer.
+const SAME_HEAT_DAYS = 14;
+
+// A mating followed by another heat of the same animal (mated or not) at least SAME_HEAT_DAYS later and before
+// the expected birth didn't lead to a pregnancy. It gets no expected birth. Of several matings in the same heat
+// only the last one gets the expected birth, the earlier ones share its outcome.
 export type AnimalHeatWithOutcome = AnimalHeat & {
   expectedBirthDate: Date | null;
   conceptionFailed: boolean;
@@ -44,16 +49,28 @@ export function resolveHeatOutcomes<T extends { id: string; animalId: string; da
     heatsByAnimalId.set(heat.animalId, [...(heatsByAnimalId.get(heat.animalId) ?? []), heat]);
   }
   const outcomes = new Map<string, { expectedBirthDate: Date | null; conceptionFailed: boolean }>();
-  for (const heat of heats) {
-    if (!heat.mated) {
-      outcomes.set(heat.id, { expectedBirthDate: null, conceptionFailed: false });
-      continue;
+  for (const animalHeats of heatsByAnimalId.values()) {
+    // Newest first, so a mating's later mating in the same heat is already resolved
+    const newestFirst = [...animalHeats].sort((a, b) => b.date.getTime() - a.date.getTime());
+    let laterMating: { date: Date; conceptionFailed: boolean } | null = null;
+    for (const heat of newestFirst) {
+      if (!heat.mated) {
+        outcomes.set(heat.id, { expectedBirthDate: null, conceptionFailed: false });
+        continue;
+      }
+      const sameHeatEnd = addUtcDays(heat.date, SAME_HEAT_DAYS);
+      if (laterMating && laterMating.date < sameHeatEnd) {
+        outcomes.set(heat.id, { expectedBirthDate: null, conceptionFailed: laterMating.conceptionFailed });
+        laterMating = { date: heat.date, conceptionFailed: laterMating.conceptionFailed };
+        continue;
+      }
+      const expectedBirthDate = addUtcDays(heat.date, gestationDaysOf(heat));
+      const conceptionFailed = animalHeats.some(
+        (laterHeat) => laterHeat.date >= sameHeatEnd && laterHeat.date < expectedBirthDate
+      );
+      outcomes.set(heat.id, { expectedBirthDate: conceptionFailed ? null : expectedBirthDate, conceptionFailed });
+      laterMating = { date: heat.date, conceptionFailed };
     }
-    const expectedBirthDate = addUtcDays(heat.date, gestationDaysOf(heat));
-    const conceptionFailed = (heatsByAnimalId.get(heat.animalId) ?? []).some(
-      (laterHeat) => laterHeat.mated && laterHeat.date > heat.date && laterHeat.date < expectedBirthDate
-    );
-    outcomes.set(heat.id, { expectedBirthDate: conceptionFailed ? null : expectedBirthDate, conceptionFailed });
   }
   return outcomes;
 }
@@ -200,7 +217,7 @@ export function breedingApi(db: RlsDb) {
         return tx.query.animalHeats.findMany({
           where: {
             farmId,
-            // Later matings up to a gestation after the range can still mark a mating in it as failed
+            // Later heats up to a gestation after the range can still mark a mating in it as failed
             date: {
               gte: addUtcDays(rangeFrom, -longestGestationDays),
               lte: addUtcDays(rangeTo, longestGestationDays),
