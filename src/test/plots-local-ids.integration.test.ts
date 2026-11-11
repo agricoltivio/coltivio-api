@@ -3,9 +3,11 @@
 jest.mock("axios", () => ({ __esModule: true, default: { get: (url: string) => mockGet(url) } }));
 
 import { describe, it, expect, beforeAll, beforeEach, jest } from "@jest/globals";
+import { sql } from "drizzle-orm";
 import i18next from "i18next";
 import de from "../../resources/locales/de.json";
 import { rlsDb } from "../db/db";
+import * as schema from "../db/schema";
 import type { GeoAdminParcels } from "../geoadmin/geoadmin";
 import { plotsApi } from "../plots/plots";
 import type { SupabaseToken } from "../supabase/supabase";
@@ -113,6 +115,42 @@ describe("syncMissingLocalIds", () => {
     expect(plotById.get(plotA.id)).toMatchObject({ localId: "101", name: "101" });
     expect(plotById.get(plotB.id)).toMatchObject({ localId: "200", name: "200" });
     expect(plotById.get(plotC.id)).toMatchObject({ localId: "300", name: "Wiese Nord" });
+  });
+
+  it("doesn't assign the number of a parcel that only touches the plot by a sliver", async () => {
+    const { jwt, farmId } = await createUserWithFarm();
+    const plot = await createPlot(jwt, { name: "1", geometry: { type: "MultiPolygon", coordinates: [PLOT_A] } });
+    // The plot's own parcel is missing from the results, the neighbour overlaps it by 5%
+    const neighbour = parcel(400, "400", "Liegenschaft", square(8.0095, 46.99, 8.03, 47.02));
+    mockGet.mockResolvedValue({ data: { results: [neighbour] } });
+
+    await plotsApi(rlsDb(tokenFromJwt(jwt), farmId), i18next.getFixedT("de")).syncMissingLocalIds();
+
+    const stored = await getAdminDb().query.plots.findFirst({ where: { id: plot.id } });
+    expect(stored).toMatchObject({ localId: null, name: "1" });
+  });
+
+  it("still assigns numbers when a stored plot geometry is self-intersecting", async () => {
+    const { jwt, farmId } = await createUserWithFarm();
+    const validPlot = await createPlot(jwt, { name: "1", geometry: { type: "MultiPolygon", coordinates: [PLOT_A] } });
+    // Bow tie inside parcel 300, stored directly since the API repairs geometries on save
+    const [bowTiePlot] = await getAdminDb()
+      .insert(schema.plots)
+      .values({
+        farmId,
+        name: "2",
+        size: 1000,
+        geometry: sql`ST_SetSRID(ST_GeomFromText('MULTIPOLYGON(((8.1 47, 8.11 47.01, 8.11 47, 8.1 47.01, 8.1 47)))'), 4326)`,
+      })
+      .returning({ id: schema.plots.id });
+    mockGet.mockResolvedValue({ data: { results: [PARCEL_101, PARCEL_102, PARCEL_300] } });
+
+    await plotsApi(rlsDb(tokenFromJwt(jwt), farmId), i18next.getFixedT("de")).syncMissingLocalIds();
+
+    const plots = await getAdminDb().query.plots.findMany({ where: { farmId } });
+    const plotById = new Map(plots.map((plot) => [plot.id, plot]));
+    expect(plotById.get(validPlot.id)?.localId).toBe("101");
+    expect(plotById.get(bowTiePlot.id)?.localId).toBe("300");
   });
 
   it("keeps existing parcel numbers", async () => {

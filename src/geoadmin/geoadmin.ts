@@ -68,14 +68,19 @@ function buildUrl(geometry: string, offset: string = "0") {
 const FULL_RESPONSE_THRESHOLD = 200;
 // 8 splits shrink an envelope by 256 in each direction, far below parcel size
 const MAX_SPLIT_DEPTH = 8;
+const REQUEST_TIMEOUT_MS = 15_000;
 
 // Envelopes are "xmin,ymin,xmax,ymax" in EPSG:4326. Parcels on tile borders are returned once.
 export async function getParcelsForEnvelopes(envelopes: string[]): Promise<GeoAdminParcels[]> {
   const parcelsById = new Map<number, GeoAdminParcels>();
 
   async function collectParcels(xMin: number, yMin: number, xMax: number, yMax: number, depth: number) {
-    const response = await axios.get<GeoAdminResponse>(buildUrl(`${xMin},${yMin},${xMax},${yMax}`));
+    const envelope = `${xMin},${yMin},${xMax},${yMax}`;
+    const response = await axios.get<GeoAdminResponse>(buildUrl(envelope), { timeout: REQUEST_TIMEOUT_MS });
     const results = response.data.results;
+    if (results.length >= FULL_RESPONSE_THRESHOLD && depth >= MAX_SPLIT_DEPTH) {
+      console.warn(`[geoadmin] parcels of envelope ${envelope} may be incomplete, still full at the deepest split`);
+    }
     if (results.length < FULL_RESPONSE_THRESHOLD || depth >= MAX_SPLIT_DEPTH) {
       for (const parcel of results) parcelsById.set(parcel.id, parcel);
       return;
