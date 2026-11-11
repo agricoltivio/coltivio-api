@@ -119,6 +119,58 @@ describe("Animal heats", () => {
     expect(foreignSireRes.status).toBe(404);
   });
 
+  it("returns 404 when patching or deleting a heat of another farm or a missing one", async () => {
+    const { jwt: otherJwt } = await createUserWithFarm({}, "other@test.com");
+    const otherGoat = await createAnimal(otherJwt, { type: "goat", usage: "other" });
+    const otherHeat = await addHeat(otherJwt, otherGoat.id, { date: "2025-10-01" });
+    const { jwt } = await createUserWithFarm();
+
+    const patchRes = await request("PATCH", `/v1/animals/heats/byId/${otherHeat.id}`, { mated: true }, jwt);
+    expect(patchRes.status).toBe(404);
+    const deleteRes = await request("DELETE", `/v1/animals/heats/byId/${otherHeat.id}`, undefined, jwt);
+    expect(deleteRes.status).toBe(404);
+    const missingRes = await request(
+      "DELETE",
+      "/v1/animals/heats/byId/00000000-0000-0000-0000-000000000000",
+      undefined,
+      jwt
+    );
+    expect(missingRes.status).toBe(404);
+
+    const listRes = await request("GET", `/v1/animals/byId/${otherGoat.id}/heats`, undefined, otherJwt);
+    const list = ((await listRes.json()) as { data: { result: HeatResponse[] } }).data.result;
+    expect(list).toHaveLength(1);
+    expect(list[0].mated).toBe(false);
+  });
+
+  it("rejects the animal itself or a female as sire", async () => {
+    const { jwt } = await createUserWithFarm();
+    const goat = await createAnimal(jwt, { type: "goat", sex: "female", usage: "other" });
+    const otherDoe = await createAnimal(jwt, { type: "goat", sex: "female", usage: "other" });
+
+    const selfRes = await request(
+      "POST",
+      `/v1/animals/byId/${goat.id}/heats`,
+      { date: "2025-10-01", mated: true, sireId: goat.id },
+      jwt
+    );
+    expect(selfRes.status).toBe(400);
+    expect(((await selfRes.json()) as { code: string }).code).toBe("invalid_sire");
+
+    const femaleRes = await request(
+      "POST",
+      `/v1/animals/byId/${goat.id}/heats`,
+      { date: "2025-10-01", mated: true, sireId: otherDoe.id },
+      jwt
+    );
+    expect(femaleRes.status).toBe(400);
+
+    const heat = await addHeat(jwt, goat.id, { date: "2025-10-01", mated: true });
+    const patchRes = await request("PATCH", `/v1/animals/heats/byId/${heat.id}`, { sireId: goat.id }, jwt);
+    expect(patchRes.status).toBe(400);
+    expect(((await patchRes.json()) as { code: string }).code).toBe("invalid_sire");
+  });
+
   it("requires animals write access to add heats", async () => {
     const { jwt: ownerJwt } = await createUserWithFarm();
     const goat = await createAnimal(ownerJwt, { type: "goat", usage: "other" });
@@ -211,10 +263,14 @@ describe("Breeding calendar", () => {
     expect(calendar[0].expectedBirthDate?.slice(0, 10)).toBe("2026-03-27");
   });
 
-  it("treats a mating followed by another heat as not conceived", async () => {
+  it("treats a mating followed by another mating as not conceived, unmated heats don't count", async () => {
     const { jwt } = await createUserWithFarm();
     const goat = await createAnimal(jwt, { type: "goat", usage: "other" });
     const firstMating = await addHeat(jwt, goat.id, { date: "2025-10-01", mated: true });
+    // The same heat logged again the next day doesn't make the mating fail
+    await addHeat(jwt, goat.id, { date: "2025-10-02" });
+    const afterRepeatedHeat = await getCalendar(jwt, "2025-09-01", "2026-12-31");
+    expect(afterRepeatedHeat.find((entry) => entry.id === firstMating.id)?.conceptionFailed).toBe(false);
     // Bockig again three weeks later and mated again: the first mating didn't work
     const secondMating = await addHeat(jwt, goat.id, { date: "2025-10-22", mated: true });
 
@@ -336,12 +392,54 @@ describe("Breeding reminder push", () => {
     expect(sentMessages()[0].body).toBe("Heute: Zicklein");
   });
 
-  it("does not remind for a mating that was followed by another heat", async () => {
+  it("does not remind for a mating that was followed by another mating", async () => {
     const { owner, goat } = await setupGoatDueOn2026_02_28();
-    await addHeat(owner.jwt, goat.id, { date: "2025-10-22" });
+    await addHeat(owner.jwt, goat.id, { date: "2025-10-22", mated: true });
     await request("PATCH", "/v1/me", { breedingReminderDaysBefore1: 7 }, owner.jwt);
     await runBreedingReminderNotifications(NOW);
     expect(sentMessages()).toHaveLength(0);
+  });
+
+  it("catches up a missed reminder within a few days, once", async () => {
+    const { owner } = await setupGoatDueOn2026_02_28();
+    await request("PATCH", "/v1/me", { breedingReminderDaysBefore1: 7 }, owner.jwt);
+
+    // The cron didn't run on 2026-02-21, two days later the reminder still goes out with the actual days left
+    const twoDaysLate = new Date("2026-02-23T09:00:00Z");
+    await runBreedingReminderNotifications(twoDaysLate);
+    expect(sentMessages()).toHaveLength(1);
+    expect(sentMessages()[0].body).toBe("In 5 Tagen: Zicklein");
+    await runBreedingReminderNotifications(new Date("2026-02-24T09:00:00Z"));
+    expect(sentMessages()).toHaveLength(1);
+  });
+
+  it("does not catch up reminders older than the window", async () => {
+    const { owner } = await setupGoatDueOn2026_02_28();
+    await request("PATCH", "/v1/me", { breedingReminderDaysBefore1: 7 }, owner.jwt);
+    await runBreedingReminderNotifications(new Date("2026-02-26T09:00:00Z"));
+    expect(sentMessages()).toHaveLength(0);
+  });
+
+  it("sends one message when two offsets are caught up on the same day", async () => {
+    const { owner } = await setupGoatDueOn2026_02_28();
+    await request("PATCH", "/v1/me", { breedingReminderDaysBefore1: 7, breedingReminderDaysBefore2: 5 }, owner.jwt);
+    await runBreedingReminderNotifications(new Date("2026-02-23T09:00:00Z"));
+    expect(sentMessages()).toHaveLength(1);
+    expect(sentMessages()[0].body).toBe("In 5 Tagen: Zicklein");
+  });
+
+  it("retries a reminder on the next run when the push failed", async () => {
+    const { owner } = await setupGoatDueOn2026_02_28();
+    await request("PATCH", "/v1/me", { breedingReminderDaysBefore1: 7 }, owner.jwt);
+    mockPostToExpo.mockRejectedValueOnce(new Error("Expo unavailable"));
+    await runBreedingReminderNotifications(NOW);
+    expect(sentMessages()).toHaveLength(1);
+
+    await runBreedingReminderNotifications(new Date("2026-02-22T09:00:00Z"));
+    expect(sentMessages()).toHaveLength(2);
+    expect(sentMessages()[1].body).toBe("In 6 Tagen: Zicklein");
+    await runBreedingReminderNotifications(new Date("2026-02-23T09:00:00Z"));
+    expect(sentMessages()).toHaveLength(2);
   });
 
   it("skips members without animals access", async () => {

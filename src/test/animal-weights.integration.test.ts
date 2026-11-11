@@ -89,6 +89,30 @@ describe("Animal weights", () => {
     expect(res.status).toBe(404);
   });
 
+  it("returns 404 when patching or deleting a weight entry of another farm or a missing one", async () => {
+    const { jwt: otherJwt } = await createUserWithFarm({}, "other@test.com");
+    const otherAnimal = await createAnimal(otherJwt);
+    const otherWeight = await addWeight(otherJwt, otherAnimal.id, "2025-01-01", 400);
+    const { jwt } = await createUserWithFarm();
+
+    const patchRes = await request("PATCH", `/v1/animals/weights/byId/${otherWeight.id}`, { weightKg: 1 }, jwt);
+    expect(patchRes.status).toBe(404);
+    const deleteRes = await request("DELETE", `/v1/animals/weights/byId/${otherWeight.id}`, undefined, jwt);
+    expect(deleteRes.status).toBe(404);
+    const missingRes = await request(
+      "DELETE",
+      "/v1/animals/weights/byId/00000000-0000-0000-0000-000000000000",
+      undefined,
+      jwt
+    );
+    expect(missingRes.status).toBe(404);
+
+    // The other farm's entry is untouched
+    const listRes = await request("GET", `/v1/animals/byId/${otherAnimal.id}/weights`, undefined, otherJwt);
+    const list = ((await listRes.json()) as { data: { result: WeightResponse[] } }).data.result;
+    expect(list.map((weight) => weight.weightKg)).toEqual([400]);
+  });
+
   it("requires animals write access to add weights", async () => {
     const { jwt: ownerJwt } = await createUserWithFarm();
     const animal = await createAnimal(ownerJwt);
@@ -233,6 +257,55 @@ describe("Treatment effective dose", () => {
       jwt
     );
     expect(patchRes.status).toBe(200);
+    expect(await getTreatmentDoses(jwt, treatment.id)).toEqual([
+      { animalId: animal.id, animalWeightKg: 400, effectiveDoseValue: 180 },
+    ]);
+  });
+
+  it("keeps amounts entered by hand on edits from the app that always sends animalIds", async () => {
+    const { jwt } = await createUserWithFarm();
+    const animal = await createAnimal(jwt);
+    const secondAnimal = await createAnimal(jwt);
+    await addWeight(jwt, animal.id, "2024-12-01", 400);
+    await addWeight(jwt, secondAnimal.id, "2024-12-01", 200);
+    const treatment = await createTreatment(jwt, [animal.id], {
+      ...PER_KG_DOSE,
+      effectiveDoseOverrides: [{ animalId: animal.id, effectiveDoseValue: 180 }],
+    });
+    // Full form payload of app 1.0.9: unchanged animalIds, no effectiveDoseOverrides
+    const oldAppPayload = {
+      name: "Renamed",
+      startDate: "2025-01-01",
+      endDate: "2025-01-03",
+      ...PER_KG_DOSE,
+      animalIds: [animal.id],
+    };
+    const patchRes = await request("PATCH", `/v1/treatments/byId/${treatment.id}`, oldAppPayload, jwt);
+    expect(patchRes.status).toBe(200);
+    expect(await getTreatmentDoses(jwt, treatment.id)).toEqual([
+      { animalId: animal.id, animalWeightKg: 400, effectiveDoseValue: 180 },
+    ]);
+
+    // Adding an animal computes its amount and still keeps the one entered by hand
+    const addAnimalRes = await request(
+      "PATCH",
+      `/v1/treatments/byId/${treatment.id}`,
+      { ...oldAppPayload, animalIds: [animal.id, secondAnimal.id] },
+      jwt
+    );
+    expect(addAnimalRes.status).toBe(200);
+    const doses = await getTreatmentDoses(jwt, treatment.id);
+    expect(doses).toHaveLength(2);
+    expect(doses).toEqual(
+      expect.arrayContaining([
+        { animalId: animal.id, animalWeightKg: 400, effectiveDoseValue: 180 },
+        { animalId: secondAnimal.id, animalWeightKg: 200, effectiveDoseValue: 100 },
+      ])
+    );
+
+    // Removing the second animal again leaves the first untouched
+    const removeAnimalRes = await request("PATCH", `/v1/treatments/byId/${treatment.id}`, oldAppPayload, jwt);
+    expect(removeAnimalRes.status).toBe(200);
     expect(await getTreatmentDoses(jwt, treatment.id)).toEqual([
       { animalId: animal.id, animalWeightKg: 400, effectiveDoseValue: 180 },
     ]);

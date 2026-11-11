@@ -1,5 +1,5 @@
 import { addDays } from "date-fns";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import type { Animal } from "../animals/animals";
 import { RlsDb, Transaction } from "../db/db";
 import { animalTreatments, farmIdColumnValue, treatments } from "../db/schema";
@@ -36,21 +36,23 @@ type DoseFields = Pick<Treatment, "startDate" | "drugDoseValue" | "drugDosePerUn
 
 // Resolves the weight of each animal (override, else previously stored weight, else the latest weight entry
 // on or before the treatment start) and computes the effective amount for per-kg doses, unless the client
-// entered the effective amount itself.
+// entered the effective amount itself. A stored amount is kept as long as neither the dose nor the
+// animal's weight changed, so amounts entered by hand survive edits from clients that don't send them.
 async function resolveAnimalDoses(
   tx: Transaction,
   animalIds: string[],
   doseFields: DoseFields,
   overrides: AnimalWeightOverride[] | undefined,
-  storedWeightByAnimalId: Map<string, number | null>,
-  effectiveDoseOverrides: EffectiveDoseOverride[] | undefined
+  storedDoseByAnimalId: Map<string, AnimalTreatmentDose>,
+  effectiveDoseOverrides: EffectiveDoseOverride[] | undefined,
+  doseFieldsChanged: boolean
 ): Promise<AnimalTreatmentDose[]> {
   const effectiveDoseOverrideByAnimalId = new Map(
     (effectiveDoseOverrides ?? []).map((override) => [override.animalId, override.effectiveDoseValue])
   );
   const overrideByAnimalId = new Map((overrides ?? []).map((override) => [override.animalId, override.weightKg]));
   const animalIdsToLookUp = animalIds.filter(
-    (animalId) => !overrideByAnimalId.has(animalId) && storedWeightByAnimalId.get(animalId) == null
+    (animalId) => !overrideByAnimalId.has(animalId) && storedDoseByAnimalId.get(animalId)?.animalWeightKg == null
   );
   const latestWeightByAnimalId = new Map<string, number>();
   if (animalIdsToLookUp.length > 0) {
@@ -65,17 +67,21 @@ async function resolveAnimalDoses(
   }
 
   return animalIds.map((animalId) => {
+    const storedDose = storedDoseByAnimalId.get(animalId);
     const animalWeightKg = overrideByAnimalId.has(animalId)
       ? (overrideByAnimalId.get(animalId) ?? null)
-      : (storedWeightByAnimalId.get(animalId) ?? latestWeightByAnimalId.get(animalId) ?? null);
+      : (storedDose?.animalWeightKg ?? latestWeightByAnimalId.get(animalId) ?? null);
+    if (effectiveDoseOverrideByAnimalId.has(animalId)) {
+      return { animalId, animalWeightKg, effectiveDoseValue: effectiveDoseOverrideByAnimalId.get(animalId) ?? null };
+    }
+    if (storedDose && !doseFieldsChanged && storedDose.animalWeightKg === animalWeightKg) {
+      return { animalId, animalWeightKg, effectiveDoseValue: storedDose.effectiveDoseValue };
+    }
     const computedEffectiveDoseValue =
       doseFields.drugDosePerUnit === "kg" && doseFields.drugDoseValue != null && animalWeightKg != null
         ? Math.round(doseFields.drugDoseValue * animalWeightKg * 1000) / 1000
         : null;
-    const effectiveDoseValue = effectiveDoseOverrideByAnimalId.has(animalId)
-      ? (effectiveDoseOverrideByAnimalId.get(animalId) ?? null)
-      : computedEffectiveDoseValue;
-    return { animalId, animalWeightKg, effectiveDoseValue };
+    return { animalId, animalWeightKg, effectiveDoseValue: computedEffectiveDoseValue };
   });
 }
 
@@ -144,7 +150,8 @@ export function treatmentsApi(rlsDb: RlsDb) {
             treatment,
             animalWeights,
             new Map(),
-            effectiveDoseOverrides
+            effectiveDoseOverrides,
+            true
           );
           await tx.insert(animalTreatments).values(
             animalDoses.map((animalDose) => ({
@@ -259,52 +266,72 @@ export function treatmentsApi(rlsDb: RlsDb) {
             : [previousTreatment];
         if (!treatment || !previousTreatment) return treatment;
 
-        // Only recompute doses when something they depend on changed. Clients send the whole form on every
-        // edit, so recomputing always would replace amounts entered by hand with dose × weight.
-        const doseInputsChanged =
-          animalIds !== undefined ||
-          animalWeights !== undefined ||
-          effectiveDoseOverrides !== undefined ||
-          previousTreatment.startDate.getTime() !== treatment.startDate.getTime() ||
+        // Clients send the whole form on every edit, including unchanged animalIds (the app before the dose
+        // feature never sends effectiveDoseOverrides), so only an actually different set of animals counts
+        const existingRows = await tx.query.animalTreatments.findMany({ where: { treatmentId: id } });
+        const existingAnimalIds = new Set(existingRows.map((row) => row.animalId));
+        const finalAnimalIds = animalIds ?? existingRows.map((row) => row.animalId);
+        const animalIdsChanged =
+          animalIds !== undefined &&
+          (new Set(animalIds).size !== existingAnimalIds.size ||
+            animalIds.some((animalId) => !existingAnimalIds.has(animalId)));
+        const startDateChanged = previousTreatment.startDate.getTime() !== treatment.startDate.getTime();
+        const doseFieldsChanged =
+          startDateChanged ||
           previousTreatment.drugDoseValue !== treatment.drugDoseValue ||
           previousTreatment.drugDosePerUnit !== treatment.drugDosePerUnit;
-        if (!doseInputsChanged) return treatment;
+        if (
+          !animalIdsChanged &&
+          !doseFieldsChanged &&
+          animalWeights === undefined &&
+          effectiveDoseOverrides === undefined
+        ) {
+          return treatment;
+        }
 
-        const existingRows = await tx.query.animalTreatments.findMany({ where: { treatmentId: id } });
         // Stored weights stay valid as long as the start date is unchanged, otherwise look them up again
-        const startDateChanged = previousTreatment.startDate.getTime() !== treatment.startDate.getTime();
-        const storedWeightByAnimalId = new Map(
-          startDateChanged ? [] : existingRows.map((row) => [row.animalId, row.animalWeightKg])
-        );
-        const finalAnimalIds = animalIds ?? existingRows.map((row) => row.animalId);
+        const storedDoseByAnimalId = new Map(startDateChanged ? [] : existingRows.map((row) => [row.animalId, row]));
         const animalDoses = await resolveAnimalDoses(
           tx,
           finalAnimalIds,
           treatment,
           animalWeights,
-          storedWeightByAnimalId,
-          effectiveDoseOverrides
+          storedDoseByAnimalId,
+          effectiveDoseOverrides,
+          doseFieldsChanged
         );
 
-        if (animalIds !== undefined) {
-          // Replace all animal associations
-          await tx.delete(animalTreatments).where(eq(animalTreatments.treatmentId, id));
-          if (animalDoses.length > 0) {
-            await tx.insert(animalTreatments).values(
-              animalDoses.map((animalDose) => ({
-                ...farmIdColumnValue,
-                ...animalDose,
-                treatmentId: id,
-              }))
-            );
+        // Remove animals no longer on the treatment, add new ones, update the ones that stay
+        const finalAnimalIdSet = new Set(finalAnimalIds);
+        const removedAnimalIds = [...existingAnimalIds].filter((animalId) => !finalAnimalIdSet.has(animalId));
+        if (removedAnimalIds.length > 0) {
+          await tx
+            .delete(animalTreatments)
+            .where(and(eq(animalTreatments.treatmentId, id), inArray(animalTreatments.animalId, removedAnimalIds)));
+        }
+        const addedDoses = animalDoses.filter((animalDose) => !existingAnimalIds.has(animalDose.animalId));
+        if (addedDoses.length > 0) {
+          await tx.insert(animalTreatments).values(
+            addedDoses.map((animalDose) => ({
+              ...farmIdColumnValue,
+              ...animalDose,
+              treatmentId: id,
+            }))
+          );
+        }
+        const existingRowByAnimalId = new Map(existingRows.map((row) => [row.animalId, row]));
+        for (const { animalId, animalWeightKg, effectiveDoseValue } of animalDoses) {
+          const existingRow = existingRowByAnimalId.get(animalId);
+          if (
+            !existingRow ||
+            (existingRow.animalWeightKg === animalWeightKg && existingRow.effectiveDoseValue === effectiveDoseValue)
+          ) {
+            continue;
           }
-        } else {
-          for (const { animalId, animalWeightKg, effectiveDoseValue } of animalDoses) {
-            await tx
-              .update(animalTreatments)
-              .set({ animalWeightKg, effectiveDoseValue })
-              .where(and(eq(animalTreatments.treatmentId, id), eq(animalTreatments.animalId, animalId)));
-          }
+          await tx
+            .update(animalTreatments)
+            .set({ animalWeightKg, effectiveDoseValue })
+            .where(and(eq(animalTreatments.treatmentId, id), eq(animalTreatments.animalId, animalId)));
         }
 
         return treatment;

@@ -4,6 +4,7 @@ import { RlsDb } from "../db/db";
 import { animalHeats, animalTypeSchema, farmGestationSettings, farmIdColumnValue } from "../db/schema";
 import type { AnimalType } from "./animals";
 import { todayUtcDay } from "./animals";
+import { CodedError } from "../errors";
 import { DEFAULT_GESTATION_DAYS } from "./gestation-defaults";
 
 export type AnimalHeat = typeof animalHeats.$inferSelect;
@@ -20,8 +21,9 @@ export type AnimalHeatUpdateInput = Partial<AnimalHeatCreateInput>;
 
 export type GestationSetting = { animalType: AnimalType; gestationDays: number; isDefault: boolean };
 
-// A mated heat followed by another heat of the same animal before the expected birth didn't lead to a
-// pregnancy (e.g. bockig again three weeks later). It gets no expected birth.
+// A mating followed by another mating of the same animal before the expected birth didn't lead to a
+// pregnancy: an animal can't conceive again while pregnant. It gets no expected birth. Heats without a
+// mating don't count, a heat lasts several days and is often logged more than once.
 export type AnimalHeatWithOutcome = AnimalHeat & {
   expectedBirthDate: Date | null;
   conceptionFailed: boolean;
@@ -49,11 +51,16 @@ export function resolveHeatOutcomes<T extends { id: string; animalId: string; da
     }
     const expectedBirthDate = addUtcDays(heat.date, gestationDaysOf(heat));
     const conceptionFailed = (heatsByAnimalId.get(heat.animalId) ?? []).some(
-      (laterHeat) => laterHeat.date > heat.date && laterHeat.date < expectedBirthDate
+      (laterHeat) => laterHeat.mated && laterHeat.date > heat.date && laterHeat.date < expectedBirthDate
     );
     outcomes.set(heat.id, { expectedBirthDate: conceptionFailed ? null : expectedBirthDate, conceptionFailed });
   }
   return outcomes;
+}
+
+function assertValidSire(animalId: string, sire: { id: string; sex: "male" | "female" }) {
+  if (sire.id === animalId) throw new CodedError("invalid_sire", "An animal can't be its own sire");
+  if (sire.sex !== "male") throw new CodedError("invalid_sire", "The sire must be a male animal");
 }
 
 export function breedingApi(db: RlsDb) {
@@ -135,8 +142,12 @@ export function breedingApi(db: RlsDb) {
         const animal = await tx.query.animals.findFirst({ where: { id: animalId }, columns: { id: true } });
         if (!animal) return undefined;
         if (input.sireId) {
-          const sire = await tx.query.animals.findFirst({ where: { id: input.sireId }, columns: { id: true } });
+          const sire = await tx.query.animals.findFirst({
+            where: { id: input.sireId },
+            columns: { id: true, sex: true },
+          });
           if (!sire) return undefined;
+          assertValidSire(animalId, sire);
         }
         const [heat] = await tx
           .insert(animalHeats)
@@ -151,17 +162,26 @@ export function breedingApi(db: RlsDb) {
         // Drizzle rejects an empty update set
         if (Object.keys(input).length === 0) return tx.query.animalHeats.findFirst({ where: { id: heatId } });
         if (input.sireId) {
-          const sire = await tx.query.animals.findFirst({ where: { id: input.sireId }, columns: { id: true } });
-          if (!sire) return undefined;
+          const [existingHeat, sire] = await Promise.all([
+            tx.query.animalHeats.findFirst({ where: { id: heatId }, columns: { animalId: true } }),
+            tx.query.animals.findFirst({ where: { id: input.sireId }, columns: { id: true, sex: true } }),
+          ]);
+          if (!existingHeat || !sire) return undefined;
+          assertValidSire(existingHeat.animalId, sire);
         }
         const [heat] = await tx.update(animalHeats).set(input).where(eq(animalHeats.id, heatId)).returning();
         return heat;
       });
     },
 
-    async deleteHeat(heatId: string): Promise<void> {
-      await db.rls(async (tx) => {
-        await tx.delete(animalHeats).where(eq(animalHeats.id, heatId));
+    // false when the heat isn't visible to the caller (another farm or not existing)
+    async deleteHeat(heatId: string): Promise<boolean> {
+      return db.rls(async (tx) => {
+        const deleted = await tx
+          .delete(animalHeats)
+          .where(eq(animalHeats.id, heatId))
+          .returning({ id: animalHeats.id });
+        return deleted.length > 0;
       });
     },
 
@@ -180,7 +200,7 @@ export function breedingApi(db: RlsDb) {
         return tx.query.animalHeats.findMany({
           where: {
             farmId,
-            // Later heats up to a gestation after the range can still mark a mating in it as failed
+            // Later matings up to a gestation after the range can still mark a mating in it as failed
             date: {
               gte: addUtcDays(rangeFrom, -longestGestationDays),
               lte: addUtcDays(rangeTo, longestGestationDays),

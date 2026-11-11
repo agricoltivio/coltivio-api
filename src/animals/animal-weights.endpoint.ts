@@ -65,7 +65,8 @@ export const deleteAnimalWeightEndpoint = animalsWrite.build({
   input: z.object({ weightId: z.string() }),
   output: z.object({}),
   handler: async ({ input, ctx: { animalWeights } }) => {
-    await animalWeights.deleteWeight(input.weightId);
+    const deleted = await animalWeights.deleteWeight(input.weightId);
+    if (!deleted) throw createHttpError(404, "Weight entry not found");
     return {};
   },
 });

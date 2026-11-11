@@ -49,9 +49,14 @@ export function animalWeightsApi(db: RlsDb) {
       });
     },
 
-    async deleteWeight(weightId: string): Promise<void> {
-      await db.rls(async (tx) => {
-        await tx.delete(animalWeights).where(eq(animalWeights.id, weightId));
+    // false when the entry isn't visible to the caller (another farm or not existing)
+    async deleteWeight(weightId: string): Promise<boolean> {
+      return db.rls(async (tx) => {
+        const deleted = await tx
+          .delete(animalWeights)
+          .where(eq(animalWeights.id, weightId))
+          .returning({ id: animalWeights.id });
+        return deleted.length > 0;
       });
     },
   };

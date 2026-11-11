@@ -1440,6 +1440,8 @@ export const earTags = pgTable.withRLS(
     number: text().notNull(),
   },
   (table) => [
+    // Exact match: "CH1" and "CH001" are different tags
+    unique().on(table.farmId, table.number),
     pgPolicy("only farm members", {
       as: "permissive",
       to: authenticatedRole,

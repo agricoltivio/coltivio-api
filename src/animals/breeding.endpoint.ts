@@ -98,7 +98,8 @@ export const deleteAnimalHeatEndpoint = animalsWrite.build({
   input: z.object({ heatId: z.string() }),
   output: z.object({}),
   handler: async ({ input, ctx: { breeding } }) => {
-    await breeding.deleteHeat(input.heatId);
+    const deleted = await breeding.deleteHeat(input.heatId);
+    if (!deleted) throw createHttpError(404, "Heat entry not found");
     return {};
   },
 });

@@ -135,7 +135,10 @@ describe("Ear Tags", () => {
     expect(delBody.data.deletedCount).toBe(2);
     expect(delBody.data.skippedAssigned).toEqual(["CH031"]);
 
-    const tooLargeRes = await request("DELETE", "/v1/earTags/range?fromNumber=CH1&toNumber=CH1001", undefined, jwt);
+    // Ranges bigger than the creation limit can still be deleted (created before the limit existed)
+    const largeRes = await request("DELETE", "/v1/earTags/range?fromNumber=CH1&toNumber=CH1001", undefined, jwt);
+    expect(largeRes.status).toBe(200);
+    const tooLargeRes = await request("DELETE", "/v1/earTags/range?fromNumber=CH1&toNumber=CH100001", undefined, jwt);
     expect(tooLargeRes.status).toBe(400);
   });
 
