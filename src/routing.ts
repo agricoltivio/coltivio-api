@@ -44,6 +44,7 @@ import {
 } from "./animals/animal-weights.endpoint";
 import {
   createAnimalHeatEndpoint,
+  createAnimalHeatsBatchEndpoint,
   deleteAnimalHeatEndpoint,
   getBreedingCalendarEndpoint,
   getGestationSettingsEndpoint,
@@ -912,6 +913,7 @@ export const routing: Routing = {
         byId: { ":weightId": { patch: updateAnimalWeightEndpoint, delete: deleteAnimalWeightEndpoint } },
       },
       heats: {
+        batch: createAnimalHeatsBatchEndpoint,
         byId: { ":heatId": { patch: updateAnimalHeatEndpoint, delete: deleteAnimalHeatEndpoint } },
       },
       breedingCalendar: {

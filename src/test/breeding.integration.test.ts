@@ -171,6 +171,60 @@ describe("Animal heats", () => {
     expect(((await patchRes.json()) as { code: string }).code).toBe("invalid_sire");
   });
 
+  it("creates the same heat for several animals at once", async () => {
+    const { jwt } = await createUserWithFarm();
+    const firstGoat = await createAnimal(jwt, { name: "Zicklein", type: "goat", usage: "other" });
+    const secondGoat = await createAnimal(jwt, { name: "Geiss", type: "goat", usage: "other" });
+    const buck = await createAnimal(jwt, { name: "Bock", type: "goat", sex: "male", usage: "other" });
+
+    const res = await request(
+      "POST",
+      "/v1/animals/heats/batch",
+      { animalIds: [firstGoat.id, secondGoat.id, firstGoat.id], date: "2025-10-01", mated: true, sireId: buck.id },
+      jwt
+    );
+    expect(res.status).toBe(200);
+    const heats = ((await res.json()) as { data: { result: HeatResponse[] } }).data.result;
+    // Duplicate ids create one heat
+    expect(heats.map((heat) => heat.animalId).sort()).toEqual([firstGoat.id, secondGoat.id].sort());
+    expect(heats.every((heat) => heat.mated && heat.sireId === buck.id)).toBe(true);
+
+    const calendar = await getCalendar(jwt, "2025-09-01", "2026-12-31");
+    expect(calendar.filter((entry) => entry.expectedBirthDate?.slice(0, 10) === "2026-02-28")).toHaveLength(2);
+  });
+
+  it("creates no heat in a batch when one animal or the sire is invalid", async () => {
+    const { jwt: otherJwt } = await createUserWithFarm({}, "other@test.com");
+    const otherGoat = await createAnimal(otherJwt, { type: "goat", usage: "other" });
+    const { jwt } = await createUserWithFarm();
+    const goat = await createAnimal(jwt, { type: "goat", usage: "other" });
+    const doe = await createAnimal(jwt, { type: "goat", sex: "female", usage: "other" });
+
+    const foreignAnimalRes = await request(
+      "POST",
+      "/v1/animals/heats/batch",
+      { animalIds: [goat.id, otherGoat.id], date: "2025-10-01" },
+      jwt
+    );
+    expect(foreignAnimalRes.status).toBe(404);
+
+    // A sire that is one of the animals, or female
+    const selfSireRes = await request(
+      "POST",
+      "/v1/animals/heats/batch",
+      { animalIds: [goat.id, doe.id], date: "2025-10-01", mated: true, sireId: doe.id },
+      jwt
+    );
+    expect(selfSireRes.status).toBe(400);
+    expect(((await selfSireRes.json()) as { code: string }).code).toBe("invalid_sire");
+
+    const emptyRes = await request("POST", "/v1/animals/heats/batch", { animalIds: [], date: "2025-10-01" }, jwt);
+    expect(emptyRes.status).toBe(400);
+
+    const listRes = await request("GET", `/v1/animals/byId/${goat.id}/heats`, undefined, jwt);
+    expect(((await listRes.json()) as { data: { result: HeatResponse[] } }).data.result).toHaveLength(0);
+  });
+
   it("requires animals write access to add heats", async () => {
     const { jwt: ownerJwt } = await createUserWithFarm();
     const goat = await createAnimal(ownerJwt, { type: "goat", usage: "other" });

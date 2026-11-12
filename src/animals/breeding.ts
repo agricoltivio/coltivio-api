@@ -174,6 +174,35 @@ export function breedingApi(db: RlsDb) {
       });
     },
 
+    // The same heat for several animals at once, e.g. one sire with several females. All or nothing:
+    // undefined when one of the animals or the sire isn't visible to the caller.
+    async createHeats(
+      animalIds: string[],
+      createdBy: string,
+      input: AnimalHeatCreateInput
+    ): Promise<AnimalHeat[] | undefined> {
+      const uniqueAnimalIds = [...new Set(animalIds)];
+      return db.rls(async (tx) => {
+        const visibleAnimals = await tx.query.animals.findMany({
+          where: { id: { in: uniqueAnimalIds } },
+          columns: { id: true },
+        });
+        if (visibleAnimals.length !== uniqueAnimalIds.length) return undefined;
+        if (input.sireId) {
+          const sire = await tx.query.animals.findFirst({
+            where: { id: input.sireId },
+            columns: { id: true, sex: true },
+          });
+          if (!sire) return undefined;
+          for (const animalId of uniqueAnimalIds) assertValidSire(animalId, sire);
+        }
+        return tx
+          .insert(animalHeats)
+          .values(uniqueAnimalIds.map((animalId) => ({ ...farmIdColumnValue, animalId, createdBy, ...input })))
+          .returning();
+      });
+    },
+
     async updateHeat(heatId: string, input: AnimalHeatUpdateInput): Promise<AnimalHeat | undefined> {
       return db.rls(async (tx) => {
         // Drizzle rejects an empty update set
