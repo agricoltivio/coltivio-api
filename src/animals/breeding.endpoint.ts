@@ -74,6 +74,28 @@ export const createAnimalHeatEndpoint = animalsWrite.build({
   },
 });
 
+// Bounds the insert; a breeding calendar entry for a whole herd stays well below
+const MAX_BATCH_HEAT_ANIMALS = 500;
+
+export const createAnimalHeatsBatchEndpoint = animalsWrite.build({
+  method: "post",
+  input: z.object({
+    animalIds: z.array(z.string()).min(1).max(MAX_BATCH_HEAT_ANIMALS),
+    date: ez.dateIn(),
+    mated: z.boolean().optional(),
+    sireId: z.string().optional().nullable(),
+    sireName: z.string().optional().nullable(),
+    notes: z.string().optional().nullable(),
+  }),
+  output: z.object({ result: z.array(animalHeatSchema) }),
+  handler: async ({ input, ctx: { breeding, user } }) => {
+    const { animalIds, ...heatInput } = input;
+    const heats = await breeding.createHeats(animalIds, user.id, heatInput);
+    if (!heats) throw createHttpError(404, "Animal or sire not found");
+    return { result: heats };
+  },
+});
+
 export const updateAnimalHeatEndpoint = animalsWrite.build({
   method: "patch",
   input: z.object({
