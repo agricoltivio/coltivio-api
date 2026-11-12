@@ -1,5 +1,6 @@
 import { addDays } from "date-fns";
 import { and, eq, inArray } from "drizzle-orm";
+import createHttpError from "http-errors";
 import type { Animal } from "../animals/animals";
 import { RlsDb, Transaction } from "../db/db";
 import { animalTreatments, farmIdColumnValue, treatments } from "../db/schema";
@@ -99,17 +100,22 @@ export function treatmentsApi(rlsDb: RlsDb) {
       const { animalIds, animalWeights, effectiveDoseOverrides, ...treatmentData } = treatmentInput;
 
       return rlsDb.rls(async (tx) => {
+        const animals = animalIds.length
+          ? await tx.query.animals.findMany({ where: { id: { in: [...new Set(animalIds)] } } })
+          : [];
+        const availableAnimalIds = new Set(animals.map((animal) => animal.id));
+        if (animalIds.some((animalId) => !availableAnimalIds.has(animalId))) {
+          throw createHttpError(400, "One or more animals not found in this farm");
+        }
+
         let milkUsableDate = treatmentData.milkUsableDate;
         let meatUsableDate = treatmentData.meatUsableDate;
 
         // If dates not provided and drug specified, auto-calculate based on first animal's type
         if (treatmentData.drugId && (!milkUsableDate || !meatUsableDate)) {
-          const animal = await tx.query.animals.findFirst({
-            where: { id: animalIds[0] },
-          });
-
+          const animal = animals.find(({ id }) => id === animalIds[0]);
           if (!animal) {
-            throw new Error("Animal not found");
+            throw createHttpError(400, "Animal not found");
           }
 
           const drugTreatmentData = await tx.query.drugTreatment.findFirst({
@@ -258,6 +264,16 @@ export function treatmentsApi(rlsDb: RlsDb) {
       const { animalIds, animalWeights, effectiveDoseOverrides, ...treatmentData } = data;
 
       return rlsDb.rls(async (tx) => {
+        if (animalIds !== undefined) {
+          const animals = animalIds.length
+            ? await tx.query.animals.findMany({ where: { id: { in: [...new Set(animalIds)] } } })
+            : [];
+          const availableAnimalIds = new Set(animals.map((animal) => animal.id));
+          if (animalIds.some((animalId) => !availableAnimalIds.has(animalId))) {
+            throw createHttpError(400, "One or more animals not found in this farm");
+          }
+        }
+
         const previousTreatment = await tx.query.treatments.findFirst({ where: { id } });
         // Drizzle rejects an empty update set, e.g. a PATCH that only changes animal weights or amounts
         const [treatment] =
