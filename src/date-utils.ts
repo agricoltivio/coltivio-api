@@ -41,3 +41,14 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000;
 export function addUtcDays(date: Date, days: number): Date {
   return new Date(date.getTime() + days * MS_PER_DAY);
 }
+
+// Adds calendar months to a UTC-midnight date, clamping to the last day of the target month instead of overflowing
+// (31.1. + 1 month = 28.2., not 3.3.). `dayOfMonth` overrides the day before clamping.
+export function addUtcMonths(date: Date, months: number, dayOfMonth = date.getUTCDate()): Date {
+  const year = date.getUTCFullYear();
+  const month = date.getUTCMonth() + months;
+  const daysInTargetMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+  const result = new Date(date);
+  result.setUTCFullYear(year, month, Math.min(dayOfMonth, daysInTargetMonth));
+  return result;
+}
