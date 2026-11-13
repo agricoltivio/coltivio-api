@@ -4,6 +4,7 @@ import {
   addWeeks,
   addDays,
   differenceInMilliseconds,
+  getDaysInMonth,
   getDay,
   setDay,
   isBefore,
@@ -102,7 +103,8 @@ export function expandOutdoorSchedule(
       // Override day-of-month if byMonthDay is set
       if (recurrence.byMonthDay !== null && recurrence.byMonthDay !== undefined) {
         occStart = new Date(occStart);
-        occStart.setDate(recurrence.byMonthDay);
+        // Clamp so day 31 lands on the month's last day instead of spilling into the next month
+        occStart.setDate(Math.min(recurrence.byMonthDay, getDaysInMonth(occStart)));
       }
 
       if (until && isAfter(occStart, until)) break;
