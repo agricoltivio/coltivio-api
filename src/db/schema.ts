@@ -702,6 +702,8 @@ export const cropProtectionProducts = pgTable.withRLS(
     name: text().notNull(),
     unit: cropProtectionUnit().notNull(),
     description: text(),
+    // Federal registration number (Zulassungsnummer), e.g. W-7085, or the number of a parallel import
+    registrationNumber: text(),
   },
   (table) => [
     pgPolicy("only farm members", {
@@ -1229,6 +1231,8 @@ export const fertilizers = pgTable.withRLS(
     description: text(),
     type: fertilizerType().notNull(),
     unit: fertilizerUnit().notNull(),
+    // BLW registration or authorization number; freely tradable fertilizers have none
+    registrationNumber: text(),
     // nitrogenPerUnit: real(),
     // phosphorusPerUnit: real(),
     // potassiumPerUnit: real(),

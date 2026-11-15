@@ -10,6 +10,38 @@ import { createUserWithFarm, createCropProtectionProduct } from "./test-utils";
 describe("Crop Protection Products CRUD", () => {
   beforeEach(cleanDb);
 
+  it("stores, changes and clears the registration number", async () => {
+    const { jwt } = await createUserWithFarm();
+    const product = await createCropProtectionProduct(jwt, { registrationNumber: "W-7085" });
+    expect(product.registrationNumber).toBe("W-7085");
+
+    const getRes = await request("GET", `/v1/cropProtectionProducts/byId/${product.id}`, undefined, jwt);
+    expect(((await getRes.json()) as { data: { registrationNumber: string | null } }).data.registrationNumber).toBe(
+      "W-7085"
+    );
+
+    const changeRes = await request(
+      "PATCH",
+      `/v1/cropProtectionProducts/byId/${product.id}`,
+      { registrationNumber: "W-6403-2" },
+      jwt
+    );
+    expect(changeRes.status).toBe(200);
+    const clearRes = await request(
+      "PATCH",
+      `/v1/cropProtectionProducts/byId/${product.id}`,
+      { registrationNumber: null },
+      jwt
+    );
+    expect(((await clearRes.json()) as { data: { registrationNumber: string | null } }).data.registrationNumber).toBe(
+      null
+    );
+
+    // Products without a number
+    const otherProduct = await createCropProtectionProduct(jwt);
+    expect(otherProduct.registrationNumber).toBeNull();
+  });
+
   it("creates a product and retrieves it by id", async () => {
     const { jwt, farmId } = await createUserWithFarm();
     const product = await createCropProtectionProduct(jwt, {

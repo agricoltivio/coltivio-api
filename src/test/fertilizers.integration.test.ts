@@ -10,6 +10,27 @@ import { createUserWithFarm, createFertilizer } from "./test-utils";
 describe("Fertilizers CRUD", () => {
   beforeEach(cleanDb);
 
+  it("stores, changes and clears the registration number", async () => {
+    const { jwt } = await createUserWithFarm();
+    const fertilizer = await createFertilizer(jwt, { registrationNumber: "BLW-1234" });
+    expect(fertilizer.registrationNumber).toBe("BLW-1234");
+
+    const getRes = await request("GET", `/v1/fertilizers/byId/${fertilizer.id}`, undefined, jwt);
+    expect(((await getRes.json()) as { data: { registrationNumber: string | null } }).data.registrationNumber).toBe(
+      "BLW-1234"
+    );
+
+    const clearRes = await request("PATCH", `/v1/fertilizers/byId/${fertilizer.id}`, { registrationNumber: null }, jwt);
+    expect(clearRes.status).toBe(200);
+    expect(((await clearRes.json()) as { data: { registrationNumber: string | null } }).data.registrationNumber).toBe(
+      null
+    );
+
+    // Freely tradable fertilizers have no number
+    const otherFertilizer = await createFertilizer(jwt);
+    expect(otherFertilizer.registrationNumber).toBeNull();
+  });
+
   it("creates a fertilizer and retrieves it by id", async () => {
     const { jwt, farmId } = await createUserWithFarm();
     const fert = await createFertilizer(jwt, {

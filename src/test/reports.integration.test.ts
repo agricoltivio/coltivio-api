@@ -12,6 +12,10 @@ import {
   createHerd,
   createOutdoorSchedule,
   createTreatment,
+  createFertilizer,
+  createFertilizerApplication,
+  createCropProtectionProduct,
+  createCropProtectionApplication,
 } from "./test-utils";
 
 // ---------------------------------------------------------------------------
@@ -52,6 +56,53 @@ describe("Field Calendar Reports", () => {
     expect(body.data.base64).toBeDefined();
     expect(body.data.base64.length).toBeGreaterThan(0);
     expect(body.data.fileName).toBeDefined();
+  });
+});
+
+describe("Field Calendar Reports: registration numbers", () => {
+  beforeEach(cleanDb);
+
+  it("lists the registration numbers of crop protection products and fertilizers", async () => {
+    const { jwt } = await createUserWithFarm();
+    const plot = await createPlot(jwt, { name: "RegistrationField" });
+    const fertilizer = await createFertilizer(jwt, { registrationNumber: "BLW-1234" });
+    const product = await createCropProtectionProduct(jwt, { registrationNumber: "W-7085" });
+    await createFertilizerApplication(jwt, plot.id, fertilizer.id, { date: "2025-04-15" });
+    await createCropProtectionApplication(jwt, plot.id, product.id, { dateTime: "2025-05-10T08:00:00Z" });
+
+    const res = await request(
+      "POST",
+      "/v1/reports/fieldcalendar/download",
+      {
+        fromDate: "2025-01-01",
+        toDate: "2025-12-31",
+        generateCropRotations: false,
+        generateTillages: false,
+        generateFertilizerApplications: true,
+        generateCropProtectionApplications: true,
+        generateHarvests: false,
+      },
+      jwt
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { data: { base64: string } };
+    const workbook = new ExcelJS.Workbook();
+    const reportBytes = Buffer.from(body.data.base64, "base64");
+    await workbook.xlsx.load(
+      reportBytes.buffer.slice(reportBytes.byteOffset, reportBytes.byteOffset + reportBytes.byteLength)
+    );
+    const cellTexts: string[] = [];
+    workbook.eachSheet((sheet) => {
+      sheet.eachRow((row) => {
+        row.eachCell((cell) => {
+          cellTexts.push(String(cell.value));
+        });
+      });
+    });
+    // Main sheet and per-plot sheet
+    expect(cellTexts.filter((text) => text === "W-7085")).toHaveLength(2);
+    expect(cellTexts.filter((text) => text === "BLW-1234")).toHaveLength(2);
+    expect(cellTexts).toContain("Zulassungsnummer");
   });
 });
 
