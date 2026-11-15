@@ -265,6 +265,27 @@ describe("Harvests CRUD", () => {
     };
     expect(body.data.monthlyHarvests).toBeDefined();
   });
+
+  it("limits the harvest summaries to the given date range", async () => {
+    const { jwt } = await createUserWithFarm();
+    const plot = await createPlot(jwt);
+    const crop = await createCrop(jwt, { category: "grass" });
+    await createHarvests(jwt, plot.id, crop.id, { date: "2024-07-15" });
+    await createHarvests(jwt, plot.id, crop.id, { date: "2025-06-10" });
+    await createHarvests(jwt, plot.id, crop.id, { date: "2025-08-20" });
+
+    type SummaryBody = { data: { monthlyHarvests: { year: number; month: number }[] } };
+    const months = async (path: string) =>
+      ((await (await request("GET", path, undefined, jwt)).json()) as SummaryBody).data.monthlyHarvests
+        .map((summary) => `${summary.year}-${summary.month}`)
+        .sort();
+
+    // Without a range the whole history, as before (month is zero-based)
+    expect(await months("/v1/harvests/summaries")).toEqual(["2024-6", "2025-5", "2025-7"]);
+    expect(await months("/v1/harvests/summaries?fromDate=2025-01-01&toDate=2025-12-31")).toEqual(["2025-5", "2025-7"]);
+    expect(await months("/v1/harvests/summaries?fromDate=2025-07-01")).toEqual(["2025-7"]);
+    expect(await months(`/v1/plots/byId/${plot.id}/harvestSummary?toDate=2024-12-31`)).toEqual(["2024-6"]);
+  });
 });
 
 // ---------------------------------------------------------------------------
