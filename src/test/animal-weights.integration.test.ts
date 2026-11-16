@@ -151,27 +151,62 @@ describe("Treatment effective dose", () => {
     ]);
   });
 
-  it("prefers client weight overrides and stores no effective amount for non per-kg doses", async () => {
+  it("stores weights and amounts exactly as sent once the client sends weights", async () => {
     const { jwt } = await createUserWithFarm();
     const animal = await createAnimal(jwt);
     const animalWithoutWeight = await createAnimal(jwt, { name: "Light" });
     await addWeight(jwt, animal.id, "2025-01-01", 400);
 
+    // The amount differs from dose × weight (0.5 × 380 = 190) and is taken as is; the second animal is
+    // missing from both lists, so it gets neither a looked up weight nor a computed amount
     const perKgTreatment = await createTreatment(jwt, [animal.id, animalWithoutWeight.id], {
       ...PER_KG_DOSE,
       animalWeights: [{ animalId: animal.id, weightKg: 380 }],
+      effectiveDoseOverrides: [{ animalId: animal.id, effectiveDoseValue: 170 }],
     });
     const perKgDoses = await getTreatmentDoses(jwt, perKgTreatment.id);
     expect(perKgDoses.find((dose) => dose.animalId === animal.id)).toEqual({
       animalId: animal.id,
       animalWeightKg: 380,
-      effectiveDoseValue: 190,
+      effectiveDoseValue: 170,
     });
     expect(perKgDoses.find((dose) => dose.animalId === animalWithoutWeight.id)).toEqual({
       animalId: animalWithoutWeight.id,
       animalWeightKg: null,
       effectiveDoseValue: null,
     });
+
+    // Not per kg: current clients send empty lists and nothing is stored
+    const perAnimalTreatment = await createTreatment(jwt, [animal.id], {
+      drugDoseValue: 10,
+      drugDoseUnit: "ml",
+      drugDosePerUnit: "animal",
+      animalWeights: [],
+      effectiveDoseOverrides: [],
+    });
+    expect(await getTreatmentDoses(jwt, perAnimalTreatment.id)).toEqual([
+      { animalId: animal.id, animalWeightKg: null, effectiveDoseValue: null },
+    ]);
+  });
+
+  it("does not compute an amount for clients that send weights but no amounts", async () => {
+    const { jwt } = await createUserWithFarm();
+    const animal = await createAnimal(jwt);
+    await addWeight(jwt, animal.id, "2025-01-01", 400);
+
+    const treatment = await createTreatment(jwt, [animal.id], {
+      ...PER_KG_DOSE,
+      animalWeights: [{ animalId: animal.id, weightKg: 400 }],
+    });
+    expect(await getTreatmentDoses(jwt, treatment.id)).toEqual([
+      { animalId: animal.id, animalWeightKg: 400, effectiveDoseValue: null },
+    ]);
+  });
+
+  it("app 1.0.10 (no weights sent) still gets the looked up weight, and no amount for non per-kg doses", async () => {
+    const { jwt } = await createUserWithFarm();
+    const animal = await createAnimal(jwt);
+    await addWeight(jwt, animal.id, "2025-01-01", 400);
 
     const perAnimalTreatment = await createTreatment(jwt, [animal.id], {
       drugDoseValue: 10,
@@ -311,7 +346,7 @@ describe("Treatment effective dose", () => {
     ]);
   });
 
-  it("accepts a PATCH with only weight overrides and keeps unrelated fields", async () => {
+  it("accepts a PATCH with only weights and amounts and keeps unrelated fields", async () => {
     const { jwt } = await createUserWithFarm();
     const animal = await createAnimal(jwt);
     const treatment = await createTreatment(jwt, [animal.id], { ...PER_KG_DOSE, isAntibiotic: true });
@@ -319,13 +354,37 @@ describe("Treatment effective dose", () => {
     const patchRes = await request(
       "PATCH",
       `/v1/treatments/byId/${treatment.id}`,
-      { animalWeights: [{ animalId: animal.id, weightKg: 300 }] },
+      {
+        animalWeights: [{ animalId: animal.id, weightKg: 300 }],
+        effectiveDoseOverrides: [{ animalId: animal.id, effectiveDoseValue: 150 }],
+      },
       jwt
     );
     expect(patchRes.status).toBe(200);
     expect(((await patchRes.json()) as { data: { isAntibiotic: boolean } }).data.isAntibiotic).toBe(true);
     expect(await getTreatmentDoses(jwt, treatment.id)).toEqual([
       { animalId: animal.id, animalWeightKg: 300, effectiveDoseValue: 150 },
+    ]);
+  });
+
+  it("clears stored amounts when a current client switches the dose away from per kg", async () => {
+    const { jwt } = await createUserWithFarm();
+    const animal = await createAnimal(jwt);
+    const treatment = await createTreatment(jwt, [animal.id], {
+      ...PER_KG_DOSE,
+      animalWeights: [{ animalId: animal.id, weightKg: 400 }],
+      effectiveDoseOverrides: [{ animalId: animal.id, effectiveDoseValue: 200 }],
+    });
+
+    const patchRes = await request(
+      "PATCH",
+      `/v1/treatments/byId/${treatment.id}`,
+      { drugDosePerUnit: "animal", animalIds: [animal.id], animalWeights: [], effectiveDoseOverrides: [] },
+      jwt
+    );
+    expect(patchRes.status).toBe(200);
+    expect(await getTreatmentDoses(jwt, treatment.id)).toEqual([
+      { animalId: animal.id, animalWeightKg: null, effectiveDoseValue: null },
     ]);
   });
 

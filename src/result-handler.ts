@@ -56,6 +56,7 @@ const statusByErrorCode: Record<ApiErrorCode, number> = {
   invalid_ear_tag_range: 400,
   ear_tag_assigned: 409,
   invalid_sire: 400,
+  treatment_mixed_animal_types: 400,
 };
 
 const getPublicErrorMessage = (error: HttpError): string =>

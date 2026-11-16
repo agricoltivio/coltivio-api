@@ -25,6 +25,8 @@ export const apiErrorCodeSchema = z.enum([
   "ear_tag_assigned",
   // the sire of a mating is the animal itself or not a male
   "invalid_sire",
+  // a treatment covers one animal type, so the drug's dose and waiting times apply to all its animals
+  "treatment_mixed_animal_types",
 ]);
 export type ApiErrorCode = z.infer<typeof apiErrorCodeSchema>;
 
