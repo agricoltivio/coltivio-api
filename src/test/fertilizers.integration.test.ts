@@ -38,6 +38,21 @@ describe("Fertilizers CRUD", () => {
     expect(getRes.status).toBe(200);
   });
 
+  it("creates a fertilizer measured in cubic metres, e.g. slurry", async () => {
+    const { jwt } = await createUserWithFarm();
+    const fert = await createFertilizer(jwt, {
+      name: "Slurry",
+      type: "organic",
+      unit: "m3",
+    });
+    expect(fert.unit).toBe("m3");
+
+    const getRes = await request("GET", `/v1/fertilizers/byId/${fert.id}`, undefined, jwt);
+    expect(getRes.status).toBe(200);
+    const body = (await getRes.json()) as { data: { unit: string } };
+    expect(body.data.unit).toBe("m3");
+  });
+
   it("lists fertilizers for farm", async () => {
     const { jwt } = await createUserWithFarm();
     await createFertilizer(jwt, { name: "F1" });

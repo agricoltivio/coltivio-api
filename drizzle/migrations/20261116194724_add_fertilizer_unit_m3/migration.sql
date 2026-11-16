@@ -1,0 +1,1 @@
+ALTER TYPE "fertilizer_unit" ADD VALUE 'm3';
