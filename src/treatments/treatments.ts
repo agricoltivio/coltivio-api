@@ -3,24 +3,10 @@ import type { Animal } from "../animals/animals";
 import { RlsDb, Transaction } from "../db/db";
 import { animalTreatments, farmIdColumnValue, treatments } from "../db/schema";
 import type { DrugWithTreatment } from "../drugs/drugs";
-import { CodedError } from "../errors";
 
-// A treatment covers one animal type, so the drug's dose and waiting times apply to all its animals.
-// Only checked when animals are set, not as a DB constraint: older treatments may already mix types.
-async function assertSingleAnimalType(tx: Transaction, animalIds: string[]) {
-  if (animalIds.length < 2) return;
-  const animalTypes = await tx.query.animals.findMany({
-    where: { id: { in: animalIds } },
-    columns: { type: true },
-  });
-  if (new Set(animalTypes.map((animal) => animal.type)).size > 1) {
-    throw new CodedError("treatment_mixed_animal_types", "A treatment can only contain animals of one type");
-  }
-}
-
-// Client-provided weight per animal, overrides the weight looked up from the animal's weight history
+// Client-provided weight per animal, stored as sent (app 1.0.10 doesn't send it, then the weight is looked up)
 export type AnimalWeightOverride = { animalId: string; weightKg: number | null };
-// Client-provided effective amount per animal, overrides the amount computed from dose and weight
+// Client-provided effective amount per animal, stored as sent once weights are sent too
 export type EffectiveDoseOverride = { animalId: string; effectiveDoseValue: number | null };
 
 export type TreatmentCreateInput = Omit<typeof treatments.$inferInsert, "id" | "farmId" | "createdAt" | "createdBy"> & {
@@ -52,6 +38,7 @@ type DoseFields = Pick<Treatment, "startDate" | "drugDoseValue" | "drugDosePerUn
 // Clients that don't send weights (app 1.0.10) keep the old behavior: the weight is the previously stored one,
 // else the latest weight entry on or before the treatment start, and per-kg doses get dose × weight unless
 // the amount was entered by hand. A stored amount is kept as long as neither the dose nor the weight changed.
+// A PATCH without animalWeights (e.g. only a new dose) also takes the old path, current clients always send it.
 async function resolveAnimalDoses(
   tx: Transaction,
   animalIds: string[],
@@ -120,8 +107,6 @@ export function treatmentsApi(rlsDb: RlsDb) {
       const { animalIds, animalWeights, effectiveDoseOverrides, ...treatmentData } = treatmentInput;
 
       return rlsDb.rls(async (tx) => {
-        await assertSingleAnimalType(tx, animalIds);
-
         // Usable dates are stored as sent. The client proposes them from the drug's waiting times
         // and the user may change or clear them, e.g. when the drug has no waiting times for the animal type.
         const [treatment] = await tx
@@ -266,11 +251,6 @@ export function treatmentsApi(rlsDb: RlsDb) {
           animalIds !== undefined &&
           (new Set(animalIds).size !== existingAnimalIds.size ||
             animalIds.some((animalId) => !existingAnimalIds.has(animalId)));
-        // Unchanged animals pass, so older treatments with mixed types stay editable. Throwing rolls back
-        // the update above, the whole callback runs in one transaction.
-        if (animalIdsChanged) {
-          await assertSingleAnimalType(tx, animalIds);
-        }
         const startDateChanged = previousTreatment.startDate.getTime() !== treatment.startDate.getTime();
         const doseFieldsChanged =
           startDateChanged ||

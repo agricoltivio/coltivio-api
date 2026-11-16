@@ -139,83 +139,19 @@ describe("Treatments CRUD", () => {
     expect(dbTreatment!.meatUsableDate?.toISOString().slice(0, 10)).toBe("2025-02-01");
   });
 
-  it("rejects a treatment with animals of different types", async () => {
+  it("accepts animals of different types on create and when changing the animals", async () => {
     const { jwt } = await createUserWithFarm();
     const cow = await createAnimal(jwt, { name: "Cow" });
     const goat = await createAnimal(jwt, { name: "Goat", type: "goat" });
+    const sheep = await createAnimal(jwt, { name: "Sheep", type: "sheep" });
 
-    const res = await request(
-      "POST",
-      "/v1/treatments",
-      {
-        name: "Mixed",
-        startDate: "2025-01-01",
-        endDate: "2025-01-03",
-        criticalAntibiotic: false,
-        antibiogramAvailable: false,
-        animalIds: [cow.id, goat.id],
-      },
-      jwt
-    );
-    expect(res.status).toBe(400);
-    const body = (await res.json()) as { code: string };
-    expect(body.code).toBe("treatment_mixed_animal_types");
-  });
+    const treatment = await createTreatment(jwt, [cow.id, goat.id], { name: "Hoof trimming" });
 
-  it("rejects changing a treatment's animals to different types", async () => {
-    const { jwt } = await createUserWithFarm();
-    const cow = await createAnimal(jwt, { name: "Cow" });
-    const goat = await createAnimal(jwt, { name: "Goat", type: "goat" });
-    const treatment = await createTreatment(jwt, [cow.id], { name: "Cow only" });
-
-    const res = await request(
-      "PATCH",
-      `/v1/treatments/byId/${treatment.id}`,
-      { name: "Renamed", animalIds: [cow.id, goat.id] },
-      jwt
-    );
-    expect(res.status).toBe(400);
-
-    // Rolled back: neither the name nor the animals changed
-    const db = getAdminDb();
-    const dbTreatment = await db.query.treatments.findFirst({ where: { id: treatment.id } });
-    expect(dbTreatment!.name).toBe("Cow only");
-    const links = await db.query.animalTreatments.findMany({ where: { treatmentId: treatment.id } });
-    expect(links.map((link) => link.animalId)).toEqual([cow.id]);
-  });
-
-  it("keeps an older treatment with mixed animal types editable while its animals stay the same", async () => {
-    const { jwt, farmId } = await createUserWithFarm();
-    const cow = await createAnimal(jwt, { name: "Cow" });
-    const goat = await createAnimal(jwt, { name: "Goat", type: "goat" });
-    // Created before the check existed, so inserted directly
-    const db = getAdminDb();
-    const [legacyTreatment] = await db
-      .insert(schema.treatments)
-      .values({
-        farmId,
-        name: "Legacy mixed",
-        startDate: new Date("2025-01-01"),
-        endDate: new Date("2025-01-03"),
-        criticalAntibiotic: false,
-        antibiogramAvailable: false,
-      })
-      .returning();
-    await db.insert(schema.animalTreatments).values([
-      { farmId, treatmentId: legacyTreatment.id, animalId: cow.id },
-      { farmId, treatmentId: legacyTreatment.id, animalId: goat.id },
-    ]);
-
-    // Clients send the unchanged animalIds with every edit
-    const res = await request(
-      "PATCH",
-      `/v1/treatments/byId/${legacyTreatment.id}`,
-      { name: "Legacy renamed", animalIds: [goat.id, cow.id] },
-      jwt
-    );
+    const res = await request("PATCH", `/v1/treatments/byId/${treatment.id}`, { animalIds: [goat.id, sheep.id] }, jwt);
     expect(res.status).toBe(200);
-    const dbTreatment = await db.query.treatments.findFirst({ where: { id: legacyTreatment.id } });
-    expect(dbTreatment!.name).toBe("Legacy renamed");
+    const db = getAdminDb();
+    const links = await db.query.animalTreatments.findMany({ where: { treatmentId: treatment.id } });
+    expect(links.map((link) => link.animalId).sort()).toEqual([goat.id, sheep.id].sort());
   });
 
   it("updates a treatment", async () => {
