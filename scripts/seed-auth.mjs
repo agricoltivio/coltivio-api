@@ -2,7 +2,7 @@
 // needed), captures the generated UUID, then loads seed.sql with that UUID
 // substituted in.
 //
-// Rewritten from the former seed-auth.sh so the whole `yarn db:reset` chain
+// Rewritten from the former seed-auth.sh so the whole `pnpm db:reset` chain
 // runs in one command on every platform. The shell version depended on bash +
 // python3 + curl + sed, which is brittle on Windows (bare `bash` resolves to
 // WSL, `python3` to the Microsoft Store stub). This needs only Node (already a

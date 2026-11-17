@@ -10,8 +10,8 @@ Licensed under [AGPL-3.0](https://www.gnu.org/licenses/agpl-3.0.html) with the [
 
 ## Prerequisites
 
-- Node.js 20+
-- Yarn
+- Node.js 22.22+
+- pnpm 11 (`npm i -g pnpm@11`)
 - [Supabase CLI](https://supabase.com/docs/guides/local-development)
 - Docker (for tests and local Supabase)
 - GDAL (`brew install gdal` on macOS) — for importing shapefiles
@@ -21,7 +21,7 @@ Licensed under [AGPL-3.0](https://www.gnu.org/licenses/agpl-3.0.html) with the [
 ```bash
 git clone git@github.com:agricoltivio/coltivio-api.git
 cd coltivio-api
-yarn install
+pnpm install
 ```
 
 ### 1. Start local Supabase
@@ -43,7 +43,7 @@ cp .env.example .env
 Reset the database, apply migrations, and seed with test data in one command:
 
 ```bash
-yarn db:reset
+pnpm db:reset
 ```
 
 This runs: `supabase db reset` → `setup-test-db.sql` (roles, functions, triggers) → Drizzle migrations → auth user creation → seed data.
@@ -60,7 +60,7 @@ When switching to a branch with a different schema, reset the DB:
 
 ```bash
 git checkout <branch>
-yarn db:reset
+pnpm db:reset
 ```
 
 ### 5. Import federal farm plots layer (optional)
@@ -79,7 +79,7 @@ PGPASSWORD='postgres' ogr2ogr -f "PostgreSQL" \
 ### 6. Start the server
 
 ```bash
-yarn start
+pnpm start
 ```
 
 API docs available at http://localhost:8000/docs.
@@ -90,7 +90,7 @@ Membership billing uses Stripe. To receive webhook events locally you need the [
 
 1. Install the CLI: `brew install stripe/stripe-cli/stripe`
 2. Make sure `STRIPE_SECRET_KEY` in `.env` is a **test-mode** key (`sk_test_...`), and `STRIPE_MEMBERSHIP_PRICE_ID_YEARLY`/`STRIPE_MEMBERSHIP_PRICE_ID_MANUAL` point to test-mode prices.
-3. Start the server (`yarn start`), then in a separate terminal:
+3. Start the server (`pnpm start`), then in a separate terminal:
 
    ```bash
    stripe listen --forward-to localhost:8000/v1/webhooks/stripe
@@ -110,7 +110,7 @@ Membership billing uses Stripe. To receive webhook events locally you need the [
 Tests use Docker testcontainers (Postgres + GoTrue) — no local Supabase required.
 
 ```bash
-yarn test                                     # all tests
+pnpm test                                     # all tests
 npx jest -i src/test/security.integration.test.ts  # security suite only
 ```
 
@@ -123,9 +123,9 @@ To run the same checks locally:
 ```bash
 npx tsc --noEmit          # typecheck
 npx prettier --check "src/**/*.ts"  # formatting
-yarn lint                 # lint (--fix applies fixes)
-yarn format               # auto-format all source files
-yarn test                 # all tests
+pnpm lint                 # lint (--fix applies fixes)
+pnpm format               # auto-format all source files
+pnpm test                 # all tests
 ```
 
 ## Permissions

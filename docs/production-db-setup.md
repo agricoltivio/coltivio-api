@@ -141,7 +141,7 @@ spatial index, the trigram index, RLS and the read policy.
 ## 7. Apply Drizzle migrations
 
 ```bash
-DATABASE_URL="<production-connection-string>" yarn db:migrate
+DATABASE_URL="<production-connection-string>" pnpm db:migrate
 ```
 
 ## Setup order

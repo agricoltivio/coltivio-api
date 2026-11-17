@@ -11,11 +11,11 @@ Thank you for your interest in contributing! Coltivio is a nonprofit open-source
 ## Development workflow
 
 ```bash
-yarn start              # start dev server
-yarn test               # run all tests
+pnpm start              # start dev server
+pnpm test               # run all tests
 npx tsc --noEmit        # typecheck
-yarn lint               # lint and auto-fix unused imports
-yarn format             # auto-format with Prettier
+pnpm lint               # lint and auto-fix unused imports
+pnpm format             # auto-format with Prettier
 ```
 
 ## Submitting changes
@@ -25,8 +25,8 @@ Before opening a PR, make sure all of the following pass locally:
 ```bash
 npx tsc --noEmit
 npx prettier --check "src/**/*.ts"
-yarn lint
-yarn test
+pnpm lint
+pnpm test
 ```
 
 These same checks run automatically in CI on every push and pull request.
