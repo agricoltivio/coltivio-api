@@ -98,6 +98,62 @@ describe("Treatments CRUD", () => {
     expect(inUseBody.data.inUse).toBe(true);
   });
 
+  it("creates a treatment with a drug not defined for the animal type, without usable dates", async () => {
+    const { jwt } = await createUserWithFarm();
+    // The default drug only has waiting times for cows
+    const goat = await createAnimal(jwt, { name: "Goaty", type: "goat" });
+    const drug = await createDrug(jwt, { name: "Cow Only Drug" });
+
+    const treatment = await createTreatment(jwt, [goat.id], {
+      name: "Off-label",
+      drugId: drug.id,
+    });
+
+    const db = getAdminDb();
+    const dbTreatment = await db.query.treatments.findFirst({
+      where: { id: treatment.id },
+    });
+    expect(dbTreatment!.drugId).toBe(drug.id);
+    expect(dbTreatment!.milkUsableDate).toBeNull();
+    expect(dbTreatment!.meatUsableDate).toBeNull();
+  });
+
+  it("stores the usable dates as sent instead of deriving them from the drug", async () => {
+    const { jwt } = await createUserWithFarm();
+    const animal = await createAnimal(jwt);
+    // Default drug: 3 days milk, 14 days meat for cows; the user overrides both
+    const drug = await createDrug(jwt);
+
+    const treatment = await createTreatment(jwt, [animal.id], {
+      drugId: drug.id,
+      endDate: "2025-01-03",
+      milkUsableDate: "2025-01-10",
+      meatUsableDate: "2025-02-01",
+    });
+
+    const db = getAdminDb();
+    const dbTreatment = await db.query.treatments.findFirst({
+      where: { id: treatment.id },
+    });
+    expect(dbTreatment!.milkUsableDate?.toISOString().slice(0, 10)).toBe("2025-01-10");
+    expect(dbTreatment!.meatUsableDate?.toISOString().slice(0, 10)).toBe("2025-02-01");
+  });
+
+  it("accepts animals of different types on create and when changing the animals", async () => {
+    const { jwt } = await createUserWithFarm();
+    const cow = await createAnimal(jwt, { name: "Cow" });
+    const goat = await createAnimal(jwt, { name: "Goat", type: "goat" });
+    const sheep = await createAnimal(jwt, { name: "Sheep", type: "sheep" });
+
+    const treatment = await createTreatment(jwt, [cow.id, goat.id], { name: "Hoof trimming" });
+
+    const res = await request("PATCH", `/v1/treatments/byId/${treatment.id}`, { animalIds: [goat.id, sheep.id] }, jwt);
+    expect(res.status).toBe(200);
+    const db = getAdminDb();
+    const links = await db.query.animalTreatments.findMany({ where: { treatmentId: treatment.id } });
+    expect(links.map((link) => link.animalId).sort()).toEqual([goat.id, sheep.id].sort());
+  });
+
   it("updates a treatment", async () => {
     const { jwt } = await createUserWithFarm();
     const animal = await createAnimal(jwt);

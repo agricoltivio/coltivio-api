@@ -65,9 +65,11 @@ const createTreatmentSchema = z.object({
   isAntibiotic: z.boolean().optional().default(false),
   criticalAntibiotic: z.boolean(),
   antibiogramAvailable: z.boolean(),
-  // Optional per-animal weight overrides, otherwise the latest weight entry on or before startDate is used
+  // Weight of each animal at treatment time. When sent (also as an empty list), weights and effective amounts are
+  // stored exactly as sent, animals missing from the lists get none. Clients without it (app 1.0.10) get the
+  // latest weight entry on or before startDate and dose × weight for per-kg doses.
   animalWeights: z.array(z.object({ animalId: z.string(), weightKg: z.number().positive().nullable() })).optional(),
-  // Optional per-animal effective amounts entered by the user, otherwise computed from dose and weight
+  // Effective amount per animal. Without animalWeights only the amounts entered by hand, the rest is computed.
   effectiveDoseOverrides: z
     .array(z.object({ animalId: z.string(), effectiveDoseValue: z.number().nonnegative().nullable() }))
     .optional(),

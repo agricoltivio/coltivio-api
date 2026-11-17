@@ -1,13 +1,12 @@
-import { addDays } from "date-fns";
 import { and, eq, inArray } from "drizzle-orm";
 import type { Animal } from "../animals/animals";
 import { RlsDb, Transaction } from "../db/db";
 import { animalTreatments, farmIdColumnValue, treatments } from "../db/schema";
 import type { DrugWithTreatment } from "../drugs/drugs";
 
-// Client-provided weight per animal, overrides the weight looked up from the animal's weight history
+// Client-provided weight per animal, stored as sent (app 1.0.10 doesn't send it, then the weight is looked up)
 export type AnimalWeightOverride = { animalId: string; weightKg: number | null };
-// Client-provided effective amount per animal, overrides the amount computed from dose and weight
+// Client-provided effective amount per animal, stored as sent once weights are sent too
 export type EffectiveDoseOverride = { animalId: string; effectiveDoseValue: number | null };
 
 export type TreatmentCreateInput = Omit<typeof treatments.$inferInsert, "id" | "farmId" | "createdAt" | "createdBy"> & {
@@ -34,10 +33,12 @@ export type TreatmentWithRelations = Treatment & {
 
 type DoseFields = Pick<Treatment, "startDate" | "drugDoseValue" | "drugDosePerUnit">;
 
-// Resolves the weight of each animal (override, else previously stored weight, else the latest weight entry
-// on or before the treatment start) and computes the effective amount for per-kg doses, unless the client
-// entered the effective amount itself. A stored amount is kept as long as neither the dose nor the
-// animal's weight changed, so amounts entered by hand survive edits from clients that don't send them.
+// Weight and effective amount per animal. Current clients send both for every animal (empty lists when the dose
+// isn't per kg) and they are stored exactly as sent, nothing is derived.
+// Clients that don't send weights (app 1.0.10) keep the old behavior: the weight is the previously stored one,
+// else the latest weight entry on or before the treatment start, and per-kg doses get dose × weight unless
+// the amount was entered by hand. A stored amount is kept as long as neither the dose nor the weight changed.
+// A PATCH without animalWeights (e.g. only a new dose) also takes the old path, current clients always send it.
 async function resolveAnimalDoses(
   tx: Transaction,
   animalIds: string[],
@@ -51,6 +52,13 @@ async function resolveAnimalDoses(
     (effectiveDoseOverrides ?? []).map((override) => [override.animalId, override.effectiveDoseValue])
   );
   const overrideByAnimalId = new Map((overrides ?? []).map((override) => [override.animalId, override.weightKg]));
+  if (overrides !== undefined) {
+    return animalIds.map((animalId) => ({
+      animalId,
+      animalWeightKg: overrideByAnimalId.get(animalId) ?? null,
+      effectiveDoseValue: effectiveDoseOverrideByAnimalId.get(animalId) ?? null,
+    }));
+  }
   const animalIdsToLookUp = animalIds.filter(
     (animalId) => !overrideByAnimalId.has(animalId) && storedDoseByAnimalId.get(animalId)?.animalWeightKg == null
   );
@@ -99,45 +107,13 @@ export function treatmentsApi(rlsDb: RlsDb) {
       const { animalIds, animalWeights, effectiveDoseOverrides, ...treatmentData } = treatmentInput;
 
       return rlsDb.rls(async (tx) => {
-        let milkUsableDate = treatmentData.milkUsableDate;
-        let meatUsableDate = treatmentData.meatUsableDate;
-
-        // If dates not provided and drug specified, auto-calculate based on first animal's type
-        if (treatmentData.drugId && (!milkUsableDate || !meatUsableDate)) {
-          const animal = await tx.query.animals.findFirst({
-            where: { id: animalIds[0] },
-          });
-
-          if (!animal) {
-            throw new Error("Animal not found");
-          }
-
-          const drugTreatmentData = await tx.query.drugTreatment.findFirst({
-            where: {
-              drugId: treatmentData.drugId,
-              animalType: animal.type,
-            },
-          });
-          if (!drugTreatmentData) {
-            throw new Error(`No treatment data found for drug and animal type ${animal.type}`);
-          }
-
-          if (!milkUsableDate) {
-            milkUsableDate = addDays(treatmentData.endDate, drugTreatmentData.milkWaitingDays);
-          }
-          if (!meatUsableDate) {
-            meatUsableDate = addDays(treatmentData.endDate, drugTreatmentData.meatWaitingDays);
-          }
-        }
-
-        // Insert treatment
+        // Usable dates are stored as sent. The client proposes them from the drug's waiting times
+        // and the user may change or clear them, e.g. when the drug has no waiting times for the animal type.
         const [treatment] = await tx
           .insert(treatments)
           .values({
             ...farmIdColumnValue,
             ...treatmentData,
-            milkUsableDate,
-            meatUsableDate,
             createdBy: userId,
           })
           .returning();
