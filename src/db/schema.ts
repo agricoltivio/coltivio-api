@@ -983,7 +983,7 @@ export const harvests = pgTable.withRLS(
   ]
 );
 
-export const fertilizerUnit = pgEnum("fertilizer_unit", ["l", "kg", "dt", "t"]);
+export const fertilizerUnit = pgEnum("fertilizer_unit", ["l", "kg", "dt", "t", "m3"]);
 
 export const animalSex = pgEnum("animal_sex", ["male", "female"]);
 
