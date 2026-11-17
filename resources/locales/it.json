@@ -41,7 +41,8 @@
     "number_of_application_units": "Numero di unità di distribuzione",
     "amount_per_application_unit": "Quantità per unità di distribuzione",
     "total": "Totale",
-    "unknown": "Sconosciuto"
+    "unknown": "Sconosciuto",
+    "registration_number": "Numero di omologazione"
   },
   "units": {
     "long": {

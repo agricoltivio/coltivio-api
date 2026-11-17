@@ -41,7 +41,8 @@
     "number_of_application_units": "Number of Application Units",
     "amount_per_application_unit": "Amount per Application Unit",
     "total": "Total",
-    "unknown": "Unknown"
+    "unknown": "Unknown",
+    "registration_number": "Registration number"
   },
   "units": {
     "long": {
