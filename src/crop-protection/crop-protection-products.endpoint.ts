@@ -13,12 +13,15 @@ export const cropProtectionProductSchema = z.object({
   name: z.string(),
   unit: cropProtectionUnitSchema,
   description: z.string().nullable(),
+  registrationNumber: z.string().nullable(),
 });
 
 const createCropProtectionProductSchema = z.object({
   name: z.string(),
   unit: cropProtectionUnitSchema,
   description: z.string().optional(),
+  // Free text: W-numbers, parallel import numbers; null clears it
+  registrationNumber: z.string().nullable().optional(),
   defaultEquipmentId: z.string().optional(),
 });
 

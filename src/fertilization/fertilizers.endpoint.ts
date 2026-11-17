@@ -14,6 +14,7 @@ export const fertilizerSchema = z.object({
   description: z.string().nullable(),
   type: fertilizerTypeSchema,
   unit: fertilizerUnitSchema,
+  registrationNumber: z.string().nullable(),
 });
 
 const createFertilizerSchema = z.object({
@@ -21,6 +22,8 @@ const createFertilizerSchema = z.object({
   description: z.string().optional(),
   type: fertilizerTypeSchema,
   unit: fertilizerUnitSchema,
+  // Free text: BLW registration or authorization number; null clears it
+  registrationNumber: z.string().nullable().optional(),
   defaultSpreaderId: z.string().optional(),
 });
 

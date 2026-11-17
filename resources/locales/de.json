@@ -41,7 +41,8 @@
     "number_of_application_units": "Anzahl Ausbringungseinheiten",
     "amount_per_application_unit": "Menge pro Ausbringungseinheit",
     "total": "Total",
-    "unknown": "Unbekannt"
+    "unknown": "Unbekannt",
+    "registration_number": "Zulassungsnummer"
   },
   "units": {
     "long": {

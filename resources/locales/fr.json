@@ -41,7 +41,8 @@
     "number_of_application_units": "Nombre d'unités d'épandage",
     "amount_per_application_unit": "Quantité par unité d'épandage",
     "total": "Total",
-    "unknown": "Inconnu"
+    "unknown": "Inconnu",
+    "registration_number": "Numéro d'homologation"
   },
   "units": {
     "long": {

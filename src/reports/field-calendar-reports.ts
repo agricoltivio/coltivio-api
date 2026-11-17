@@ -317,6 +317,7 @@ export function fieldCalendarReportsApi(rlsDb: RlsDb, t: TFunction, locale: stri
                   application.date.toLocaleDateString(locale),
                   (application.size / 100).toFixed(2),
                   application.fertilizer.name,
+                  application.fertilizer.registrationNumber ?? "",
                   t(`units.short.${application.fertilizer.unit}`),
                   t(`application_units.${application.unit}`),
                   application.numberOfUnits,
@@ -337,6 +338,7 @@ export function fieldCalendarReportsApi(rlsDb: RlsDb, t: TFunction, locale: stri
                   }),
                   (application.size / 100).toFixed(2),
                   application.product.name,
+                  application.product.registrationNumber ?? "",
                   t(`units.short.${application.product.unit}`),
                   t(`application_units.${application.unit}`),
                   application.numberOfUnits,
@@ -441,7 +443,8 @@ export function fieldCalendarReportsApi(rlsDb: RlsDb, t: TFunction, locale: stri
 
           if (fertilizerApplications && fertilizerApplicationRows.length > 0) {
             // table fertilizer applications
-            sheet.mergeCells(`A${rowIndex}:J${rowIndex}`);
+            // One column more than the other sections: the registration number
+            sheet.mergeCells(`A${rowIndex}:K${rowIndex}`);
             sheet.getCell(`A${rowIndex}`).value = t("fertilizer_applications.fertilizer_application");
             sheet.getCell(`A${rowIndex}`).font = { bold: true, size: 14, color: { argb: "FFFFFFFF" } };
             sheet.getCell(`A${rowIndex}`).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF4472C4" } };
@@ -458,6 +461,7 @@ export function fieldCalendarReportsApi(rlsDb: RlsDb, t: TFunction, locale: stri
                 { name: t("common.date") },
                 { name: t("common.size_a") },
                 { name: t("fertilizer_applications.fertilizer") },
+                { name: t("common.registration_number") },
                 { name: t("common.unit") },
                 { name: t("common.application_unit") },
                 { name: t("common.number_of_application_units") },
@@ -471,7 +475,8 @@ export function fieldCalendarReportsApi(rlsDb: RlsDb, t: TFunction, locale: stri
 
           if (cropProtectionApplications && cropProtectionApplicationRows.length > 0) {
             // table crop protection applications
-            sheet.mergeCells(`A${rowIndex}:J${rowIndex}`);
+            // One column more than the other sections: the registration number
+            sheet.mergeCells(`A${rowIndex}:K${rowIndex}`);
             sheet.getCell(`A${rowIndex}`).value = t("crop_protections.crop_protection");
             sheet.getCell(`A${rowIndex}`).font = { bold: true, size: 14, color: { argb: "FFFFFFFF" } };
             sheet.getCell(`A${rowIndex}`).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF4472C4" } };
@@ -488,6 +493,7 @@ export function fieldCalendarReportsApi(rlsDb: RlsDb, t: TFunction, locale: stri
                 { name: t("common.date") },
                 { name: t("common.size_a") },
                 { name: t("crop_protections.product") },
+                { name: t("common.registration_number") },
                 { name: t("common.unit") },
                 { name: t("common.application_unit") },
                 { name: t("common.number_of_application_units") },
@@ -706,6 +712,7 @@ export function fieldCalendarReportsApi(rlsDb: RlsDb, t: TFunction, locale: stri
                     key: "fertilizer",
                     value: t("fertilizer_applications.fertilizer"),
                   },
+                  { key: "registrationNumber", value: t("common.registration_number") },
                   { key: "unit", value: t("common.unit") },
                   { key: "applicationUnit", value: t("common.application_unit") },
                   {
@@ -725,6 +732,7 @@ export function fieldCalendarReportsApi(rlsDb: RlsDb, t: TFunction, locale: stri
                   date: application.date.toLocaleDateString(locale),
                   size: (application.size / 100).toFixed(2),
                   fertilizer: application.fertilizer.name,
+                  registrationNumber: application.fertilizer.registrationNumber ?? "",
                   unit: t(`units.short.${application.fertilizer.unit}`),
                   applicationUnit: t(`application_units.${application.unit}`),
                   numberOfUnits: application.numberOfUnits,
@@ -745,6 +753,7 @@ export function fieldCalendarReportsApi(rlsDb: RlsDb, t: TFunction, locale: stri
                     key: "product",
                     value: t("crop_protections.product"),
                   },
+                  { key: "registrationNumber", value: t("common.registration_number") },
                   { key: "unit", value: t("common.unit") },
                   { key: "applicationUnit", value: t("common.application_unit") },
                   {
@@ -767,6 +776,7 @@ export function fieldCalendarReportsApi(rlsDb: RlsDb, t: TFunction, locale: stri
                   }),
                   size: (application.size / 100).toFixed(2),
                   product: application.product.name,
+                  registrationNumber: application.product.registrationNumber ?? "",
                   unit: t(`units.short.${application.product.unit}`),
                   applicationUnit: t(`application_units.${application.unit}`),
                   numberOfUnits: application.numberOfUnits,

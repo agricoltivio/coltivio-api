@@ -252,6 +252,40 @@ describe("expandOutdoorSchedule", () => {
     expect(ranges[2].startDate).toEqual(d("2025-03-01"));
   });
 
+  test("monthly recurrence from the 31st clamps to each month's last day without drifting", () => {
+    const schedule = makeSchedule({
+      startDate: d("2025-01-31"),
+      endDate: d("2025-01-31"),
+      recurrence: makeRecurrence({ frequency: "monthly" }),
+    });
+    const ranges = expandOutdoorSchedule(schedule, d("2025-01-01"), d("2025-04-30"));
+    // Compare date portions only (addMonths uses local time, so UTC timestamps can shift by DST)
+    const startDates = ranges.map((r) => r.startDate.toLocaleDateString("sv-SE"));
+    expect(startDates).toEqual(["2025-01-31", "2025-02-28", "2025-03-31", "2025-04-30"]);
+  });
+
+  test("monthly recurrence: byMonthDay 31 clamps to the month's last day", () => {
+    const schedule = makeSchedule({
+      startDate: d("2025-01-15"),
+      endDate: d("2025-01-15"),
+      recurrence: makeRecurrence({ frequency: "monthly", byMonthDay: 31 }),
+    });
+    const ranges = expandOutdoorSchedule(schedule, d("2025-01-01"), d("2025-04-30"));
+    const startDates = ranges.map((r) => r.startDate.toLocaleDateString("sv-SE"));
+    expect(startDates).toEqual(["2025-01-31", "2025-02-28", "2025-03-31", "2025-04-30"]);
+  });
+
+  test("yearly recurrence from 29 February returns to 29 February in the next leap year", () => {
+    const schedule = makeSchedule({
+      startDate: d("2024-02-29"),
+      endDate: d("2024-02-29"),
+      recurrence: makeRecurrence({ frequency: "yearly" }),
+    });
+    const ranges = expandOutdoorSchedule(schedule, d("2024-01-01"), d("2028-12-31"));
+    const startDates = ranges.map((r) => r.startDate.toLocaleDateString("sv-SE"));
+    expect(startDates).toEqual(["2024-02-29", "2025-02-28", "2026-02-28", "2027-02-28", "2028-02-29"]);
+  });
+
   test("monthly recurrence with interval 2: every other month", () => {
     const schedule = makeSchedule({
       startDate: d("2025-01-10"),

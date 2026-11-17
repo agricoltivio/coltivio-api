@@ -5,6 +5,8 @@ import { z } from "zod";
 const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
 const EXPO_RECEIPTS_URL = "https://exp.host/--/api/v2/push/getReceipts";
 export const EXPO_MAX_MESSAGES_PER_REQUEST = 100;
+// Must match the Android channel id the app creates, otherwise foreground pushes land in Expo's fallback channel
+const ANDROID_CHANNEL_ID = "reminders";
 
 export type PushMessage = {
   to: string;
@@ -59,7 +61,7 @@ export async function postToExpo(messages: PushMessage[]): Promise<PushTicket[]>
   const response = await fetch(EXPO_PUSH_URL, {
     method: "POST",
     headers: expoHeaders(),
-    body: JSON.stringify(messages.map((message) => ({ ...message, sound: "default" }))),
+    body: JSON.stringify(messages.map((message) => ({ ...message, sound: "default", channelId: ANDROID_CHANNEL_ID }))),
   });
   if (!response.ok) {
     throw new Error(`Expo push request failed with status ${response.status}: ${await response.text()}`);
