@@ -211,10 +211,10 @@ export function harvestsApi(rlsDb: RlsDb) {
         return Array.from(new Set(result.map((application) => application.date.getFullYear().toString())));
       });
     },
-    async getHarvestSummaryForFarm(farmId: string): Promise<HarvestSummary> {
+    async getHarvestSummaryForFarm(farmId: string, fromDate?: Date, toDate?: Date): Promise<HarvestSummary> {
       return rlsDb.rls(async (tx) => {
         const results = await tx.query.harvests.findMany({
-          where: { farmId },
+          where: { farmId, ...harvestDateFilter(fromDate, toDate) },
           columns: {
             geometry: false,
           },
@@ -226,10 +226,10 @@ export function harvestsApi(rlsDb: RlsDb) {
         return mapToMonthlySummaries(results);
       });
     },
-    async getHarvestSummaryForPlot(plotId: string): Promise<HarvestSummary> {
+    async getHarvestSummaryForPlot(plotId: string, fromDate?: Date, toDate?: Date): Promise<HarvestSummary> {
       return rlsDb.rls(async (tx) => {
         const results = await tx.query.harvests.findMany({
-          where: { plotId },
+          where: { plotId, ...harvestDateFilter(fromDate, toDate) },
           columns: {
             geometry: false,
           },
@@ -278,6 +278,12 @@ export function harvestsApi(rlsDb: RlsDb) {
       });
     },
   };
+
+  // Only the bounds that were given: without a range the summaries cover the whole history
+  function harvestDateFilter(fromDate?: Date, toDate?: Date) {
+    if (!fromDate && !toDate) return {};
+    return { date: { ...(fromDate ? { gte: fromDate } : {}), ...(toDate ? { lte: toDate } : {}) } };
+  }
 
   function mapToMonthlySummaries(harvests: Omit<Harvest, "geometry" | "plot">[]): HarvestSummary {
     const monthlyHarvests = harvests.reduce<
