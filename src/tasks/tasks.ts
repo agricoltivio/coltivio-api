@@ -1,5 +1,6 @@
 import { and, arrayContains, eq, inArray } from "drizzle-orm";
 import { TFunction } from "i18next";
+import { addUtcMonths } from "../date-utils";
 import { RlsDb } from "../db/db";
 import { farmIdColumnValue, taskChecklistItems, taskLinks, taskRecurrences, tasks } from "../db/schema";
 
@@ -174,9 +175,11 @@ async function resolveLinks(
 
 // Calculate the next occurrence date after the given base date.
 // Returns null if the next date would exceed the `until` boundary.
-function calculateNextOccurrence(baseDueDate: Date | null, recurrence: TaskRecurrence): Date | null {
+// Each task only knows its own due date, so monthly/yearly steps count from it: 31.1. -> 28.2. -> 28.3.
+// Without byMonthDay there is no anchor to return to the 31st.
+export function calculateNextOccurrence(baseDueDate: Date | null, recurrence: TaskRecurrence): Date | null {
   const base = baseDueDate ?? new Date();
-  const next = new Date(base);
+  let next = new Date(base);
 
   switch (recurrence.frequency) {
     case "weekly":
@@ -201,13 +204,10 @@ function calculateNextOccurrence(baseDueDate: Date | null, recurrence: TaskRecur
       }
       break;
     case "monthly":
-      next.setMonth(next.getMonth() + recurrence.interval);
-      if (recurrence.byMonthDay) {
-        next.setDate(recurrence.byMonthDay);
-      }
+      next = addUtcMonths(base, recurrence.interval, recurrence.byMonthDay || undefined);
       break;
     case "yearly":
-      next.setFullYear(next.getFullYear() + recurrence.interval);
+      next = addUtcMonths(base, recurrence.interval * 12);
       break;
   }
 
