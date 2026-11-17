@@ -1,9 +1,9 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "4a42ef0c-ff3d-4b8e-8b69-072d52d26b09",
+  "id": "b54e8d44-109a-4709-999d-22810fbfed75",
   "prevIds": [
-    "92148650-ba42-4460-8900-d237e2407083"
+    "0ad80c9a-da03-4130-9c13-141f4c21166a"
   ],
   "ddl": [
     {
@@ -2425,6 +2425,19 @@
       "table": "crop_protection_products"
     },
     {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "registration_number",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "crop_protection_products"
+    },
+    {
       "type": "uuid",
       "typeSchema": null,
       "notNull": true,
@@ -4500,6 +4513,19 @@
       "generated": null,
       "identity": null,
       "name": "unit",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "fertilizers"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "registration_number",
       "entityType": "columns",
       "schema": "public",
       "table": "fertilizers"
