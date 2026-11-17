@@ -87,23 +87,27 @@ const harvestSummaryResponseSchema = z.object({
   ),
 });
 
+// Optional, like the harvest list: without a range the whole history is summarized
+const harvestSummaryRangeInput = {
+  fromDate: ez.dateIn().optional(),
+  toDate: ez.dateIn().optional(),
+};
+
 export const getHarvestSummaryForFarmEndpoint = harvestsRead.build({
   method: "get",
-  input: z.object({}),
+  input: z.object(harvestSummaryRangeInput),
   output: harvestSummaryResponseSchema,
-  handler: async ({ ctx: { harvests, farmId } }) => {
-    const result = await harvests.getHarvestSummaryForFarm(farmId);
-    return result;
+  handler: async ({ input, ctx: { harvests, farmId } }) => {
+    return harvests.getHarvestSummaryForFarm(farmId, input.fromDate, input.toDate);
   },
 });
 
 export const getHarvestSummaryForPlotEndpoint = harvestsRead.build({
   method: "get",
-  input: z.object({ plotId: z.string() }),
+  input: z.object({ plotId: z.string(), ...harvestSummaryRangeInput }),
   output: harvestSummaryResponseSchema,
   handler: async ({ input, ctx: { harvests } }) => {
-    const result = await harvests.getHarvestSummaryForPlot(input.plotId);
-    return result;
+    return harvests.getHarvestSummaryForPlot(input.plotId, input.fromDate, input.toDate);
   },
 });
 
