@@ -326,3 +326,58 @@ describe("Draft Crop Rotation Plans", () => {
     expect(body.data.count).toBe(0);
   });
 });
+
+describe("Draft Crop Rotation Plans date order", () => {
+  beforeEach(cleanDb);
+
+  it("rejects creating a draft plan with a rotation that ends before it starts", async () => {
+    const { jwt } = await createUserWithFarm({}, "test@test.com", { withActiveMembership: true });
+    const plot = await createPlot(jwt);
+    const crop = await createCrop(jwt);
+
+    const res = await request(
+      "POST",
+      "/v1/cropRotations/draftPlans",
+      {
+        name: "Draft",
+        plots: [{ plotId: plot.id, rotations: [{ cropId: crop.id, fromDate: "2027-01-01", toDate: "2026-11-18" }] }],
+      },
+      jwt
+    );
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { code?: string };
+    expect(body.code).toBe("invalid_date_range");
+  });
+
+  it("rejects updating a draft plan with a recurrence that ends before the rotation ends", async () => {
+    const { jwt } = await createUserWithFarm({}, "test@test.com", { withActiveMembership: true });
+    const plot = await createPlot(jwt);
+    const crop = await createCrop(jwt);
+    const plan = await createDraftPlan(jwt, "Draft");
+
+    const res = await request(
+      "PATCH",
+      `/v1/cropRotations/draftPlans/byId/${plan.id}`,
+      {
+        plots: [
+          {
+            plotId: plot.id,
+            rotations: [
+              {
+                cropId: crop.id,
+                fromDate: "2026-03-01",
+                toDate: "2026-10-31",
+                recurrenceInterval: 1,
+                recurrenceUntil: "2026-06-30",
+              },
+            ],
+          },
+        ],
+      },
+      jwt
+    );
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { code?: string };
+    expect(body.code).toBe("invalid_date_range");
+  });
+});

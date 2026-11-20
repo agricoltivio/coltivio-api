@@ -7,7 +7,7 @@ import {
   cropRotationDraftPlans,
   farmIdColumnValue,
 } from "../db/schema";
-import { CropRotationsPlanInput, CropRotationWithRecurrenceResult } from "./crop-rotations";
+import { checkRotationDateOrder, CropRotationsPlanInput, CropRotationWithRecurrenceResult } from "./crop-rotations";
 
 export type DraftPlan = typeof cropRotationDraftPlans.$inferSelect;
 
@@ -37,6 +37,21 @@ type PlotInput = {
   rotations: RotationInput[];
 };
 
+// Draft entries keep the dates like real rotations, so applying the plan can't fail on them later
+function checkDraftPlanDateOrder(plots: PlotInput[]): void {
+  for (const plot of plots) {
+    for (const rotation of plot.rotations) {
+      checkRotationDateOrder({
+        fromDate: rotation.fromDate,
+        toDate: rotation.toDate,
+        recurrence: rotation.recurrenceUntil
+          ? { interval: rotation.recurrenceInterval ?? 1, until: rotation.recurrenceUntil }
+          : null,
+      });
+    }
+  }
+}
+
 function mapEntryToRotation(entry: DraftPlanEntry): CropRotationWithRecurrenceResult {
   return {
     id: entry.id,
@@ -61,6 +76,7 @@ function mapEntryToRotation(entry: DraftPlanEntry): CropRotationWithRecurrenceRe
 export function cropRotationDraftPlansApi(rlsDb: RlsDb) {
   return {
     async createDraftPlan(name: string, plots: PlotInput[]): Promise<DraftPlanWithPlots> {
+      checkDraftPlanDateOrder(plots);
       return rlsDb.rls(async (tx) => {
         const [plan] = await tx
           .insert(cropRotationDraftPlans)
@@ -118,6 +134,7 @@ export function cropRotationDraftPlansApi(rlsDb: RlsDb) {
     },
 
     async updateDraftPlan(id: string, data: { name?: string; plots?: PlotInput[] }): Promise<DraftPlanWithPlots> {
+      if (data.plots) checkDraftPlanDateOrder(data.plots);
       return rlsDb.rls(async (tx) => {
         if (data.name !== undefined) {
           await tx.update(cropRotationDraftPlans).set({ name: data.name }).where(eq(cropRotationDraftPlans.id, id));
