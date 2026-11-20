@@ -25,6 +25,8 @@ export const apiErrorCodeSchema = z.enum([
   "ear_tag_assigned",
   // the sire of a mating is the animal itself or not a male
   "invalid_sire",
+  // an end date lies before its start date (e.g. a crop rotation, or its recurrence end before its end)
+  "invalid_date_range",
 ]);
 export type ApiErrorCode = z.infer<typeof apiErrorCodeSchema>;
 
