@@ -588,8 +588,11 @@ export function cropRotationsApi(rlsDb: RlsDb) {
               recurrence !== undefined
                 ? recurrence
                   ? {
-                      interval: recurrence.interval ?? 1,
-                      until: recurrence.until ?? null,
+                      // Fields left out of a partial update keep their stored value (the update
+                      // below only sets the sent fields), so check against what ends up stored
+                      interval: recurrence.interval ?? currentRotation.recurrence?.interval ?? 1,
+                      until:
+                        recurrence.until !== undefined ? recurrence.until : (currentRotation.recurrence?.until ?? null),
                     }
                   : null
                 : currentRotation.recurrence,

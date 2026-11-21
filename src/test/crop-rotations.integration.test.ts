@@ -462,6 +462,26 @@ describe("Crop Rotations date order", () => {
     expect(dbRotation!.fromDate.toISOString().slice(0, 10)).toBe("2025-03-01");
   });
 
+  it("rejects a partial recurrence update that leaves the stored until before the new end", async () => {
+    const { jwt } = await createUserWithFarm();
+    const plot = await createPlot(jwt);
+    const crop = await createCrop(jwt);
+    const rotation = await createCropRotation(jwt, plot.id, crop.id, {
+      fromDate: "2026-03-01",
+      toDate: "2026-06-30",
+      recurrence: { interval: 1, until: "2026-07-31" },
+    });
+
+    // until isn't sent, so the stored 2026-07-31 stays and would end before the new end
+    const res = await request(
+      "PATCH",
+      `/v1/cropRotations/byId/${rotation.id}`,
+      { toDate: "2026-10-31", recurrence: { interval: 1 } },
+      jwt
+    );
+    await expectInvalidDateRange(res);
+  });
+
   it("rejects a plan with a rotation that ends before it starts", async () => {
     const { jwt } = await createUserWithFarm();
     const plot = await createPlot(jwt);
