@@ -354,3 +354,152 @@ describe("Crop Rotations CRUD", () => {
     expect(body.data.inUse).toBe(true);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Date order: the end may not lie before the start, nor the recurrence end before the end
+// ---------------------------------------------------------------------------
+describe("Crop Rotations date order", () => {
+  beforeEach(cleanDb);
+
+  async function expectInvalidDateRange(res: Response) {
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { code?: string };
+    expect(body.code).toBe("invalid_date_range");
+  }
+
+  it("rejects creating a rotation that ends before it starts", async () => {
+    const { jwt } = await createUserWithFarm();
+    const plot = await createPlot(jwt);
+    const crop = await createCrop(jwt);
+
+    const res = await request(
+      "POST",
+      "/v1/cropRotations",
+      { plotId: plot.id, cropId: crop.id, fromDate: "2027-01-01", toDate: "2026-11-18" },
+      jwt
+    );
+    await expectInvalidDateRange(res);
+
+    const db = getAdminDb();
+    const rotations = await db.query.cropRotations.findMany({ where: { plotId: plot.id } });
+    expect(rotations).toHaveLength(0);
+  });
+
+  it("accepts a rotation that starts and ends on the same day", async () => {
+    const { jwt } = await createUserWithFarm();
+    const plot = await createPlot(jwt);
+    const crop = await createCrop(jwt);
+
+    await createCropRotation(jwt, plot.id, crop.id, { fromDate: "2026-11-18", toDate: "2026-11-18" });
+  });
+
+  it("rejects a recurrence that ends before the rotation ends", async () => {
+    const { jwt } = await createUserWithFarm();
+    const plot = await createPlot(jwt);
+    const crop = await createCrop(jwt);
+
+    const res = await request(
+      "POST",
+      "/v1/cropRotations",
+      {
+        plotId: plot.id,
+        cropId: crop.id,
+        fromDate: "2026-03-01",
+        toDate: "2026-10-31",
+        recurrence: { interval: 1, until: "2026-06-30" },
+      },
+      jwt
+    );
+    await expectInvalidDateRange(res);
+  });
+
+  it("rejects batch creating by plot with an entry that ends before it starts", async () => {
+    const { jwt } = await createUserWithFarm();
+    const plot = await createPlot(jwt);
+    const crop = await createCrop(jwt);
+
+    const res = await request(
+      "POST",
+      "/v1/cropRotations/batch/byPlot",
+      {
+        plotId: plot.id,
+        crops: [{ cropId: crop.id, fromDate: "2026-10-31", toDate: "2026-03-01" }],
+      },
+      jwt
+    );
+    await expectInvalidDateRange(res);
+  });
+
+  it("rejects batch creating by crop with a plot entry that ends before it starts", async () => {
+    const { jwt } = await createUserWithFarm();
+    const plot = await createPlot(jwt);
+    const crop = await createCrop(jwt);
+
+    const res = await request(
+      "POST",
+      "/v1/cropRotations/batch/byCrop",
+      {
+        cropId: crop.id,
+        plots: [{ plotId: plot.id, cropId: crop.id, fromDate: "2026-10-31", toDate: "2026-03-01" }],
+      },
+      jwt
+    );
+    await expectInvalidDateRange(res);
+  });
+
+  it("rejects updating only the start past the stored end", async () => {
+    const { jwt } = await createUserWithFarm();
+    const plot = await createPlot(jwt);
+    const crop = await createCrop(jwt);
+    // 2025-03-01 – 2025-10-31
+    const rotation = await createCropRotation(jwt, plot.id, crop.id);
+
+    const res = await request("PATCH", `/v1/cropRotations/byId/${rotation.id}`, { fromDate: "2025-12-01" }, jwt);
+    await expectInvalidDateRange(res);
+
+    const db = getAdminDb();
+    const dbRotation = await db.query.cropRotations.findFirst({ where: { id: rotation.id } });
+    expect(dbRotation!.fromDate.toISOString().slice(0, 10)).toBe("2025-03-01");
+  });
+
+  it("rejects a partial recurrence update that leaves the stored until before the new end", async () => {
+    const { jwt } = await createUserWithFarm();
+    const plot = await createPlot(jwt);
+    const crop = await createCrop(jwt);
+    const rotation = await createCropRotation(jwt, plot.id, crop.id, {
+      fromDate: "2026-03-01",
+      toDate: "2026-06-30",
+      recurrence: { interval: 1, until: "2026-07-31" },
+    });
+
+    // until isn't sent, so the stored 2026-07-31 stays and would end before the new end
+    const res = await request(
+      "PATCH",
+      `/v1/cropRotations/byId/${rotation.id}`,
+      { toDate: "2026-10-31", recurrence: { interval: 1 } },
+      jwt
+    );
+    await expectInvalidDateRange(res);
+  });
+
+  it("rejects a plan with a rotation that ends before it starts", async () => {
+    const { jwt } = await createUserWithFarm();
+    const plot = await createPlot(jwt);
+    const crop = await createCrop(jwt);
+
+    const res = await request(
+      "PATCH",
+      "/v1/cropRotations/plan",
+      {
+        plots: [
+          {
+            plotId: plot.id,
+            rotations: [{ cropId: crop.id, fromDate: "2027-01-01", toDate: "2026-11-18" }],
+          },
+        ],
+      },
+      jwt
+    );
+    await expectInvalidDateRange(res);
+  });
+});

@@ -2,6 +2,7 @@ import { addYears, isWithinInterval } from "date-fns";
 import { eq } from "drizzle-orm";
 import { Crop } from "../crops/crops";
 import { RlsDb } from "../db/db";
+import { CodedError } from "../errors";
 import { cropRotationYearlyRecurrences, cropRotations, farmIdColumnValue } from "../db/schema";
 
 export type CropRotation = typeof cropRotations.$inferSelect & {
@@ -149,6 +150,16 @@ function rangesOverlap(a: DateRangeWithRecurrence, b: DateRangeWithRecurrence): 
   const bOccurrences = expandOccurrences(b, rangeStart, rangeEnd);
 
   return aOccurrences.some(([af, at]) => bOccurrences.some(([bf, bt]) => af <= bt && at >= bf));
+}
+
+// The end may not lie before the start, and the recurrence end not before the end
+export function checkRotationDateOrder(range: DateRangeWithRecurrence): void {
+  if (range.toDate < range.fromDate) {
+    throw new CodedError("invalid_date_range", "The end date lies before the start date");
+  }
+  if (range.recurrence?.until && range.recurrence.until < range.toDate) {
+    throw new CodedError("invalid_date_range", "The recurrence end date lies before the end date");
+  }
 }
 
 // Check for overlapping rotations - pure function taking date ranges
@@ -302,6 +313,13 @@ export function cropRotationsApi(rlsDb: RlsDb) {
         recurrence?: CropRotationRecurrenceInput;
       }
     ): Promise<CropRotation> {
+      checkRotationDateOrder({
+        fromDate: input.fromDate,
+        toDate: input.toDate,
+        recurrence: input.recurrence
+          ? { interval: input.recurrence.interval ?? 1, until: input.recurrence.until ?? null }
+          : null,
+      });
       const result = await rlsDb.rls(async (tx) => {
         const { recurrence, ...rotationInput } = input;
 
@@ -353,6 +371,7 @@ export function cropRotationsApi(rlsDb: RlsDb) {
               }
             : null,
         }));
+        newRanges.forEach(checkRotationDateOrder);
         checkRotationOverlaps([...existingRanges, ...newRanges]);
 
         // Create the rotations
@@ -424,6 +443,7 @@ export function cropRotationsApi(rlsDb: RlsDb) {
                 }
               : null,
           };
+          checkRotationDateOrder(newRange);
           checkRotationOverlaps([...existingRanges, newRange]);
         }
 
@@ -485,6 +505,7 @@ export function cropRotationsApi(rlsDb: RlsDb) {
               ? { interval: r.recurrence.interval ?? 1, until: r.recurrence.until ?? null }
               : null,
           }));
+          newRanges.forEach(checkRotationDateOrder);
           checkRotationOverlaps(newRanges);
 
           // Replace: delete all existing rotations for this plot, then create fresh
@@ -567,13 +588,17 @@ export function cropRotationsApi(rlsDb: RlsDb) {
               recurrence !== undefined
                 ? recurrence
                   ? {
-                      interval: recurrence.interval ?? 1,
-                      until: recurrence.until ?? null,
+                      // Fields left out of a partial update keep their stored value (the update
+                      // below only sets the sent fields), so check against what ends up stored
+                      interval: recurrence.interval ?? currentRotation.recurrence?.interval ?? 1,
+                      until:
+                        recurrence.until !== undefined ? recurrence.until : (currentRotation.recurrence?.until ?? null),
                     }
                   : null
                 : currentRotation.recurrence,
           };
 
+          checkRotationDateOrder(updatedRange);
           checkRotationOverlaps([...existingRanges, updatedRange]);
         }
 
