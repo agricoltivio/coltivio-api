@@ -352,7 +352,8 @@
     "animal_count": "Numero di animali",
     "types": {
       "pasture": "Pascolo",
-      "exercise_yard": "Paddock"
+      "exercise_yard": "Paddock",
+      "stable": "Stalla"
     }
   },
   "application_units": {

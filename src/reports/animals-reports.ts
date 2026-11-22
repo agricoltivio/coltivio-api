@@ -3,7 +3,7 @@ import { TFunction } from "i18next";
 import { getDaysInMonth } from "date-fns";
 import { RlsDb, Transaction } from "../db/db";
 import { AnimalType, AnimalCategory } from "../animals/animals";
-import { buildMeadowJournal, expandOutdoorSchedule } from "../animals/outdoor-journal";
+import { buildMeadowJournal, expandHerdOutdoorRanges } from "../animals/outdoor-journal";
 import { mapAnimalToCategory } from "../animals/animal-key-mapping";
 import { writeTreatmentTable } from "./treatment-report-sheet";
 import { addMeadowSheet } from "./meadow-report-sheet";
@@ -148,6 +148,7 @@ export function animalsReportsApi(rlsDb: RlsDb, t: TFunction, locale: string = "
             outdoorSchedules: {
               with: { recurrence: true, meadow: { columns: { id: true, name: true, size: true } } },
             },
+            outdoorScheduleOverrides: { with: { meadow: { columns: { id: true, name: true, size: true } } } },
           },
         });
 
@@ -160,16 +161,21 @@ export function animalsReportsApi(rlsDb: RlsDb, t: TFunction, locale: string = "
         };
         const allOccurrences: ExpandedOccurrence[] = [];
         for (const herd of herds) {
-          for (const schedule of herd.outdoorSchedules) {
-            const ranges = expandOutdoorSchedule(schedule, fromDate, toDate);
-            for (const range of ranges) {
-              allOccurrences.push({
-                herdId: herd.id,
-                type: schedule.type,
-                startDate: range.startDate,
-                endDate: range.endDate,
-              });
-            }
+          // Schedules with the overrides applied; stable time isn't outdoor time
+          const ranges = expandHerdOutdoorRanges(
+            herd.outdoorSchedules,
+            herd.outdoorScheduleOverrides,
+            fromDate,
+            toDate
+          );
+          for (const range of ranges) {
+            if (range.source.type === "stable") continue;
+            allOccurrences.push({
+              herdId: herd.id,
+              type: range.source.type,
+              startDate: range.startDate,
+              endDate: range.endDate,
+            });
           }
         }
 
