@@ -468,59 +468,57 @@ export function buildMeadowJournal(
     for (const occurrence of ranges) {
       const meadow = occurrence.source.meadow;
       if (!meadow) continue;
-      {
-        // Per animal type: +1 on the first day an animal is present, -1 on the day after its last day
-        const deltaByDate = new Map<number, Map<AnimalType, number>>();
-        const addDelta = (date: number, animalType: AnimalType, delta: number) => {
-          const deltasOnDate = deltaByDate.get(date) ?? new Map<AnimalType, number>();
-          deltasOnDate.set(animalType, (deltasOnDate.get(animalType) ?? 0) + delta);
-          deltaByDate.set(date, deltasOnDate);
-        };
-        for (const membership of herd.herdMemberships) {
-          const presentEndCandidates = [membership.toDate ?? occurrence.endDate, occurrence.endDate];
-          if (membership.animal.dateOfDeath) presentEndCandidates.push(membership.animal.dateOfDeath);
-          const presentStart = max([membership.fromDate, occurrence.startDate]);
-          const presentEnd = min(presentEndCandidates);
-          if (isAfter(presentStart, presentEnd)) continue;
+      // Per animal type: +1 on the first day an animal is present, -1 on the day after its last day
+      const deltaByDate = new Map<number, Map<AnimalType, number>>();
+      const addDelta = (date: number, animalType: AnimalType, delta: number) => {
+        const deltasOnDate = deltaByDate.get(date) ?? new Map<AnimalType, number>();
+        deltasOnDate.set(animalType, (deltasOnDate.get(animalType) ?? 0) + delta);
+        deltaByDate.set(date, deltasOnDate);
+      };
+      for (const membership of herd.herdMemberships) {
+        const presentEndCandidates = [membership.toDate ?? occurrence.endDate, occurrence.endDate];
+        if (membership.animal.dateOfDeath) presentEndCandidates.push(membership.animal.dateOfDeath);
+        const presentStart = max([membership.fromDate, occurrence.startDate]);
+        const presentEnd = min(presentEndCandidates);
+        if (isAfter(presentStart, presentEnd)) continue;
 
-          addDelta(presentStart.getTime(), membership.animal.type, 1);
-          addDelta(addDays(presentEnd, 1).getTime(), membership.animal.type, -1);
-        }
+        addDelta(presentStart.getTime(), membership.animal.type, 1);
+        addDelta(addDays(presentEnd, 1).getTime(), membership.animal.type, -1);
+      }
 
-        const sortedDates = [...deltaByDate.keys()].sort((a, b) => a - b);
-        const runningCountsByType = new Map<AnimalType, number>();
-        let runningCount = 0;
-        let segmentStart: number | null = null;
-        for (const date of sortedDates) {
-          const deltasOnDate = [...(deltaByDate.get(date) ?? new Map<AnimalType, number>())].filter(
-            ([, delta]) => delta !== 0
-          );
-          // Same-day arrivals and departures of the same type cancel out and don't split the segment
-          if (deltasOnDate.length === 0) continue;
-          if (runningCount > 0 && segmentStart !== null) {
-            const animalCountsByType: Partial<Record<AnimalType, number>> = {};
-            for (const [animalType, count] of runningCountsByType) {
-              if (count > 0) animalCountsByType[animalType] = count;
-            }
-            entries.push({
-              meadowId: meadow.id,
-              meadowName: meadow.name,
-              meadowSize: meadow.size,
-              herdId: herd.id,
-              herdName: herd.name,
-              type: occurrence.source.type,
-              startDate: new Date(segmentStart),
-              endDate: addDays(new Date(date), -1),
-              animalCount: runningCount,
-              animalCountsByType,
-            });
+      const sortedDates = [...deltaByDate.keys()].sort((a, b) => a - b);
+      const runningCountsByType = new Map<AnimalType, number>();
+      let runningCount = 0;
+      let segmentStart: number | null = null;
+      for (const date of sortedDates) {
+        const deltasOnDate = [...(deltaByDate.get(date) ?? new Map<AnimalType, number>())].filter(
+          ([, delta]) => delta !== 0
+        );
+        // Same-day arrivals and departures of the same type cancel out and don't split the segment
+        if (deltasOnDate.length === 0) continue;
+        if (runningCount > 0 && segmentStart !== null) {
+          const animalCountsByType: Partial<Record<AnimalType, number>> = {};
+          for (const [animalType, count] of runningCountsByType) {
+            if (count > 0) animalCountsByType[animalType] = count;
           }
-          for (const [animalType, delta] of deltasOnDate) {
-            runningCountsByType.set(animalType, (runningCountsByType.get(animalType) ?? 0) + delta);
-            runningCount += delta;
-          }
-          segmentStart = runningCount > 0 ? date : null;
+          entries.push({
+            meadowId: meadow.id,
+            meadowName: meadow.name,
+            meadowSize: meadow.size,
+            herdId: herd.id,
+            herdName: herd.name,
+            type: occurrence.source.type,
+            startDate: new Date(segmentStart),
+            endDate: addDays(new Date(date), -1),
+            animalCount: runningCount,
+            animalCountsByType,
+          });
         }
+        for (const [animalType, delta] of deltasOnDate) {
+          runningCountsByType.set(animalType, (runningCountsByType.get(animalType) ?? 0) + delta);
+          runningCount += delta;
+        }
+        segmentStart = runningCount > 0 ? date : null;
       }
     }
   }
