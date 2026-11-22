@@ -513,6 +513,36 @@ describe("Plot shapefile import — preview + commit", () => {
     expect(neighbourRes.status).toBe(200);
   });
 
+  it("preview and commit still work when an existing plot is stored with an invalid geometry", async () => {
+    const { jwt } = await createUserWithFarm();
+    const { rows } = await previewSample(jwt);
+    const createRes = await request("POST", "/v1/plots", toCommitRow(rows[0]), jwt);
+    expect(createRes.status).toBe(200);
+    const existingPlot = ((await createRes.json()) as { data: { id: string } }).data;
+
+    // Turn the stored plot into a self-intersecting bowtie over the same area, as older or hand-drawn plots can
+    // be. Intersecting it unrepaired fails with a GEOS TopologyException.
+    const db = getAdminDb();
+    await db.execute(sql`
+      UPDATE ${schema.plots} SET geometry = ST_SetSRID(ST_GeomFromText(format(
+        'MULTIPOLYGON(((%s %s, %s %s, %s %s, %s %s, %s %s)))',
+        bounds.xmin, bounds.ymin, bounds.xmax, bounds.ymax, bounds.xmax, bounds.ymin, bounds.xmin, bounds.ymax,
+        bounds.xmin, bounds.ymin)), 4326)
+      FROM (SELECT ST_XMin(geometry) AS xmin, ST_YMin(geometry) AS ymin, ST_XMax(geometry) AS xmax,
+              ST_YMax(geometry) AS ymax FROM ${schema.plots} WHERE ${schema.plots.id} = ${existingPlot.id}) AS bounds
+      WHERE ${schema.plots.id} = ${existingPlot.id}
+    `);
+    const [validity] = await db.execute<{ valid: boolean }>(
+      sql`SELECT ST_IsValid(geometry) AS valid FROM ${schema.plots} WHERE ${schema.plots.id} = ${existingPlot.id}`
+    );
+    expect(validity.valid).toBe(false);
+
+    const secondPreview = await previewSample(jwt);
+    expect(secondPreview.rows[0].overlappingPlotIds).toEqual([existingPlot.id]);
+    const commitRes = await commit(jwt, { rows: [toCommitRow(rows[0])] });
+    expect(commitRes.status).toBe(409);
+  });
+
   it("ignores sliver overlaps below 1% of the smaller plot", async () => {
     const { jwt } = await createUserWithFarm();
     const { rows } = await previewSample(jwt);

@@ -57,6 +57,8 @@ const statusByErrorCode: Record<ApiErrorCode, number> = {
   ear_tag_assigned: 409,
   invalid_sire: 400,
   invalid_date_range: 400,
+  crop_rotation_overlap: 409,
+  outdoor_schedule_overlap: 409,
 };
 
 const getPublicErrorMessage = (error: HttpError): string =>

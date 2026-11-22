@@ -167,7 +167,7 @@ export function checkRotationOverlaps(ranges: DateRangeWithRecurrence[]): void {
   for (let i = 0; i < ranges.length; i++) {
     for (let j = i + 1; j < ranges.length; j++) {
       if (rangesOverlap(ranges[i], ranges[j])) {
-        throw new Error("Overlapping date ranges");
+        throw new CodedError("crop_rotation_overlap", "Overlapping date ranges");
       }
     }
   }
@@ -313,15 +313,30 @@ export function cropRotationsApi(rlsDb: RlsDb) {
         recurrence?: CropRotationRecurrenceInput;
       }
     ): Promise<CropRotation> {
-      checkRotationDateOrder({
+      const newRange: DateRangeWithRecurrence = {
         fromDate: input.fromDate,
         toDate: input.toDate,
         recurrence: input.recurrence
           ? { interval: input.recurrence.interval ?? 1, until: input.recurrence.until ?? null }
           : null,
-      });
+      };
+      checkRotationDateOrder(newRange);
       const result = await rlsDb.rls(async (tx) => {
         const { recurrence, ...rotationInput } = input;
+
+        // Same overlap check as the batch create, plan and update
+        const existingRotations = await tx.query.cropRotations.findMany({
+          where: { plotId: input.plotId },
+          with: { recurrence: true },
+        });
+        checkRotationOverlaps([
+          ...existingRotations.map((rotation) => ({
+            fromDate: rotation.fromDate,
+            toDate: rotation.toDate,
+            recurrence: rotation.recurrence,
+          })),
+          newRange,
+        ]);
 
         const [plotCrop] = await tx
           .insert(cropRotations)

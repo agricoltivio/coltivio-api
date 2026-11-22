@@ -529,6 +529,7 @@ describe("Herds with inline outdoor schedules", () => {
       jwt
     );
     expect(res.status).toBe(409);
+    expect(((await res.json()) as { code?: string }).code).toBe("outdoor_schedule_overlap");
 
     // Verify nothing was created in DB
     const db = getAdminDb();
@@ -606,6 +607,7 @@ describe("Herds with inline outdoor schedules", () => {
       jwt
     );
     expect(res.status).toBe(409);
+    expect(((await res.json()) as { code?: string }).code).toBe("outdoor_schedule_overlap");
 
     // Verify DB unchanged (no schedules created)
     const db = getAdminDb();
@@ -757,6 +759,7 @@ describe("Outdoor Schedules CRUD", () => {
       jwt
     );
     expect(res.status).toBe(409);
+    expect(((await res.json()) as { code?: string }).code).toBe("outdoor_schedule_overlap");
 
     // Verify DB: still only one schedule
     const db = getAdminDb();

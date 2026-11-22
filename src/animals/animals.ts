@@ -1,6 +1,7 @@
 import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { addYears } from "date-fns";
 import createHttpError from "http-errors";
+import { CodedError } from "../errors";
 import { TFunction } from "i18next";
 import { RlsDb, Transaction } from "../db/db";
 import * as tables from "../db/schema";
@@ -829,7 +830,7 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
       // Validate overlap among schedules before entering the transaction
       if (outdoorSchedules?.length) {
         if (hasScheduleOverlap(outdoorSchedules.map(inputToSchedule))) {
-          throw createHttpError(409, "Schedule overlaps with another schedule");
+          throw new CodedError("outdoor_schedule_overlap", "Schedule overlaps with another schedule");
         }
       }
 
@@ -898,7 +899,7 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
       // Validate overlap among new schedules before entering the transaction
       if (outdoorSchedules?.length) {
         if (hasScheduleOverlap(outdoorSchedules.map(inputToSchedule))) {
-          throw createHttpError(409, "Schedule overlaps with another schedule");
+          throw new CodedError("outdoor_schedule_overlap", "Schedule overlaps with another schedule");
         }
       }
 
@@ -1016,7 +1017,7 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
       // Validate no overlap with existing schedules for this herd
       const existing = await this.getOutdoorSchedulesForHerd(herdId);
       if (hasScheduleOverlap([...existing, inputToSchedule(input)])) {
-        throw createHttpError(409, "Schedule overlaps with existing schedule");
+        throw new CodedError("outdoor_schedule_overlap", "Schedule overlaps with existing schedule");
       }
 
       const result = await rlsDb.rls(async (tx) => {
@@ -1082,7 +1083,7 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
       if (scheduleData.startDate !== undefined || scheduleData.endDate !== undefined || recurrence !== undefined) {
         const existing = await this.getOutdoorSchedulesForHerd(current.herdId);
         if (hasScheduleOverlap([...existing.filter((s) => s.id !== id), updatedSchedule])) {
-          throw createHttpError(409, "Schedule overlaps with existing schedule");
+          throw new CodedError("outdoor_schedule_overlap", "Schedule overlaps with existing schedule");
         }
       }
 

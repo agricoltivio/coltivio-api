@@ -312,6 +312,23 @@ describe("Crop Rotations CRUD", () => {
       jwt
     );
     expect(res.status).toBe(409);
+    expect(((await res.json()) as { code?: string }).code).toBe("crop_rotation_overlap");
+  });
+
+  it("rejects creating a rotation that overlaps an existing one with 409 and a code", async () => {
+    const { jwt } = await createUserWithFarm();
+    const plot = await createPlot(jwt);
+    const crop = await createCrop(jwt);
+    await createCropRotation(jwt, plot.id, crop.id, { fromDate: "2026-01-01", toDate: "2026-06-30" });
+
+    const res = await request(
+      "POST",
+      "/v1/cropRotations",
+      { plotId: plot.id, cropId: crop.id, fromDate: "2026-05-01", toDate: "2026-09-30" },
+      jwt
+    );
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as { code?: string }).code).toBe("crop_rotation_overlap");
   });
 
   it("plan only touches plots included — leaves other plots untouched", async () => {
