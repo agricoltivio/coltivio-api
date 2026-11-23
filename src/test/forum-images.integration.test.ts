@@ -140,6 +140,8 @@ describe("Forum images", () => {
       '<video poster="https://example.com/poster.png"></video>',
       '<div style="background:url(https://example.com/css.png)">x</div>',
       '<object data="https://example.com/object.png"></object>',
+      '<style>@import "https://example.com/x.css";</style>',
+      '<link rel="stylesheet" href="https://example.com/x.css">',
       '<table background="https://example.com/table.png"><tr><td>x</td></tr></table>',
       '<div style="background:url&#40;https://example.com/entity.png)">x</div>',
     ]) {
