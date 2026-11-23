@@ -177,6 +177,15 @@ export type OutdoorScheduleWithRecurrence = OutdoorSchedule & {
   recurrence: OutdoorScheduleRecurrence | null;
 };
 export type OutdoorScheduleType = (typeof tables.outdoorScheduleType.enumValues)[number];
+export type OutdoorScheduleOverride = typeof tables.outdoorScheduleOverrides.$inferSelect;
+export type OutdoorScheduleOverrideCreateInput = {
+  startDate: Date;
+  endDate: Date;
+  type: OutdoorScheduleType;
+  notes?: string | null;
+  meadowId?: string | null;
+};
+export type OutdoorScheduleOverrideUpdateInput = Partial<OutdoorScheduleOverrideCreateInput>;
 
 export type OutdoorScheduleCreateInput = {
   startDate: Date;
@@ -224,7 +233,29 @@ function inputToSchedule(input: OutdoorScheduleCreateInput): OutdoorScheduleWith
   };
 }
 
+// An override as a one-off schedule, for the meadow checks shared with schedules
+function overrideToSchedule(override: OutdoorScheduleOverrideCreateInput): OutdoorScheduleWithRecurrence {
+  return inputToSchedule({ ...override, recurrence: null });
+}
+
+// The end may not lie before the start, and overrides of one herd don't overlap
+function checkOutdoorScheduleOverride(
+  override: OutdoorScheduleOverrideCreateInput,
+  otherOverridesOfHerd: Pick<OutdoorScheduleOverride, "startDate" | "endDate">[]
+) {
+  if (override.endDate < override.startDate) {
+    throw new CodedError("invalid_date_range", "The end date lies before the start date");
+  }
+  const overlapsOther = otherOverridesOfHerd.some(
+    (other) => override.startDate <= other.endDate && other.startDate <= override.endDate
+  );
+  if (overlapsOther) {
+    throw new CodedError("outdoor_schedule_override_overlap", "Override overlaps another override of the herd");
+  }
+}
+
 // Meadow FK checks bypass RLS, so make sure referenced meadows are visible to (= belong to) the current farm.
+// Also rejects a meadow on stable time.
 // Archived meadows can't get new schedules. Schedules already linked before (previouslyLinkedMeadowIds) stay allowed
 // as long as they don't run on or after the archive date.
 async function assertMeadowsAccessible(
@@ -232,6 +263,10 @@ async function assertMeadowsAccessible(
   schedules: OutdoorScheduleWithRecurrence[],
   previouslyLinkedMeadowIds: (string | null)[] = []
 ) {
+  // Stable time is inside, it can't be on a meadow
+  if (schedules.some((schedule) => schedule.type === "stable" && schedule.meadowId)) {
+    throw createHttpError(400, "Stable time has no meadow");
+  }
   const uniqueMeadowIds = [
     ...new Set(schedules.map((schedule) => schedule.meadowId).filter((meadowId): meadowId is string => !!meadowId)),
   ];
@@ -810,6 +845,7 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
           with: {
             animals: { with: { earTag: true } },
             outdoorSchedules: { with: { recurrence: true, meadow: meadowSummaryColumns } },
+            outdoorScheduleOverrides: { with: { meadow: meadowSummaryColumns }, orderBy: { startDate: "asc" } },
           },
         });
       });
@@ -822,6 +858,7 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
           with: {
             animals: { with: { earTag: true } },
             outdoorSchedules: { with: { recurrence: true, meadow: meadowSummaryColumns } },
+            outdoorScheduleOverrides: { with: { meadow: meadowSummaryColumns }, orderBy: { startDate: "asc" } },
           },
         });
       });
@@ -1062,9 +1099,16 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
         throw createHttpError(404, "Outdoor schedule not found");
       }
 
+      // Switching to the stable drops the meadow, unless one is sent (which is rejected)
+      const droppedMeadowOnStable = scheduleData.type === "stable" && scheduleData.meadowId === undefined;
       const updatedSchedule: OutdoorScheduleWithRecurrence = {
         ...current,
-        meadowId: scheduleData.meadowId !== undefined ? scheduleData.meadowId : current.meadowId,
+        type: scheduleData.type ?? current.type,
+        meadowId: droppedMeadowOnStable
+          ? null
+          : scheduleData.meadowId !== undefined
+            ? scheduleData.meadowId
+            : current.meadowId,
         startDate: scheduleData.startDate ?? current.startDate,
         endDate: scheduleData.endDate !== undefined ? scheduleData.endDate : current.endDate,
         recurrence:
@@ -1103,7 +1147,10 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
 
         // Update schedule fields if any provided
         if (Object.keys(scheduleData).length > 0) {
-          await tx.update(tables.outdoorSchedules).set(scheduleData).where(eq(tables.outdoorSchedules.id, id));
+          await tx
+            .update(tables.outdoorSchedules)
+            .set(droppedMeadowOnStable ? { ...scheduleData, meadowId: null } : scheduleData)
+            .where(eq(tables.outdoorSchedules.id, id));
         }
 
         // Handle recurrence upsert/delete
@@ -1140,6 +1187,91 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
     async deleteOutdoorSchedule(id: string) {
       return rlsDb.rls(async (tx) => {
         await tx.delete(tables.outdoorSchedules).where(eq(tables.outdoorSchedules.id, id));
+      });
+    },
+
+    // --- Outdoor schedule overrides: date ranges that take precedence over the herd's schedules ---
+
+    async getOutdoorScheduleOverridesForHerd(herdId: string) {
+      return rlsDb.rls(async (tx) => {
+        return tx.query.outdoorScheduleOverrides.findMany({
+          where: { herdId },
+          with: { meadow: meadowSummaryColumns },
+          orderBy: { startDate: "asc" },
+        });
+      });
+    },
+
+    async getOutdoorScheduleOverrideById(id: string) {
+      return rlsDb.rls(async (tx) => {
+        return tx.query.outdoorScheduleOverrides.findFirst({
+          where: { id },
+          with: { meadow: meadowSummaryColumns },
+        });
+      });
+    },
+
+    async createOutdoorScheduleOverride(herdId: string, input: OutdoorScheduleOverrideCreateInput) {
+      const created = await rlsDb.rls(async (tx) => {
+        // The herd FK check bypasses RLS, so make sure the herd belongs to the current farm. Locked until the
+        // insert, so two saves at the same time can't both pass the overlap check.
+        const [herd] = await tx
+          .select({ id: tables.herds.id })
+          .from(tables.herds)
+          .where(eq(tables.herds.id, herdId))
+          .for("update");
+        if (!herd) throw createHttpError(404, "Herd not found");
+
+        const otherOverrides = await tx.query.outdoorScheduleOverrides.findMany({
+          where: { herdId },
+          columns: { startDate: true, endDate: true },
+        });
+        checkOutdoorScheduleOverride(input, otherOverrides);
+        await assertMeadowsAccessible(tx, [overrideToSchedule(input)]);
+
+        const [override] = await tx
+          .insert(tables.outdoorScheduleOverrides)
+          .values({ ...tables.farmIdColumnValue, herdId, ...input })
+          .returning();
+        return override;
+      });
+      return (await this.getOutdoorScheduleOverrideById(created.id))!;
+    },
+
+    async updateOutdoorScheduleOverride(id: string, input: OutdoorScheduleOverrideUpdateInput) {
+      await rlsDb.rls(async (tx) => {
+        const current = await tx.query.outdoorScheduleOverrides.findFirst({ where: { id } });
+        if (!current) throw createHttpError(404, "Outdoor schedule override not found");
+        // Same lock as on create, for the overlap check
+        await tx
+          .select({ id: tables.herds.id })
+          .from(tables.herds)
+          .where(eq(tables.herds.id, current.herdId))
+          .for("update");
+
+        const updated: OutdoorScheduleOverrideCreateInput = {
+          startDate: input.startDate ?? current.startDate,
+          endDate: input.endDate ?? current.endDate,
+          type: input.type ?? current.type,
+          notes: input.notes !== undefined ? input.notes : current.notes,
+          // Switching to the stable drops the meadow, unless one is sent (which is rejected)
+          meadowId: input.meadowId !== undefined ? input.meadowId : input.type === "stable" ? null : current.meadowId,
+        };
+        const otherOverrides = await tx.query.outdoorScheduleOverrides.findMany({
+          where: { herdId: current.herdId, id: { ne: id } },
+          columns: { startDate: true, endDate: true },
+        });
+        checkOutdoorScheduleOverride(updated, otherOverrides);
+        await assertMeadowsAccessible(tx, [overrideToSchedule(updated)], [current.meadowId]);
+
+        await tx.update(tables.outdoorScheduleOverrides).set(updated).where(eq(tables.outdoorScheduleOverrides.id, id));
+      });
+      return (await this.getOutdoorScheduleOverrideById(id))!;
+    },
+
+    async deleteOutdoorScheduleOverride(id: string) {
+      return rlsDb.rls(async (tx) => {
+        await tx.delete(tables.outdoorScheduleOverrides).where(eq(tables.outdoorScheduleOverrides.id, id));
       });
     },
 
@@ -1196,6 +1328,7 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
               },
             },
             outdoorSchedules: { with: { recurrence: true, meadow: meadowSummaryColumns } },
+            outdoorScheduleOverrides: { with: { meadow: meadowSummaryColumns } },
           },
         });
       });

@@ -31,6 +31,8 @@ export const apiErrorCodeSchema = z.enum([
   "crop_rotation_overlap",
   // the outdoor schedule overlaps another schedule of the same herd
   "outdoor_schedule_overlap",
+  // the outdoor schedule override overlaps another override of the same herd
+  "outdoor_schedule_override_overlap",
 ]);
 export type ApiErrorCode = z.infer<typeof apiErrorCodeSchema>;
 

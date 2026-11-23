@@ -8,10 +8,16 @@ import type {
   CustomOutdoorJournalCategory,
   Herd,
   HerdMembership,
+  OutdoorScheduleOverride,
   OutdoorScheduleWithRecurrence,
 } from "./animals";
 import { hasScheduleOverlap } from "./animals";
-import { buildMeadowJournal, buildOutdoorJournal, expandOutdoorSchedule } from "./outdoor-journal";
+import {
+  buildMeadowJournal,
+  buildOutdoorJournal,
+  expandHerdOutdoorRanges,
+  expandOutdoorSchedule,
+} from "./outdoor-journal";
 
 // --- Helpers ---
 
@@ -112,11 +118,13 @@ function makeMembership(
 type TestHerd = Herd & {
   herdMemberships: (HerdMembership & { animal: AnimalWithCustomCategories })[];
   outdoorSchedules: OutdoorScheduleWithRecurrence[];
+  outdoorScheduleOverrides: OutdoorScheduleOverride[];
 };
 
 function makeHerd(
   memberships: (HerdMembership & { animal: AnimalWithCustomCategories })[],
-  schedules: OutdoorScheduleWithRecurrence[]
+  schedules: OutdoorScheduleWithRecurrence[],
+  scheduleOverrides: OutdoorScheduleOverride[] = []
 ): TestHerd {
   return {
     id: "herd-1",
@@ -124,6 +132,25 @@ function makeHerd(
     name: "Test Herd",
     herdMemberships: memberships,
     outdoorSchedules: schedules,
+    outdoorScheduleOverrides: scheduleOverrides,
+  };
+}
+
+function makeOverride(
+  startDate: string,
+  endDate: string,
+  type: OutdoorScheduleOverride["type"],
+  meadowId: string | null = null
+): OutdoorScheduleOverride {
+  return {
+    id: nextId(),
+    farmId: "farm-1",
+    herdId: "herd-1",
+    meadowId,
+    startDate: d(startDate),
+    endDate: d(endDate),
+    type,
+    notes: null,
   };
 }
 
@@ -1026,7 +1053,13 @@ describe("buildMeadowJournal", () => {
       [makeSchedule({ startDate: d("2025-05-01"), endDate: d("2025-05-31") })]
     );
     const entries = buildMeadowJournal(
-      [{ ...herd, outdoorSchedules: herd.outdoorSchedules.map((schedule) => ({ ...schedule, meadow: null })) }],
+      [
+        {
+          ...herd,
+          outdoorSchedules: herd.outdoorSchedules.map((schedule) => ({ ...schedule, meadow: null })),
+          outdoorScheduleOverrides: [],
+        },
+      ],
       d("2025-01-01"),
       d("2025-12-31")
     );
@@ -1043,7 +1076,13 @@ describe("buildMeadowJournal", () => {
       [makeSchedule({ startDate: d("2025-05-01"), endDate: d("2025-05-31") })]
     );
     const entries = buildMeadowJournal(
-      [{ ...herd, outdoorSchedules: herd.outdoorSchedules.map((schedule) => ({ ...schedule, meadow })) }],
+      [
+        {
+          ...herd,
+          outdoorSchedules: herd.outdoorSchedules.map((schedule) => ({ ...schedule, meadow })),
+          outdoorScheduleOverrides: [],
+        },
+      ],
       d("2025-01-01"),
       d("2025-12-31")
     );
@@ -1073,7 +1112,13 @@ describe("buildMeadowJournal", () => {
       [makeSchedule({ startDate: d("2025-05-01"), endDate: d("2025-05-31") })]
     );
     const entries = buildMeadowJournal(
-      [{ ...herd, outdoorSchedules: herd.outdoorSchedules.map((schedule) => ({ ...schedule, meadow })) }],
+      [
+        {
+          ...herd,
+          outdoorSchedules: herd.outdoorSchedules.map((schedule) => ({ ...schedule, meadow })),
+          outdoorScheduleOverrides: [],
+        },
+      ],
       d("2025-01-01"),
       d("2025-12-31")
     );
@@ -1101,7 +1146,13 @@ describe("buildMeadowJournal", () => {
       [makeSchedule({ startDate: d("2025-05-01"), endDate: d("2025-05-31") })]
     );
     const entries = buildMeadowJournal(
-      [{ ...herd, outdoorSchedules: herd.outdoorSchedules.map((schedule) => ({ ...schedule, meadow })) }],
+      [
+        {
+          ...herd,
+          outdoorSchedules: herd.outdoorSchedules.map((schedule) => ({ ...schedule, meadow })),
+          outdoorScheduleOverrides: [],
+        },
+      ],
       d("2025-01-01"),
       d("2025-12-31")
     );
@@ -1122,13 +1173,152 @@ describe("buildMeadowJournal", () => {
       ]
     );
     const entries = buildMeadowJournal(
-      [{ ...herd, outdoorSchedules: herd.outdoorSchedules.map((schedule) => ({ ...schedule, meadow })) }],
+      [
+        {
+          ...herd,
+          outdoorSchedules: herd.outdoorSchedules.map((schedule) => ({ ...schedule, meadow })),
+          outdoorScheduleOverrides: [],
+        },
+      ],
       d("2025-06-15"),
       d("2026-12-31")
     );
     expect(entries.map(({ startDate, endDate }) => ({ startDate, endDate }))).toEqual([
       { startDate: d("2025-06-15"), endDate: d("2025-06-30") },
       { startDate: d("2026-06-01"), endDate: d("2026-06-30") },
+    ]);
+  });
+});
+
+// --- Overrides and stable time ---
+
+describe("expandHerdOutdoorRanges", () => {
+  const ranges = (
+    schedules: OutdoorScheduleWithRecurrence[],
+    scheduleOverrides: OutdoorScheduleOverride[],
+    from = "2025-01-01",
+    to = "2025-12-31"
+  ) =>
+    expandHerdOutdoorRanges(schedules, scheduleOverrides, d(from), d(to)).map((range) => ({
+      startDate: range.startDate,
+      endDate: range.endDate,
+      type: range.source.type,
+    }));
+
+  test("without overrides it returns the schedule occurrences", () => {
+    const schedule = makeSchedule({ startDate: d("2025-05-01"), endDate: d("2025-05-31") });
+    expect(ranges([schedule], [])).toEqual([{ startDate: d("2025-05-01"), endDate: d("2025-05-31"), type: "pasture" }]);
+  });
+
+  test("a stable override in the middle splits the schedule", () => {
+    const schedule = makeSchedule({ startDate: d("2025-05-01"), endDate: d("2025-05-31") });
+    expect(ranges([schedule], [makeOverride("2025-05-10", "2025-05-11", "stable")])).toEqual([
+      { startDate: d("2025-05-01"), endDate: d("2025-05-09"), type: "pasture" },
+      { startDate: d("2025-05-10"), endDate: d("2025-05-11"), type: "stable" },
+      { startDate: d("2025-05-12"), endDate: d("2025-05-31"), type: "pasture" },
+    ]);
+  });
+
+  test("overrides at the start and the end of an occurrence", () => {
+    const schedule = makeSchedule({ startDate: d("2025-05-01"), endDate: d("2025-05-31") });
+    expect(
+      ranges(
+        [schedule],
+        [makeOverride("2025-04-28", "2025-05-02", "stable"), makeOverride("2025-05-31", "2025-05-31", "exercise_yard")]
+      )
+    ).toEqual([
+      { startDate: d("2025-04-28"), endDate: d("2025-05-02"), type: "stable" },
+      { startDate: d("2025-05-03"), endDate: d("2025-05-30"), type: "pasture" },
+      { startDate: d("2025-05-31"), endDate: d("2025-05-31"), type: "exercise_yard" },
+    ]);
+  });
+
+  test("an override covering a whole occurrence of a recurring schedule removes it", () => {
+    const schedule = makeSchedule({
+      startDate: d("2025-05-05"),
+      endDate: d("2025-05-06"),
+      recurrence: makeRecurrence({ frequency: "weekly", interval: 1, until: "2025-05-20" }),
+    });
+    expect(ranges([schedule], [makeOverride("2025-05-12", "2025-05-13", "stable")])).toEqual([
+      { startDate: d("2025-05-05"), endDate: d("2025-05-06"), type: "pasture" },
+      { startDate: d("2025-05-12"), endDate: d("2025-05-13"), type: "stable" },
+      { startDate: d("2025-05-19"), endDate: d("2025-05-20"), type: "pasture" },
+    ]);
+  });
+
+  test("an override on days without a schedule adds them", () => {
+    expect(ranges([], [makeOverride("2025-03-01", "2025-03-02", "pasture")])).toEqual([
+      { startDate: d("2025-03-01"), endDate: d("2025-03-02"), type: "pasture" },
+    ]);
+  });
+
+  test("overrides are clamped to the query window", () => {
+    expect(ranges([], [makeOverride("2024-12-30", "2025-01-02", "pasture")])).toEqual([
+      { startDate: d("2025-01-01"), endDate: d("2025-01-02"), type: "pasture" },
+    ]);
+  });
+});
+
+describe("buildOutdoorJournal with overrides and stable time", () => {
+  const sheep = () => makeAnimal({ type: "sheep", sex: "female", dateOfBirth: d("2020-01-01") });
+
+  test("stable override days don't count as outdoor days", () => {
+    const herd = makeHerd(
+      [makeMembership(sheep(), d("2024-01-01"))],
+      [makeSchedule({ startDate: d("2025-05-01"), endDate: d("2025-05-31") })],
+      [makeOverride("2025-05-10", "2025-05-11", "stable")]
+    );
+    const { entries } = buildOutdoorJournal([herd], d("2025-01-01"), d("2025-12-31"));
+    expect(entries.map((entry) => [entry.startDate, entry.endDate])).toEqual([
+      [d("2025-05-01"), d("2025-05-09")],
+      [d("2025-05-12"), d("2025-05-31")],
+    ]);
+  });
+
+  test("a stable schedule doesn't count, a pasture override inside it does", () => {
+    const stableSchedule = {
+      ...makeSchedule({ startDate: d("2025-01-01"), endDate: d("2025-03-31") }),
+      type: "stable" as const,
+    };
+    const herd = makeHerd(
+      [makeMembership(sheep(), d("2024-01-01"))],
+      [stableSchedule],
+      [makeOverride("2025-02-01", "2025-02-03", "pasture")]
+    );
+    const { entries } = buildOutdoorJournal([herd], d("2025-01-01"), d("2025-12-31"));
+    expect(entries.map((entry) => [entry.startDate, entry.endDate])).toEqual([[d("2025-02-01"), d("2025-02-03")]]);
+  });
+});
+
+describe("buildMeadowJournal with overrides", () => {
+  const meadow = { id: "meadow-1", name: "Weide Nord", size: 10000 };
+  const otherMeadow = { id: "meadow-2", name: "Weide Süd", size: 5000 };
+  const cow = () => makeAnimal({ type: "cow", sex: "female", dateOfBirth: d("2018-01-01") });
+
+  test("a stable override cuts the meadow schedule, a pasture override on another meadow shows there", () => {
+    const herd = makeHerd(
+      [makeMembership(cow(), d("2025-01-01"))],
+      [{ ...makeSchedule({ startDate: d("2025-05-01"), endDate: d("2025-05-31") }), meadowId: meadow.id }]
+    );
+    const entries = buildMeadowJournal(
+      [
+        {
+          ...herd,
+          outdoorSchedules: herd.outdoorSchedules.map((schedule) => ({ ...schedule, meadow })),
+          outdoorScheduleOverrides: [
+            { ...makeOverride("2025-05-10", "2025-05-11", "stable"), meadow: null },
+            { ...makeOverride("2025-05-20", "2025-05-21", "pasture", otherMeadow.id), meadow: otherMeadow },
+          ],
+        },
+      ],
+      d("2025-01-01"),
+      d("2025-12-31")
+    );
+    expect(entries.map((entry) => [entry.meadowName, entry.startDate, entry.endDate])).toEqual([
+      ["Weide Nord", d("2025-05-01"), d("2025-05-09")],
+      ["Weide Nord", d("2025-05-12"), d("2025-05-19")],
+      ["Weide Nord", d("2025-05-22"), d("2025-05-31")],
+      ["Weide Süd", d("2025-05-20"), d("2025-05-21")],
     ]);
   });
 });
