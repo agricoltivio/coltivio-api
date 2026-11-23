@@ -207,15 +207,8 @@ export const planCropRotationsEndpoint = cropRotationsWrite.build({
     count: z.number(),
   }),
   handler: async ({ input, ctx: { cropRotations } }) => {
-    try {
-      const result = await cropRotations.planCropRotations(input);
-      return { result, count: result.length };
-    } catch (err) {
-      if (err instanceof Error && err.message.includes("Overlapping")) {
-        throw createHttpError(409, err.message);
-      }
-      throw err;
-    }
+    const result = await cropRotations.planCropRotations(input);
+    return { result, count: result.length };
   },
 });
 

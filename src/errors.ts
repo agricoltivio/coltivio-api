@@ -27,6 +27,10 @@ export const apiErrorCodeSchema = z.enum([
   "invalid_sire",
   // an end date lies before its start date (e.g. a crop rotation, or its recurrence end before its end)
   "invalid_date_range",
+  // the crop rotation overlaps another rotation of the same plot (recurrences included)
+  "crop_rotation_overlap",
+  // the outdoor schedule overlaps another schedule of the same herd
+  "outdoor_schedule_overlap",
 ]);
 export type ApiErrorCode = z.infer<typeof apiErrorCodeSchema>;
 

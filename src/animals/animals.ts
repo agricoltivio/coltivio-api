@@ -1,6 +1,7 @@
 import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { addYears } from "date-fns";
 import createHttpError from "http-errors";
+import { CodedError } from "../errors";
 import { TFunction } from "i18next";
 import { RlsDb, Transaction } from "../db/db";
 import * as tables from "../db/schema";
@@ -412,21 +413,27 @@ async function changeHerdMemberships(
 
 const meadowSummaryColumns = { columns: { id: true, name: true, size: true } } as const;
 
-// Checks if any two schedules in the list produce overlapping concrete occurrences.
-// Uses a 25-year window starting from the earliest schedule start date.
-export function hasScheduleOverlap(schedules: OutdoorScheduleWithRecurrence[]): boolean {
-  if (schedules.length < 2) return false;
-  const windowFrom = schedules.reduce((min, s) => (s.startDate < min ? s.startDate : min), schedules[0].startDate);
+// Whether the concrete occurrences of the new schedules overlap each other or those of an existing one, within a
+// 25-year window from the earliest start date. Existing schedules aren't compared with each other: overlapping ones
+// already stored must not block adding a schedule that overlaps nothing.
+export function hasScheduleOverlap(
+  newSchedules: OutdoorScheduleWithRecurrence[],
+  existingSchedules: OutdoorScheduleWithRecurrence[] = []
+): boolean {
+  const allSchedules = [...newSchedules, ...existingSchedules];
+  if (newSchedules.length === 0 || allSchedules.length < 2) return false;
+  const windowFrom = allSchedules.reduce(
+    (min, schedule) => (schedule.startDate < min ? schedule.startDate : min),
+    allSchedules[0].startDate
+  );
   const windowTo = new Date(windowFrom.getFullYear() + 25, windowFrom.getMonth(), windowFrom.getDate());
-  const expanded = schedules.map((s) => expandOutdoorSchedule(s, windowFrom, windowTo));
-  for (let i = 0; i < expanded.length; i++) {
-    for (let j = i + 1; j < expanded.length; j++) {
-      for (const a of expanded[i]) {
-        for (const b of expanded[j]) {
-          if (a.startDate <= b.endDate && b.startDate <= a.endDate) return true;
-        }
-      }
-    }
+  const expandedNew = newSchedules.map((schedule) => expandOutdoorSchedule(schedule, windowFrom, windowTo));
+  const expandedExisting = existingSchedules.map((schedule) => expandOutdoorSchedule(schedule, windowFrom, windowTo));
+  const rangesOverlap = (a: { startDate: Date; endDate: Date }[], b: { startDate: Date; endDate: Date }[]) =>
+    a.some((rangeA) => b.some((rangeB) => rangeA.startDate <= rangeB.endDate && rangeB.startDate <= rangeA.endDate));
+  for (let i = 0; i < expandedNew.length; i++) {
+    const others = [...expandedNew.slice(i + 1), ...expandedExisting];
+    if (others.some((other) => rangesOverlap(expandedNew[i], other))) return true;
   }
   return false;
 }
@@ -829,7 +836,7 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
       // Validate overlap among schedules before entering the transaction
       if (outdoorSchedules?.length) {
         if (hasScheduleOverlap(outdoorSchedules.map(inputToSchedule))) {
-          throw createHttpError(409, "Schedule overlaps with another schedule");
+          throw new CodedError("outdoor_schedule_overlap", "Schedule overlaps with another schedule");
         }
       }
 
@@ -898,7 +905,7 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
       // Validate overlap among new schedules before entering the transaction
       if (outdoorSchedules?.length) {
         if (hasScheduleOverlap(outdoorSchedules.map(inputToSchedule))) {
-          throw createHttpError(409, "Schedule overlaps with another schedule");
+          throw new CodedError("outdoor_schedule_overlap", "Schedule overlaps with another schedule");
         }
       }
 
@@ -1015,8 +1022,8 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
 
       // Validate no overlap with existing schedules for this herd
       const existing = await this.getOutdoorSchedulesForHerd(herdId);
-      if (hasScheduleOverlap([...existing, inputToSchedule(input)])) {
-        throw createHttpError(409, "Schedule overlaps with existing schedule");
+      if (hasScheduleOverlap([inputToSchedule(input)], existing)) {
+        throw new CodedError("outdoor_schedule_overlap", "Schedule overlaps with existing schedule");
       }
 
       const result = await rlsDb.rls(async (tx) => {
@@ -1081,8 +1088,13 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
       // Validate no overlap (exclude self)
       if (scheduleData.startDate !== undefined || scheduleData.endDate !== undefined || recurrence !== undefined) {
         const existing = await this.getOutdoorSchedulesForHerd(current.herdId);
-        if (hasScheduleOverlap([...existing.filter((s) => s.id !== id), updatedSchedule])) {
-          throw createHttpError(409, "Schedule overlaps with existing schedule");
+        if (
+          hasScheduleOverlap(
+            [updatedSchedule],
+            existing.filter((s) => s.id !== id)
+          )
+        ) {
+          throw new CodedError("outdoor_schedule_overlap", "Schedule overlaps with existing schedule");
         }
       }
 

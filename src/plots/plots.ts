@@ -70,10 +70,17 @@ export type ShapefileImportPreview = {
 // An import row conflicts with an existing plot if they share more than 1% of the smaller one. Borders
 // digitised slightly differently by two sources leave slivers along shared edges (up to a few hundred m² on
 // large plots), which are noise and not conflicts. The ratio needs no metric projection.
+// Both sides are repaired first: an existing plot stored invalid (or an invalid row sent to the commit) makes
+// ST_Intersection fail with a GEOS TopologyException, which would fail the whole import.
+// The bounding box check on the raw geometries skips the repair for plots far away from the import (the bounding
+// box of an invalid geometry is still well defined).
 function overlapsSignificantly(existingGeometry: SQL, importGeometry: SQL): SQL {
-  return sql`ST_Intersects(${existingGeometry}, ${importGeometry})
-    AND ST_Area(ST_Intersection(${existingGeometry}, ${importGeometry}))
-      > 0.01 * LEAST(ST_Area(${existingGeometry}), ST_Area(${importGeometry}))`;
+  const existing = repairedMultiPolygon(existingGeometry);
+  const imported = repairedMultiPolygon(importGeometry);
+  return sql`${existingGeometry} && ${importGeometry}
+    AND ST_Intersects(${existing}, ${imported})
+    AND ST_Area(ST_Intersection(${existing}, ${imported}))
+      > 0.01 * LEAST(ST_Area(${existing}), ST_Area(${imported}))`;
 }
 
 // Area in m² of the given geometry, in the Swiss projection like everywhere else
