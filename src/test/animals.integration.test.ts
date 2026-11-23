@@ -2257,6 +2257,16 @@ describe("Unlinking relatives after a sex or type change", () => {
     const res = await request("PATCH", `/v1/animals/byId/${mother.id}`, { name: "Neu" }, jwt);
     expect(res.status).toBe(200);
     expect((await parentIds(calf.id)).motherId).toBe(mother.id);
+
+    // The edit form always sends sex and type: unchanged values leave the links alone too
+    const formSaveRes = await request(
+      "PATCH",
+      `/v1/animals/byId/${mother.id}`,
+      { name: "Neuer", sex: "female", type: "goat" },
+      jwt
+    );
+    expect(formSaveRes.status).toBe(200);
+    expect((await parentIds(calf.id)).motherId).toBe(mother.id);
   });
 
   it("a batch type change keeps links between animals changed together", async () => {

@@ -364,9 +364,31 @@ async function loadHerdMembershipLimits(tx: Transaction, animalIds: string[]) {
   return { activeMembershipByAnimalId, earliestHerdChangeDateByAnimalId };
 }
 
+// The animals whose sex or type the update actually changes (read before the update). The edit form always sends
+// both, so "part of the update" alone would also clean up older links on unrelated saves.
+async function idsWithChangedSexOrType(
+  tx: Transaction,
+  animalIds: string[],
+  change: { sex?: (typeof tables.animals.$inferSelect)["sex"]; type?: (typeof tables.animals.$inferSelect)["type"] }
+): Promise<string[]> {
+  if (animalIds.length === 0 || (change.sex === undefined && change.type === undefined)) return [];
+  const currentAnimals = await tx
+    .select({ id: tables.animals.id, sex: tables.animals.sex, type: tables.animals.type })
+    .from(tables.animals)
+    .where(inArray(tables.animals.id, animalIds));
+  return currentAnimals
+    .filter(
+      (current) =>
+        (change.sex !== undefined && current.sex !== change.sex) ||
+        (change.type !== undefined && current.type !== change.type)
+    )
+    .map((current) => current.id);
+}
+
 // After a sex or type change: removes the parent links of these animals that no longer fit, in both directions
 // (their own mother / father and their offspring). A mother has to be female, a father male, and both of the same
-// type as the offspring. Run only when sex or type were changed, so older inconsistent links stay untouched otherwise.
+// type as the offspring. Run only for animals whose sex or type changed (idsWithChangedSexOrType), so older
+// inconsistent links stay untouched otherwise.
 async function unlinkMismatchedRelatives(tx: Transaction, animalIds: string[]) {
   if (animalIds.length === 0) return;
   const ids = sql.join(
@@ -755,12 +777,11 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
     ): Promise<Animal[]> {
       await rlsDb.rls(async (tx) => {
         for (const { id, herdId, herdEffectiveDate, ...animal } of data) {
+          const changedIds = await idsWithChangedSexOrType(tx, [id], animal);
           if (Object.keys(animal).length > 0) {
             await tx.update(tables.animals).set(animal).where(eq(tables.animals.id, id));
           }
-          if (animal.sex !== undefined || animal.type !== undefined) {
-            await unlinkMismatchedRelatives(tx, [id]);
-          }
+          await unlinkMismatchedRelatives(tx, changedIds);
           // Herd changes go through memberships so the outdoor journal history stays correct
           if (herdId !== undefined) {
             await changeHerdMemberships(
@@ -787,6 +808,7 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
     async updateAnimal(id: string, input: AnimalUpdateInput & { herdEffectiveDate?: Date | null }): Promise<Animal> {
       const { herdId, herdEffectiveDate, ...data } = input;
       const result = await rlsDb.rls(async (tx) => {
+        const changedIds = await idsWithChangedSexOrType(tx, [id], data);
         const [result] =
           Object.keys(data).length > 0
             ? await tx
@@ -797,8 +819,8 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
             : await tx.select({ id: tables.animals.id }).from(tables.animals).where(eq(tables.animals.id, id));
 
         // Parents and offspring that no longer fit the new sex or type are unlinked
-        if (result && (data.sex !== undefined || data.type !== undefined)) {
-          await unlinkMismatchedRelatives(tx, [id]);
+        if (result) {
+          await unlinkMismatchedRelatives(tx, changedIds);
         }
 
         // Herd changes go through memberships so the outdoor journal history stays correct
@@ -827,10 +849,9 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
 
     async batchUpdateAnimals(animalIds: string[], data: BatchUpdateAnimalInput): Promise<Animal[]> {
       return rlsDb.rls(async (tx) => {
+        const changedIds = await idsWithChangedSexOrType(tx, animalIds, { type: data.type });
         await tx.update(tables.animals).set(data).where(inArray(tables.animals.id, animalIds));
-        if (data.type !== undefined) {
-          await unlinkMismatchedRelatives(tx, animalIds);
-        }
+        await unlinkMismatchedRelatives(tx, changedIds);
         return tx.query.animals.findMany({
           where: { id: { in: animalIds } },
           with: {
