@@ -72,10 +72,13 @@ export type ShapefileImportPreview = {
 // large plots), which are noise and not conflicts. The ratio needs no metric projection.
 // Both sides are repaired first: an existing plot stored invalid (or an invalid row sent to the commit) makes
 // ST_Intersection fail with a GEOS TopologyException, which would fail the whole import.
+// The bounding box check on the raw geometries skips the repair for plots far away from the import (the bounding
+// box of an invalid geometry is still well defined).
 function overlapsSignificantly(existingGeometry: SQL, importGeometry: SQL): SQL {
   const existing = repairedMultiPolygon(existingGeometry);
   const imported = repairedMultiPolygon(importGeometry);
-  return sql`ST_Intersects(${existing}, ${imported})
+  return sql`${existingGeometry} && ${importGeometry}
+    AND ST_Intersects(${existing}, ${imported})
     AND ST_Area(ST_Intersection(${existing}, ${imported}))
       > 0.01 * LEAST(ST_Area(${existing}), ST_Area(${imported}))`;
 }
