@@ -23,11 +23,13 @@ function range(from: string, to: string, recurrence?: { interval: number; until?
 }
 
 function expectOverlap(a: DateRangeWithRecurrence, b: DateRangeWithRecurrence) {
-  expect(() => checkRotationOverlaps([a, b])).toThrow("Overlapping date ranges");
+  expect(() => checkRotationOverlaps([a], [b])).toThrow("Overlapping date ranges");
+  expect(() => checkRotationOverlaps([], [a, b])).toThrow("Overlapping date ranges");
 }
 
 function expectNoOverlap(a: DateRangeWithRecurrence, b: DateRangeWithRecurrence) {
-  expect(() => checkRotationOverlaps([a, b])).not.toThrow();
+  expect(() => checkRotationOverlaps([a], [b])).not.toThrow();
+  expect(() => checkRotationOverlaps([], [a, b])).not.toThrow();
 }
 
 // Minimal rotation object for expandRecurrence tests
@@ -230,7 +232,14 @@ describe("checkRotationOverlaps - yearly recurrence", () => {
     const a = range("2024-03-01", "2024-06-30", { interval: 1 });
     const b = range("2024-07-01", "2024-09-30", { interval: 1 });
     const c = range("2025-04-01", "2025-08-30", { interval: 1 }); // overlaps both a and b
-    expect(() => checkRotationOverlaps([a, b, c])).toThrow("Overlapping date ranges");
+    expect(() => checkRotationOverlaps([a, b], [c])).toThrow("Overlapping date ranges");
+  });
+
+  test("existing ranges that overlap each other don't block a new range that overlaps none of them", () => {
+    const existingA = range("2024-03-01", "2024-06-30");
+    const existingB = range("2024-05-01", "2024-08-30");
+    const newRange = range("2024-09-01", "2024-10-30");
+    expect(() => checkRotationOverlaps([existingA, existingB], [newRange])).not.toThrow();
   });
 });
 

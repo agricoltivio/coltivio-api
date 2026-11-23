@@ -162,13 +162,18 @@ export function checkRotationDateOrder(range: DateRangeWithRecurrence): void {
   }
 }
 
-// Check for overlapping rotations - pure function taking date ranges
-export function checkRotationOverlaps(ranges: DateRangeWithRecurrence[]): void {
-  for (let i = 0; i < ranges.length; i++) {
-    for (let j = i + 1; j < ranges.length; j++) {
-      if (rangesOverlap(ranges[i], ranges[j])) {
-        throw new CodedError("crop_rotation_overlap", "Overlapping date ranges");
-      }
+// Checks the new ranges against the existing ones and among themselves. Existing ranges are not checked against
+// each other: plots can already hold overlapping rotations (single create had no check before), and those must
+// not block adding a rotation that overlaps nothing.
+export function checkRotationOverlaps(
+  existingRanges: DateRangeWithRecurrence[],
+  newRanges: DateRangeWithRecurrence[]
+): void {
+  for (let i = 0; i < newRanges.length; i++) {
+    const overlapsExisting = existingRanges.some((existingRange) => rangesOverlap(existingRange, newRanges[i]));
+    const overlapsOtherNew = newRanges.slice(i + 1).some((otherNewRange) => rangesOverlap(otherNewRange, newRanges[i]));
+    if (overlapsExisting || overlapsOtherNew) {
+      throw new CodedError("crop_rotation_overlap", "Overlapping date ranges");
     }
   }
 }
@@ -329,14 +334,14 @@ export function cropRotationsApi(rlsDb: RlsDb) {
           where: { plotId: input.plotId },
           with: { recurrence: true },
         });
-        checkRotationOverlaps([
-          ...existingRotations.map((rotation) => ({
+        checkRotationOverlaps(
+          existingRotations.map((rotation) => ({
             fromDate: rotation.fromDate,
             toDate: rotation.toDate,
             recurrence: rotation.recurrence,
           })),
-          newRange,
-        ]);
+          [newRange]
+        );
 
         const [plotCrop] = await tx
           .insert(cropRotations)
@@ -387,7 +392,7 @@ export function cropRotationsApi(rlsDb: RlsDb) {
             : null,
         }));
         newRanges.forEach(checkRotationDateOrder);
-        checkRotationOverlaps([...existingRanges, ...newRanges]);
+        checkRotationOverlaps(existingRanges, newRanges);
 
         // Create the rotations
         const createdCropRotations = await tx
@@ -459,7 +464,7 @@ export function cropRotationsApi(rlsDb: RlsDb) {
               : null,
           };
           checkRotationDateOrder(newRange);
-          checkRotationOverlaps([...existingRanges, newRange]);
+          checkRotationOverlaps(existingRanges, [newRange]);
         }
 
         const createdCropRotations = await tx
@@ -521,7 +526,7 @@ export function cropRotationsApi(rlsDb: RlsDb) {
               : null,
           }));
           newRanges.forEach(checkRotationDateOrder);
-          checkRotationOverlaps(newRanges);
+          checkRotationOverlaps([], newRanges);
 
           // Replace: delete all existing rotations for this plot, then create fresh
           await tx.delete(cropRotations).where(eq(cropRotations.plotId, plotPlan.plotId));
@@ -614,7 +619,7 @@ export function cropRotationsApi(rlsDb: RlsDb) {
           };
 
           checkRotationDateOrder(updatedRange);
-          checkRotationOverlaps([...existingRanges, updatedRange]);
+          checkRotationOverlaps(existingRanges, [updatedRange]);
         }
 
         // Update the rotation
