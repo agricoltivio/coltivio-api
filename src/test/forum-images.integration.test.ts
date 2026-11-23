@@ -125,6 +125,24 @@ describe("Forum images", () => {
     const html = await createThread(jwt, '<img src="data:image/png;base64,AAAA">');
     expect(html.status).toBe(400);
 
+    // Forms a simple regex misses but a Markdown renderer still shows as images
+    for (const body of [
+      "![a [b] c](https://example.com/nested.png)",
+      "![a\\]b](https://example.com/escaped.png)",
+      "![x][r]\n\n[r]: https://example.com/reference.png",
+    ]) {
+      const res = await createThread(jwt, body);
+      expect(res.status).toBe(400);
+      expect(await errorCode(res)).toBe("invalid_image_reference");
+    }
+
+    // Image syntax in code is an example, not an image
+    const codeExamples = await createThread(
+      jwt,
+      "So: `![x](https://example.com/inline.png)`\n\n```\n![y](https://example.com/block.png)\n```"
+    );
+    expect(codeExamples.status).toBe(200);
+
     const image = await uploadImage(jwt);
     const unknown = await createThread(
       jwt,

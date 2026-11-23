@@ -24,11 +24,6 @@ function signJwt(payload: Record<string, unknown>, secret: string): string {
   return `${header}.${body}.${signature}`;
 }
 
-/**
- * Lightweight proxy that strips /auth/v1 prefix and forwards to GoTrue.
- * The @supabase/supabase-js client always appends /auth/v1 to the base URL,
- * but GoTrue serves at the root.
- */
 // In-memory stand-in for Supabase Storage, only for the forum-images bucket (the other buckets keep failing as
 // before, their tests don't depend on storage). Supports what forum images use: upload, remove, public download.
 const FAKE_STORAGE_BUCKET = "forum-images";
@@ -85,6 +80,11 @@ function handleFakeStorage(req: http.IncomingMessage, res: http.ServerResponse):
   return false;
 }
 
+/**
+ * Lightweight proxy that strips /auth/v1 prefix and forwards to GoTrue.
+ * The @supabase/supabase-js client always appends /auth/v1 to the base URL,
+ * but GoTrue serves at the root.
+ */
 function startAuthProxy(gotrueUrl: string): Promise<http.Server> {
   return new Promise((resolve) => {
     const proxy = http.createServer((req, res) => {

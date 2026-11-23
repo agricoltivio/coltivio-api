@@ -1,4 +1,6 @@
 import { and, count, eq, gt, inArray, isNull, lt, notInArray, or } from "drizzle-orm";
+import MarkdownIt from "markdown-it";
+import type { Token } from "markdown-it";
 import sharp from "sharp";
 import { randomUUID } from "crypto";
 import { adminDrizzle, RlsDb, Transaction } from "../db/db";
@@ -14,7 +16,8 @@ const MAX_UPLOAD_BYTES = 15 * 1024 * 1024;
 // Longest side after downscaling
 const MAX_DIMENSION_PX = 2000;
 const WEBP_QUALITY = 80;
-// SVG and TIFF are left out on purpose (SVG can carry scripts and external references)
+// SVG and TIFF are left out on purpose (SVG can carry scripts and external references). "heif" is AVIF only: the
+// prebuilt libvips has no HEVC decoder, so iPhone HEIC photos must be converted on the client (the web does).
 const ALLOWED_INPUT_FORMATS = new Set(["jpeg", "png", "webp", "gif", "heif"]);
 // Uploads not yet in a saved post, per user within PENDING_WINDOW_MS. Stops filling the public bucket
 // with images that are never posted.
@@ -36,11 +39,28 @@ function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-// Image URLs referenced in a Markdown body: ![alt](url "title"), ![alt](<url>) and <img src="url">
+// CommonMark parser with raw HTML on, so <img> in HTML is seen too. Parsing instead of a regex catches every image a
+// renderer shows (nested or escaped brackets in the alt text, reference definitions) and skips examples in code.
+const markdownParser = new MarkdownIt({ html: true });
+const HTML_IMAGE_SOURCE = /<img\b[^>]*?\ssrc\s*=\s*["']?([^"'\s>]+)/gi;
+
+// Image URLs referenced in a Markdown body: image nodes (inline and reference style) and <img src> in raw HTML
 export function extractImageUrls(markdown: string): string[] {
-  const markdownImageUrls = [...markdown.matchAll(/!\[[^\]]*\]\(\s*<?([^\s)>]+)/g)].map((match) => match[1]);
-  const htmlImageUrls = [...markdown.matchAll(/<img\b[^>]*?\ssrc\s*=\s*["']?([^"'\s>]+)/gi)].map((match) => match[1]);
-  return [...markdownImageUrls, ...htmlImageUrls];
+  const imageUrls: string[] = [];
+  const collect = (tokens: Token[]) => {
+    for (const token of tokens) {
+      if (token.type === "image") {
+        const source = token.attrGet("src");
+        // An image without a usable source is rejected like an external one
+        imageUrls.push(typeof source === "string" ? source : "");
+      } else if (token.type === "html_inline" || token.type === "html_block") {
+        imageUrls.push(...[...token.content.matchAll(HTML_IMAGE_SOURCE)].map((match) => match[1]));
+      }
+      if (token.children) collect(token.children);
+    }
+  };
+  collect(markdownParser.parse(markdown, {}));
+  return imageUrls;
 }
 
 // The storage path of one of our forum image URLs, null for any other URL (external, data:, other buckets)
@@ -54,9 +74,13 @@ export function storagePathFromUrl(url: string): string | null {
 // Removes every reference to the image URL from a Markdown body (used when a moderator removes an image)
 export function removeImageReferences(markdown: string, imageUrl: string): string {
   const escapedUrl = escapeRegExp(imageUrl);
-  return markdown
-    .replace(new RegExp(`!\\[[^\\]]*\\]\\(\\s*<?${escapedUrl}[^)]*\\)`, "g"), "")
-    .replace(new RegExp(`<img\\b[^>]*?\\ssrc\\s*=\\s*["']?${escapedUrl}[^>]*>`, "gi"), "");
+  return (
+    markdown
+      .replace(new RegExp(`!\\[[^\\]]*\\]\\(\\s*<?${escapedUrl}[^)]*\\)`, "g"), "")
+      .replace(new RegExp(`<img\\b[^>]*?\\ssrc\\s*=\\s*["']?${escapedUrl}[^>]*>`, "gi"), "")
+      // Reference definitions ([label]: url); the ![alt][label] left behind then shows as plain text
+      .replace(new RegExp(`^ {0,3}\\[[^\\]]+\\]:\\s*<?${escapedUrl}>?.*$`, "gm"), "")
+  );
 }
 
 // Links the images a post body references to the post and detaches the ones no longer referenced (the cleanup cron
@@ -103,10 +127,24 @@ export async function syncPostImages(tx: Transaction, post: ForumPost, body: str
         : eq(postColumn, post.id)
     );
   if (referencedIds.length > 0) {
-    await tx
+    // Same condition as the check above, in the update: a concurrent save that linked one of the images in between
+    // (row lock, re-checked after it commits) leaves it out, and this save fails instead of moving the image
+    const linkedImages = await tx
       .update(forumImages)
       .set(post.kind === "thread" ? { threadId: post.id } : { replyId: post.id })
-      .where(inArray(forumImages.id, referencedIds));
+      .where(
+        and(
+          inArray(forumImages.id, referencedIds),
+          or(
+            eq(postColumn, post.id),
+            and(isNull(forumImages.threadId), isNull(forumImages.replyId), eq(forumImages.uploadedBy, authorId))
+          )
+        )
+      )
+      .returning({ id: forumImages.id });
+    if (linkedImages.length !== referencedIds.length) {
+      throw new CodedError("invalid_image_reference", "The image belongs to another post");
+    }
   }
 }
 
