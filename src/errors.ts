@@ -27,6 +27,18 @@ export const apiErrorCodeSchema = z.enum([
   "invalid_sire",
   // an end date lies before its start date (e.g. a crop rotation, or its recurrence end before its end)
   "invalid_date_range",
+  // the crop rotation overlaps another rotation of the same plot (recurrences included)
+  "crop_rotation_overlap",
+  // the outdoor schedule overlaps another schedule of the same herd
+  "outdoor_schedule_overlap",
+  // the outdoor schedule override overlaps another override of the same herd
+  "outdoor_schedule_override_overlap",
+  // the uploaded file is not a supported image (JPEG, PNG, WebP, GIF, AVIF; HEIC must be converted by the client) or too large
+  "invalid_image",
+  // a forum post references an image that wasn't uploaded to Coltivio, belongs to another post or another user
+  "invalid_image_reference",
+  // too many uploaded forum images that aren't in a saved post yet
+  "too_many_pending_images",
 ]);
 export type ApiErrorCode = z.infer<typeof apiErrorCodeSchema>;
 

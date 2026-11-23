@@ -129,6 +129,40 @@ describe("Meadows CRUD", () => {
     expect(dbRecurrences).toHaveLength(0);
   });
 
+  it("switching a schedule to stable drops its meadow, a stable schedule with a meadow is rejected", async () => {
+    const { jwt } = await createUserWithFarm();
+    const meadow = await createMeadow(jwt, { name: "M", geometry: square(8.0, 47.0) });
+    const herd = await createHerd(jwt);
+    const scheduleRes = await request(
+      "POST",
+      `/v1/animals/herds/byId/${herd.id}/outdoorSchedules`,
+      { startDate: "2025-05-01", endDate: "2025-05-31", type: "pasture", meadowId: meadow.id },
+      jwt
+    );
+    expect(scheduleRes.status).toBe(200);
+    const schedule = ((await scheduleRes.json()) as { data: { id: string } }).data;
+
+    const stableWithMeadowRes = await request(
+      "PATCH",
+      `/v1/animals/herds/outdoorSchedules/byId/${schedule.id}`,
+      { type: "stable", meadowId: meadow.id },
+      jwt
+    );
+    expect(stableWithMeadowRes.status).toBe(400);
+
+    const stableRes = await request(
+      "PATCH",
+      `/v1/animals/herds/outdoorSchedules/byId/${schedule.id}`,
+      { type: "stable" },
+      jwt
+    );
+    expect(stableRes.status).toBe(200);
+
+    const db = getAdminDb();
+    const dbSchedule = await db.query.outdoorSchedules.findFirst({ where: { id: schedule.id } });
+    expect(dbSchedule).toMatchObject({ type: "stable", meadowId: null });
+  });
+
   it("archiving a meadow hides it from the list but keeps its schedules", async () => {
     const { jwt } = await createUserWithFarm();
     const meadow = await createMeadow(jwt, { name: "M", geometry: square(8.0, 47.0) });

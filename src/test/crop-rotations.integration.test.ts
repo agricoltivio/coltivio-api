@@ -312,6 +312,47 @@ describe("Crop Rotations CRUD", () => {
       jwt
     );
     expect(res.status).toBe(409);
+    expect(((await res.json()) as { code?: string }).code).toBe("crop_rotation_overlap");
+  });
+
+  it("rejects creating a rotation that overlaps an existing one with 409 and a code", async () => {
+    const { jwt } = await createUserWithFarm();
+    const plot = await createPlot(jwt);
+    const crop = await createCrop(jwt);
+    await createCropRotation(jwt, plot.id, crop.id, { fromDate: "2026-01-01", toDate: "2026-06-30" });
+
+    const res = await request(
+      "POST",
+      "/v1/cropRotations",
+      { plotId: plot.id, cropId: crop.id, fromDate: "2026-05-01", toDate: "2026-09-30" },
+      jwt
+    );
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as { code?: string }).code).toBe("crop_rotation_overlap");
+  });
+
+  it("creates a rotation that overlaps nothing on a plot that already holds overlapping rotations", async () => {
+    const { jwt, farmId } = await createUserWithFarm();
+    const plot = await createPlot(jwt);
+    const crop = await createCrop(jwt);
+    await createCropRotation(jwt, plot.id, crop.id, { fromDate: "2026-01-01", toDate: "2026-03-31" });
+    // Overlapping rows as they can exist from before single create checked overlaps
+    const db = getAdminDb();
+    await db.insert(schema.cropRotations).values({
+      farmId,
+      plotId: plot.id,
+      cropId: crop.id,
+      fromDate: new Date("2026-02-01"),
+      toDate: new Date("2026-04-30"),
+    });
+
+    const res = await request(
+      "POST",
+      "/v1/cropRotations",
+      { plotId: plot.id, cropId: crop.id, fromDate: "2026-06-01", toDate: "2026-09-30" },
+      jwt
+    );
+    expect(res.status).toBe(200);
   });
 
   it("plan only touches plots included — leaves other plots untouched", async () => {

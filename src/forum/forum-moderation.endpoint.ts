@@ -41,3 +41,19 @@ export const pinForumThreadEndpoint = userMembershipEndpointFactory.build({
     return {};
   },
 });
+
+// ─── Remove a single image from a post ────────────────────────────────────────
+
+export const removeForumImageEndpoint = userMembershipEndpointFactory.build({
+  method: "delete",
+  input: z.object({ imageId: z.string() }),
+  output: z.object({}),
+  handler: async ({ input, ctx: { forumImages, forumModeration, user } }) => {
+    const isMod = await forumModeration.isModerator(user.id);
+    if (!isMod) throw createHttpError(403, "Not a forum moderator");
+
+    const removed = await forumImages.removeImageAsModerator(input.imageId);
+    if (!removed) throw createHttpError(404, "Image not found");
+    return {};
+  },
+});

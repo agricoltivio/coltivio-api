@@ -44,6 +44,7 @@ import { wikiApi } from "../wiki/wiki";
 import { wikiModerationApi } from "../wiki/wiki-moderation";
 import { forumApi } from "../forum/forum";
 import { forumModerationApi } from "../forum/forum-moderation";
+import { forumImagesApi } from "../forum/forum-images";
 import { tasksApi } from "../tasks/tasks";
 import { membershipApi } from "../membership/membership";
 import { donationsApi } from "../donations/donations";
@@ -97,6 +98,7 @@ export function sessionApi(db: RlsDb, t: TFunction, locale: string) {
     wikiModeration: wikiModerationApi(db),
     forum: forumApi(db),
     forumModeration: forumModerationApi(db),
+    forumImages: forumImagesApi(db),
     tasks: tasksApi(db, t, locale),
     membership: membershipApi(db),
     donations: donationsApi(db),

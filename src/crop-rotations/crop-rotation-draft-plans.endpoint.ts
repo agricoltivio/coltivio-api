@@ -109,15 +109,8 @@ export const applyDraftPlanEndpoint = cropRotationsWrite.build({
     const planInput = await cropRotationDraftPlans.buildPlanInput(input.draftPlanId);
     if (!planInput) throw createHttpError(404, "Draft plan not found");
 
-    try {
-      const result = await cropRotations.planCropRotations(planInput);
-      await cropRotationDraftPlans.deleteDraftPlan(input.draftPlanId);
-      return { result, count: result.length };
-    } catch (err) {
-      if (err instanceof Error && err.message.includes("Overlapping")) {
-        throw createHttpError(409, err.message);
-      }
-      throw err;
-    }
+    const result = await cropRotations.planCropRotations(planInput);
+    await cropRotationDraftPlans.deleteDraftPlan(input.draftPlanId);
+    return { result, count: result.length };
   },
 });

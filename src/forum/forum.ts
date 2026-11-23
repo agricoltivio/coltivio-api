@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, ilike, or, sql } from "drizzle-orm";
 import { RlsDb } from "../db/db";
 import { forumReplies, forumThreads, forumThreadSubscriptions, profileNamesView } from "../db/schema";
+import { syncPostImages } from "./forum-images";
 
 export type ForumThreadType = "question" | "feature_request" | "bug_report" | "general";
 export type ForumThreadStatus = "open" | "closed";
@@ -127,6 +128,7 @@ export function forumApi(db: RlsDb) {
           .insert(forumThreads)
           .values({ title: input.title, body: input.body, type: input.type, createdBy })
           .returning();
+        await syncPostImages(tx, { kind: "thread", id: thread.id }, input.body, createdBy);
 
         await tx.insert(forumThreadSubscriptions).values({ threadId: thread.id, userId: createdBy, subscribed: true });
 
@@ -168,6 +170,9 @@ export function forumApi(db: RlsDb) {
             updatedAt: new Date(),
           })
           .where(eq(forumThreads.id, threadId));
+        if (input.body !== undefined) {
+          await syncPostImages(tx, { kind: "thread", id: threadId }, input.body, updatedBy);
+        }
 
         const [row] = await tx
           .select({
@@ -213,6 +218,7 @@ export function forumApi(db: RlsDb) {
     async addReply(threadId: string, createdBy: string, body: string): Promise<ForumReplyWithCreator> {
       return db.rls(async (tx) => {
         const [reply] = await tx.insert(forumReplies).values({ threadId, body, createdBy }).returning();
+        await syncPostImages(tx, { kind: "reply", id: reply.id }, body, createdBy);
 
         await tx
           .insert(forumThreadSubscriptions)
@@ -246,6 +252,7 @@ export function forumApi(db: RlsDb) {
         if (existing.createdBy !== updatedBy) throw new Error("You can only edit your own replies");
 
         await tx.update(forumReplies).set({ body, updatedAt: new Date() }).where(eq(forumReplies.id, replyId));
+        await syncPostImages(tx, { kind: "reply", id: replyId }, body, updatedBy);
 
         const [row] = await tx
           .select({

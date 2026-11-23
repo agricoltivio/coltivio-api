@@ -57,6 +57,12 @@ const statusByErrorCode: Record<ApiErrorCode, number> = {
   ear_tag_assigned: 409,
   invalid_sire: 400,
   invalid_date_range: 400,
+  crop_rotation_overlap: 409,
+  outdoor_schedule_overlap: 409,
+  outdoor_schedule_override_overlap: 409,
+  invalid_image: 400,
+  invalid_image_reference: 400,
+  too_many_pending_images: 429,
 };
 
 const getPublicErrorMessage = (error: HttpError): string =>

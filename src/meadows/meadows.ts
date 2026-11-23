@@ -75,8 +75,8 @@ export function meadowsApi(rlsDb: RlsDb) {
         const existing = await tx.query.meadows.findFirst({ where: { id }, columns: { id: true, archivedAt: true } });
         if (!existing) throw createHttpError(404, "Meadow not found");
 
-        // A meadow can only be archived once no schedule on it runs today or later (open-ended, ending in the
-        // future or with upcoming recurrences). Those schedules have to be ended or moved to another meadow first.
+        // A meadow can only be archived once no schedule or override on it runs today or later (open-ended, ending
+        // in the future or with upcoming recurrences). Those have to be ended or moved to another meadow first.
         if (input.archived && !existing.archivedAt) {
           const meadowSchedules = await tx.query.outdoorSchedules.findMany({
             where: { meadowId: id },
@@ -84,9 +84,13 @@ export function meadowsApi(rlsDb: RlsDb) {
           });
           const today = todayUtcDay();
           const farFuture = addYears(today, 100);
-          const hasRunningSchedule = meadowSchedules.some(
-            (schedule) => expandOutdoorSchedule(schedule, today, farFuture).length > 0
-          );
+          const meadowOverridesFromToday = await tx.query.outdoorScheduleOverrides.findMany({
+            where: { meadowId: id, endDate: { gte: today } },
+            columns: { id: true },
+          });
+          const hasRunningSchedule =
+            meadowOverridesFromToday.length > 0 ||
+            meadowSchedules.some((schedule) => expandOutdoorSchedule(schedule, today, farFuture).length > 0);
           if (hasRunningSchedule) {
             throw createHttpError(409, "Meadow has running outdoor schedules");
           }
@@ -127,6 +131,9 @@ export function meadowsApi(rlsDb: RlsDb) {
         const meadow = await tx.query.meadows.findFirst({ where: { id: meadowId }, columns: { id: true } });
         if (!meadow) throw createHttpError(404, "Meadow not found");
 
+        // All overrides of the herds, not only those on this meadow: an override in the stable or on another meadow
+        // cuts the days of a schedule on this meadow. A herd has one schedule per day, so the schedules on other
+        // meadows don't matter here.
         const herds = await tx.query.herds.findMany({
           with: {
             herdMemberships: { with: { animal: true } },
@@ -134,9 +141,10 @@ export function meadowsApi(rlsDb: RlsDb) {
               where: { meadowId },
               with: { recurrence: true, meadow: { columns: { id: true, name: true, size: true } } },
             },
+            outdoorScheduleOverrides: { with: { meadow: { columns: { id: true, name: true, size: true } } } },
           },
         });
-        return buildMeadowJournal(herds, fromDate, toDate);
+        return buildMeadowJournal(herds, fromDate, toDate).filter((entry) => entry.meadowId === meadowId);
       });
     },
   };
