@@ -1093,9 +1093,16 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
         throw createHttpError(404, "Outdoor schedule not found");
       }
 
+      // Switching to the stable drops the meadow, unless one is sent (which is rejected)
+      const droppedMeadowOnStable = scheduleData.type === "stable" && scheduleData.meadowId === undefined;
       const updatedSchedule: OutdoorScheduleWithRecurrence = {
         ...current,
-        meadowId: scheduleData.meadowId !== undefined ? scheduleData.meadowId : current.meadowId,
+        type: scheduleData.type ?? current.type,
+        meadowId: droppedMeadowOnStable
+          ? null
+          : scheduleData.meadowId !== undefined
+            ? scheduleData.meadowId
+            : current.meadowId,
         startDate: scheduleData.startDate ?? current.startDate,
         endDate: scheduleData.endDate !== undefined ? scheduleData.endDate : current.endDate,
         recurrence:
@@ -1129,7 +1136,10 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
 
         // Update schedule fields if any provided
         if (Object.keys(scheduleData).length > 0) {
-          await tx.update(tables.outdoorSchedules).set(scheduleData).where(eq(tables.outdoorSchedules.id, id));
+          await tx
+            .update(tables.outdoorSchedules)
+            .set(droppedMeadowOnStable ? { ...scheduleData, meadowId: null } : scheduleData)
+            .where(eq(tables.outdoorSchedules.id, id));
         }
 
         // Handle recurrence upsert/delete

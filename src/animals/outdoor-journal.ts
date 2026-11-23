@@ -467,7 +467,8 @@ export function buildMeadowJournal(
     const ranges = expandHerdOutdoorRanges(herd.outdoorSchedules, herd.outdoorScheduleOverrides, queryFrom, queryTo);
     for (const occurrence of ranges) {
       const meadow = occurrence.source.meadow;
-      if (!meadow) continue;
+      // Stable time is never meadow usage, even if an older row still has a meadow
+      if (!meadow || occurrence.source.type === "stable") continue;
       // Per animal type: +1 on the first day an animal is present, -1 on the day after its last day
       const deltaByDate = new Map<number, Map<AnimalType, number>>();
       const addDelta = (date: number, animalType: AnimalType, delta: number) => {
