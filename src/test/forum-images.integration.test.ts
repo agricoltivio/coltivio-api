@@ -142,6 +142,7 @@ describe("Forum images", () => {
       '<object data="https://example.com/object.png"></object>',
       '<style>@import "https://example.com/x.css";</style>',
       '<link rel="stylesheet" href="https://example.com/x.css">',
+      '<iframe srcdoc="&lt;img &#115;rc=https://example.com/frame.png&gt;"></iframe>',
       '<table background="https://example.com/table.png"><tr><td>x</td></tr></table>',
       '<div style="background:url&#40;https://example.com/entity.png)">x</div>',
     ]) {
