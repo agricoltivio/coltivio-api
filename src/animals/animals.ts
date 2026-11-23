@@ -1192,8 +1192,13 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
 
     async createOutdoorScheduleOverride(herdId: string, input: OutdoorScheduleOverrideCreateInput) {
       const created = await rlsDb.rls(async (tx) => {
-        // The herd FK check bypasses RLS, so make sure the herd belongs to the current farm
-        const herd = await tx.query.herds.findFirst({ where: { id: herdId }, columns: { id: true } });
+        // The herd FK check bypasses RLS, so make sure the herd belongs to the current farm. Locked until the
+        // insert, so two saves at the same time can't both pass the overlap check.
+        const [herd] = await tx
+          .select({ id: tables.herds.id })
+          .from(tables.herds)
+          .where(eq(tables.herds.id, herdId))
+          .for("update");
         if (!herd) throw createHttpError(404, "Herd not found");
 
         const otherOverrides = await tx.query.outdoorScheduleOverrides.findMany({
@@ -1216,6 +1221,12 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
       await rlsDb.rls(async (tx) => {
         const current = await tx.query.outdoorScheduleOverrides.findFirst({ where: { id } });
         if (!current) throw createHttpError(404, "Outdoor schedule override not found");
+        // Same lock as on create, for the overlap check
+        await tx
+          .select({ id: tables.herds.id })
+          .from(tables.herds)
+          .where(eq(tables.herds.id, current.herdId))
+          .for("update");
 
         const updated: OutdoorScheduleOverrideCreateInput = {
           startDate: input.startDate ?? current.startDate,
