@@ -21,7 +21,9 @@ export type ForumEmailParams = {
 
 // Posts are markdown; the mail only needs a plain-text teaser
 export function toExcerpt(body: string): string {
-  const flat = body.replace(/\s+/g, " ").trim();
+  // Images would show up as their Markdown / HTML source
+  const withoutImages = body.replace(/!\[[^\]]*\]\([^)]*\)/g, "").replace(/<img\b[^>]*>/gi, "");
+  const flat = withoutImages.replace(/\s+/g, " ").trim();
   return flat.length > EXCERPT_MAX_LENGTH ? `${flat.slice(0, EXCERPT_MAX_LENGTH).trimEnd()}…` : flat;
 }
 

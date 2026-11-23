@@ -352,7 +352,8 @@
     "animal_count": "Number of animals",
     "types": {
       "pasture": "Pasture",
-      "exercise_yard": "Exercise yard"
+      "exercise_yard": "Exercise yard",
+      "stable": "Stable"
     }
   },
   "application_units": {

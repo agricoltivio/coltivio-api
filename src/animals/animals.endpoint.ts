@@ -75,9 +75,34 @@ const outdoorScheduleSchema = z.object({
   recurrence: recurrenceSchema.nullable(),
 });
 
+// A date range in which the herd did something else than its schedules say; takes precedence over them
+const outdoorScheduleOverrideSchema = z.object({
+  id: z.string(),
+  farmId: z.string(),
+  herdId: z.string(),
+  meadowId: z.string().nullable(),
+  meadow: z.object({ id: z.string(), name: z.string(), size: z.number() }).nullable().optional(),
+  startDate: ez.dateOut(),
+  // inclusive, the same as startDate for a single day
+  endDate: ez.dateOut(),
+  type: outdoorScheduleTypeSchema,
+  notes: z.string().nullable(),
+});
+
 const herdWithRelationsSchema = herdSchema.extend({
   animals: z.array(animalSchema),
   outdoorSchedules: z.array(outdoorScheduleSchema),
+  // optional for backwards compatibility of the schema, always sent
+  outdoorScheduleOverrides: z.array(outdoorScheduleOverrideSchema).optional(),
+});
+
+const createOutdoorScheduleOverrideSchema = z.object({
+  startDate: ez.dateIn(),
+  endDate: ez.dateIn(),
+  type: outdoorScheduleTypeSchema,
+  notes: z.string().optional().nullable(),
+  // not for stable overrides
+  meadowId: z.string().optional().nullable(),
 });
 
 const createOutdoorScheduleSchema = z.object({
@@ -603,6 +628,64 @@ export const deleteOutdoorScheduleEndpoint = animalsWrite.build({
   output: z.object({}),
   handler: async ({ input: { outdoorScheduleId }, ctx: { animals } }) => {
     await animals.deleteOutdoorSchedule(outdoorScheduleId);
+    return {};
+  },
+});
+
+// --- Outdoor Schedule Override Endpoints ---
+
+export const getHerdOutdoorScheduleOverridesEndpoint = animalsRead.build({
+  method: "get",
+  input: z.object({ herdId: z.string() }),
+  output: z.object({
+    result: z.array(outdoorScheduleOverrideSchema),
+    count: z.number(),
+  }),
+  handler: async ({ input, ctx: { animals } }) => {
+    const result = await animals.getOutdoorScheduleOverridesForHerd(input.herdId);
+    return { result, count: result.length };
+  },
+});
+
+export const createOutdoorScheduleOverrideEndpoint = animalsWrite.build({
+  method: "post",
+  input: createOutdoorScheduleOverrideSchema.extend({ herdId: z.string() }),
+  output: outdoorScheduleOverrideSchema,
+  handler: async ({ input, ctx: { animals } }) => {
+    const { herdId, ...data } = input;
+    return animals.createOutdoorScheduleOverride(herdId, data);
+  },
+});
+
+export const getOutdoorScheduleOverrideByIdEndpoint = animalsRead.build({
+  method: "get",
+  input: z.object({ outdoorScheduleOverrideId: z.string() }),
+  output: outdoorScheduleOverrideSchema,
+  handler: async ({ input, ctx: { animals } }) => {
+    const override = await animals.getOutdoorScheduleOverrideById(input.outdoorScheduleOverrideId);
+    if (!override) {
+      throw createHttpError(404, "Outdoor schedule override not found");
+    }
+    return override;
+  },
+});
+
+export const updateOutdoorScheduleOverrideEndpoint = animalsWrite.build({
+  method: "patch",
+  input: createOutdoorScheduleOverrideSchema.partial().extend({ outdoorScheduleOverrideId: z.string() }),
+  output: outdoorScheduleOverrideSchema,
+  handler: async ({ input, ctx: { animals } }) => {
+    const { outdoorScheduleOverrideId, ...data } = input;
+    return animals.updateOutdoorScheduleOverride(outdoorScheduleOverrideId, data);
+  },
+});
+
+export const deleteOutdoorScheduleOverrideEndpoint = animalsWrite.build({
+  method: "delete",
+  input: z.object({ outdoorScheduleOverrideId: z.string() }),
+  output: z.object({}),
+  handler: async ({ input: { outdoorScheduleOverrideId }, ctx: { animals } }) => {
+    await animals.deleteOutdoorScheduleOverride(outdoorScheduleOverrideId);
     return {};
   },
 });

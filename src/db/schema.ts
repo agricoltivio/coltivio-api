@@ -1631,7 +1631,8 @@ export const meadows = pgTable.withRLS(
   ]
 );
 
-export const outdoorScheduleType = pgEnum("outdoor_schedule_type", ["pasture", "exercise_yard"]);
+// stable: the animals are inside. Doesn't count as outdoor time (same as no entry) but is shown as stable time.
+export const outdoorScheduleType = pgEnum("outdoor_schedule_type", ["pasture", "exercise_yard", "stable"]);
 
 export const outdoorSchedules = pgTable.withRLS(
   "outdoor_shedules",
@@ -1660,6 +1661,46 @@ export const outdoorSchedules = pgTable.withRLS(
       name: "outdoor_schedules_meadow_farm_fk",
     }).onDelete("cascade"),
     index("outdoor_schedules_meadow_id_idx").on(table.meadowId),
+    pgPolicy("only farm members", {
+      as: "permissive",
+      to: authenticatedRole,
+      using: eq(table.farmId, currentFarmId),
+      withCheck: eq(table.farmId, currentFarmId),
+    }),
+  ]
+);
+
+// A date range in which the herd did something else than its schedules say (e.g. inside for two days because of
+// the weather, or on pasture on a day without a schedule). Takes precedence over the schedules on those days.
+// Overrides of one herd don't overlap each other.
+export const outdoorScheduleOverrides = pgTable.withRLS(
+  "outdoor_schedule_overrides",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    farmId: uuid()
+      .notNull()
+      .references(() => farms.id, {
+        onDelete: "cascade",
+      }),
+    herdId: uuid()
+      .notNull()
+      .references(() => herds.id, { onDelete: "cascade" }),
+    meadowId: uuid(),
+    startDate: date({ mode: "date" }).notNull(),
+    // inclusive, the same as startDate for a single day
+    endDate: date({ mode: "date" }).notNull(),
+    type: outdoorScheduleType().notNull(),
+    notes: text(),
+  },
+  (table) => [
+    // Same as outdoor_schedules: keeps an override from referencing another farm's meadow
+    foreignKey({
+      columns: [table.meadowId, table.farmId],
+      foreignColumns: [meadows.id, meadows.farmId],
+      name: "outdoor_schedule_overrides_meadow_farm_fk",
+    }).onDelete("cascade"),
+    index("outdoor_schedule_overrides_herd_id_idx").on(table.herdId),
+    index("outdoor_schedule_overrides_meadow_id_idx").on(table.meadowId),
     pgPolicy("only farm members", {
       as: "permissive",
       to: authenticatedRole,
@@ -2583,6 +2624,44 @@ export const forumThreadSubscriptions = pgTable.withRLS(
   ]
 );
 
+// Images in forum threads and replies (Supabase Storage, bucket forum-images, public). An upload starts unattached
+// and is linked to the thread or reply whose Markdown references it when that is saved; unattached rows older than
+// a day (or detached from their post) are removed by the cleanup cron. Moderators work through the admin connection.
+export const forumImages = pgTable.withRLS(
+  "forum_images",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    storagePath: text().notNull().unique(),
+    width: integer().notNull(),
+    height: integer().notNull(),
+    uploadedBy: uuid().references(() => profiles.id, { onDelete: "set null" }),
+    // Set null when the post is deleted, the cron then removes the file
+    threadId: uuid().references(() => forumThreads.id, { onDelete: "set null" }),
+    replyId: uuid().references(() => forumReplies.id, { onDelete: "set null" }),
+    createdAt: timestamp().notNull().defaultNow(),
+  },
+  (table) => [
+    index("forum_images_thread_id_idx").on(table.threadId),
+    index("forum_images_reply_id_idx").on(table.replyId),
+    index("forum_images_uploaded_by_idx").on(table.uploadedBy),
+    check("forum_images_single_post", sql`${table.threadId} IS NULL OR ${table.replyId} IS NULL`),
+    pgPolicy("authenticated users can read forum images", {
+      as: "permissive",
+      to: authenticatedRole,
+      for: "select",
+      using: sql`true`,
+    }),
+    // Upload, attach to an own post, detach on edit
+    pgPolicy("uploader can manage own forum images", {
+      as: "permissive",
+      to: authenticatedRole,
+      for: "all",
+      using: eq(table.uploadedBy, selectAuthUid),
+      withCheck: eq(table.uploadedBy, selectAuthUid),
+    }),
+  ]
+);
+
 export const tasks = pgTable.withRLS(
   "tasks",
   {
@@ -3009,6 +3088,7 @@ const tables = {
   customOutdoorJournalCategories,
   outdoorSchedules,
   outdoorScheduleRecurrences,
+  outdoorScheduleOverrides,
   meadows,
   wikiCategories,
   wikiCategoryTranslations,
@@ -3024,6 +3104,7 @@ const tables = {
   forumThreads,
   forumReplies,
   forumModerators,
+  forumImages,
   tasks,
   taskRecurrences,
   taskLinks,
@@ -3584,6 +3665,7 @@ export const relations = defineRelations(tables, (r) => ({
     animals: r.many.animals(),
     herdMemberships: r.many.herdMemberships(),
     outdoorSchedules: r.many.outdoorSchedules(),
+    outdoorScheduleOverrides: r.many.outdoorScheduleOverrides(),
   },
   herdMemberships: {
     farm: r.one.farms({
@@ -3626,6 +3708,23 @@ export const relations = defineRelations(tables, (r) => ({
       optional: false,
     }),
     outdoorSchedules: r.many.outdoorSchedules(),
+    outdoorScheduleOverrides: r.many.outdoorScheduleOverrides(),
+  },
+  outdoorScheduleOverrides: {
+    farm: r.one.farms({
+      from: r.outdoorScheduleOverrides.farmId,
+      to: r.farms.id,
+      optional: false,
+    }),
+    herd: r.one.herds({
+      from: r.outdoorScheduleOverrides.herdId,
+      to: r.herds.id,
+      optional: false,
+    }),
+    meadow: r.one.meadows({
+      from: r.outdoorScheduleOverrides.meadowId,
+      to: r.meadows.id,
+    }),
   },
   outdoorScheduleRecurrences: {
     outdoorSchedule: r.one.outdoorSchedules({

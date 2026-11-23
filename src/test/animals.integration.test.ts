@@ -529,6 +529,7 @@ describe("Herds with inline outdoor schedules", () => {
       jwt
     );
     expect(res.status).toBe(409);
+    expect(((await res.json()) as { code?: string }).code).toBe("outdoor_schedule_overlap");
 
     // Verify nothing was created in DB
     const db = getAdminDb();
@@ -606,6 +607,7 @@ describe("Herds with inline outdoor schedules", () => {
       jwt
     );
     expect(res.status).toBe(409);
+    expect(((await res.json()) as { code?: string }).code).toBe("outdoor_schedule_overlap");
 
     // Verify DB unchanged (no schedules created)
     const db = getAdminDb();
@@ -648,6 +650,39 @@ describe("Herds with inline outdoor schedules", () => {
 // ---------------------------------------------------------------------------
 describe("Outdoor Schedules CRUD", () => {
   beforeEach(cleanDb);
+
+  it("adds a schedule that overlaps nothing to a herd that already holds overlapping schedules", async () => {
+    const { jwt, farmId } = await createUserWithFarm();
+    const herd = await createHerd(jwt, { name: "OverlapHerd" });
+    await createOutdoorSchedule(jwt, herd.id, { startDate: "2025-05-01", endDate: "2025-07-31" });
+    // An overlapping row as it could be stored from before
+    await getAdminDb()
+      .insert(schema.outdoorSchedules)
+      .values({
+        farmId,
+        herdId: herd.id,
+        startDate: new Date("2025-07-01"),
+        endDate: new Date("2025-08-31"),
+        type: "pasture",
+      });
+
+    const res = await request(
+      "POST",
+      `/v1/animals/herds/byId/${herd.id}/outdoorSchedules`,
+      { startDate: "2025-10-01", endDate: "2025-10-31", type: "pasture" },
+      jwt
+    );
+    expect(res.status).toBe(200);
+
+    const overlapping = await request(
+      "POST",
+      `/v1/animals/herds/byId/${herd.id}/outdoorSchedules`,
+      { startDate: "2025-08-15", endDate: "2025-09-15", type: "pasture" },
+      jwt
+    );
+    expect(overlapping.status).toBe(409);
+    expect(((await overlapping.json()) as { code?: string }).code).toBe("outdoor_schedule_overlap");
+  });
 
   it("creates a schedule without recurrence", async () => {
     const { jwt } = await createUserWithFarm();
@@ -757,6 +792,7 @@ describe("Outdoor Schedules CRUD", () => {
       jwt
     );
     expect(res.status).toBe(409);
+    expect(((await res.json()) as { code?: string }).code).toBe("outdoor_schedule_overlap");
 
     // Verify DB: still only one schedule
     const db = getAdminDb();
@@ -2172,5 +2208,189 @@ describe("Animal import — dateOfDeath and parent resolution", () => {
     // Animal was still created, just no parent set
     expect(animal).toBeDefined();
     expect(animal!.motherId).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Outdoor schedule overrides and stable time
+// ---------------------------------------------------------------------------
+describe("Outdoor schedule overrides", () => {
+  beforeEach(cleanDb);
+
+  type OverrideResponse = {
+    id: string;
+    herdId: string;
+    type: string;
+    startDate: string;
+    endDate: string;
+    notes: string | null;
+    meadowId: string | null;
+  };
+
+  async function createOverride(jwt: string, herdId: string, body: Record<string, unknown>) {
+    return request("POST", `/v1/animals/herds/byId/${herdId}/outdoorScheduleOverrides`, body, jwt);
+  }
+
+  async function journalEntries(jwt: string) {
+    const res = await request(
+      "GET",
+      "/v1/animals/outdoorJournal?fromDate=2027-01-01&toDate=2027-12-31",
+      undefined,
+      jwt
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { data: { entries: { startDate: string; endDate: string }[] } };
+    return body.data.entries.map((entry) => [entry.startDate.slice(0, 10), entry.endDate.slice(0, 10)]);
+  }
+
+  async function herdWithSheep(jwt: string) {
+    const sheep = await createAnimal(jwt, {
+      type: "sheep",
+      sex: "female",
+      dateOfBirth: "2020-01-01",
+      usage: "other",
+    });
+    return createHerd(jwt, { animalIds: [sheep.id] });
+  }
+
+  it("creates, lists, updates and deletes an override", async () => {
+    const { jwt } = await createUserWithFarm();
+    const herd = await createHerd(jwt, { name: "OverrideHerd" });
+
+    const createRes = await createOverride(jwt, herd.id, {
+      startDate: "2027-05-10",
+      endDate: "2027-05-11",
+      type: "stable",
+      notes: "Unwetter",
+    });
+    expect(createRes.status).toBe(200);
+    const created = ((await createRes.json()) as { data: OverrideResponse }).data;
+    expect(created).toMatchObject({ herdId: herd.id, type: "stable", notes: "Unwetter", meadowId: null });
+
+    const listRes = await request("GET", `/v1/animals/herds/byId/${herd.id}/outdoorScheduleOverrides`, undefined, jwt);
+    expect(((await listRes.json()) as { data: { count: number } }).data.count).toBe(1);
+
+    // the herd response carries the overrides too
+    const herdRes = await request("GET", `/v1/animals/herds/byId/${herd.id}`, undefined, jwt);
+    const herdBody = (await herdRes.json()) as { data: { outdoorScheduleOverrides: OverrideResponse[] } };
+    expect(herdBody.data.outdoorScheduleOverrides.map((override) => override.id)).toEqual([created.id]);
+
+    const updateRes = await request(
+      "PATCH",
+      `/v1/animals/herds/outdoorScheduleOverrides/byId/${created.id}`,
+      { type: "exercise_yard", endDate: "2027-05-12" },
+      jwt
+    );
+    expect(updateRes.status).toBe(200);
+    const updated = ((await updateRes.json()) as { data: OverrideResponse }).data;
+    expect(updated.type).toBe("exercise_yard");
+    expect(updated.endDate.slice(0, 10)).toBe("2027-05-12");
+    expect(updated.notes).toBe("Unwetter");
+
+    const deleteRes = await request(
+      "DELETE",
+      `/v1/animals/herds/outdoorScheduleOverrides/byId/${created.id}`,
+      undefined,
+      jwt
+    );
+    expect(deleteRes.status).toBe(200);
+    const db = getAdminDb();
+    expect(await db.$count(schema.outdoorScheduleOverrides)).toBe(0);
+  });
+
+  it("rejects overlapping overrides of the same herd with a code", async () => {
+    const { jwt } = await createUserWithFarm();
+    const herd = await createHerd(jwt);
+    expect(
+      (await createOverride(jwt, herd.id, { startDate: "2027-05-10", endDate: "2027-05-12", type: "stable" })).status
+    ).toBe(200);
+
+    const overlapping = await createOverride(jwt, herd.id, {
+      startDate: "2027-05-12",
+      endDate: "2027-05-14",
+      type: "pasture",
+    });
+    expect(overlapping.status).toBe(409);
+    expect(((await overlapping.json()) as { code?: string }).code).toBe("outdoor_schedule_override_overlap");
+
+    // directly after is fine
+    expect(
+      (await createOverride(jwt, herd.id, { startDate: "2027-05-13", endDate: "2027-05-14", type: "pasture" })).status
+    ).toBe(200);
+  });
+
+  it("rejects an end before the start and a meadow on stable time", async () => {
+    const { jwt } = await createUserWithFarm();
+    const herd = await createHerd(jwt);
+
+    const reversed = await createOverride(jwt, herd.id, {
+      startDate: "2027-05-12",
+      endDate: "2027-05-10",
+      type: "stable",
+    });
+    expect(reversed.status).toBe(400);
+    expect(((await reversed.json()) as { code?: string }).code).toBe("invalid_date_range");
+
+    const stableOnMeadow = await createOverride(jwt, herd.id, {
+      startDate: "2027-05-10",
+      endDate: "2027-05-10",
+      type: "stable",
+      meadowId: "00000000-0000-0000-0000-000000000000",
+    });
+    expect(stableOnMeadow.status).toBe(400);
+
+    // also for a stable schedule
+    const stableScheduleRes = await request(
+      "POST",
+      `/v1/animals/herds/byId/${herd.id}/outdoorSchedules`,
+      {
+        startDate: "2027-01-01",
+        endDate: "2027-03-31",
+        type: "stable",
+        meadowId: "00000000-0000-0000-0000-000000000000",
+      },
+      jwt
+    );
+    expect(stableScheduleRes.status).toBe(400);
+  });
+
+  it("can't add an override to another farm's herd", async () => {
+    const { jwt: ownerJwt } = await createUserWithFarm();
+    const herd = await createHerd(ownerJwt);
+    const { jwt: otherJwt } = await createUserWithFarm(undefined, "other-farm@test.com");
+
+    const res = await createOverride(otherJwt, herd.id, {
+      startDate: "2027-05-10",
+      endDate: "2027-05-10",
+      type: "stable",
+    });
+    expect(res.status).toBe(404);
+  });
+
+  it("the outdoor journal applies overrides: stable days are cut out, pasture days on top are added", async () => {
+    const { jwt } = await createUserWithFarm();
+    const herd = await herdWithSheep(jwt);
+    await createOutdoorSchedule(jwt, herd.id, { startDate: "2027-05-01", endDate: "2027-05-31" });
+
+    expect(
+      (await createOverride(jwt, herd.id, { startDate: "2027-05-10", endDate: "2027-05-11", type: "stable" })).status
+    ).toBe(200);
+    expect(
+      (await createOverride(jwt, herd.id, { startDate: "2027-06-05", endDate: "2027-06-06", type: "pasture" })).status
+    ).toBe(200);
+
+    expect(await journalEntries(jwt)).toEqual([
+      ["2027-05-01", "2027-05-09"],
+      ["2027-05-12", "2027-05-31"],
+      ["2027-06-05", "2027-06-06"],
+    ]);
+  });
+
+  it("a stable schedule doesn't count as outdoor time", async () => {
+    const { jwt } = await createUserWithFarm();
+    const herd = await herdWithSheep(jwt);
+    await createOutdoorSchedule(jwt, herd.id, { startDate: "2027-01-01", endDate: "2027-03-31", type: "stable" });
+
+    expect(await journalEntries(jwt)).toEqual([]);
   });
 });
