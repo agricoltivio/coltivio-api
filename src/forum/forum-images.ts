@@ -1,6 +1,6 @@
 import { and, count, eq, gt, inArray, isNull, lt, notInArray, or } from "drizzle-orm";
 import sharp from "sharp";
-import { v4 as uuidv4 } from "uuid";
+import { randomUUID } from "crypto";
 import { adminDrizzle, RlsDb, Transaction } from "../db/db";
 import { forumImages, forumReplies, forumThreads } from "../db/schema";
 import { CodedError } from "../errors";
@@ -200,7 +200,7 @@ export function forumImagesApi(db: RlsDb) {
           throw new CodedError("invalid_image", "The image could not be read");
         });
 
-      const storagePath = `${uploadedBy}/${uuidv4()}.webp`;
+      const storagePath = `${uploadedBy}/${randomUUID()}.webp`;
       const { error } = await forumImagesStorage.upload(storagePath, encoded, {
         contentType: "image/webp",
         cacheControl: "31536000",
