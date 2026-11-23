@@ -415,19 +415,26 @@ const meadowSummaryColumns = { columns: { id: true, name: true, size: true } } a
 
 // Checks if any two schedules in the list produce overlapping concrete occurrences.
 // Uses a 25-year window starting from the earliest schedule start date.
-export function hasScheduleOverlap(schedules: OutdoorScheduleWithRecurrence[]): boolean {
-  if (schedules.length < 2) return false;
-  const windowFrom = schedules.reduce((min, s) => (s.startDate < min ? s.startDate : min), schedules[0].startDate);
+// Whether the new schedules overlap each other or one of the existing ones. Existing schedules aren't compared with
+// each other: overlapping ones already stored must not block adding a schedule that overlaps nothing.
+export function hasScheduleOverlap(
+  newSchedules: OutdoorScheduleWithRecurrence[],
+  existingSchedules: OutdoorScheduleWithRecurrence[] = []
+): boolean {
+  const allSchedules = [...newSchedules, ...existingSchedules];
+  if (newSchedules.length === 0 || allSchedules.length < 2) return false;
+  const windowFrom = allSchedules.reduce(
+    (min, schedule) => (schedule.startDate < min ? schedule.startDate : min),
+    allSchedules[0].startDate
+  );
   const windowTo = new Date(windowFrom.getFullYear() + 25, windowFrom.getMonth(), windowFrom.getDate());
-  const expanded = schedules.map((s) => expandOutdoorSchedule(s, windowFrom, windowTo));
-  for (let i = 0; i < expanded.length; i++) {
-    for (let j = i + 1; j < expanded.length; j++) {
-      for (const a of expanded[i]) {
-        for (const b of expanded[j]) {
-          if (a.startDate <= b.endDate && b.startDate <= a.endDate) return true;
-        }
-      }
-    }
+  const expandedNew = newSchedules.map((schedule) => expandOutdoorSchedule(schedule, windowFrom, windowTo));
+  const expandedExisting = existingSchedules.map((schedule) => expandOutdoorSchedule(schedule, windowFrom, windowTo));
+  const rangesOverlap = (a: { startDate: Date; endDate: Date }[], b: { startDate: Date; endDate: Date }[]) =>
+    a.some((rangeA) => b.some((rangeB) => rangeA.startDate <= rangeB.endDate && rangeB.startDate <= rangeA.endDate));
+  for (let i = 0; i < expandedNew.length; i++) {
+    const others = [...expandedNew.slice(i + 1), ...expandedExisting];
+    if (others.some((other) => rangesOverlap(expandedNew[i], other))) return true;
   }
   return false;
 }
@@ -1016,7 +1023,7 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
 
       // Validate no overlap with existing schedules for this herd
       const existing = await this.getOutdoorSchedulesForHerd(herdId);
-      if (hasScheduleOverlap([...existing, inputToSchedule(input)])) {
+      if (hasScheduleOverlap([inputToSchedule(input)], existing)) {
         throw new CodedError("outdoor_schedule_overlap", "Schedule overlaps with existing schedule");
       }
 
@@ -1082,7 +1089,12 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
       // Validate no overlap (exclude self)
       if (scheduleData.startDate !== undefined || scheduleData.endDate !== undefined || recurrence !== undefined) {
         const existing = await this.getOutdoorSchedulesForHerd(current.herdId);
-        if (hasScheduleOverlap([...existing.filter((s) => s.id !== id), updatedSchedule])) {
+        if (
+          hasScheduleOverlap(
+            [updatedSchedule],
+            existing.filter((s) => s.id !== id)
+          )
+        ) {
           throw new CodedError("outdoor_schedule_overlap", "Schedule overlaps with existing schedule");
         }
       }
