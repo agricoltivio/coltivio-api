@@ -352,7 +352,8 @@
     "animal_count": "Nombre d'animaux",
     "types": {
       "pasture": "Pâturage",
-      "exercise_yard": "Paddock"
+      "exercise_yard": "Paddock",
+      "stable": "Étable"
     }
   },
   "application_units": {

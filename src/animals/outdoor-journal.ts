@@ -18,6 +18,7 @@ import {
   CustomOutdoorJournalCategory,
   HerdMembership,
   OutdoorScheduleWithRecurrence,
+  OutdoorScheduleOverride,
   OutdoorScheduleType,
   AnimalType,
   Herd,
@@ -185,7 +186,53 @@ type HerdWithMembershipsAndSchedules = Herd & {
     animal: AnimalWithCustomCategories;
   })[];
   outdoorSchedules: OutdoorScheduleWithRecurrence[];
+  outdoorScheduleOverrides: OutdoorScheduleOverride[];
 };
+
+// One stretch of days of a herd, with the schedule or override it comes from (type, meadow, ...)
+export type HerdOutdoorRange<TSchedule, TOverride> = DateRange & { source: TSchedule | TOverride };
+
+// What a herd did day by day: the occurrences of its schedules with the override ranges cut out, plus the override
+// ranges themselves. Overrides take precedence over the schedules on their days, in every direction (stable inside a
+// pasture schedule, pasture on a day without a schedule, ...). Stable ranges are included, callers that count
+// outdoor time skip them. Sorted by start date.
+export function expandHerdOutdoorRanges<
+  TSchedule extends OutdoorScheduleWithRecurrence,
+  TOverride extends OutdoorScheduleOverride,
+>(
+  schedules: TSchedule[],
+  overrides: TOverride[],
+  queryFrom: Date,
+  queryTo: Date
+): HerdOutdoorRange<TSchedule, TOverride>[] {
+  const overrideRanges = overrides
+    .filter((override) => !isAfter(override.startDate, queryTo) && !isBefore(override.endDate, queryFrom))
+    .map((override) => ({
+      startDate: max([override.startDate, queryFrom]),
+      endDate: min([override.endDate, queryTo]),
+      source: override,
+    }))
+    .sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
+
+  const ranges: HerdOutdoorRange<TSchedule, TOverride>[] = [...overrideRanges];
+  for (const schedule of schedules) {
+    for (const occurrence of expandOutdoorSchedule(schedule, queryFrom, queryTo)) {
+      const coveredByOverrides = overrideRanges
+        .filter(
+          (override) =>
+            !isAfter(override.startDate, occurrence.endDate) && !isBefore(override.endDate, occurrence.startDate)
+        )
+        .map((override) => ({
+          startDate: max([override.startDate, occurrence.startDate]),
+          endDate: min([override.endDate, occurrence.endDate]),
+        }));
+      for (const part of subtractDateRanges(occurrence, coveredByOverrides)) {
+        ranges.push({ ...part, source: schedule });
+      }
+    }
+  }
+  return ranges.sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
+}
 
 // Subtracts covered ranges from a period, returning the uncovered sub-periods.
 // Assumes `covered` is sorted by startDate and already clamped to `period`.
@@ -236,11 +283,13 @@ export function buildOutdoorJournal(
   const uncategorizedAnimalMap = new Map<string, Animal>();
 
   for (const herd of herds) {
-    // Expand all outdoor schedules for this herd
-    const occurrences: DateRange[] = [];
-    for (const schedule of herd.outdoorSchedules) {
-      occurrences.push(...expandOutdoorSchedule(schedule, queryFrom, queryTo));
-    }
+    // The herd's outdoor days: schedules with the overrides applied, stable time doesn't count
+    const occurrences: DateRange[] = expandHerdOutdoorRanges(
+      herd.outdoorSchedules,
+      herd.outdoorScheduleOverrides,
+      queryFrom,
+      queryTo
+    ).filter((range) => range.source.type !== "stable");
 
     // For each occurrence, intersect with each membership period
     for (const occ of occurrences) {
@@ -400,6 +449,7 @@ type MeadowSummary = { id: string; name: string; size: number };
 type HerdForMeadowJournal = Herd & {
   herdMemberships: (HerdMembership & { animal: Pick<Animal, "dateOfDeath" | "type"> })[];
   outdoorSchedules: (OutdoorScheduleWithRecurrence & { meadow: MeadowSummary | null })[];
+  outdoorScheduleOverrides: (OutdoorScheduleOverride & { meadow: MeadowSummary | null })[];
 };
 
 // Lists which herd was on which meadow and for how long. Each occurrence of a meadow-linked schedule is split into
@@ -412,63 +462,64 @@ export function buildMeadowJournal(
   const entries: MeadowJournalEntry[] = [];
 
   for (const herd of herds) {
-    for (const schedule of herd.outdoorSchedules) {
-      const meadow = schedule.meadow;
-      if (!meadow) continue;
+    // Schedules and overrides on a meadow, with the overrides applied (an override on another meadow or in the
+    // stable cuts the schedule's days)
+    const ranges = expandHerdOutdoorRanges(herd.outdoorSchedules, herd.outdoorScheduleOverrides, queryFrom, queryTo);
+    for (const occurrence of ranges) {
+      const meadow = occurrence.source.meadow;
+      // Stable time is never meadow usage, even if an older row still has a meadow
+      if (!meadow || occurrence.source.type === "stable") continue;
+      // Per animal type: +1 on the first day an animal is present, -1 on the day after its last day
+      const deltaByDate = new Map<number, Map<AnimalType, number>>();
+      const addDelta = (date: number, animalType: AnimalType, delta: number) => {
+        const deltasOnDate = deltaByDate.get(date) ?? new Map<AnimalType, number>();
+        deltasOnDate.set(animalType, (deltasOnDate.get(animalType) ?? 0) + delta);
+        deltaByDate.set(date, deltasOnDate);
+      };
+      for (const membership of herd.herdMemberships) {
+        const presentEndCandidates = [membership.toDate ?? occurrence.endDate, occurrence.endDate];
+        if (membership.animal.dateOfDeath) presentEndCandidates.push(membership.animal.dateOfDeath);
+        const presentStart = max([membership.fromDate, occurrence.startDate]);
+        const presentEnd = min(presentEndCandidates);
+        if (isAfter(presentStart, presentEnd)) continue;
 
-      for (const occurrence of expandOutdoorSchedule(schedule, queryFrom, queryTo)) {
-        // Per animal type: +1 on the first day an animal is present, -1 on the day after its last day
-        const deltaByDate = new Map<number, Map<AnimalType, number>>();
-        const addDelta = (date: number, animalType: AnimalType, delta: number) => {
-          const deltasOnDate = deltaByDate.get(date) ?? new Map<AnimalType, number>();
-          deltasOnDate.set(animalType, (deltasOnDate.get(animalType) ?? 0) + delta);
-          deltaByDate.set(date, deltasOnDate);
-        };
-        for (const membership of herd.herdMemberships) {
-          const presentEndCandidates = [membership.toDate ?? occurrence.endDate, occurrence.endDate];
-          if (membership.animal.dateOfDeath) presentEndCandidates.push(membership.animal.dateOfDeath);
-          const presentStart = max([membership.fromDate, occurrence.startDate]);
-          const presentEnd = min(presentEndCandidates);
-          if (isAfter(presentStart, presentEnd)) continue;
+        addDelta(presentStart.getTime(), membership.animal.type, 1);
+        addDelta(addDays(presentEnd, 1).getTime(), membership.animal.type, -1);
+      }
 
-          addDelta(presentStart.getTime(), membership.animal.type, 1);
-          addDelta(addDays(presentEnd, 1).getTime(), membership.animal.type, -1);
-        }
-
-        const sortedDates = [...deltaByDate.keys()].sort((a, b) => a - b);
-        const runningCountsByType = new Map<AnimalType, number>();
-        let runningCount = 0;
-        let segmentStart: number | null = null;
-        for (const date of sortedDates) {
-          const deltasOnDate = [...(deltaByDate.get(date) ?? new Map<AnimalType, number>())].filter(
-            ([, delta]) => delta !== 0
-          );
-          // Same-day arrivals and departures of the same type cancel out and don't split the segment
-          if (deltasOnDate.length === 0) continue;
-          if (runningCount > 0 && segmentStart !== null) {
-            const animalCountsByType: Partial<Record<AnimalType, number>> = {};
-            for (const [animalType, count] of runningCountsByType) {
-              if (count > 0) animalCountsByType[animalType] = count;
-            }
-            entries.push({
-              meadowId: meadow.id,
-              meadowName: meadow.name,
-              meadowSize: meadow.size,
-              herdId: herd.id,
-              herdName: herd.name,
-              type: schedule.type,
-              startDate: new Date(segmentStart),
-              endDate: addDays(new Date(date), -1),
-              animalCount: runningCount,
-              animalCountsByType,
-            });
+      const sortedDates = [...deltaByDate.keys()].sort((a, b) => a - b);
+      const runningCountsByType = new Map<AnimalType, number>();
+      let runningCount = 0;
+      let segmentStart: number | null = null;
+      for (const date of sortedDates) {
+        const deltasOnDate = [...(deltaByDate.get(date) ?? new Map<AnimalType, number>())].filter(
+          ([, delta]) => delta !== 0
+        );
+        // Same-day arrivals and departures of the same type cancel out and don't split the segment
+        if (deltasOnDate.length === 0) continue;
+        if (runningCount > 0 && segmentStart !== null) {
+          const animalCountsByType: Partial<Record<AnimalType, number>> = {};
+          for (const [animalType, count] of runningCountsByType) {
+            if (count > 0) animalCountsByType[animalType] = count;
           }
-          for (const [animalType, delta] of deltasOnDate) {
-            runningCountsByType.set(animalType, (runningCountsByType.get(animalType) ?? 0) + delta);
-            runningCount += delta;
-          }
-          segmentStart = runningCount > 0 ? date : null;
+          entries.push({
+            meadowId: meadow.id,
+            meadowName: meadow.name,
+            meadowSize: meadow.size,
+            herdId: herd.id,
+            herdName: herd.name,
+            type: occurrence.source.type,
+            startDate: new Date(segmentStart),
+            endDate: addDays(new Date(date), -1),
+            animalCount: runningCount,
+            animalCountsByType,
+          });
         }
+        for (const [animalType, delta] of deltasOnDate) {
+          runningCountsByType.set(animalType, (runningCountsByType.get(animalType) ?? 0) + delta);
+          runningCount += delta;
+        }
+        segmentStart = runningCount > 0 ? date : null;
       }
     }
   }

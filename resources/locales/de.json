@@ -352,7 +352,8 @@
     "animal_count": "Anzahl Tiere",
     "types": {
       "pasture": "Weide",
-      "exercise_yard": "Laufhof"
+      "exercise_yard": "Laufhof",
+      "stable": "Stall"
     }
   },
   "application_units": {

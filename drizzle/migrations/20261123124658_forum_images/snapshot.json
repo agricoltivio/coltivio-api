@@ -1,9 +1,9 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "f126c427-8128-4c68-8b73-334bdac69ae3",
+  "id": "89ce2a35-afbd-49b5-a611-dc3b2a46ace1",
   "prevIds": [
-    "b54e8d44-109a-4709-999d-22810fbfed75"
+    "8510cb73-6f89-47c4-b40b-a0a09d451b63"
   ],
   "ddl": [
     {
@@ -316,7 +316,8 @@
     {
       "values": [
         "pasture",
-        "exercise_yard"
+        "exercise_yard",
+        "stable"
       ],
       "name": "outdoor_schedule_type",
       "entityType": "enums",
@@ -869,6 +870,12 @@
     {
       "isRlsEnabled": true,
       "name": "orders",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": true,
+      "name": "outdoor_schedule_overrides",
       "entityType": "tables",
       "schema": "public"
     },
@@ -6198,6 +6205,110 @@
       "name": "id",
       "entityType": "columns",
       "schema": "public",
+      "table": "outdoor_schedule_overrides"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "farm_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "outdoor_schedule_overrides"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "herd_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "outdoor_schedule_overrides"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "meadow_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "outdoor_schedule_overrides"
+    },
+    {
+      "type": "date",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "start_date",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "outdoor_schedule_overrides"
+    },
+    {
+      "type": "date",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "end_date",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "outdoor_schedule_overrides"
+    },
+    {
+      "type": "outdoor_schedule_type",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "type",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "outdoor_schedule_overrides"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "notes",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "outdoor_schedule_overrides"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
       "table": "outdoor_schedule_recurrences"
     },
     {
@@ -10742,6 +10853,48 @@
       "nameExplicit": true,
       "columns": [
         {
+          "value": "herd_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "outdoor_schedule_overrides_herd_id_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "outdoor_schedule_overrides"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "meadow_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "outdoor_schedule_overrides_meadow_id_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "outdoor_schedule_overrides"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
           "value": "meadow_id",
           "isExpression": false,
           "asc": true,
@@ -12855,6 +13008,59 @@
       ],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
+      "name": "outdoor_schedule_overrides_farm_id_farms_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "outdoor_schedule_overrides"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "herd_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "herds",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "outdoor_schedule_overrides_herd_id_herds_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "outdoor_schedule_overrides"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "meadow_id",
+        "farm_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "meadows",
+      "columnsTo": [
+        "id",
+        "farm_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "outdoor_schedule_overrides_meadow_farm_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "outdoor_schedule_overrides"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "farm_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "farms",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
       "name": "outdoor_schedule_recurrences_farm_id_farms_id_fkey",
       "entityType": "fks",
       "schema": "public",
@@ -14849,6 +15055,16 @@
         "id"
       ],
       "nameExplicit": false,
+      "name": "outdoor_schedule_overrides_pkey",
+      "schema": "public",
+      "table": "outdoor_schedule_overrides",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
       "name": "outdoor_schedule_recurrences_pkey",
       "schema": "public",
       "table": "outdoor_schedule_recurrences",
@@ -16478,6 +16694,19 @@
       "entityType": "policies",
       "schema": "public",
       "table": "orders"
+    },
+    {
+      "as": "PERMISSIVE",
+      "for": "ALL",
+      "roles": [
+        "authenticated"
+      ],
+      "using": "\"outdoor_schedule_overrides\".\"farm_id\" = (select farm_id())",
+      "withCheck": "\"outdoor_schedule_overrides\".\"farm_id\" = (select farm_id())",
+      "name": "only farm members",
+      "entityType": "policies",
+      "schema": "public",
+      "table": "outdoor_schedule_overrides"
     },
     {
       "as": "PERMISSIVE",

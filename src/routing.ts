@@ -3,6 +3,11 @@ import {
   createAnimalEndpoint,
   createHerdEndpoint,
   createOutdoorScheduleEndpoint,
+  createOutdoorScheduleOverrideEndpoint,
+  deleteOutdoorScheduleOverrideEndpoint,
+  getHerdOutdoorScheduleOverridesEndpoint,
+  getOutdoorScheduleOverrideByIdEndpoint,
+  updateOutdoorScheduleOverrideEndpoint,
   deleteAnimalEndpoint,
   deleteHerdEndpoint,
   deleteOutdoorScheduleEndpoint,
@@ -958,6 +963,12 @@ export const routing: Routing = {
                 post: createOutdoorScheduleEndpoint,
               },
             },
+            outdoorScheduleOverrides: {
+              "": {
+                get: getHerdOutdoorScheduleOverridesEndpoint,
+                post: createOutdoorScheduleOverrideEndpoint,
+              },
+            },
           },
         },
         outdoorSchedules: {
@@ -966,6 +977,15 @@ export const routing: Routing = {
               get: getOutdoorScheduleByIdEndpoint,
               patch: updateOutdoorScheduleEndpoint,
               delete: deleteOutdoorScheduleEndpoint,
+            },
+          },
+        },
+        outdoorScheduleOverrides: {
+          byId: {
+            ":outdoorScheduleOverrideId": {
+              get: getOutdoorScheduleOverrideByIdEndpoint,
+              patch: updateOutdoorScheduleOverrideEndpoint,
+              delete: deleteOutdoorScheduleOverrideEndpoint,
             },
           },
         },
