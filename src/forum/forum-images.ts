@@ -39,12 +39,18 @@ function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-// CommonMark parser with raw HTML on, so <img> in HTML is seen too. Parsing instead of a regex catches every image a
+// CommonMark parser with raw HTML on, so images in HTML are seen too. Parsing instead of a regex catches every image a
 // renderer shows (nested or escaped brackets in the alt text, reference definitions) and skips examples in code.
 const markdownParser = new MarkdownIt({ html: true });
-const HTML_IMAGE_SOURCE = /<img\b[^>]*?\ssrc\s*=\s*["']?([^"'\s>]+)/gi;
+// markdown-it drops destinations it considers unsafe (data: other than raster images, javascript:, ...) and creates no
+// image token for them, while other renderers still show them. Accept all, so every image reaches the check.
+markdownParser.validateLink = () => true;
+// Images in raw HTML. No client renders raw HTML and our uploads are inserted as Markdown, so any of them is rejected
+// instead of parsing attributes (quoted ">" or a fake src inside another attribute would fool a regex).
+const HTML_IMAGE = /<img\b|\bsrcset\s*=/i;
 
-// Image URLs referenced in a Markdown body: image nodes (inline and reference style) and <img src> in raw HTML
+// Image URLs referenced in a Markdown body: image nodes (inline and reference style). An image in raw HTML yields an
+// empty URL, which the check rejects like an external one.
 export function extractImageUrls(markdown: string): string[] {
   const imageUrls: string[] = [];
   const collect = (tokens: Token[]) => {
@@ -53,8 +59,8 @@ export function extractImageUrls(markdown: string): string[] {
         const source = token.attrGet("src");
         // An image without a usable source is rejected like an external one
         imageUrls.push(typeof source === "string" ? source : "");
-      } else if (token.type === "html_inline" || token.type === "html_block") {
-        imageUrls.push(...[...token.content.matchAll(HTML_IMAGE_SOURCE)].map((match) => match[1]));
+      } else if ((token.type === "html_inline" || token.type === "html_block") && HTML_IMAGE.test(token.content)) {
+        imageUrls.push("");
       }
       if (token.children) collect(token.children);
     }
@@ -76,7 +82,8 @@ export function removeImageReferences(markdown: string, imageUrl: string): strin
   const escapedUrl = escapeRegExp(imageUrl);
   return (
     markdown
-      .replace(new RegExp(`!\\[[^\\]]*\\]\\(\\s*<?${escapedUrl}[^)]*\\)`, "g"), "")
+      // Alt text with escaped characters and one level of nested brackets, like the parser accepts
+      .replace(new RegExp(`!\\[(?:\\\\.|\\[[^\\]]*\\]|[^\\]\\\\[])*\\]\\(\\s*<?${escapedUrl}[^)]*\\)`, "g"), "")
       .replace(new RegExp(`<img\\b[^>]*?\\ssrc\\s*=\\s*["']?${escapedUrl}[^>]*>`, "gi"), "")
       // Reference definitions ([label]: url); the ![alt][label] left behind then shows as plain text
       .replace(new RegExp(`^ {0,3}\\[[^\\]]+\\]:\\s*<?${escapedUrl}>?.*$`, "gm"), "")

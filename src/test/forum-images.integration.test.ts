@@ -130,6 +130,11 @@ describe("Forum images", () => {
       "![a [b] c](https://example.com/nested.png)",
       "![a\\]b](https://example.com/escaped.png)",
       "![x][r]\n\n[r]: https://example.com/reference.png",
+      // markdown-it alone would drop these destinations and see no image
+      "![svg](data:image/svg+xml;base64,PHN2Zy8+)",
+      // HTML images are rejected as a whole, attribute tricks included
+      '<img alt=">" src="https://example.com/quoted.png">',
+      '<img srcset="https://example.com/srcset.png 1x">',
     ]) {
       const res = await createThread(jwt, body);
       expect(res.status).toBe(400);
@@ -210,7 +215,8 @@ describe("Forum images", () => {
   it("a moderator removes a single image, the post stays without it", async () => {
     const { jwt } = await createUserWithPaidMembership("author@test.com");
     const image = await uploadImage(jwt);
-    const threadId = await createThreadId(jwt, `Vorher\n\n![Bild](${image.url})\n\nNachher`);
+    // Nested brackets in the alt text, which a simple pattern wouldn't remove
+    const threadId = await createThreadId(jwt, `Vorher\n\n![Bild [Juni]](${image.url})\n\nNachher`);
 
     const { jwt: otherJwt } = await createUserWithPaidMembership("other@test.com");
     const notModerator = await request("DELETE", `/v1/forum/images/byId/${image.id}`, undefined, otherJwt);
