@@ -23,6 +23,8 @@ export const apiErrorCodeSchema = z.enum([
   "invalid_ear_tag_range",
   // the ear tag is assigned to an animal and can't be deleted
   "ear_tag_assigned",
+  // another ear tag of the farm already has this number
+  "ear_tag_number_taken",
   // the sire of a mating is the animal itself or not a male
   "invalid_sire",
   // an end date lies before its start date (e.g. a crop rotation, or its recurrence end before its end)

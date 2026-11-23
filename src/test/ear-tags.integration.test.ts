@@ -167,4 +167,64 @@ describe("Ear Tags", () => {
     const foreignRes = await request("DELETE", `/v1/earTags/byId/${otherTag.id}`, undefined, jwt);
     expect(foreignRes.status).toBe(404);
   });
+
+  it("creates and deletes a range with a free text prefix and plain numbers", async () => {
+    const { jwt } = await createUserWithFarm();
+    const createRes = await request(
+      "POST",
+      "/v1/earTags/range",
+      { prefix: "CH 120.", fromNumber: "0098", toNumber: "0101" },
+      jwt
+    );
+    expect(createRes.status).toBe(200);
+    const created = ((await createRes.json()) as { data: { result: { number: string }[] } }).data.result;
+    expect(created.map((tag) => tag.number).sort()).toEqual([
+      "CH 120.0098",
+      "CH 120.0099",
+      "CH 120.0100",
+      "CH 120.0101",
+    ]);
+
+    // With a prefix, start and end have to be plain numbers
+    const mixedRes = await request(
+      "POST",
+      "/v1/earTags/range",
+      { prefix: "CH", fromNumber: "A1", toNumber: "A5" },
+      jwt
+    );
+    expect(mixedRes.status).toBe(400);
+    expect(((await mixedRes.json()) as { code: string }).code).toBe("invalid_ear_tag_range");
+
+    const deleteRes = await request(
+      "DELETE",
+      "/v1/earTags/range?prefix=CH%20120.&fromNumber=0098&toNumber=0099",
+      undefined,
+      jwt
+    );
+    expect(deleteRes.status).toBe(200);
+    expect(((await deleteRes.json()) as { data: { deletedCount: number } }).data.deletedCount).toBe(2);
+    const db = getAdminDb();
+    expect(await db.$count(schema.earTags)).toBe(2);
+  });
+
+  it("renames an ear tag, also an assigned one, and rejects a number that's taken", async () => {
+    const { jwt } = await createUserWithFarm();
+    const createRes = await request("POST", "/v1/earTags/range", { fromNumber: "CH050", toNumber: "CH051" }, jwt);
+    const [firstTag, secondTag] = (
+      (await createRes.json()) as { data: { result: { id: string; number: string }[] } }
+    ).data.result.sort((a, b) => a.number.localeCompare(b.number));
+    await createAnimal(jwt, { earTagId: firstTag.id });
+
+    const renameRes = await request("PATCH", `/v1/earTags/byId/${firstTag.id}`, { number: " CH 120.0050 " }, jwt);
+    expect(renameRes.status).toBe(200);
+    expect(((await renameRes.json()) as { data: { number: string } }).data.number).toBe("CH 120.0050");
+
+    const takenRes = await request("PATCH", `/v1/earTags/byId/${secondTag.id}`, { number: "CH 120.0050" }, jwt);
+    expect(takenRes.status).toBe(409);
+    expect(((await takenRes.json()) as { code: string }).code).toBe("ear_tag_number_taken");
+
+    const { jwt: otherJwt } = await createUserWithFarm(undefined, "other-farm@test.com");
+    const otherFarmRes = await request("PATCH", `/v1/earTags/byId/${secondTag.id}`, { number: "X1" }, otherJwt);
+    expect(otherFarmRes.status).toBe(404);
+  });
 });
