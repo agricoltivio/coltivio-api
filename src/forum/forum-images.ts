@@ -45,9 +45,10 @@ const markdownParser = new MarkdownIt({ html: true });
 // markdown-it drops destinations it considers unsafe (data: other than raster images, javascript:, ...) and creates no
 // image token for them, while other renderers still show them. Accept all, so every image reaches the check.
 markdownParser.validateLink = () => true;
-// Images in raw HTML. No client renders raw HTML and our uploads are inserted as Markdown, so any of them is rejected
+// Anything in raw HTML that can load an image: image-like tags (<image> is an alias of <img> in browsers), source
+// attributes and CSS url(). No client renders raw HTML and our uploads are inserted as Markdown, so these are rejected
 // instead of parsing attributes (quoted ">" or a fake src inside another attribute would fool a regex).
-const HTML_IMAGE = /<img\b|\bsrcset\s*=/i;
+const HTML_IMAGE = /<(?:img|image|picture|video|input|svg)\b|\b(?:srcset|src|poster)\s*=|url\(/i;
 
 // Image URLs referenced in a Markdown body: image nodes (inline and reference style). An image in raw HTML yields an
 // empty URL, which the check rejects like an external one.

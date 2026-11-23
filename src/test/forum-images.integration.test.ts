@@ -111,7 +111,7 @@ describe("Forum images", () => {
 
     // Another user's unattached upload can't be used either
     const otherUpload = await uploadImage(otherJwt);
-    const foreignUpload = await createThread(jwt, `<img src="${otherUpload.url}">`);
+    const foreignUpload = await createThread(jwt, `![](${otherUpload.url})`);
     expect(foreignUpload.status).toBe(400);
     expect(await errorCode(foreignUpload)).toBe("invalid_image_reference");
   });
@@ -135,6 +135,10 @@ describe("Forum images", () => {
       // HTML images are rejected as a whole, attribute tricks included
       '<img alt=">" src="https://example.com/quoted.png">',
       '<img srcset="https://example.com/srcset.png 1x">',
+      '<image src="https://example.com/alias.png">',
+      '<input type="image" src="https://example.com/input.png">',
+      '<video poster="https://example.com/poster.png"></video>',
+      '<div style="background:url(https://example.com/css.png)">x</div>',
     ]) {
       const res = await createThread(jwt, body);
       expect(res.status).toBe(400);
