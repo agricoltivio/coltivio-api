@@ -46,9 +46,10 @@ const markdownParser = new MarkdownIt({ html: true });
 // image token for them, while other renderers still show them. Accept all, so every image reaches the check.
 markdownParser.validateLink = () => true;
 // Anything in raw HTML that can load an image: image-like tags (<image> is an alias of <img> in browsers), stylesheets
-// (<style>, <link>), frames (srcdoc can hold encoded HTML), source attributes, the legacy background attribute, any inline style (CSS can load images in
-// escaped forms) and url(). No client renders raw HTML and our uploads are inserted as Markdown, so these are rejected
-// instead of parsing attributes (quoted ">" or a fake src inside another attribute would fool a regex).
+// (<style>, <link>), frames (srcdoc can hold encoded HTML), source attributes, the legacy background attribute, any
+// inline style (CSS can load images in escaped forms) and url(). No client renders raw HTML and our uploads are
+// inserted as Markdown, so these are rejected instead of parsing attributes (quoted ">" or a fake src inside another
+// attribute would fool a regex).
 const HTML_IMAGE =
   /<(?:img|image|picture|video|input|svg|object|embed|style|link|iframe|frame)\b|\b(?:srcset|src|poster|background|style)\s*=|url\(/i;
 
