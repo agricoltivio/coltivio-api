@@ -413,10 +413,9 @@ async function changeHerdMemberships(
 
 const meadowSummaryColumns = { columns: { id: true, name: true, size: true } } as const;
 
-// Checks if any two schedules in the list produce overlapping concrete occurrences.
-// Uses a 25-year window starting from the earliest schedule start date.
-// Whether the new schedules overlap each other or one of the existing ones. Existing schedules aren't compared with
-// each other: overlapping ones already stored must not block adding a schedule that overlaps nothing.
+// Whether the concrete occurrences of the new schedules overlap each other or those of an existing one, within a
+// 25-year window from the earliest start date. Existing schedules aren't compared with each other: overlapping ones
+// already stored must not block adding a schedule that overlaps nothing.
 export function hasScheduleOverlap(
   newSchedules: OutdoorScheduleWithRecurrence[],
   existingSchedules: OutdoorScheduleWithRecurrence[] = []
