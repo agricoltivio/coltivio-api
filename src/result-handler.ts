@@ -60,6 +60,9 @@ const statusByErrorCode: Record<ApiErrorCode, number> = {
   crop_rotation_overlap: 409,
   outdoor_schedule_overlap: 409,
   outdoor_schedule_override_overlap: 409,
+  invalid_image: 400,
+  invalid_image_reference: 400,
+  too_many_pending_images: 429,
 };
 
 const getPublicErrorMessage = (error: HttpError): string =>

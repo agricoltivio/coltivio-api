@@ -427,8 +427,13 @@ import {
   updateForumReplyEndpoint,
   deleteForumReplyEndpoint,
   setForumThreadSubscriptionEndpoint,
+  uploadForumImageEndpoint,
 } from "./forum/forum.endpoint";
-import { setForumThreadStatusEndpoint, pinForumThreadEndpoint } from "./forum/forum-moderation.endpoint";
+import {
+  setForumThreadStatusEndpoint,
+  pinForumThreadEndpoint,
+  removeForumImageEndpoint,
+} from "./forum/forum-moderation.endpoint";
 import { createHandoffTokenEndpoint, exchangeHandoffTokenEndpoint } from "./auth/handoff.endpoint";
 import { registerPushTokenEndpoint, unregisterPushTokenEndpoint } from "./push/push-tokens.endpoint";
 import { resendVerificationEmailEndpoint, verifyEmailEndpoint } from "./user/user-verification.endpoint";
@@ -1315,6 +1320,12 @@ export const routing: Routing = {
             patch: updateForumReplyEndpoint,
             delete: deleteForumReplyEndpoint,
           },
+        },
+      },
+      images: {
+        "": { post: uploadForumImageEndpoint },
+        byId: {
+          ":imageId": { delete: removeForumImageEndpoint },
         },
       },
     },
