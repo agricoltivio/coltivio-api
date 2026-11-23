@@ -651,6 +651,39 @@ describe("Herds with inline outdoor schedules", () => {
 describe("Outdoor Schedules CRUD", () => {
   beforeEach(cleanDb);
 
+  it("adds a schedule that overlaps nothing to a herd that already holds overlapping schedules", async () => {
+    const { jwt, farmId } = await createUserWithFarm();
+    const herd = await createHerd(jwt, { name: "OverlapHerd" });
+    await createOutdoorSchedule(jwt, herd.id, { startDate: "2025-05-01", endDate: "2025-07-31" });
+    // An overlapping row as it could be stored from before
+    await getAdminDb()
+      .insert(schema.outdoorSchedules)
+      .values({
+        farmId,
+        herdId: herd.id,
+        startDate: new Date("2025-07-01"),
+        endDate: new Date("2025-08-31"),
+        type: "pasture",
+      });
+
+    const res = await request(
+      "POST",
+      `/v1/animals/herds/byId/${herd.id}/outdoorSchedules`,
+      { startDate: "2025-10-01", endDate: "2025-10-31", type: "pasture" },
+      jwt
+    );
+    expect(res.status).toBe(200);
+
+    const overlapping = await request(
+      "POST",
+      `/v1/animals/herds/byId/${herd.id}/outdoorSchedules`,
+      { startDate: "2025-08-15", endDate: "2025-09-15", type: "pasture" },
+      jwt
+    );
+    expect(overlapping.status).toBe(409);
+    expect(((await overlapping.json()) as { code?: string }).code).toBe("outdoor_schedule_overlap");
+  });
+
   it("creates a schedule without recurrence", async () => {
     const { jwt } = await createUserWithFarm();
     const herd = await createHerd(jwt, { name: "OutdoorHerd" });

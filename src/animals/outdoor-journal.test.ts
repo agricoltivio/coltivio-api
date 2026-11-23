@@ -1030,6 +1030,12 @@ describe("hasScheduleOverlap", () => {
       ])
     ).toBe(true);
   });
+
+  test("existing schedules that overlap each other don't block a new one that overlaps none of them", () => {
+    const existing = [sched("2025-05-01", "2025-07-31"), sched("2025-07-01", "2025-08-31")];
+    expect(hasScheduleOverlap([sched("2025-10-01", "2025-10-31")], existing)).toBe(false);
+    expect(hasScheduleOverlap([sched("2025-08-15", "2025-09-15")], existing)).toBe(true);
+  });
 });
 
 // --- buildMeadowJournal ---
