@@ -139,6 +139,9 @@ describe("Forum images", () => {
       '<input type="image" src="https://example.com/input.png">',
       '<video poster="https://example.com/poster.png"></video>',
       '<div style="background:url(https://example.com/css.png)">x</div>',
+      '<object data="https://example.com/object.png"></object>',
+      '<table background="https://example.com/table.png"><tr><td>x</td></tr></table>',
+      '<div style="background:url&#40;https://example.com/entity.png)">x</div>',
     ]) {
       const res = await createThread(jwt, body);
       expect(res.status).toBe(400);
