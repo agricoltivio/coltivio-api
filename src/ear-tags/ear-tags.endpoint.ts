@@ -55,13 +55,15 @@ export const createEarTagRangeEndpoint = animalsWrite.build({
   input: z.object({
     fromNumber: z.string().min(1),
     toNumber: z.string().min(1),
+    // Any text in front of the numbers, e.g. "CH 120.". With a prefix, fromNumber and toNumber are plain numbers.
+    prefix: z.string().optional(),
   }),
   output: z.object({
     result: z.array(earTagSchema),
     count: z.number(),
   }),
   handler: async ({ input, ctx: { earTags } }) => {
-    const result = await earTags.createEarTagRange(input.fromNumber, input.toNumber);
+    const result = await earTags.createEarTagRange(input.fromNumber, input.toNumber, input.prefix);
     return {
       result,
       count: result.length,
@@ -74,13 +76,15 @@ export const deleteEarTagRangeEndpoint = animalsWrite.build({
   input: z.object({
     fromNumber: z.string().min(1),
     toNumber: z.string().min(1),
+    // Any text in front of the numbers, e.g. "CH 120.". With a prefix, fromNumber and toNumber are plain numbers.
+    prefix: z.string().optional(),
   }),
   output: z.object({
     deletedCount: z.number(),
     skippedAssigned: z.array(z.string()),
   }),
   handler: async ({ input, ctx: { earTags, farmId } }) => {
-    return earTags.deleteEarTagRange(farmId, input.fromNumber, input.toNumber);
+    return earTags.deleteEarTagRange(farmId, input.fromNumber, input.toNumber, input.prefix);
   },
 });
 
@@ -93,5 +97,17 @@ export const deleteEarTagEndpoint = animalsWrite.build({
     const deleted = await earTags.deleteEarTag(input.earTagId);
     if (!deleted) throw createHttpError(404, "Ear tag not found");
     return {};
+  },
+});
+
+// Changes the number of a single ear tag, also of an assigned one. Another tag with that number: ear_tag_number_taken.
+export const updateEarTagEndpoint = animalsWrite.build({
+  method: "patch",
+  input: z.object({ earTagId: z.string(), number: z.string().trim().min(1) }),
+  output: earTagSchema,
+  handler: async ({ input, ctx: { earTags } }) => {
+    const updated = await earTags.updateEarTagNumber(input.earTagId, input.number);
+    if (!updated) throw createHttpError(404, "Ear tag not found");
+    return updated;
   },
 });

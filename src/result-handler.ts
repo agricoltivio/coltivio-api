@@ -55,6 +55,7 @@ const statusByErrorCode: Record<ApiErrorCode, number> = {
   ear_tag_range_conflict: 409,
   invalid_ear_tag_range: 400,
   ear_tag_assigned: 409,
+  ear_tag_number_taken: 409,
   invalid_sire: 400,
   invalid_date_range: 400,
 };
