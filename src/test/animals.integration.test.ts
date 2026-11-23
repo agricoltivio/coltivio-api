@@ -2174,3 +2174,69 @@ describe("Animal import — dateOfDeath and parent resolution", () => {
     expect(animal!.motherId).toBeNull();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Parent links after a sex or type change
+// ---------------------------------------------------------------------------
+describe("Unlinking relatives after a sex or type change", () => {
+  beforeEach(cleanDb);
+
+  async function parentIds(animalId: string) {
+    const db = getAdminDb();
+    const [animal] = await db
+      .select({ motherId: schema.animals.motherId, fatherId: schema.animals.fatherId })
+      .from(schema.animals)
+      .where(eq(schema.animals.id, animalId));
+    return animal;
+  }
+
+  it("a sex change unlinks the offspring, the other parent stays", async () => {
+    const { jwt } = await createUserWithFarm();
+    const mother = await createAnimal(jwt, { name: "Mutter", sex: "female" });
+    const father = await createAnimal(jwt, { name: "Vater", sex: "male" });
+    const calf = await createAnimal(jwt, { name: "Kalb", motherId: mother.id, fatherId: father.id });
+
+    const res = await request("PATCH", `/v1/animals/byId/${mother.id}`, { sex: "male" }, jwt);
+    expect(res.status).toBe(200);
+    expect(await parentIds(calf.id)).toEqual({ motherId: null, fatherId: father.id });
+  });
+
+  it("a type change unlinks its own parents and its offspring", async () => {
+    const { jwt } = await createUserWithFarm();
+    const grandmother = await createAnimal(jwt, { name: "Grossmutter", sex: "female" });
+    const mother = await createAnimal(jwt, { name: "Mutter", sex: "female", motherId: grandmother.id });
+    const calf = await createAnimal(jwt, { name: "Kalb", motherId: mother.id });
+
+    const res = await request("PATCH", `/v1/animals/byId/${mother.id}`, { type: "goat" }, jwt);
+    expect(res.status).toBe(200);
+    expect((await parentIds(mother.id)).motherId).toBeNull();
+    expect((await parentIds(calf.id)).motherId).toBeNull();
+  });
+
+  it("other changes leave the links alone, also when they already don't fit", async () => {
+    const { jwt } = await createUserWithFarm();
+    const mother = await createAnimal(jwt, { name: "Mutter", sex: "female", type: "goat" });
+    const calf = await createAnimal(jwt, { name: "Kalb", motherId: mother.id });
+
+    const res = await request("PATCH", `/v1/animals/byId/${mother.id}`, { name: "Neu" }, jwt);
+    expect(res.status).toBe(200);
+    expect((await parentIds(calf.id)).motherId).toBe(mother.id);
+  });
+
+  it("a batch type change keeps links between animals changed together", async () => {
+    const { jwt } = await createUserWithFarm();
+    const mother = await createAnimal(jwt, { name: "Mutter", sex: "female" });
+    const calf = await createAnimal(jwt, { name: "Kalb", motherId: mother.id });
+    const outsideCalf = await createAnimal(jwt, { name: "Anderes Kalb", motherId: mother.id });
+
+    const res = await request(
+      "PATCH",
+      "/v1/animals/batch",
+      { animalIds: [mother.id, calf.id], data: { type: "goat" } },
+      jwt
+    );
+    expect(res.status).toBe(200);
+    expect((await parentIds(calf.id)).motherId).toBe(mother.id);
+    expect((await parentIds(outsideCalf.id)).motherId).toBeNull();
+  });
+});

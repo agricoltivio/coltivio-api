@@ -328,6 +328,31 @@ async function loadHerdMembershipLimits(tx: Transaction, animalIds: string[]) {
   return { activeMembershipByAnimalId, earliestHerdChangeDateByAnimalId };
 }
 
+// After a sex or type change: removes the parent links of these animals that no longer fit, in both directions
+// (their own mother / father and their offspring). A mother has to be female, a father male, and both of the same
+// type as the offspring. Run only when sex or type were changed, so older inconsistent links stay untouched otherwise.
+async function unlinkMismatchedRelatives(tx: Transaction, animalIds: string[]) {
+  if (animalIds.length === 0) return;
+  const ids = sql.join(
+    animalIds.map((animalId) => sql`${animalId}::uuid`),
+    sql`, `
+  );
+  await tx.execute(sql`
+    UPDATE animals AS child SET mother_id = NULL
+    FROM animals AS parent
+    WHERE child.mother_id = parent.id
+      AND (child.id IN (${ids}) OR parent.id IN (${ids}))
+      AND (parent.sex <> 'female' OR parent.type <> child.type)
+  `);
+  await tx.execute(sql`
+    UPDATE animals AS child SET father_id = NULL
+    FROM animals AS parent
+    WHERE child.father_id = parent.id
+      AND (child.id IN (${ids}) OR parent.id IN (${ids}))
+      AND (parent.sex <> 'male' OR parent.type <> child.type)
+  `);
+}
+
 // Moves animals into targetHerdId (or out of any herd when null) as of effectiveDate.
 // Membership ranges are inclusive on both ends, so the previous membership ends the day before effectiveDate.
 // Animals whose active membership already is in the target herd are left untouched.
@@ -691,6 +716,9 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
           if (Object.keys(animal).length > 0) {
             await tx.update(tables.animals).set(animal).where(eq(tables.animals.id, id));
           }
+          if (animal.sex !== undefined || animal.type !== undefined) {
+            await unlinkMismatchedRelatives(tx, [id]);
+          }
           // Herd changes go through memberships so the outdoor journal history stays correct
           if (herdId !== undefined) {
             await changeHerdMemberships(
@@ -726,6 +754,11 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
                 .returning({ id: tables.animals.id })
             : await tx.select({ id: tables.animals.id }).from(tables.animals).where(eq(tables.animals.id, id));
 
+        // Parents and offspring that no longer fit the new sex or type are unlinked
+        if (result && (data.sex !== undefined || data.type !== undefined)) {
+          await unlinkMismatchedRelatives(tx, [id]);
+        }
+
         // Herd changes go through memberships so the outdoor journal history stays correct
         if (result && herdId !== undefined) {
           await changeHerdMemberships(
@@ -753,6 +786,9 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
     async batchUpdateAnimals(animalIds: string[], data: BatchUpdateAnimalInput): Promise<Animal[]> {
       return rlsDb.rls(async (tx) => {
         await tx.update(tables.animals).set(data).where(inArray(tables.animals.id, animalIds));
+        if (data.type !== undefined) {
+          await unlinkMismatchedRelatives(tx, animalIds);
+        }
         return tx.query.animals.findMany({
           where: { id: { in: animalIds } },
           with: {
