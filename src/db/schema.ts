@@ -2583,6 +2583,44 @@ export const forumThreadSubscriptions = pgTable.withRLS(
   ]
 );
 
+// Images in forum threads and replies (Supabase Storage, bucket forum-images, public). An upload starts unattached
+// and is linked to the thread or reply whose Markdown references it when that is saved; unattached rows older than
+// a day (or detached from their post) are removed by the cleanup cron. Moderators work through the admin connection.
+export const forumImages = pgTable.withRLS(
+  "forum_images",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    storagePath: text().notNull().unique(),
+    width: integer().notNull(),
+    height: integer().notNull(),
+    uploadedBy: uuid().references(() => profiles.id, { onDelete: "set null" }),
+    // Set null when the post is deleted, the cron then removes the file
+    threadId: uuid().references(() => forumThreads.id, { onDelete: "set null" }),
+    replyId: uuid().references(() => forumReplies.id, { onDelete: "set null" }),
+    createdAt: timestamp().notNull().defaultNow(),
+  },
+  (table) => [
+    index("forum_images_thread_id_idx").on(table.threadId),
+    index("forum_images_reply_id_idx").on(table.replyId),
+    index("forum_images_uploaded_by_idx").on(table.uploadedBy),
+    check("forum_images_single_post", sql`${table.threadId} IS NULL OR ${table.replyId} IS NULL`),
+    pgPolicy("authenticated users can read forum images", {
+      as: "permissive",
+      to: authenticatedRole,
+      for: "select",
+      using: sql`true`,
+    }),
+    // Upload, attach to an own post, detach on edit
+    pgPolicy("uploader can manage own forum images", {
+      as: "permissive",
+      to: authenticatedRole,
+      for: "all",
+      using: eq(table.uploadedBy, selectAuthUid),
+      withCheck: eq(table.uploadedBy, selectAuthUid),
+    }),
+  ]
+);
+
 export const tasks = pgTable.withRLS(
   "tasks",
   {
@@ -3024,6 +3062,7 @@ const tables = {
   forumThreads,
   forumReplies,
   forumModerators,
+  forumImages,
   tasks,
   taskRecurrences,
   taskLinks,

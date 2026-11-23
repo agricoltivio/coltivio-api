@@ -1,4 +1,5 @@
 import { captureException } from "@sentry/node";
+import { ez } from "express-zod-api";
 import createHttpError from "http-errors";
 import { z } from "zod";
 import { forumThreadStatusSchema, forumThreadTypeSchema } from "../db/schema";
@@ -193,5 +194,16 @@ export const deleteForumReplyEndpoint = userPaidMembershipEndpointFactory.build(
 
     await forumModeration.deleteReply(input.replyId);
     return {};
+  },
+});
+
+// Upload an image for a thread or reply. The API strips its metadata (GPS included), downscales and re-encodes it;
+// the returned url goes into the post's Markdown, saving the post links the image to it.
+export const uploadForumImageEndpoint = userPaidMembershipEndpointFactory.build({
+  method: "post",
+  input: z.object({ file: ez.upload() }),
+  output: z.object({ id: z.string(), url: z.string(), width: z.number(), height: z.number() }),
+  handler: async ({ input, ctx: { forumImages, user } }) => {
+    return forumImages.uploadImage(user.id, input.file);
   },
 });

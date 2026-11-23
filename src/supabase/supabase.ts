@@ -20,6 +20,10 @@ export const plotJournalStorage = supabase.storage.from(PLOT_JOURNAL_IMAGES_BUCK
 export const FARM_JOURNAL_IMAGES_BUCKET = "farm-journal-images";
 export const farmJournalStorage = supabase.storage.from(FARM_JOURNAL_IMAGES_BUCKET);
 
+// Public bucket: forum posts reference their images by public URL in the Markdown
+export const FORUM_IMAGES_BUCKET = "forum-images";
+export const forumImagesStorage = supabase.storage.from(FORUM_IMAGES_BUCKET);
+
 export type SupabaseToken = {
   iss?: string;
   sub?: string;

@@ -29,9 +29,66 @@ function signJwt(payload: Record<string, unknown>, secret: string): string {
  * The @supabase/supabase-js client always appends /auth/v1 to the base URL,
  * but GoTrue serves at the root.
  */
+// In-memory stand-in for Supabase Storage, only for the forum-images bucket (the other buckets keep failing as
+// before, their tests don't depend on storage). Supports what forum images use: upload, remove, public download.
+const FAKE_STORAGE_BUCKET = "forum-images";
+const fakeStorageObjects = new Map<string, { contentType: string; data: Buffer }>();
+
+function handleFakeStorage(req: http.IncomingMessage, res: http.ServerResponse): boolean {
+  const url = new URL(req.url ?? "", "http://localhost");
+  const uploadPrefix = `/storage/v1/object/${FAKE_STORAGE_BUCKET}/`;
+  const publicPrefix = `/storage/v1/object/public/${FAKE_STORAGE_BUCKET}/`;
+  const bucketPath = `/storage/v1/object/${FAKE_STORAGE_BUCKET}`;
+  const readBody = (onBody: (body: Buffer) => void) => {
+    const chunks: Buffer[] = [];
+    req.on("data", (chunk: Buffer) => chunks.push(chunk));
+    req.on("end", () => onBody(Buffer.concat(chunks)));
+  };
+  const sendJson = (status: number, body: unknown) => {
+    res.writeHead(status, { "content-type": "application/json" });
+    res.end(JSON.stringify(body));
+  };
+
+  if (req.method === "POST" && url.pathname.startsWith(uploadPrefix)) {
+    const objectPath = decodeURIComponent(url.pathname.slice(uploadPrefix.length));
+    readBody((data) => {
+      if (fakeStorageObjects.has(objectPath) && req.headers["x-upsert"] !== "true") {
+        sendJson(409, { statusCode: "409", error: "Duplicate", message: "The resource already exists" });
+        return;
+      }
+      fakeStorageObjects.set(objectPath, { contentType: String(req.headers["content-type"] ?? ""), data });
+      sendJson(200, { Key: `${FAKE_STORAGE_BUCKET}/${objectPath}`, Id: crypto.randomUUID() });
+    });
+    return true;
+  }
+  if (req.method === "DELETE" && url.pathname === bucketPath) {
+    readBody((body) => {
+      const { prefixes } = JSON.parse(body.toString("utf-8") || "{}") as { prefixes?: string[] };
+      const removed = (prefixes ?? []).filter((objectPath) => fakeStorageObjects.delete(objectPath));
+      sendJson(
+        200,
+        removed.map((name) => ({ name }))
+      );
+    });
+    return true;
+  }
+  if (req.method === "GET" && url.pathname.startsWith(publicPrefix)) {
+    const stored = fakeStorageObjects.get(decodeURIComponent(url.pathname.slice(publicPrefix.length)));
+    if (!stored) {
+      sendJson(404, { statusCode: "404", error: "not_found", message: "Object not found" });
+      return true;
+    }
+    res.writeHead(200, { "content-type": stored.contentType });
+    res.end(stored.data);
+    return true;
+  }
+  return false;
+}
+
 function startAuthProxy(gotrueUrl: string): Promise<http.Server> {
   return new Promise((resolve) => {
     const proxy = http.createServer((req, res) => {
+      if (handleFakeStorage(req, res)) return;
       const targetPath = (req.url ?? "").replace(/^\/auth\/v1/, "") || "/";
       const target = new URL(targetPath, gotrueUrl);
 

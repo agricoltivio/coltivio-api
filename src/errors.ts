@@ -27,6 +27,12 @@ export const apiErrorCodeSchema = z.enum([
   "invalid_sire",
   // an end date lies before its start date (e.g. a crop rotation, or its recurrence end before its end)
   "invalid_date_range",
+  // the uploaded file is not a supported image (JPEG, PNG, WebP, GIF, HEIF/AVIF) or too large
+  "invalid_image",
+  // a forum post references an image that wasn't uploaded to Coltivio, belongs to another post or another user
+  "invalid_image_reference",
+  // too many uploaded forum images that aren't in a saved post yet
+  "too_many_pending_images",
 ]);
 export type ApiErrorCode = z.infer<typeof apiErrorCodeSchema>;
 
