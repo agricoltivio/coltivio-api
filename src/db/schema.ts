@@ -473,12 +473,8 @@ export const cropRotations = pgTable.withRLS(
       .references(() => farms.id, {
         onDelete: "cascade",
       }),
-    plotId: uuid()
-      .notNull()
-      .references(() => plots.id, { onDelete: "cascade" }),
-    cropId: uuid()
-      .notNull()
-      .references(() => crops.id),
+    plotId: uuid().notNull(),
+    cropId: uuid().notNull(),
     sowingDate: date({ mode: "date" }),
     fromDate: date({ mode: "date" }).notNull(),
     toDate: date({ mode: "date" }).notNull(),
@@ -491,7 +487,7 @@ export const cropRotations = pgTable.withRLS(
       columns: [table.plotId, table.farmId],
       foreignColumns: [plots.id, plots.farmId],
       name: "crop_rotations_plot_id_farm_fk",
-    }),
+    }).onDelete("cascade"),
     // Only a crops row of the same farm
     foreignKey({
       columns: [table.cropId, table.farmId],
@@ -531,9 +527,7 @@ export const cropRotationYearlyRecurrences = pgTable.withRLS(
     farmId: uuid()
       .notNull()
       .references(() => farms.id, { onDelete: "cascade" }),
-    cropRotationId: uuid("crop_rotation_id")
-      .references(() => cropRotations.id, { onDelete: "cascade" })
-      .notNull(),
+    cropRotationId: uuid("crop_rotation_id").notNull(),
 
     interval: integer("interval").default(1).notNull(),
     until: date({ mode: "date" }),
@@ -544,7 +538,7 @@ export const cropRotationYearlyRecurrences = pgTable.withRLS(
       columns: [table.cropRotationId, table.farmId],
       foreignColumns: [cropRotations.id, cropRotations.farmId],
       name: "crop_rotation_yearly_recurrences_crop_rotation_id_farm_fk",
-    }),
+    }).onDelete("cascade"),
     pgPolicy("only farm members", {
       as: "permissive",
       to: authenticatedRole,
@@ -587,12 +581,8 @@ export const cropRotationDraftPlanPlots = pgTable.withRLS(
     farmId: uuid()
       .notNull()
       .references(() => farms.id, { onDelete: "cascade" }),
-    draftPlanId: uuid()
-      .notNull()
-      .references(() => cropRotationDraftPlans.id, { onDelete: "cascade" }),
-    plotId: uuid()
-      .notNull()
-      .references(() => plots.id, { onDelete: "cascade" }),
+    draftPlanId: uuid().notNull(),
+    plotId: uuid().notNull(),
   },
   (table) => [
     // Target of composite FKs that keep references within the same farm
@@ -602,13 +592,13 @@ export const cropRotationDraftPlanPlots = pgTable.withRLS(
       columns: [table.draftPlanId, table.farmId],
       foreignColumns: [cropRotationDraftPlans.id, cropRotationDraftPlans.farmId],
       name: "crop_rotation_draft_plan_plots_draft_plan_id_farm_fk",
-    }),
+    }).onDelete("cascade"),
     // Only a plots row of the same farm
     foreignKey({
       columns: [table.plotId, table.farmId],
       foreignColumns: [plots.id, plots.farmId],
       name: "crop_rotation_draft_plan_plots_plot_id_farm_fk",
-    }),
+    }).onDelete("cascade"),
     pgPolicy("only farm members", {
       as: "permissive",
       to: authenticatedRole,
@@ -625,12 +615,8 @@ export const cropRotationDraftPlanEntries = pgTable.withRLS(
     farmId: uuid()
       .notNull()
       .references(() => farms.id, { onDelete: "cascade" }),
-    draftPlanPlotId: uuid()
-      .notNull()
-      .references(() => cropRotationDraftPlanPlots.id, { onDelete: "cascade" }),
-    cropId: uuid()
-      .notNull()
-      .references(() => crops.id),
+    draftPlanPlotId: uuid().notNull(),
+    cropId: uuid().notNull(),
     sowingDate: date({ mode: "date" }),
     fromDate: date({ mode: "date" }).notNull(),
     toDate: date({ mode: "date" }).notNull(),
@@ -643,7 +629,7 @@ export const cropRotationDraftPlanEntries = pgTable.withRLS(
       columns: [table.draftPlanPlotId, table.farmId],
       foreignColumns: [cropRotationDraftPlanPlots.id, cropRotationDraftPlanPlots.farmId],
       name: "crop_rotation_draft_plan_entries_draft_plan_plot_id_farm_fk",
-    }),
+    }).onDelete("cascade"),
     // Only a crops row of the same farm
     foreignKey({
       columns: [table.cropId, table.farmId],
@@ -715,9 +701,7 @@ export const tillages = pgTable.withRLS(
       }),
     createdAt: timestamp().notNull().defaultNow(),
     createdBy: uuid().references(() => profiles.id, { onDelete: "set null" }),
-    plotId: uuid()
-      .notNull()
-      .references(() => plots.id, { onDelete: "cascade" }),
+    plotId: uuid().notNull(),
     geometry: polygon().notNull(),
     size: integer().notNull(),
     reason: tillageReason(),
@@ -732,7 +716,7 @@ export const tillages = pgTable.withRLS(
       columns: [table.plotId, table.farmId],
       foreignColumns: [plots.id, plots.farmId],
       name: "tillages_plot_id_farm_fk",
-    }),
+    }).onDelete("cascade"),
     pgPolicy("only farm members", {
       as: "permissive",
       to: authenticatedRole,
@@ -823,13 +807,9 @@ export const cropProtectionApplications = pgTable.withRLS(
       }),
     createdAt: timestamp().notNull().defaultNow(),
     createdBy: uuid().references(() => profiles.id, { onDelete: "set null" }),
-    plotId: uuid()
-      .notNull()
-      .references(() => plots.id, { onDelete: "cascade" }),
+    plotId: uuid().notNull(),
     dateTime: timestamp().notNull(),
-    productId: uuid()
-      .notNull()
-      .references(() => cropProtectionProducts.id),
+    productId: uuid().notNull(),
     geometry: polygon().notNull(),
     size: integer().notNull(),
     method: cropProtectionApplicationMethod(),
@@ -844,7 +824,7 @@ export const cropProtectionApplications = pgTable.withRLS(
       columns: [table.plotId, table.farmId],
       foreignColumns: [plots.id, plots.farmId],
       name: "crop_protection_applications_plot_id_farm_fk",
-    }),
+    }).onDelete("cascade"),
     // Only a crop_protection_products row of the same farm
     foreignKey({
       columns: [table.productId, table.farmId],
@@ -967,9 +947,7 @@ export const crops = pgTable.withRLS(
       }),
     name: text().notNull(),
     category: cropCategory().notNull(),
-    familyId: uuid().references(() => cropFamilies.id, {
-      onDelete: "set null",
-    }),
+    familyId: uuid(),
     variety: text(),
     waitingTimeInYears: integer(),
     usageCodes: integer().array().notNull().default([]),
@@ -978,12 +956,13 @@ export const crops = pgTable.withRLS(
   (table) => [
     // Target of composite FKs that keep references within the same farm
     unique("crops_id_farm_id_unique").on(table.id, table.farmId),
+    // SET NULL (column) in the migration SQL: a plain SET NULL would also null farm_id
     // Only a crop_families row of the same farm
     foreignKey({
       columns: [table.familyId, table.farmId],
       foreignColumns: [cropFamilies.id, cropFamilies.farmId],
       name: "crops_family_id_farm_fk",
-    }),
+    }).onDelete("set null"),
     pgPolicy("only farm members", {
       as: "permissive",
       to: authenticatedRole,
@@ -1038,12 +1017,8 @@ export const harvests = pgTable.withRLS(
     createdAt: timestamp().notNull().defaultNow(),
     createdBy: uuid().references(() => profiles.id, { onDelete: "set null" }),
     date: date({ mode: "date" }).notNull(),
-    plotId: uuid()
-      .notNull()
-      .references(() => plots.id, { onDelete: "cascade" }),
-    cropId: uuid()
-      .notNull()
-      .references(() => crops.id),
+    plotId: uuid().notNull(),
+    cropId: uuid().notNull(),
     conservationMethod: conservationMethod(),
     unit: harvestUnits().notNull(),
     kilosPerUnit: real().notNull(),
@@ -1059,7 +1034,7 @@ export const harvests = pgTable.withRLS(
       columns: [table.plotId, table.farmId],
       foreignColumns: [plots.id, plots.farmId],
       name: "harvests_plot_id_farm_fk",
-    }),
+    }).onDelete("cascade"),
     // Only a crops row of the same farm
     foreignKey({
       columns: [table.cropId, table.farmId],
@@ -1159,11 +1134,7 @@ export const orders = pgTable.withRLS(
       .references(() => farms.id, {
         onDelete: "cascade",
       }),
-    contactId: uuid()
-      .notNull()
-      .references(() => contacts.id, {
-        onDelete: "cascade",
-      }),
+    contactId: uuid().notNull(),
     status: orderStatus().notNull().default("pending"),
     orderDate: date({ mode: "date" }).notNull(),
     shippingDate: date({ mode: "date" }),
@@ -1177,7 +1148,7 @@ export const orders = pgTable.withRLS(
       columns: [table.contactId, table.farmId],
       foreignColumns: [contacts.id, contacts.farmId],
       name: "orders_contact_id_farm_fk",
-    }),
+    }).onDelete("cascade"),
     pgPolicy("only farm members", {
       as: "permissive",
       to: authenticatedRole,
@@ -1196,16 +1167,8 @@ export const orderItems = pgTable.withRLS(
       .references(() => farms.id, {
         onDelete: "cascade",
       }),
-    orderId: uuid()
-      .notNull()
-      .references(() => orders.id, {
-        onDelete: "cascade",
-      }),
-    productId: uuid()
-      .notNull()
-      .references(() => products.id, {
-        onDelete: "restrict",
-      }),
+    orderId: uuid().notNull(),
+    productId: uuid().notNull(),
     quantity: real().notNull(),
     unitPrice: real().notNull(),
   },
@@ -1215,13 +1178,13 @@ export const orderItems = pgTable.withRLS(
       columns: [table.orderId, table.farmId],
       foreignColumns: [orders.id, orders.farmId],
       name: "order_items_order_id_farm_fk",
-    }),
+    }).onDelete("cascade"),
     // Only a products row of the same farm
     foreignKey({
       columns: [table.productId, table.farmId],
       foreignColumns: [products.id, products.farmId],
       name: "order_items_product_id_farm_fk",
-    }),
+    }).onDelete("restrict"),
     pgPolicy("only farm members", {
       as: "permissive",
       to: authenticatedRole,
@@ -1267,21 +1230,9 @@ export const sponsorships = pgTable.withRLS(
       .references(() => farms.id, {
         onDelete: "cascade",
       }),
-    contactId: uuid()
-      .notNull()
-      .references(() => contacts.id, {
-        onDelete: "cascade",
-      }),
-    animalId: uuid()
-      .notNull()
-      .references(() => animals.id, {
-        onDelete: "cascade",
-      }),
-    sponsorshipProgramId: uuid()
-      .notNull()
-      .references(() => sponsorshipPrograms.id, {
-        onDelete: "restrict",
-      }),
+    contactId: uuid().notNull(),
+    animalId: uuid().notNull(),
+    sponsorshipProgramId: uuid().notNull(),
     startDate: date({ mode: "date" }).notNull(),
     endDate: date({ mode: "date" }),
     notes: text(),
@@ -1295,19 +1246,19 @@ export const sponsorships = pgTable.withRLS(
       columns: [table.contactId, table.farmId],
       foreignColumns: [contacts.id, contacts.farmId],
       name: "sponsorships_contact_id_farm_fk",
-    }),
+    }).onDelete("cascade"),
     // Only a animals row of the same farm
     foreignKey({
       columns: [table.animalId, table.farmId],
       foreignColumns: [animals.id, animals.farmId],
       name: "sponsorships_animal_id_farm_fk",
-    }),
+    }).onDelete("cascade"),
     // Only a sponsorship_programs row of the same farm
     foreignKey({
       columns: [table.sponsorshipProgramId, table.farmId],
       foreignColumns: [sponsorshipPrograms.id, sponsorshipPrograms.farmId],
       name: "sponsorships_sponsorship_program_id_farm_fk",
-    }),
+    }).onDelete("restrict"),
     pgPolicy("only farm members", {
       as: "permissive",
       to: authenticatedRole,
@@ -1326,17 +1277,9 @@ export const payments = pgTable.withRLS(
       .references(() => farms.id, {
         onDelete: "cascade",
       }),
-    contactId: uuid()
-      .notNull()
-      .references(() => contacts.id, {
-        onDelete: "cascade",
-      }),
-    sponsorshipId: uuid().references(() => sponsorships.id, {
-      onDelete: "set null",
-    }),
-    orderId: uuid().references(() => orders.id, {
-      onDelete: "set null",
-    }),
+    contactId: uuid().notNull(),
+    sponsorshipId: uuid(),
+    orderId: uuid(),
     date: date({ mode: "date" }).notNull(),
     amount: real().notNull(),
     currency: text().notNull().default("CHF"),
@@ -1349,19 +1292,21 @@ export const payments = pgTable.withRLS(
       columns: [table.contactId, table.farmId],
       foreignColumns: [contacts.id, contacts.farmId],
       name: "payments_contact_id_farm_fk",
-    }),
+    }).onDelete("cascade"),
+    // SET NULL (column) in the migration SQL: a plain SET NULL would also null farm_id
     // Only a sponsorships row of the same farm
     foreignKey({
       columns: [table.sponsorshipId, table.farmId],
       foreignColumns: [sponsorships.id, sponsorships.farmId],
       name: "payments_sponsorship_id_farm_fk",
-    }),
+    }).onDelete("set null"),
+    // SET NULL (column) in the migration SQL: a plain SET NULL would also null farm_id
     // Only a orders row of the same farm
     foreignKey({
       columns: [table.orderId, table.farmId],
       foreignColumns: [orders.id, orders.farmId],
       name: "payments_order_id_farm_fk",
-    }),
+    }).onDelete("set null"),
     pgPolicy("only farm members", {
       as: "permissive",
       to: authenticatedRole,
@@ -1423,11 +1368,7 @@ export const fertilizerApplicationPresets = pgTable.withRLS(
         onDelete: "cascade",
       }),
     name: text().notNull(),
-    fertilizerId: uuid()
-      .notNull()
-      .references(() => fertilizers.id, {
-        onDelete: "cascade",
-      }),
+    fertilizerId: uuid().notNull(),
     unit: fertilizerApplicationUnit().notNull(),
     method: fertilizationMethod(),
     amountPerUnit: real().notNull(),
@@ -1438,7 +1379,7 @@ export const fertilizerApplicationPresets = pgTable.withRLS(
       columns: [table.fertilizerId, table.farmId],
       foreignColumns: [fertilizers.id, fertilizers.farmId],
       name: "fertilizer_application_presets_fertilizer_id_farm_fk",
-    }),
+    }).onDelete("cascade"),
     pgPolicy("only farm members", {
       as: "permissive",
       to: authenticatedRole,
@@ -1459,17 +1400,13 @@ export const fertilizerApplications = pgTable.withRLS(
       }),
     createdAt: timestamp().notNull().defaultNow(),
     createdBy: uuid().references(() => profiles.id, { onDelete: "set null" }),
-    plotId: uuid()
-      .notNull()
-      .references(() => plots.id, { onDelete: "cascade" }),
+    plotId: uuid().notNull(),
     date: date({ mode: "date" }).notNull(),
     method: fertilizationMethod(),
     unit: fertilizerApplicationUnit().notNull(),
     amountPerUnit: real().notNull(),
     numberOfUnits: real().notNull(),
-    fertilizerId: uuid()
-      .references(() => fertilizers.id)
-      .notNull(),
+    fertilizerId: uuid().notNull(),
     geometry: polygon().notNull(),
     size: integer().notNull(),
     additionalNotes: text(),
@@ -1480,7 +1417,7 @@ export const fertilizerApplications = pgTable.withRLS(
       columns: [table.plotId, table.farmId],
       foreignColumns: [plots.id, plots.farmId],
       name: "fertilizer_applications_plot_id_farm_fk",
-    }),
+    }).onDelete("cascade"),
     // Only a fertilizers row of the same farm
     foreignKey({
       columns: [table.fertilizerId, table.farmId],
@@ -1524,9 +1461,7 @@ export const seeds = pgTable.withRLS(
     name: text().notNull(),
     description: text(),
     // a seed always belongs to a crop, sowings take their crop from the seed
-    cropId: uuid()
-      .notNull()
-      .references(() => crops.id),
+    cropId: uuid().notNull(),
     // immutable after creation so all sowings of a seed stay summable
     quantityKind: seedQuantityKind().notNull(),
     defaultAmount: real(),
@@ -1560,10 +1495,8 @@ export const sowingPresets = pgTable.withRLS(
         onDelete: "cascade",
       }),
     name: text().notNull(),
-    cropId: uuid()
-      .notNull()
-      .references(() => crops.id, { onDelete: "cascade" }),
-    seedId: uuid().references(() => seeds.id, { onDelete: "cascade" }),
+    cropId: uuid().notNull(),
+    seedId: uuid(),
     unit: sowingUnit().notNull(),
     amount: real().notNull(),
   },
@@ -1573,13 +1506,13 @@ export const sowingPresets = pgTable.withRLS(
       columns: [table.cropId, table.farmId],
       foreignColumns: [crops.id, crops.farmId],
       name: "sowing_presets_crop_id_farm_fk",
-    }),
+    }).onDelete("cascade"),
     // Only a seeds row of the same farm
     foreignKey({
       columns: [table.seedId, table.farmId],
       foreignColumns: [seeds.id, seeds.farmId],
       name: "sowing_presets_seed_id_farm_fk",
-    }),
+    }).onDelete("cascade"),
     pgPolicy("only farm members", {
       as: "permissive",
       to: authenticatedRole,
@@ -1601,13 +1534,9 @@ export const sowings = pgTable.withRLS(
     createdAt: timestamp().notNull().defaultNow(),
     createdBy: uuid().references(() => profiles.id, { onDelete: "set null" }),
     date: date({ mode: "date" }).notNull(),
-    plotId: uuid()
-      .notNull()
-      .references(() => plots.id, { onDelete: "cascade" }),
-    cropId: uuid()
-      .notNull()
-      .references(() => crops.id),
-    seedId: uuid().references(() => seeds.id),
+    plotId: uuid().notNull(),
+    cropId: uuid().notNull(),
+    seedId: uuid(),
     unit: sowingUnit().notNull(),
     amount: real().notNull(),
     // normalized to grams (weight) or pieces (count); double precision because
@@ -1624,7 +1553,7 @@ export const sowings = pgTable.withRLS(
       columns: [table.plotId, table.farmId],
       foreignColumns: [plots.id, plots.farmId],
       name: "sowings_plot_id_farm_fk",
-    }),
+    }).onDelete("cascade"),
     // Only a crops row of the same farm
     foreignKey({
       columns: [table.cropId, table.farmId],
@@ -1714,12 +1643,12 @@ export const animals = pgTable.withRLS(
     sex: animalSex().notNull(),
     dateOfBirth: date({ mode: "date" }).notNull(),
     registered: boolean().notNull().default(false),
-    earTagId: uuid().references(() => earTags.id, { onDelete: "restrict" }),
+    earTagId: uuid(),
     motherId: uuid(),
     fatherId: uuid(),
     dateOfDeath: date({ mode: "date" }),
     deathReason: deathReason(),
-    herdId: uuid().references(() => herds.id, { onDelete: "set null" }),
+    herdId: uuid(),
     color: text(),
     notes: text(),
   },
@@ -1731,34 +1660,27 @@ export const animals = pgTable.withRLS(
       columns: [table.earTagId, table.farmId],
       foreignColumns: [earTags.id, earTags.farmId],
       name: "animals_ear_tag_id_farm_fk",
-    }),
+    }).onDelete("restrict"),
+    // SET NULL (column) in the migration SQL: a plain SET NULL would also null farm_id
     // Only a herds row of the same farm
     foreignKey({
       columns: [table.herdId, table.farmId],
       foreignColumns: [herds.id, herds.farmId],
       name: "animals_herd_id_farm_fk",
-    }),
+    }).onDelete("set null"),
+    // SET NULL (column) in the migration SQL: a plain SET NULL would also null farm_id
     // Only a animals row of the same farm
     foreignKey({
       columns: [table.motherId, table.farmId],
       foreignColumns: [table.id, table.farmId],
       name: "animals_mother_id_farm_fk",
-    }),
+    }).onDelete("set null"),
+    // SET NULL (column) in the migration SQL: a plain SET NULL would also null farm_id
     // Only a animals row of the same farm
     foreignKey({
       columns: [table.fatherId, table.farmId],
       foreignColumns: [table.id, table.farmId],
       name: "animals_father_id_farm_fk",
-    }),
-    foreignKey({
-      columns: [table.motherId],
-      foreignColumns: [table.id],
-      name: "animals_mother_fk",
-    }).onDelete("set null"),
-    foreignKey({
-      columns: [table.fatherId],
-      foreignColumns: [table.id],
-      name: "animals_father_fk",
     }).onDelete("set null"),
     pgPolicy("only farm members", {
       as: "permissive",
@@ -1799,12 +1721,8 @@ export const herdMemberships = pgTable.withRLS(
     farmId: uuid()
       .notNull()
       .references(() => farms.id, { onDelete: "cascade" }),
-    animalId: uuid()
-      .notNull()
-      .references(() => animals.id, { onDelete: "cascade" }),
-    herdId: uuid()
-      .notNull()
-      .references(() => herds.id, { onDelete: "cascade" }),
+    animalId: uuid().notNull(),
+    herdId: uuid().notNull(),
     fromDate: date({ mode: "date" }).notNull(),
     toDate: date({ mode: "date" }), // null = still active
   },
@@ -1814,13 +1732,13 @@ export const herdMemberships = pgTable.withRLS(
       columns: [table.animalId, table.farmId],
       foreignColumns: [animals.id, animals.farmId],
       name: "herd_memberships_animal_id_farm_fk",
-    }),
+    }).onDelete("cascade"),
     // Only a herds row of the same farm
     foreignKey({
       columns: [table.herdId, table.farmId],
       foreignColumns: [herds.id, herds.farmId],
       name: "herd_memberships_herd_id_farm_fk",
-    }),
+    }).onDelete("cascade"),
     index("herd_memberships_animal_id_idx").on(table.animalId),
     index("herd_memberships_herd_id_idx").on(table.herdId),
     pgPolicy("only farm members", {
@@ -1839,9 +1757,7 @@ export const customOutdoorJournalCategories = pgTable.withRLS(
     farmId: uuid()
       .notNull()
       .references(() => farms.id, { onDelete: "cascade" }),
-    animalId: uuid()
-      .notNull()
-      .references(() => animals.id, { onDelete: "cascade" }),
+    animalId: uuid().notNull(),
     startDate: date({ mode: "date" }).notNull(),
     endDate: date({ mode: "date" }),
     category: animalCategory().notNull(),
@@ -1852,7 +1768,7 @@ export const customOutdoorJournalCategories = pgTable.withRLS(
       columns: [table.animalId, table.farmId],
       foreignColumns: [animals.id, animals.farmId],
       name: "custom_outdoor_journal_categories_animal_id_farm_fk",
-    }),
+    }).onDelete("cascade"),
     index("custom_outdoor_journal_categories_animal_id_idx").on(table.animalId),
     pgPolicy("only farm members", {
       as: "permissive",
@@ -1905,9 +1821,7 @@ export const outdoorSchedules = pgTable.withRLS(
       .references(() => farms.id, {
         onDelete: "cascade",
       }),
-    herdId: uuid()
-      .notNull()
-      .references(() => herds.id, { onDelete: "cascade" }),
+    herdId: uuid().notNull(),
     meadowId: uuid(),
     startDate: date({ mode: "date" }).notNull(),
     endDate: date({ mode: "date" }),
@@ -1922,7 +1836,7 @@ export const outdoorSchedules = pgTable.withRLS(
       columns: [table.herdId, table.farmId],
       foreignColumns: [herds.id, herds.farmId],
       name: "outdoor_shedules_herd_id_farm_fk",
-    }),
+    }).onDelete("cascade"),
     // Composite FK including farmId: FK checks bypass RLS, so this keeps a schedule from referencing another farm's
     // meadow. Deleting a meadow deletes its schedules (archive the meadow to keep its history).
     foreignKey({
@@ -1952,9 +1866,7 @@ export const outdoorScheduleOverrides = pgTable.withRLS(
       .references(() => farms.id, {
         onDelete: "cascade",
       }),
-    herdId: uuid()
-      .notNull()
-      .references(() => herds.id, { onDelete: "cascade" }),
+    herdId: uuid().notNull(),
     meadowId: uuid(),
     startDate: date({ mode: "date" }).notNull(),
     // inclusive, the same as startDate for a single day
@@ -1968,7 +1880,7 @@ export const outdoorScheduleOverrides = pgTable.withRLS(
       columns: [table.herdId, table.farmId],
       foreignColumns: [herds.id, herds.farmId],
       name: "outdoor_schedule_overrides_herd_id_farm_fk",
-    }),
+    }).onDelete("cascade"),
     // Same as outdoor_schedules: keeps an override from referencing another farm's meadow
     foreignKey({
       columns: [table.meadowId, table.farmId],
@@ -1995,9 +1907,7 @@ export const outdoorScheduleRecurrences = pgTable.withRLS(
       .references(() => farms.id, {
         onDelete: "cascade",
       }),
-    outdoorScheduleId: uuid("outdoor_schedule_id")
-      .references(() => outdoorSchedules.id, { onDelete: "cascade" })
-      .notNull(),
+    outdoorScheduleId: uuid("outdoor_schedule_id").notNull(),
 
     frequency: frequency("frequency").notNull(),
     interval: integer("interval").default(1).notNull(),
@@ -2015,7 +1925,7 @@ export const outdoorScheduleRecurrences = pgTable.withRLS(
       columns: [table.outdoorScheduleId, table.farmId],
       foreignColumns: [outdoorSchedules.id, outdoorSchedules.farmId],
       name: "outdoor_schedule_recurrences_outdoor_schedule_id_farm_fk",
-    }),
+    }).onDelete("cascade"),
     pgPolicy("only farm members", {
       as: "permissive",
       to: authenticatedRole,
@@ -2100,7 +2010,7 @@ export const treatments = pgTable.withRLS(
       .references(() => farms.id, {
         onDelete: "cascade",
       }),
-    drugId: uuid().references(() => drugs.id, { onDelete: "restrict" }),
+    drugId: uuid(),
     startDate: date({ mode: "date" }).notNull(),
     endDate: date({ mode: "date" }).notNull(),
     name: text().notNull(),
@@ -2126,7 +2036,7 @@ export const treatments = pgTable.withRLS(
       columns: [table.drugId, table.farmId],
       foreignColumns: [drugs.id, drugs.farmId],
       name: "treatments_drug_id_farm_fk",
-    }),
+    }).onDelete("restrict"),
     index("treatments_drug_id_idx").on(table.drugId),
     index("treatments_date_idx").on(table.startDate),
     pgPolicy("only farm members", {
@@ -2142,12 +2052,8 @@ export const animalTreatments = pgTable.withRLS(
   "animal_treatments",
   {
     id: uuid().primaryKey().defaultRandom(),
-    animalId: uuid()
-      .notNull()
-      .references(() => animals.id, { onDelete: "cascade" }),
-    treatmentId: uuid()
-      .notNull()
-      .references(() => treatments.id, { onDelete: "cascade" }),
+    animalId: uuid().notNull(),
+    treatmentId: uuid().notNull(),
     farmId: uuid()
       .notNull()
       .references(() => farms.id, { onDelete: "cascade" }),
@@ -2161,13 +2067,13 @@ export const animalTreatments = pgTable.withRLS(
       columns: [table.animalId, table.farmId],
       foreignColumns: [animals.id, animals.farmId],
       name: "animal_treatments_animal_id_farm_fk",
-    }),
+    }).onDelete("cascade"),
     // Only a treatments row of the same farm
     foreignKey({
       columns: [table.treatmentId, table.farmId],
       foreignColumns: [treatments.id, treatments.farmId],
       name: "animal_treatments_treatment_id_farm_fk",
-    }),
+    }).onDelete("cascade"),
     index("animal_treatments_animal_id_idx").on(table.animalId),
     index("animal_treatments_treatment_id_idx").on(table.treatmentId),
     unique("animal_treatments_unique").on(table.animalId, table.treatmentId),
@@ -2187,9 +2093,7 @@ export const animalWeights = pgTable.withRLS(
     farmId: uuid()
       .notNull()
       .references(() => farms.id, { onDelete: "cascade" }),
-    animalId: uuid()
-      .notNull()
-      .references(() => animals.id, { onDelete: "cascade" }),
+    animalId: uuid().notNull(),
     date: date({ mode: "date" }).notNull(),
     weightKg: real().notNull(),
     notes: text(),
@@ -2202,7 +2106,7 @@ export const animalWeights = pgTable.withRLS(
       columns: [table.animalId, table.farmId],
       foreignColumns: [animals.id, animals.farmId],
       name: "animal_weights_animal_id_farm_fk",
-    }),
+    }).onDelete("cascade"),
     index("animal_weights_animal_id_date_idx").on(table.animalId, table.date),
     pgPolicy("only farm members", {
       as: "permissive",
@@ -2221,12 +2125,10 @@ export const animalHeats = pgTable.withRLS(
     farmId: uuid()
       .notNull()
       .references(() => farms.id, { onDelete: "cascade" }),
-    animalId: uuid()
-      .notNull()
-      .references(() => animals.id, { onDelete: "cascade" }),
+    animalId: uuid().notNull(),
     date: date({ mode: "date" }).notNull(),
     mated: boolean().notNull().default(false),
-    sireId: uuid().references(() => animals.id, { onDelete: "set null" }),
+    sireId: uuid(),
     // Free text for sires that are not on the farm
     sireName: text(),
     notes: text(),
@@ -2239,13 +2141,14 @@ export const animalHeats = pgTable.withRLS(
       columns: [table.animalId, table.farmId],
       foreignColumns: [animals.id, animals.farmId],
       name: "animal_heats_animal_id_farm_fk",
-    }),
+    }).onDelete("cascade"),
+    // SET NULL (column) in the migration SQL: a plain SET NULL would also null farm_id
     // Only a animals row of the same farm
     foreignKey({
       columns: [table.sireId, table.farmId],
       foreignColumns: [animals.id, animals.farmId],
       name: "animal_heats_sire_id_farm_fk",
-    }),
+    }).onDelete("set null"),
     index("animal_heats_animal_id_idx").on(table.animalId),
     index("animal_heats_farm_id_date_idx").on(table.farmId, table.date),
     pgPolicy("only farm members", {
@@ -2333,7 +2236,7 @@ export const parasiteChecks = pgTable.withRLS(
     // Set when this check is a re-check of an earlier one (e.g. 2 weeks after treatment)
     previousCheckId: uuid(),
     // Action taken based on this check
-    treatmentId: uuid().references(() => treatments.id, { onDelete: "set null" }),
+    treatmentId: uuid(),
     createdBy: uuid().references(() => profiles.id, { onDelete: "set null" }),
     createdAt: timestamp().notNull().defaultNow(),
     updatedAt: timestamp().notNull().defaultNow(),
@@ -2341,12 +2244,13 @@ export const parasiteChecks = pgTable.withRLS(
   (table) => [
     // Target of composite FKs that keep references within the same farm
     unique("parasite_checks_id_farm_id_unique").on(table.id, table.farmId),
+    // SET NULL (column) in the migration SQL: a plain SET NULL would also null farm_id
     // Only a treatments row of the same farm
     foreignKey({
       columns: [table.treatmentId, table.farmId],
       foreignColumns: [treatments.id, treatments.farmId],
       name: "parasite_checks_treatment_id_farm_fk",
-    }),
+    }).onDelete("set null"),
     // Re-checks are deleted together with their base check
     foreignKey({ columns: [table.previousCheckId], foreignColumns: [table.id] }).onDelete("cascade"),
     index("parasite_checks_date_idx").on(table.date),
@@ -2366,12 +2270,8 @@ export const parasiteCheckAnimals = pgTable.withRLS(
     farmId: uuid()
       .notNull()
       .references(() => farms.id, { onDelete: "cascade" }),
-    checkId: uuid()
-      .notNull()
-      .references(() => parasiteChecks.id, { onDelete: "cascade" }),
-    animalId: uuid()
-      .notNull()
-      .references(() => animals.id, { onDelete: "cascade" }),
+    checkId: uuid().notNull(),
+    animalId: uuid().notNull(),
     // FAMACHA score 1 (red, healthy) - 5 (white, severely anaemic); only for famacha checks
     famachaScore: integer(),
   },
@@ -2381,13 +2281,13 @@ export const parasiteCheckAnimals = pgTable.withRLS(
       columns: [table.checkId, table.farmId],
       foreignColumns: [parasiteChecks.id, parasiteChecks.farmId],
       name: "parasite_check_animals_check_id_farm_fk",
-    }),
+    }).onDelete("cascade"),
     // Only a animals row of the same farm
     foreignKey({
       columns: [table.animalId, table.farmId],
       foreignColumns: [animals.id, animals.farmId],
       name: "parasite_check_animals_animal_id_farm_fk",
-    }),
+    }).onDelete("cascade"),
     unique("parasite_check_animals_unique").on(table.checkId, table.animalId),
     check("parasite_check_animals_famacha_score_range", sql`${table.famachaScore} between 1 and 5`),
     index("parasite_check_animals_animal_id_idx").on(table.animalId),
@@ -2407,9 +2307,7 @@ export const parasiteFecSamples = pgTable.withRLS(
     farmId: uuid()
       .notNull()
       .references(() => farms.id, { onDelete: "cascade" }),
-    checkId: uuid()
-      .notNull()
-      .references(() => parasiteChecks.id, { onDelete: "cascade" }),
+    checkId: uuid().notNull(),
     label: text(),
   },
   (table) => [
@@ -2420,7 +2318,7 @@ export const parasiteFecSamples = pgTable.withRLS(
       columns: [table.checkId, table.farmId],
       foreignColumns: [parasiteChecks.id, parasiteChecks.farmId],
       name: "parasite_fec_samples_check_id_farm_fk",
-    }),
+    }).onDelete("cascade"),
     index("parasite_fec_samples_check_id_idx").on(table.checkId),
     pgPolicy("only farm members", {
       as: "permissive",
@@ -2439,12 +2337,8 @@ export const parasiteFecSampleAnimals = pgTable.withRLS(
     farmId: uuid()
       .notNull()
       .references(() => farms.id, { onDelete: "cascade" }),
-    sampleId: uuid()
-      .notNull()
-      .references(() => parasiteFecSamples.id, { onDelete: "cascade" }),
-    animalId: uuid()
-      .notNull()
-      .references(() => animals.id, { onDelete: "cascade" }),
+    sampleId: uuid().notNull(),
+    animalId: uuid().notNull(),
   },
   (table) => [
     // Only a parasite_fec_samples row of the same farm
@@ -2452,13 +2346,13 @@ export const parasiteFecSampleAnimals = pgTable.withRLS(
       columns: [table.sampleId, table.farmId],
       foreignColumns: [parasiteFecSamples.id, parasiteFecSamples.farmId],
       name: "parasite_fec_sample_animals_sample_id_farm_fk",
-    }),
+    }).onDelete("cascade"),
     // Only a animals row of the same farm
     foreignKey({
       columns: [table.animalId, table.farmId],
       foreignColumns: [animals.id, animals.farmId],
       name: "parasite_fec_sample_animals_animal_id_farm_fk",
-    }),
+    }).onDelete("cascade"),
     unique("parasite_fec_sample_animals_unique").on(table.sampleId, table.animalId),
     index("parasite_fec_sample_animals_animal_id_idx").on(table.animalId),
     pgPolicy("only farm members", {
@@ -2481,9 +2375,7 @@ export const parasiteFecResults = pgTable.withRLS(
     farmId: uuid()
       .notNull()
       .references(() => farms.id, { onDelete: "cascade" }),
-    sampleId: uuid()
-      .notNull()
-      .references(() => parasiteFecSamples.id, { onDelete: "cascade" }),
+    sampleId: uuid().notNull(),
     parasiteType: parasiteType().notNull(),
     // Either a count: eggs, oocysts (coccidia) or larvae (lungworms) per gram of feces
     countPerGram: real(),
@@ -2496,7 +2388,7 @@ export const parasiteFecResults = pgTable.withRLS(
       columns: [table.sampleId, table.farmId],
       foreignColumns: [parasiteFecSamples.id, parasiteFecSamples.farmId],
       name: "parasite_fec_results_sample_id_farm_fk",
-    }),
+    }).onDelete("cascade"),
     unique("parasite_fec_results_unique").on(table.sampleId, table.parasiteType),
     check("parasite_fec_results_count_non_negative", sql`${table.countPerGram} >= 0`),
     check("parasite_fec_results_count_or_grade", sql`num_nonnulls(${table.countPerGram}, ${table.grade}) = 1`),
@@ -3084,9 +2976,7 @@ export const taskRecurrences = pgTable.withRLS(
     farmId: uuid()
       .notNull()
       .references(() => farms.id, { onDelete: "cascade" }),
-    taskId: uuid()
-      .notNull()
-      .references(() => tasks.id, { onDelete: "cascade" }),
+    taskId: uuid().notNull(),
     frequency: frequency("frequency").notNull(),
     interval: integer("interval").default(1).notNull(),
     byWeekday: weekday("by_weekday").array(),
@@ -3100,7 +2990,7 @@ export const taskRecurrences = pgTable.withRLS(
       columns: [table.taskId, table.farmId],
       foreignColumns: [tasks.id, tasks.farmId],
       name: "task_recurrences_task_id_farm_fk",
-    }),
+    }).onDelete("cascade"),
     pgPolicy("only farm members", {
       as: "permissive",
       to: authenticatedRole,
@@ -3117,9 +3007,7 @@ export const taskLinks = pgTable.withRLS(
     farmId: uuid()
       .notNull()
       .references(() => farms.id, { onDelete: "cascade" }),
-    taskId: uuid()
-      .notNull()
-      .references(() => tasks.id, { onDelete: "cascade" }),
+    taskId: uuid().notNull(),
     linkType: taskLinkType().notNull(),
     linkedId: uuid().notNull(),
   },
@@ -3129,7 +3017,7 @@ export const taskLinks = pgTable.withRLS(
       columns: [table.taskId, table.farmId],
       foreignColumns: [tasks.id, tasks.farmId],
       name: "task_links_task_id_farm_fk",
-    }),
+    }).onDelete("cascade"),
     unique("task_links_unique").on(table.taskId, table.linkType, table.linkedId),
     index("task_links_task_id_idx").on(table.taskId),
     pgPolicy("only farm members", {
@@ -3148,9 +3036,7 @@ export const taskChecklistItems = pgTable.withRLS(
     farmId: uuid()
       .notNull()
       .references(() => farms.id, { onDelete: "cascade" }),
-    taskId: uuid()
-      .notNull()
-      .references(() => tasks.id, { onDelete: "cascade" }),
+    taskId: uuid().notNull(),
     name: text().notNull(),
     position: integer().notNull().default(0),
     dueDate: date({ mode: "date" }),
@@ -3163,7 +3049,7 @@ export const taskChecklistItems = pgTable.withRLS(
       columns: [table.taskId, table.farmId],
       foreignColumns: [tasks.id, tasks.farmId],
       name: "task_checklist_items_task_id_farm_fk",
-    }),
+    }).onDelete("cascade"),
     index("task_checklist_items_task_id_idx").on(table.taskId),
     pgPolicy("only farm members", {
       as: "permissive",
@@ -3259,9 +3145,7 @@ export const plotJournalEntries = pgTable.withRLS(
   "plot_journal_entries",
   {
     id: uuid().primaryKey().defaultRandom(),
-    plotId: uuid()
-      .notNull()
-      .references(() => plots.id, { onDelete: "cascade" }),
+    plotId: uuid().notNull(),
     farmId: uuid()
       .notNull()
       .references(() => farms.id, { onDelete: "cascade" }),
@@ -3278,7 +3162,7 @@ export const plotJournalEntries = pgTable.withRLS(
       columns: [table.plotId, table.farmId],
       foreignColumns: [plots.id, plots.farmId],
       name: "plot_journal_entries_plot_id_farm_fk",
-    }),
+    }).onDelete("cascade"),
     index("plot_journal_entries_plot_id_idx").on(table.plotId),
     pgPolicy("only farm members", {
       as: "permissive",
@@ -3321,9 +3205,7 @@ export const animalJournalEntries = pgTable.withRLS(
   "animal_journal_entries",
   {
     id: uuid().primaryKey().defaultRandom(),
-    animalId: uuid()
-      .notNull()
-      .references(() => animals.id, { onDelete: "cascade" }),
+    animalId: uuid().notNull(),
     farmId: uuid()
       .notNull()
       .references(() => farms.id, { onDelete: "cascade" }),
@@ -3340,7 +3222,7 @@ export const animalJournalEntries = pgTable.withRLS(
       columns: [table.animalId, table.farmId],
       foreignColumns: [animals.id, animals.farmId],
       name: "animal_journal_entries_animal_id_farm_fk",
-    }),
+    }).onDelete("cascade"),
     index("animal_journal_entries_animal_id_idx").on(table.animalId),
     pgPolicy("only farm members", {
       as: "permissive",

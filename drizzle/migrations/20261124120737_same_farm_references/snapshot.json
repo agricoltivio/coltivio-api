@@ -1,7 +1,7 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "3fa35c70-ed3e-47a0-8dca-192441f9e2df",
+  "id": "b6e14f93-f699-4592-add8-3cace9f87db5",
   "prevIds": [
     "89ce2a35-afbd-49b5-a611-dc3b2a46ace1"
   ],
@@ -11401,40 +11401,6 @@
     {
       "nameExplicit": false,
       "columns": [
-        "animal_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "animals",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "CASCADE",
-      "name": "animal_heats_animal_id_animals_id_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "animal_heats"
-    },
-    {
-      "nameExplicit": false,
-      "columns": [
-        "sire_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "animals",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "SET NULL",
-      "name": "animal_heats_sire_id_animals_id_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "animal_heats"
-    },
-    {
-      "nameExplicit": false,
-      "columns": [
         "created_by"
       ],
       "schemaTo": "public",
@@ -11462,7 +11428,7 @@
         "farm_id"
       ],
       "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
+      "onDelete": "CASCADE",
       "name": "animal_heats_animal_id_farm_fk",
       "entityType": "fks",
       "schema": "public",
@@ -11481,28 +11447,11 @@
         "farm_id"
       ],
       "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
+      "onDelete": "SET NULL",
       "name": "animal_heats_sire_id_farm_fk",
       "entityType": "fks",
       "schema": "public",
       "table": "animal_heats"
-    },
-    {
-      "nameExplicit": false,
-      "columns": [
-        "animal_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "animals",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "CASCADE",
-      "name": "animal_journal_entries_animal_id_animals_id_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "animal_journal_entries"
     },
     {
       "nameExplicit": false,
@@ -11551,45 +11500,11 @@
         "farm_id"
       ],
       "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
+      "onDelete": "CASCADE",
       "name": "animal_journal_entries_animal_id_farm_fk",
       "entityType": "fks",
       "schema": "public",
       "table": "animal_journal_entries"
-    },
-    {
-      "nameExplicit": false,
-      "columns": [
-        "animal_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "animals",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "CASCADE",
-      "name": "animal_treatments_animal_id_animals_id_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "animal_treatments"
-    },
-    {
-      "nameExplicit": false,
-      "columns": [
-        "treatment_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "treatments",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "CASCADE",
-      "name": "animal_treatments_treatment_id_treatments_id_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "animal_treatments"
     },
     {
       "nameExplicit": false,
@@ -11621,7 +11536,7 @@
         "farm_id"
       ],
       "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
+      "onDelete": "CASCADE",
       "name": "animal_treatments_animal_id_farm_fk",
       "entityType": "fks",
       "schema": "public",
@@ -11640,7 +11555,7 @@
         "farm_id"
       ],
       "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
+      "onDelete": "CASCADE",
       "name": "animal_treatments_treatment_id_farm_fk",
       "entityType": "fks",
       "schema": "public",
@@ -11659,23 +11574,6 @@
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "name": "animal_weights_farm_id_farms_id_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "animal_weights"
-    },
-    {
-      "nameExplicit": false,
-      "columns": [
-        "animal_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "animals",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "CASCADE",
-      "name": "animal_weights_animal_id_animals_id_fkey",
       "entityType": "fks",
       "schema": "public",
       "table": "animal_weights"
@@ -11710,7 +11608,7 @@
         "farm_id"
       ],
       "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
+      "onDelete": "CASCADE",
       "name": "animal_weights_animal_id_farm_fk",
       "entityType": "fks",
       "schema": "public",
@@ -11734,40 +11632,6 @@
       "table": "animals"
     },
     {
-      "nameExplicit": false,
-      "columns": [
-        "ear_tag_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "ear_tags",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "RESTRICT",
-      "name": "animals_ear_tag_id_ear_tags_id_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "animals"
-    },
-    {
-      "nameExplicit": false,
-      "columns": [
-        "herd_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "herds",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "SET NULL",
-      "name": "animals_herd_id_herds_id_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "animals"
-    },
-    {
       "nameExplicit": true,
       "columns": [
         "ear_tag_id",
@@ -11780,7 +11644,7 @@
         "farm_id"
       ],
       "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
+      "onDelete": "RESTRICT",
       "name": "animals_ear_tag_id_farm_fk",
       "entityType": "fks",
       "schema": "public",
@@ -11799,7 +11663,7 @@
         "farm_id"
       ],
       "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
+      "onDelete": "SET NULL",
       "name": "animals_herd_id_farm_fk",
       "entityType": "fks",
       "schema": "public",
@@ -11818,7 +11682,7 @@
         "farm_id"
       ],
       "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
+      "onDelete": "SET NULL",
       "name": "animals_mother_id_farm_fk",
       "entityType": "fks",
       "schema": "public",
@@ -11837,42 +11701,8 @@
         "farm_id"
       ],
       "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
+      "onDelete": "SET NULL",
       "name": "animals_father_id_farm_fk",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "animals"
-    },
-    {
-      "nameExplicit": true,
-      "columns": [
-        "mother_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "animals",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "SET NULL",
-      "name": "animals_mother_fk",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "animals"
-    },
-    {
-      "nameExplicit": true,
-      "columns": [
-        "father_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "animals",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "SET NULL",
-      "name": "animals_father_fk",
       "entityType": "fks",
       "schema": "public",
       "table": "animals"
@@ -11997,40 +11827,6 @@
       "table": "crop_protection_applications"
     },
     {
-      "nameExplicit": false,
-      "columns": [
-        "plot_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "plots",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "CASCADE",
-      "name": "crop_protection_applications_plot_id_plots_id_fk",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "crop_protection_applications"
-    },
-    {
-      "nameExplicit": false,
-      "columns": [
-        "product_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "crop_protection_products",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
-      "name": "crop_protection_applications_product_id_crop_protection_product",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "crop_protection_applications"
-    },
-    {
       "nameExplicit": true,
       "columns": [
         "plot_id",
@@ -12043,7 +11839,7 @@
         "farm_id"
       ],
       "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
+      "onDelete": "CASCADE",
       "name": "crop_protection_applications_plot_id_farm_fk",
       "entityType": "fks",
       "schema": "public",
@@ -12103,40 +11899,6 @@
       "table": "crop_rotation_draft_plan_entries"
     },
     {
-      "nameExplicit": false,
-      "columns": [
-        "draft_plan_plot_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "crop_rotation_draft_plan_plots",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "CASCADE",
-      "name": "crop_rotation_draft_plan_entries_Jso08sQAwgs9_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "crop_rotation_draft_plan_entries"
-    },
-    {
-      "nameExplicit": false,
-      "columns": [
-        "crop_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "crops",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
-      "name": "crop_rotation_draft_plan_entries_crop_id_crops_id_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "crop_rotation_draft_plan_entries"
-    },
-    {
       "nameExplicit": true,
       "columns": [
         "draft_plan_plot_id",
@@ -12149,7 +11911,7 @@
         "farm_id"
       ],
       "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
+      "onDelete": "CASCADE",
       "name": "crop_rotation_draft_plan_entries_draft_plan_plot_id_farm_fk",
       "entityType": "fks",
       "schema": "public",
@@ -12192,40 +11954,6 @@
       "table": "crop_rotation_draft_plan_plots"
     },
     {
-      "nameExplicit": false,
-      "columns": [
-        "draft_plan_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "crop_rotation_draft_plans",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "CASCADE",
-      "name": "crop_rotation_draft_plan_plots_NNE7OVNGOmQp_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "crop_rotation_draft_plan_plots"
-    },
-    {
-      "nameExplicit": false,
-      "columns": [
-        "plot_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "plots",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "CASCADE",
-      "name": "crop_rotation_draft_plan_plots_plot_id_plots_id_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "crop_rotation_draft_plan_plots"
-    },
-    {
       "nameExplicit": true,
       "columns": [
         "draft_plan_id",
@@ -12238,7 +11966,7 @@
         "farm_id"
       ],
       "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
+      "onDelete": "CASCADE",
       "name": "crop_rotation_draft_plan_plots_draft_plan_id_farm_fk",
       "entityType": "fks",
       "schema": "public",
@@ -12257,7 +11985,7 @@
         "farm_id"
       ],
       "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
+      "onDelete": "CASCADE",
       "name": "crop_rotation_draft_plan_plots_plot_id_farm_fk",
       "entityType": "fks",
       "schema": "public",
@@ -12298,23 +12026,6 @@
       "table": "crop_rotation_yearly_recurrences"
     },
     {
-      "nameExplicit": false,
-      "columns": [
-        "crop_rotation_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "crop_rotations",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "CASCADE",
-      "name": "crop_rotation_yearly_recurrences_8wTBnwqBsUgZ_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "crop_rotation_yearly_recurrences"
-    },
-    {
       "nameExplicit": true,
       "columns": [
         "crop_rotation_id",
@@ -12327,7 +12038,7 @@
         "farm_id"
       ],
       "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
+      "onDelete": "CASCADE",
       "name": "crop_rotation_yearly_recurrences_crop_rotation_id_farm_fk",
       "entityType": "fks",
       "schema": "public",
@@ -12351,40 +12062,6 @@
       "table": "crop_rotations"
     },
     {
-      "nameExplicit": false,
-      "columns": [
-        "plot_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "plots",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "CASCADE",
-      "name": "crop_rotations_plot_id_plots_id_fk",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "crop_rotations"
-    },
-    {
-      "nameExplicit": false,
-      "columns": [
-        "crop_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "crops",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
-      "name": "crop_rotations_crop_id_crops_id_fk",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "crop_rotations"
-    },
-    {
       "nameExplicit": true,
       "columns": [
         "plot_id",
@@ -12397,7 +12074,7 @@
         "farm_id"
       ],
       "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
+      "onDelete": "CASCADE",
       "name": "crop_rotations_plot_id_farm_fk",
       "entityType": "fks",
       "schema": "public",
@@ -12440,23 +12117,6 @@
       "table": "crops"
     },
     {
-      "nameExplicit": false,
-      "columns": [
-        "family_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "crop_families",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "SET NULL",
-      "name": "crops_family_id_crop_families_id_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "crops"
-    },
-    {
       "nameExplicit": true,
       "columns": [
         "family_id",
@@ -12469,7 +12129,7 @@
         "farm_id"
       ],
       "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
+      "onDelete": "SET NULL",
       "name": "crops_family_id_farm_fk",
       "entityType": "fks",
       "schema": "public",
@@ -12493,23 +12153,6 @@
       "table": "custom_outdoor_journal_categories"
     },
     {
-      "nameExplicit": false,
-      "columns": [
-        "animal_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "animals",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "CASCADE",
-      "name": "custom_outdoor_journal_categories_animal_id_animals_id_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "custom_outdoor_journal_categories"
-    },
-    {
       "nameExplicit": true,
       "columns": [
         "animal_id",
@@ -12522,7 +12165,7 @@
         "farm_id"
       ],
       "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
+      "onDelete": "CASCADE",
       "name": "custom_outdoor_journal_categories_animal_id_farm_fk",
       "entityType": "fks",
       "schema": "public",
@@ -12801,23 +12444,6 @@
       "table": "fertilizer_application_presets"
     },
     {
-      "nameExplicit": false,
-      "columns": [
-        "fertilizer_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "fertilizers",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "CASCADE",
-      "name": "fertilizer_application_presets_S9oxn23jSRLF_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "fertilizer_application_presets"
-    },
-    {
       "nameExplicit": true,
       "columns": [
         "fertilizer_id",
@@ -12830,7 +12456,7 @@
         "farm_id"
       ],
       "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
+      "onDelete": "CASCADE",
       "name": "fertilizer_application_presets_fertilizer_id_farm_fk",
       "entityType": "fks",
       "schema": "public",
@@ -12871,40 +12497,6 @@
       "table": "fertilizer_applications"
     },
     {
-      "nameExplicit": false,
-      "columns": [
-        "plot_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "plots",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "CASCADE",
-      "name": "fertilizer_applications_plot_id_plots_id_fk",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "fertilizer_applications"
-    },
-    {
-      "nameExplicit": false,
-      "columns": [
-        "fertilizer_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "fertilizers",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
-      "name": "fertilizer_applications_fertilizer_id_fertilizers_id_fk",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "fertilizer_applications"
-    },
-    {
       "nameExplicit": true,
       "columns": [
         "plot_id",
@@ -12917,7 +12509,7 @@
         "farm_id"
       ],
       "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
+      "onDelete": "CASCADE",
       "name": "fertilizer_applications_plot_id_farm_fk",
       "entityType": "fks",
       "schema": "public",
@@ -13198,40 +12790,6 @@
       "table": "harvests"
     },
     {
-      "nameExplicit": false,
-      "columns": [
-        "plot_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "plots",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "CASCADE",
-      "name": "forage_harvests_plot_id_plots_id_fk",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "harvests"
-    },
-    {
-      "nameExplicit": false,
-      "columns": [
-        "crop_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "crops",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
-      "name": "forage_harvests_crop_id_crops_id_fk",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "harvests"
-    },
-    {
       "nameExplicit": true,
       "columns": [
         "plot_id",
@@ -13244,7 +12802,7 @@
         "farm_id"
       ],
       "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
+      "onDelete": "CASCADE",
       "name": "harvests_plot_id_farm_fk",
       "entityType": "fks",
       "schema": "public",
@@ -13287,40 +12845,6 @@
       "table": "herd_memberships"
     },
     {
-      "nameExplicit": false,
-      "columns": [
-        "animal_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "animals",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "CASCADE",
-      "name": "herd_memberships_animal_id_animals_id_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "herd_memberships"
-    },
-    {
-      "nameExplicit": false,
-      "columns": [
-        "herd_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "herds",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "CASCADE",
-      "name": "herd_memberships_herd_id_herds_id_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "herd_memberships"
-    },
-    {
       "nameExplicit": true,
       "columns": [
         "animal_id",
@@ -13333,7 +12857,7 @@
         "farm_id"
       ],
       "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
+      "onDelete": "CASCADE",
       "name": "herd_memberships_animal_id_farm_fk",
       "entityType": "fks",
       "schema": "public",
@@ -13352,7 +12876,7 @@
         "farm_id"
       ],
       "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
+      "onDelete": "CASCADE",
       "name": "herd_memberships_herd_id_farm_fk",
       "entityType": "fks",
       "schema": "public",
@@ -13461,40 +12985,6 @@
       "table": "order_items"
     },
     {
-      "nameExplicit": false,
-      "columns": [
-        "order_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "orders",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "CASCADE",
-      "name": "order_items_order_id_orders_id_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "order_items"
-    },
-    {
-      "nameExplicit": false,
-      "columns": [
-        "product_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "products",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "RESTRICT",
-      "name": "order_items_product_id_products_id_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "order_items"
-    },
-    {
       "nameExplicit": true,
       "columns": [
         "order_id",
@@ -13507,7 +12997,7 @@
         "farm_id"
       ],
       "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
+      "onDelete": "CASCADE",
       "name": "order_items_order_id_farm_fk",
       "entityType": "fks",
       "schema": "public",
@@ -13526,7 +13016,7 @@
         "farm_id"
       ],
       "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
+      "onDelete": "RESTRICT",
       "name": "order_items_product_id_farm_fk",
       "entityType": "fks",
       "schema": "public",
@@ -13550,23 +13040,6 @@
       "table": "orders"
     },
     {
-      "nameExplicit": false,
-      "columns": [
-        "contact_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "contacts",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "CASCADE",
-      "name": "orders_contact_id_contacts_id_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "orders"
-    },
-    {
       "nameExplicit": true,
       "columns": [
         "contact_id",
@@ -13579,7 +13052,7 @@
         "farm_id"
       ],
       "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
+      "onDelete": "CASCADE",
       "name": "orders_contact_id_farm_fk",
       "entityType": "fks",
       "schema": "public",
@@ -13603,23 +13076,6 @@
       "table": "outdoor_schedule_overrides"
     },
     {
-      "nameExplicit": false,
-      "columns": [
-        "herd_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "herds",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "CASCADE",
-      "name": "outdoor_schedule_overrides_herd_id_herds_id_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "outdoor_schedule_overrides"
-    },
-    {
       "nameExplicit": true,
       "columns": [
         "herd_id",
@@ -13632,7 +13088,7 @@
         "farm_id"
       ],
       "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
+      "onDelete": "CASCADE",
       "name": "outdoor_schedule_overrides_herd_id_farm_fk",
       "entityType": "fks",
       "schema": "public",
@@ -13675,23 +13131,6 @@
       "table": "outdoor_schedule_recurrences"
     },
     {
-      "nameExplicit": false,
-      "columns": [
-        "outdoor_schedule_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "outdoor_shedules",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "CASCADE",
-      "name": "outdoor_schedule_recurrences_phiXhM6XuCtO_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "outdoor_schedule_recurrences"
-    },
-    {
       "nameExplicit": true,
       "columns": [
         "outdoor_schedule_id",
@@ -13704,7 +13143,7 @@
         "farm_id"
       ],
       "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
+      "onDelete": "CASCADE",
       "name": "outdoor_schedule_recurrences_outdoor_schedule_id_farm_fk",
       "entityType": "fks",
       "schema": "public",
@@ -13728,23 +13167,6 @@
       "table": "outdoor_shedules"
     },
     {
-      "nameExplicit": false,
-      "columns": [
-        "herd_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "herds",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "CASCADE",
-      "name": "outdoor_shedules_herd_id_herds_id_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "outdoor_shedules"
-    },
-    {
       "nameExplicit": true,
       "columns": [
         "herd_id",
@@ -13757,7 +13179,7 @@
         "farm_id"
       ],
       "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
+      "onDelete": "CASCADE",
       "name": "outdoor_shedules_herd_id_farm_fk",
       "entityType": "fks",
       "schema": "public",
@@ -13800,40 +13222,6 @@
       "table": "parasite_check_animals"
     },
     {
-      "nameExplicit": false,
-      "columns": [
-        "check_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "parasite_checks",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "CASCADE",
-      "name": "parasite_check_animals_check_id_parasite_checks_id_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "parasite_check_animals"
-    },
-    {
-      "nameExplicit": false,
-      "columns": [
-        "animal_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "animals",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "CASCADE",
-      "name": "parasite_check_animals_animal_id_animals_id_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "parasite_check_animals"
-    },
-    {
       "nameExplicit": true,
       "columns": [
         "check_id",
@@ -13846,7 +13234,7 @@
         "farm_id"
       ],
       "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
+      "onDelete": "CASCADE",
       "name": "parasite_check_animals_check_id_farm_fk",
       "entityType": "fks",
       "schema": "public",
@@ -13865,7 +13253,7 @@
         "farm_id"
       ],
       "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
+      "onDelete": "CASCADE",
       "name": "parasite_check_animals_animal_id_farm_fk",
       "entityType": "fks",
       "schema": "public",
@@ -13884,23 +13272,6 @@
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "name": "parasite_checks_farm_id_farms_id_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "parasite_checks"
-    },
-    {
-      "nameExplicit": false,
-      "columns": [
-        "treatment_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "treatments",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "SET NULL",
-      "name": "parasite_checks_treatment_id_treatments_id_fkey",
       "entityType": "fks",
       "schema": "public",
       "table": "parasite_checks"
@@ -13935,7 +13306,7 @@
         "farm_id"
       ],
       "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
+      "onDelete": "SET NULL",
       "name": "parasite_checks_treatment_id_farm_fk",
       "entityType": "fks",
       "schema": "public",
@@ -13976,23 +13347,6 @@
       "table": "parasite_fec_results"
     },
     {
-      "nameExplicit": false,
-      "columns": [
-        "sample_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "parasite_fec_samples",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "CASCADE",
-      "name": "parasite_fec_results_sample_id_parasite_fec_samples_id_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "parasite_fec_results"
-    },
-    {
       "nameExplicit": true,
       "columns": [
         "sample_id",
@@ -14005,7 +13359,7 @@
         "farm_id"
       ],
       "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
+      "onDelete": "CASCADE",
       "name": "parasite_fec_results_sample_id_farm_fk",
       "entityType": "fks",
       "schema": "public",
@@ -14029,40 +13383,6 @@
       "table": "parasite_fec_sample_animals"
     },
     {
-      "nameExplicit": false,
-      "columns": [
-        "sample_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "parasite_fec_samples",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "CASCADE",
-      "name": "parasite_fec_sample_animals_CPWtsMxJK0b1_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "parasite_fec_sample_animals"
-    },
-    {
-      "nameExplicit": false,
-      "columns": [
-        "animal_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "animals",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "CASCADE",
-      "name": "parasite_fec_sample_animals_animal_id_animals_id_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "parasite_fec_sample_animals"
-    },
-    {
       "nameExplicit": true,
       "columns": [
         "sample_id",
@@ -14075,7 +13395,7 @@
         "farm_id"
       ],
       "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
+      "onDelete": "CASCADE",
       "name": "parasite_fec_sample_animals_sample_id_farm_fk",
       "entityType": "fks",
       "schema": "public",
@@ -14094,7 +13414,7 @@
         "farm_id"
       ],
       "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
+      "onDelete": "CASCADE",
       "name": "parasite_fec_sample_animals_animal_id_farm_fk",
       "entityType": "fks",
       "schema": "public",
@@ -14118,23 +13438,6 @@
       "table": "parasite_fec_samples"
     },
     {
-      "nameExplicit": false,
-      "columns": [
-        "check_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "parasite_checks",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "CASCADE",
-      "name": "parasite_fec_samples_check_id_parasite_checks_id_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "parasite_fec_samples"
-    },
-    {
       "nameExplicit": true,
       "columns": [
         "check_id",
@@ -14147,7 +13450,7 @@
         "farm_id"
       ],
       "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
+      "onDelete": "CASCADE",
       "name": "parasite_fec_samples_check_id_farm_fk",
       "entityType": "fks",
       "schema": "public",
@@ -14188,57 +13491,6 @@
       "table": "payments"
     },
     {
-      "nameExplicit": false,
-      "columns": [
-        "contact_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "contacts",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "CASCADE",
-      "name": "payments_contact_id_contacts_id_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "payments"
-    },
-    {
-      "nameExplicit": false,
-      "columns": [
-        "sponsorship_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "sponsorships",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "SET NULL",
-      "name": "payments_sponsorship_id_sponsorships_id_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "payments"
-    },
-    {
-      "nameExplicit": false,
-      "columns": [
-        "order_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "orders",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "SET NULL",
-      "name": "payments_order_id_orders_id_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "payments"
-    },
-    {
       "nameExplicit": true,
       "columns": [
         "contact_id",
@@ -14251,7 +13503,7 @@
         "farm_id"
       ],
       "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
+      "onDelete": "CASCADE",
       "name": "payments_contact_id_farm_fk",
       "entityType": "fks",
       "schema": "public",
@@ -14270,7 +13522,7 @@
         "farm_id"
       ],
       "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
+      "onDelete": "SET NULL",
       "name": "payments_sponsorship_id_farm_fk",
       "entityType": "fks",
       "schema": "public",
@@ -14289,28 +13541,11 @@
         "farm_id"
       ],
       "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
+      "onDelete": "SET NULL",
       "name": "payments_order_id_farm_fk",
       "entityType": "fks",
       "schema": "public",
       "table": "payments"
-    },
-    {
-      "nameExplicit": false,
-      "columns": [
-        "plot_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "plots",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "CASCADE",
-      "name": "plot_journal_entries_plot_id_plots_id_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "plot_journal_entries"
     },
     {
       "nameExplicit": false,
@@ -14359,7 +13594,7 @@
         "farm_id"
       ],
       "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
+      "onDelete": "CASCADE",
       "name": "plot_journal_entries_plot_id_farm_fk",
       "entityType": "fks",
       "schema": "public",
@@ -14468,23 +13703,6 @@
       "table": "seeds"
     },
     {
-      "nameExplicit": false,
-      "columns": [
-        "crop_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "crops",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
-      "name": "seeds_crop_id_crops_id_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "seeds"
-    },
-    {
       "nameExplicit": true,
       "columns": [
         "crop_id",
@@ -14521,40 +13739,6 @@
       "table": "sowing_presets"
     },
     {
-      "nameExplicit": false,
-      "columns": [
-        "crop_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "crops",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "CASCADE",
-      "name": "sowing_presets_crop_id_crops_id_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "sowing_presets"
-    },
-    {
-      "nameExplicit": false,
-      "columns": [
-        "seed_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "seeds",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "CASCADE",
-      "name": "sowing_presets_seed_id_seeds_id_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "sowing_presets"
-    },
-    {
       "nameExplicit": true,
       "columns": [
         "crop_id",
@@ -14567,7 +13751,7 @@
         "farm_id"
       ],
       "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
+      "onDelete": "CASCADE",
       "name": "sowing_presets_crop_id_farm_fk",
       "entityType": "fks",
       "schema": "public",
@@ -14586,7 +13770,7 @@
         "farm_id"
       ],
       "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
+      "onDelete": "CASCADE",
       "name": "sowing_presets_seed_id_farm_fk",
       "entityType": "fks",
       "schema": "public",
@@ -14627,57 +13811,6 @@
       "table": "sowings"
     },
     {
-      "nameExplicit": false,
-      "columns": [
-        "plot_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "plots",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "CASCADE",
-      "name": "sowings_plot_id_plots_id_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "sowings"
-    },
-    {
-      "nameExplicit": false,
-      "columns": [
-        "crop_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "crops",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
-      "name": "sowings_crop_id_crops_id_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "sowings"
-    },
-    {
-      "nameExplicit": false,
-      "columns": [
-        "seed_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "seeds",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
-      "name": "sowings_seed_id_seeds_id_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "sowings"
-    },
-    {
       "nameExplicit": true,
       "columns": [
         "plot_id",
@@ -14690,7 +13823,7 @@
         "farm_id"
       ],
       "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
+      "onDelete": "CASCADE",
       "name": "sowings_plot_id_farm_fk",
       "entityType": "fks",
       "schema": "public",
@@ -14769,57 +13902,6 @@
       "table": "sponsorships"
     },
     {
-      "nameExplicit": false,
-      "columns": [
-        "contact_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "contacts",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "CASCADE",
-      "name": "sponsorships_contact_id_contacts_id_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "sponsorships"
-    },
-    {
-      "nameExplicit": false,
-      "columns": [
-        "animal_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "animals",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "CASCADE",
-      "name": "sponsorships_animal_id_animals_id_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "sponsorships"
-    },
-    {
-      "nameExplicit": false,
-      "columns": [
-        "sponsorship_program_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "sponsorship_programs",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "RESTRICT",
-      "name": "sponsorships_ndTyUkg1JW64_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "sponsorships"
-    },
-    {
       "nameExplicit": true,
       "columns": [
         "contact_id",
@@ -14832,7 +13914,7 @@
         "farm_id"
       ],
       "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
+      "onDelete": "CASCADE",
       "name": "sponsorships_contact_id_farm_fk",
       "entityType": "fks",
       "schema": "public",
@@ -14851,7 +13933,7 @@
         "farm_id"
       ],
       "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
+      "onDelete": "CASCADE",
       "name": "sponsorships_animal_id_farm_fk",
       "entityType": "fks",
       "schema": "public",
@@ -14870,7 +13952,7 @@
         "farm_id"
       ],
       "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
+      "onDelete": "RESTRICT",
       "name": "sponsorships_sponsorship_program_id_farm_fk",
       "entityType": "fks",
       "schema": "public",
@@ -14894,23 +13976,6 @@
       "table": "task_checklist_items"
     },
     {
-      "nameExplicit": false,
-      "columns": [
-        "task_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "tasks",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "CASCADE",
-      "name": "task_checklist_items_task_id_tasks_id_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "task_checklist_items"
-    },
-    {
       "nameExplicit": true,
       "columns": [
         "task_id",
@@ -14923,7 +13988,7 @@
         "farm_id"
       ],
       "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
+      "onDelete": "CASCADE",
       "name": "task_checklist_items_task_id_farm_fk",
       "entityType": "fks",
       "schema": "public",
@@ -14981,23 +14046,6 @@
       "table": "task_links"
     },
     {
-      "nameExplicit": false,
-      "columns": [
-        "task_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "tasks",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "CASCADE",
-      "name": "task_links_task_id_tasks_id_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "task_links"
-    },
-    {
       "nameExplicit": true,
       "columns": [
         "task_id",
@@ -15010,7 +14058,7 @@
         "farm_id"
       ],
       "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
+      "onDelete": "CASCADE",
       "name": "task_links_task_id_farm_fk",
       "entityType": "fks",
       "schema": "public",
@@ -15034,23 +14082,6 @@
       "table": "task_recurrences"
     },
     {
-      "nameExplicit": false,
-      "columns": [
-        "task_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "tasks",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "CASCADE",
-      "name": "task_recurrences_task_id_tasks_id_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "task_recurrences"
-    },
-    {
       "nameExplicit": true,
       "columns": [
         "task_id",
@@ -15063,7 +14094,7 @@
         "farm_id"
       ],
       "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
+      "onDelete": "CASCADE",
       "name": "task_recurrences_task_id_farm_fk",
       "entityType": "fks",
       "schema": "public",
@@ -15172,23 +14203,6 @@
       "table": "tillages"
     },
     {
-      "nameExplicit": false,
-      "columns": [
-        "plot_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "plots",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "CASCADE",
-      "name": "tillages_plot_id_plots_id_fk",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "tillages"
-    },
-    {
       "nameExplicit": true,
       "columns": [
         "plot_id",
@@ -15201,7 +14215,7 @@
         "farm_id"
       ],
       "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
+      "onDelete": "CASCADE",
       "name": "tillages_plot_id_farm_fk",
       "entityType": "fks",
       "schema": "public",
@@ -15220,23 +14234,6 @@
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "name": "treatments_farm_id_farms_id_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "treatments"
-    },
-    {
-      "nameExplicit": false,
-      "columns": [
-        "drug_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "drugs",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "RESTRICT",
-      "name": "treatments_drug_id_drugs_id_fkey",
       "entityType": "fks",
       "schema": "public",
       "table": "treatments"
@@ -15271,7 +14268,7 @@
         "farm_id"
       ],
       "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
+      "onDelete": "RESTRICT",
       "name": "treatments_drug_id_farm_fk",
       "entityType": "fks",
       "schema": "public",

@@ -36,12 +36,13 @@ export const apiResultHandler = new ResultHandler({
           },
         });
       }
-      // coded errors carry a client-safe message, so it is not replaced by the generic status text
+      // coded errors carry a client-safe message, so it is not replaced by the generic status text. A raw foreign
+      // key violation from the database gets a generic one (its own message names tables and constraints).
       const message =
-        code === "invalid_reference"
-          ? "A referenced record doesn't exist or belongs to another farm"
-          : code
-            ? httpError.message
+        error instanceof CodedError
+          ? httpError.message
+          : code === "invalid_reference"
+            ? "A referenced record doesn't exist or belongs to another farm"
             : getPublicErrorMessage(httpError);
       return void response.status(httpError.statusCode).json({ error: message, code });
     }

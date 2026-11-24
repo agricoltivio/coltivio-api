@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeEach } from "@jest/globals";
-import { cleanDb, request } from "./helpers";
+import { eq } from "drizzle-orm";
+import * as schema from "../db/schema";
+import { cleanDb, getAdminDb, request } from "./helpers";
 import { createAnimal, createPlot, createTillage, createUserWithFarm } from "./test-utils";
 
 // References to records of another farm are rejected by the database (composite foreign keys on (reference,
@@ -77,5 +79,28 @@ describe("References stay within the farm", () => {
 
     const ownRes = await request("POST", "/v1/tasks", { name: "Zaun flicken", assigneeId: userId }, jwt);
     expect(ownRes.status).toBe(200);
+  });
+  // The composite keys carry the delete behaviour alone (the single column keys are gone). SET NULL only nulls the
+  // reference, not farm_id (SET NULL (column) in the migration), and cascades still delete the dependent rows.
+  it("deletes still set references to null or cascade", async () => {
+    const { jwt, farmId } = await createUserWithFarm();
+    const mother = await createAnimal(jwt, { name: "Mutter", sex: "female" });
+    const calf = await createAnimal(jwt, { name: "Kalb", motherId: mother.id });
+    const plot = await createPlot(jwt);
+    const tillage = await createTillage(jwt, plot.id);
+
+    expect((await request("DELETE", `/v1/animals/byId/${mother.id}`, undefined, jwt)).status).toBe(200);
+    const [storedCalf] = await getAdminDb()
+      .select({ motherId: schema.animals.motherId, farmId: schema.animals.farmId })
+      .from(schema.animals)
+      .where(eq(schema.animals.id, calf.id));
+    expect(storedCalf).toEqual({ motherId: null, farmId });
+
+    await getAdminDb().delete(schema.plots).where(eq(schema.plots.id, plot.id));
+    const remainingTillages = await getAdminDb()
+      .select({ id: schema.tillages.id })
+      .from(schema.tillages)
+      .where(eq(schema.tillages.id, tillage.id));
+    expect(remainingTillages).toEqual([]);
   });
 });
