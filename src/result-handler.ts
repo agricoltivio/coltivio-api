@@ -15,7 +15,8 @@ export const apiResultHandler = new ResultHandler({
   negative: z.object({ error: z.string(), code: apiErrorCodeSchema.optional() }),
   handler: ({ error, input, output, request, response, logger }) => {
     if (error) {
-      const code = error instanceof CodedError ? error.code : undefined;
+      const code =
+        error instanceof CodedError ? error.code : isReferenceViolation(error) ? "invalid_reference" : undefined;
       const httpError = code ? createHttpError(statusByErrorCode[code], error.message) : ensureHttpError(error);
       if (!httpError.expose) {
         logger.error("Server side error", { error, url: request.url, input });
@@ -36,12 +37,31 @@ export const apiResultHandler = new ResultHandler({
         });
       }
       // coded errors carry a client-safe message, so it is not replaced by the generic status text
-      const message = code ? httpError.message : getPublicErrorMessage(httpError);
+      const message =
+        code === "invalid_reference"
+          ? "A referenced record doesn't exist or belongs to another farm"
+          : code
+            ? httpError.message
+            : getPublicErrorMessage(httpError);
       return void response.status(httpError.statusCode).json({ error: message, code });
     }
     response.status(200).json({ data: output });
   },
 });
+
+// An insert or update whose reference doesn't exist or points to another farm's record (Postgres foreign key
+// violation 23503; the same-farm composite foreign keys reject the latter). Deletes blocked by a reference
+// ("update or delete on table ...") are not meant and stay server errors. Drizzle wraps the driver error as cause.
+function isReferenceViolation(error: Error): boolean {
+  let current: unknown = error;
+  for (let depth = 0; depth < 3 && current instanceof Error; depth++) {
+    if ("code" in current && current.code === "23503") {
+      return current.message.startsWith("insert or update on table");
+    }
+    current = current.cause;
+  }
+  return false;
+}
 
 const statusByErrorCode: Record<ApiErrorCode, number> = {
   invalid_geometry: 400,
@@ -64,6 +84,7 @@ const statusByErrorCode: Record<ApiErrorCode, number> = {
   invalid_image: 400,
   invalid_image_reference: 400,
   too_many_pending_images: 429,
+  invalid_reference: 400,
 };
 
 const getPublicErrorMessage = (error: HttpError): string =>

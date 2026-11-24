@@ -484,6 +484,20 @@ export const cropRotations = pgTable.withRLS(
     toDate: date({ mode: "date" }).notNull(),
   },
   (table) => [
+    // Target of composite FKs that keep references within the same farm
+    unique("crop_rotations_id_farm_id_unique").on(table.id, table.farmId),
+    // Only a plots row of the same farm
+    foreignKey({
+      columns: [table.plotId, table.farmId],
+      foreignColumns: [plots.id, plots.farmId],
+      name: "crop_rotations_plot_id_farm_fk",
+    }),
+    // Only a crops row of the same farm
+    foreignKey({
+      columns: [table.cropId, table.farmId],
+      foreignColumns: [crops.id, crops.farmId],
+      name: "crop_rotations_crop_id_farm_fk",
+    }),
     pgPolicy("only farm members", {
       as: "permissive",
       to: authenticatedRole,
@@ -525,6 +539,12 @@ export const cropRotationYearlyRecurrences = pgTable.withRLS(
     until: date({ mode: "date" }),
   },
   (table) => [
+    // Only a crop_rotations row of the same farm
+    foreignKey({
+      columns: [table.cropRotationId, table.farmId],
+      foreignColumns: [cropRotations.id, cropRotations.farmId],
+      name: "crop_rotation_yearly_recurrences_crop_rotation_id_farm_fk",
+    }),
     pgPolicy("only farm members", {
       as: "permissive",
       to: authenticatedRole,
@@ -549,6 +569,8 @@ export const cropRotationDraftPlans = pgTable.withRLS(
       .$onUpdateFn(() => new Date()),
   },
   (table) => [
+    // Target of composite FKs that keep references within the same farm
+    unique("crop_rotation_draft_plans_id_farm_id_unique").on(table.id, table.farmId),
     pgPolicy("only farm members", {
       as: "permissive",
       to: authenticatedRole,
@@ -573,6 +595,20 @@ export const cropRotationDraftPlanPlots = pgTable.withRLS(
       .references(() => plots.id, { onDelete: "cascade" }),
   },
   (table) => [
+    // Target of composite FKs that keep references within the same farm
+    unique("crop_rotation_draft_plan_plots_id_farm_id_unique").on(table.id, table.farmId),
+    // Only a crop_rotation_draft_plans row of the same farm
+    foreignKey({
+      columns: [table.draftPlanId, table.farmId],
+      foreignColumns: [cropRotationDraftPlans.id, cropRotationDraftPlans.farmId],
+      name: "crop_rotation_draft_plan_plots_draft_plan_id_farm_fk",
+    }),
+    // Only a plots row of the same farm
+    foreignKey({
+      columns: [table.plotId, table.farmId],
+      foreignColumns: [plots.id, plots.farmId],
+      name: "crop_rotation_draft_plan_plots_plot_id_farm_fk",
+    }),
     pgPolicy("only farm members", {
       as: "permissive",
       to: authenticatedRole,
@@ -602,6 +638,18 @@ export const cropRotationDraftPlanEntries = pgTable.withRLS(
     recurrenceUntil: date({ mode: "date" }),
   },
   (table) => [
+    // Only a crop_rotation_draft_plan_plots row of the same farm
+    foreignKey({
+      columns: [table.draftPlanPlotId, table.farmId],
+      foreignColumns: [cropRotationDraftPlanPlots.id, cropRotationDraftPlanPlots.farmId],
+      name: "crop_rotation_draft_plan_entries_draft_plan_plot_id_farm_fk",
+    }),
+    // Only a crops row of the same farm
+    foreignKey({
+      columns: [table.cropId, table.farmId],
+      foreignColumns: [crops.id, crops.farmId],
+      name: "crop_rotation_draft_plan_entries_crop_id_farm_fk",
+    }),
     pgPolicy("only farm members", {
       as: "permissive",
       to: authenticatedRole,
@@ -679,6 +727,12 @@ export const tillages = pgTable.withRLS(
     additionalNotes: text(),
   },
   (table) => [
+    // Only a plots row of the same farm
+    foreignKey({
+      columns: [table.plotId, table.farmId],
+      foreignColumns: [plots.id, plots.farmId],
+      name: "tillages_plot_id_farm_fk",
+    }),
     pgPolicy("only farm members", {
       as: "permissive",
       to: authenticatedRole,
@@ -706,6 +760,8 @@ export const cropProtectionProducts = pgTable.withRLS(
     registrationNumber: text(),
   },
   (table) => [
+    // Target of composite FKs that keep references within the same farm
+    unique("crop_protection_products_id_farm_id_unique").on(table.id, table.farmId),
     pgPolicy("only farm members", {
       as: "permissive",
       to: authenticatedRole,
@@ -783,6 +839,18 @@ export const cropProtectionApplications = pgTable.withRLS(
     additionalNotes: text(),
   },
   (table) => [
+    // Only a plots row of the same farm
+    foreignKey({
+      columns: [table.plotId, table.farmId],
+      foreignColumns: [plots.id, plots.farmId],
+      name: "crop_protection_applications_plot_id_farm_fk",
+    }),
+    // Only a crop_protection_products row of the same farm
+    foreignKey({
+      columns: [table.productId, table.farmId],
+      foreignColumns: [cropProtectionProducts.id, cropProtectionProducts.farmId],
+      name: "crop_protection_applications_product_id_farm_fk",
+    }),
     pgPolicy("only farm members", {
       as: "permissive",
       to: authenticatedRole,
@@ -813,6 +881,8 @@ export const plots = pgTable.withRLS(
   },
 
   (table) => [
+    // Target of composite FKs that keep references within the same farm
+    unique("plots_id_farm_id_unique").on(table.id, table.farmId),
     index("plot_geometries_idx").using("gist", table.geometry),
     pgPolicy("only farm members", {
       as: "permissive",
@@ -875,6 +945,8 @@ export const cropFamilies = pgTable.withRLS(
     additionalNotes: text(),
   },
   (table) => [
+    // Target of composite FKs that keep references within the same farm
+    unique("crop_families_id_farm_id_unique").on(table.id, table.farmId),
     pgPolicy("only farm members", {
       as: "permissive",
       to: authenticatedRole,
@@ -904,6 +976,14 @@ export const crops = pgTable.withRLS(
     additionalNotes: text(),
   },
   (table) => [
+    // Target of composite FKs that keep references within the same farm
+    unique("crops_id_farm_id_unique").on(table.id, table.farmId),
+    // Only a crop_families row of the same farm
+    foreignKey({
+      columns: [table.familyId, table.farmId],
+      foreignColumns: [cropFamilies.id, cropFamilies.farmId],
+      name: "crops_family_id_farm_fk",
+    }),
     pgPolicy("only farm members", {
       as: "permissive",
       to: authenticatedRole,
@@ -974,6 +1054,18 @@ export const harvests = pgTable.withRLS(
     additionalNotes: text(),
   },
   (table) => [
+    // Only a plots row of the same farm
+    foreignKey({
+      columns: [table.plotId, table.farmId],
+      foreignColumns: [plots.id, plots.farmId],
+      name: "harvests_plot_id_farm_fk",
+    }),
+    // Only a crops row of the same farm
+    foreignKey({
+      columns: [table.cropId, table.farmId],
+      foreignColumns: [crops.id, crops.farmId],
+      name: "harvests_crop_id_farm_fk",
+    }),
     pgPolicy("only farm members", {
       as: "permissive",
       to: authenticatedRole,
@@ -1019,6 +1111,8 @@ export const contacts = pgTable.withRLS(
     labels: text().array().notNull().default([]),
   },
   (table) => [
+    // Target of composite FKs that keep references within the same farm
+    unique("contacts_id_farm_id_unique").on(table.id, table.farmId),
     pgPolicy("only farm members", {
       as: "permissive",
       to: authenticatedRole,
@@ -1045,6 +1139,8 @@ export const products = pgTable.withRLS(
     active: boolean().notNull().default(true),
   },
   (table) => [
+    // Target of composite FKs that keep references within the same farm
+    unique("products_id_farm_id_unique").on(table.id, table.farmId),
     pgPolicy("only farm members", {
       as: "permissive",
       to: authenticatedRole,
@@ -1074,6 +1170,14 @@ export const orders = pgTable.withRLS(
     notes: text(),
   },
   (table) => [
+    // Target of composite FKs that keep references within the same farm
+    unique("orders_id_farm_id_unique").on(table.id, table.farmId),
+    // Only a contacts row of the same farm
+    foreignKey({
+      columns: [table.contactId, table.farmId],
+      foreignColumns: [contacts.id, contacts.farmId],
+      name: "orders_contact_id_farm_fk",
+    }),
     pgPolicy("only farm members", {
       as: "permissive",
       to: authenticatedRole,
@@ -1106,6 +1210,18 @@ export const orderItems = pgTable.withRLS(
     unitPrice: real().notNull(),
   },
   (table) => [
+    // Only a orders row of the same farm
+    foreignKey({
+      columns: [table.orderId, table.farmId],
+      foreignColumns: [orders.id, orders.farmId],
+      name: "order_items_order_id_farm_fk",
+    }),
+    // Only a products row of the same farm
+    foreignKey({
+      columns: [table.productId, table.farmId],
+      foreignColumns: [products.id, products.farmId],
+      name: "order_items_product_id_farm_fk",
+    }),
     pgPolicy("only farm members", {
       as: "permissive",
       to: authenticatedRole,
@@ -1131,6 +1247,8 @@ export const sponsorshipPrograms = pgTable.withRLS(
     yearlyCost: real().notNull(),
   },
   (table) => [
+    // Target of composite FKs that keep references within the same farm
+    unique("sponsorship_programs_id_farm_id_unique").on(table.id, table.farmId),
     pgPolicy("only farm members", {
       as: "permissive",
       to: authenticatedRole,
@@ -1170,6 +1288,26 @@ export const sponsorships = pgTable.withRLS(
     preferredCommunication: preferredCommunication(),
   },
   (table) => [
+    // Target of composite FKs that keep references within the same farm
+    unique("sponsorships_id_farm_id_unique").on(table.id, table.farmId),
+    // Only a contacts row of the same farm
+    foreignKey({
+      columns: [table.contactId, table.farmId],
+      foreignColumns: [contacts.id, contacts.farmId],
+      name: "sponsorships_contact_id_farm_fk",
+    }),
+    // Only a animals row of the same farm
+    foreignKey({
+      columns: [table.animalId, table.farmId],
+      foreignColumns: [animals.id, animals.farmId],
+      name: "sponsorships_animal_id_farm_fk",
+    }),
+    // Only a sponsorship_programs row of the same farm
+    foreignKey({
+      columns: [table.sponsorshipProgramId, table.farmId],
+      foreignColumns: [sponsorshipPrograms.id, sponsorshipPrograms.farmId],
+      name: "sponsorships_sponsorship_program_id_farm_fk",
+    }),
     pgPolicy("only farm members", {
       as: "permissive",
       to: authenticatedRole,
@@ -1206,6 +1344,24 @@ export const payments = pgTable.withRLS(
     notes: text(),
   },
   (table) => [
+    // Only a contacts row of the same farm
+    foreignKey({
+      columns: [table.contactId, table.farmId],
+      foreignColumns: [contacts.id, contacts.farmId],
+      name: "payments_contact_id_farm_fk",
+    }),
+    // Only a sponsorships row of the same farm
+    foreignKey({
+      columns: [table.sponsorshipId, table.farmId],
+      foreignColumns: [sponsorships.id, sponsorships.farmId],
+      name: "payments_sponsorship_id_farm_fk",
+    }),
+    // Only a orders row of the same farm
+    foreignKey({
+      columns: [table.orderId, table.farmId],
+      foreignColumns: [orders.id, orders.farmId],
+      name: "payments_order_id_farm_fk",
+    }),
     pgPolicy("only farm members", {
       as: "permissive",
       to: authenticatedRole,
@@ -1238,6 +1394,8 @@ export const fertilizers = pgTable.withRLS(
     // potassiumPerUnit: real(),
   },
   (table) => [
+    // Target of composite FKs that keep references within the same farm
+    unique("fertilizers_id_farm_id_unique").on(table.id, table.farmId),
     pgPolicy("only farm members", {
       as: "permissive",
       to: authenticatedRole,
@@ -1275,6 +1433,12 @@ export const fertilizerApplicationPresets = pgTable.withRLS(
     amountPerUnit: real().notNull(),
   },
   (table) => [
+    // Only a fertilizers row of the same farm
+    foreignKey({
+      columns: [table.fertilizerId, table.farmId],
+      foreignColumns: [fertilizers.id, fertilizers.farmId],
+      name: "fertilizer_application_presets_fertilizer_id_farm_fk",
+    }),
     pgPolicy("only farm members", {
       as: "permissive",
       to: authenticatedRole,
@@ -1311,6 +1475,18 @@ export const fertilizerApplications = pgTable.withRLS(
     additionalNotes: text(),
   },
   (table) => [
+    // Only a plots row of the same farm
+    foreignKey({
+      columns: [table.plotId, table.farmId],
+      foreignColumns: [plots.id, plots.farmId],
+      name: "fertilizer_applications_plot_id_farm_fk",
+    }),
+    // Only a fertilizers row of the same farm
+    foreignKey({
+      columns: [table.fertilizerId, table.farmId],
+      foreignColumns: [fertilizers.id, fertilizers.farmId],
+      name: "fertilizer_applications_fertilizer_id_farm_fk",
+    }),
     pgPolicy("only farm members", {
       as: "permissive",
       to: authenticatedRole,
@@ -1357,6 +1533,14 @@ export const seeds = pgTable.withRLS(
     defaultUnit: sowingUnit(),
   },
   (table) => [
+    // Target of composite FKs that keep references within the same farm
+    unique("seeds_id_farm_id_unique").on(table.id, table.farmId),
+    // Only a crops row of the same farm
+    foreignKey({
+      columns: [table.cropId, table.farmId],
+      foreignColumns: [crops.id, crops.farmId],
+      name: "seeds_crop_id_farm_fk",
+    }),
     pgPolicy("only farm members", {
       as: "permissive",
       to: authenticatedRole,
@@ -1384,6 +1568,18 @@ export const sowingPresets = pgTable.withRLS(
     amount: real().notNull(),
   },
   (table) => [
+    // Only a crops row of the same farm
+    foreignKey({
+      columns: [table.cropId, table.farmId],
+      foreignColumns: [crops.id, crops.farmId],
+      name: "sowing_presets_crop_id_farm_fk",
+    }),
+    // Only a seeds row of the same farm
+    foreignKey({
+      columns: [table.seedId, table.farmId],
+      foreignColumns: [seeds.id, seeds.farmId],
+      name: "sowing_presets_seed_id_farm_fk",
+    }),
     pgPolicy("only farm members", {
       as: "permissive",
       to: authenticatedRole,
@@ -1423,6 +1619,24 @@ export const sowings = pgTable.withRLS(
     additionalNotes: text(),
   },
   (table) => [
+    // Only a plots row of the same farm
+    foreignKey({
+      columns: [table.plotId, table.farmId],
+      foreignColumns: [plots.id, plots.farmId],
+      name: "sowings_plot_id_farm_fk",
+    }),
+    // Only a crops row of the same farm
+    foreignKey({
+      columns: [table.cropId, table.farmId],
+      foreignColumns: [crops.id, crops.farmId],
+      name: "sowings_crop_id_farm_fk",
+    }),
+    // Only a seeds row of the same farm
+    foreignKey({
+      columns: [table.seedId, table.farmId],
+      foreignColumns: [seeds.id, seeds.farmId],
+      name: "sowings_seed_id_farm_fk",
+    }),
     pgPolicy("only farm members", {
       as: "permissive",
       to: authenticatedRole,
@@ -1444,6 +1658,8 @@ export const earTags = pgTable.withRLS(
     number: text().notNull(),
   },
   (table) => [
+    // Target of composite FKs that keep references within the same farm
+    unique("ear_tags_id_farm_id_unique").on(table.id, table.farmId),
     // Exact match: "CH1" and "CH001" are different tags
     unique().on(table.farmId, table.number),
     pgPolicy("only farm members", {
@@ -1508,6 +1724,32 @@ export const animals = pgTable.withRLS(
     notes: text(),
   },
   (table) => [
+    // Target of composite FKs that keep references within the same farm
+    unique("animals_id_farm_id_unique").on(table.id, table.farmId),
+    // Only a ear_tags row of the same farm
+    foreignKey({
+      columns: [table.earTagId, table.farmId],
+      foreignColumns: [earTags.id, earTags.farmId],
+      name: "animals_ear_tag_id_farm_fk",
+    }),
+    // Only a herds row of the same farm
+    foreignKey({
+      columns: [table.herdId, table.farmId],
+      foreignColumns: [herds.id, herds.farmId],
+      name: "animals_herd_id_farm_fk",
+    }),
+    // Only a animals row of the same farm
+    foreignKey({
+      columns: [table.motherId, table.farmId],
+      foreignColumns: [table.id, table.farmId],
+      name: "animals_mother_id_farm_fk",
+    }),
+    // Only a animals row of the same farm
+    foreignKey({
+      columns: [table.fatherId, table.farmId],
+      foreignColumns: [table.id, table.farmId],
+      name: "animals_father_id_farm_fk",
+    }),
     foreignKey({
       columns: [table.motherId],
       foreignColumns: [table.id],
@@ -1539,6 +1781,8 @@ export const herds = pgTable.withRLS(
     name: text().notNull(),
   },
   (table) => [
+    // Target of composite FKs that keep references within the same farm
+    unique("herds_id_farm_id_unique").on(table.id, table.farmId),
     pgPolicy("only farm members", {
       as: "permissive",
       to: authenticatedRole,
@@ -1565,6 +1809,18 @@ export const herdMemberships = pgTable.withRLS(
     toDate: date({ mode: "date" }), // null = still active
   },
   (table) => [
+    // Only a animals row of the same farm
+    foreignKey({
+      columns: [table.animalId, table.farmId],
+      foreignColumns: [animals.id, animals.farmId],
+      name: "herd_memberships_animal_id_farm_fk",
+    }),
+    // Only a herds row of the same farm
+    foreignKey({
+      columns: [table.herdId, table.farmId],
+      foreignColumns: [herds.id, herds.farmId],
+      name: "herd_memberships_herd_id_farm_fk",
+    }),
     index("herd_memberships_animal_id_idx").on(table.animalId),
     index("herd_memberships_herd_id_idx").on(table.herdId),
     pgPolicy("only farm members", {
@@ -1591,6 +1847,12 @@ export const customOutdoorJournalCategories = pgTable.withRLS(
     category: animalCategory().notNull(),
   },
   (table) => [
+    // Only a animals row of the same farm
+    foreignKey({
+      columns: [table.animalId, table.farmId],
+      foreignColumns: [animals.id, animals.farmId],
+      name: "custom_outdoor_journal_categories_animal_id_farm_fk",
+    }),
     index("custom_outdoor_journal_categories_animal_id_idx").on(table.animalId),
     pgPolicy("only farm members", {
       as: "permissive",
@@ -1653,6 +1915,14 @@ export const outdoorSchedules = pgTable.withRLS(
     notes: text(),
   },
   (table) => [
+    // Target of composite FKs that keep references within the same farm
+    unique("outdoor_shedules_id_farm_id_unique").on(table.id, table.farmId),
+    // Only a herds row of the same farm
+    foreignKey({
+      columns: [table.herdId, table.farmId],
+      foreignColumns: [herds.id, herds.farmId],
+      name: "outdoor_shedules_herd_id_farm_fk",
+    }),
     // Composite FK including farmId: FK checks bypass RLS, so this keeps a schedule from referencing another farm's
     // meadow. Deleting a meadow deletes its schedules (archive the meadow to keep its history).
     foreignKey({
@@ -1693,6 +1963,12 @@ export const outdoorScheduleOverrides = pgTable.withRLS(
     notes: text(),
   },
   (table) => [
+    // Only a herds row of the same farm
+    foreignKey({
+      columns: [table.herdId, table.farmId],
+      foreignColumns: [herds.id, herds.farmId],
+      name: "outdoor_schedule_overrides_herd_id_farm_fk",
+    }),
     // Same as outdoor_schedules: keeps an override from referencing another farm's meadow
     foreignKey({
       columns: [table.meadowId, table.farmId],
@@ -1734,6 +2010,12 @@ export const outdoorScheduleRecurrences = pgTable.withRLS(
   },
 
   (table) => [
+    // Only a outdoor_shedules row of the same farm
+    foreignKey({
+      columns: [table.outdoorScheduleId, table.farmId],
+      foreignColumns: [outdoorSchedules.id, outdoorSchedules.farmId],
+      name: "outdoor_schedule_recurrences_outdoor_schedule_id_farm_fk",
+    }),
     pgPolicy("only farm members", {
       as: "permissive",
       to: authenticatedRole,
@@ -1759,6 +2041,8 @@ export const drugs = pgTable.withRLS(
     notes: text(),
   },
   (table) => [
+    // Target of composite FKs that keep references within the same farm
+    unique("drugs_id_farm_id_unique").on(table.id, table.farmId),
     pgPolicy("only farm members", {
       as: "permissive",
       to: authenticatedRole,
@@ -1835,6 +2119,14 @@ export const treatments = pgTable.withRLS(
     createdBy: uuid().references(() => profiles.id, { onDelete: "set null" }),
   },
   (table) => [
+    // Target of composite FKs that keep references within the same farm
+    unique("treatments_id_farm_id_unique").on(table.id, table.farmId),
+    // Only a drugs row of the same farm
+    foreignKey({
+      columns: [table.drugId, table.farmId],
+      foreignColumns: [drugs.id, drugs.farmId],
+      name: "treatments_drug_id_farm_fk",
+    }),
     index("treatments_drug_id_idx").on(table.drugId),
     index("treatments_date_idx").on(table.startDate),
     pgPolicy("only farm members", {
@@ -1864,6 +2156,18 @@ export const animalTreatments = pgTable.withRLS(
     effectiveDoseValue: real(),
   },
   (table) => [
+    // Only a animals row of the same farm
+    foreignKey({
+      columns: [table.animalId, table.farmId],
+      foreignColumns: [animals.id, animals.farmId],
+      name: "animal_treatments_animal_id_farm_fk",
+    }),
+    // Only a treatments row of the same farm
+    foreignKey({
+      columns: [table.treatmentId, table.farmId],
+      foreignColumns: [treatments.id, treatments.farmId],
+      name: "animal_treatments_treatment_id_farm_fk",
+    }),
     index("animal_treatments_animal_id_idx").on(table.animalId),
     index("animal_treatments_treatment_id_idx").on(table.treatmentId),
     unique("animal_treatments_unique").on(table.animalId, table.treatmentId),
@@ -1893,6 +2197,12 @@ export const animalWeights = pgTable.withRLS(
     createdBy: uuid().references(() => profiles.id, { onDelete: "set null" }),
   },
   (table) => [
+    // Only a animals row of the same farm
+    foreignKey({
+      columns: [table.animalId, table.farmId],
+      foreignColumns: [animals.id, animals.farmId],
+      name: "animal_weights_animal_id_farm_fk",
+    }),
     index("animal_weights_animal_id_date_idx").on(table.animalId, table.date),
     pgPolicy("only farm members", {
       as: "permissive",
@@ -1924,6 +2234,18 @@ export const animalHeats = pgTable.withRLS(
     createdBy: uuid().references(() => profiles.id, { onDelete: "set null" }),
   },
   (table) => [
+    // Only a animals row of the same farm
+    foreignKey({
+      columns: [table.animalId, table.farmId],
+      foreignColumns: [animals.id, animals.farmId],
+      name: "animal_heats_animal_id_farm_fk",
+    }),
+    // Only a animals row of the same farm
+    foreignKey({
+      columns: [table.sireId, table.farmId],
+      foreignColumns: [animals.id, animals.farmId],
+      name: "animal_heats_sire_id_farm_fk",
+    }),
     index("animal_heats_animal_id_idx").on(table.animalId),
     index("animal_heats_farm_id_date_idx").on(table.farmId, table.date),
     pgPolicy("only farm members", {
@@ -2017,6 +2339,14 @@ export const parasiteChecks = pgTable.withRLS(
     updatedAt: timestamp().notNull().defaultNow(),
   },
   (table) => [
+    // Target of composite FKs that keep references within the same farm
+    unique("parasite_checks_id_farm_id_unique").on(table.id, table.farmId),
+    // Only a treatments row of the same farm
+    foreignKey({
+      columns: [table.treatmentId, table.farmId],
+      foreignColumns: [treatments.id, treatments.farmId],
+      name: "parasite_checks_treatment_id_farm_fk",
+    }),
     // Re-checks are deleted together with their base check
     foreignKey({ columns: [table.previousCheckId], foreignColumns: [table.id] }).onDelete("cascade"),
     index("parasite_checks_date_idx").on(table.date),
@@ -2046,6 +2376,18 @@ export const parasiteCheckAnimals = pgTable.withRLS(
     famachaScore: integer(),
   },
   (table) => [
+    // Only a parasite_checks row of the same farm
+    foreignKey({
+      columns: [table.checkId, table.farmId],
+      foreignColumns: [parasiteChecks.id, parasiteChecks.farmId],
+      name: "parasite_check_animals_check_id_farm_fk",
+    }),
+    // Only a animals row of the same farm
+    foreignKey({
+      columns: [table.animalId, table.farmId],
+      foreignColumns: [animals.id, animals.farmId],
+      name: "parasite_check_animals_animal_id_farm_fk",
+    }),
     unique("parasite_check_animals_unique").on(table.checkId, table.animalId),
     check("parasite_check_animals_famacha_score_range", sql`${table.famachaScore} between 1 and 5`),
     index("parasite_check_animals_animal_id_idx").on(table.animalId),
@@ -2071,6 +2413,14 @@ export const parasiteFecSamples = pgTable.withRLS(
     label: text(),
   },
   (table) => [
+    // Target of composite FKs that keep references within the same farm
+    unique("parasite_fec_samples_id_farm_id_unique").on(table.id, table.farmId),
+    // Only a parasite_checks row of the same farm
+    foreignKey({
+      columns: [table.checkId, table.farmId],
+      foreignColumns: [parasiteChecks.id, parasiteChecks.farmId],
+      name: "parasite_fec_samples_check_id_farm_fk",
+    }),
     index("parasite_fec_samples_check_id_idx").on(table.checkId),
     pgPolicy("only farm members", {
       as: "permissive",
@@ -2097,6 +2447,18 @@ export const parasiteFecSampleAnimals = pgTable.withRLS(
       .references(() => animals.id, { onDelete: "cascade" }),
   },
   (table) => [
+    // Only a parasite_fec_samples row of the same farm
+    foreignKey({
+      columns: [table.sampleId, table.farmId],
+      foreignColumns: [parasiteFecSamples.id, parasiteFecSamples.farmId],
+      name: "parasite_fec_sample_animals_sample_id_farm_fk",
+    }),
+    // Only a animals row of the same farm
+    foreignKey({
+      columns: [table.animalId, table.farmId],
+      foreignColumns: [animals.id, animals.farmId],
+      name: "parasite_fec_sample_animals_animal_id_farm_fk",
+    }),
     unique("parasite_fec_sample_animals_unique").on(table.sampleId, table.animalId),
     index("parasite_fec_sample_animals_animal_id_idx").on(table.animalId),
     pgPolicy("only farm members", {
@@ -2129,6 +2491,12 @@ export const parasiteFecResults = pgTable.withRLS(
     grade: parasiteResultGrade(),
   },
   (table) => [
+    // Only a parasite_fec_samples row of the same farm
+    foreignKey({
+      columns: [table.sampleId, table.farmId],
+      foreignColumns: [parasiteFecSamples.id, parasiteFecSamples.farmId],
+      name: "parasite_fec_results_sample_id_farm_fk",
+    }),
     unique("parasite_fec_results_unique").on(table.sampleId, table.parasiteType),
     check("parasite_fec_results_count_non_negative", sql`${table.countPerGram} >= 0`),
     check("parasite_fec_results_count_or_grade", sql`num_nonnulls(${table.countPerGram}, ${table.grade}) = 1`),
@@ -2680,6 +3048,8 @@ export const tasks = pgTable.withRLS(
     createdBy: uuid().references(() => profiles.id, { onDelete: "set null" }),
   },
   (table) => [
+    // Target of composite FKs that keep references within the same farm
+    unique("tasks_id_farm_id_unique").on(table.id, table.farmId),
     pgPolicy("only farm members", {
       as: "permissive",
       to: authenticatedRole,
@@ -2725,6 +3095,12 @@ export const taskRecurrences = pgTable.withRLS(
     count: integer("count"),
   },
   (table) => [
+    // Only a tasks row of the same farm
+    foreignKey({
+      columns: [table.taskId, table.farmId],
+      foreignColumns: [tasks.id, tasks.farmId],
+      name: "task_recurrences_task_id_farm_fk",
+    }),
     pgPolicy("only farm members", {
       as: "permissive",
       to: authenticatedRole,
@@ -2748,6 +3124,12 @@ export const taskLinks = pgTable.withRLS(
     linkedId: uuid().notNull(),
   },
   (table) => [
+    // Only a tasks row of the same farm
+    foreignKey({
+      columns: [table.taskId, table.farmId],
+      foreignColumns: [tasks.id, tasks.farmId],
+      name: "task_links_task_id_farm_fk",
+    }),
     unique("task_links_unique").on(table.taskId, table.linkType, table.linkedId),
     index("task_links_task_id_idx").on(table.taskId),
     pgPolicy("only farm members", {
@@ -2776,6 +3158,12 @@ export const taskChecklistItems = pgTable.withRLS(
     createdAt: timestamp().notNull().defaultNow(),
   },
   (table) => [
+    // Only a tasks row of the same farm
+    foreignKey({
+      columns: [table.taskId, table.farmId],
+      foreignColumns: [tasks.id, tasks.farmId],
+      name: "task_checklist_items_task_id_farm_fk",
+    }),
     index("task_checklist_items_task_id_idx").on(table.taskId),
     pgPolicy("only farm members", {
       as: "permissive",
@@ -2885,6 +3273,12 @@ export const plotJournalEntries = pgTable.withRLS(
     updatedAt: timestamp().notNull().defaultNow(),
   },
   (table) => [
+    // Only a plots row of the same farm
+    foreignKey({
+      columns: [table.plotId, table.farmId],
+      foreignColumns: [plots.id, plots.farmId],
+      name: "plot_journal_entries_plot_id_farm_fk",
+    }),
     index("plot_journal_entries_plot_id_idx").on(table.plotId),
     pgPolicy("only farm members", {
       as: "permissive",
@@ -2941,6 +3335,12 @@ export const animalJournalEntries = pgTable.withRLS(
     updatedAt: timestamp().notNull().defaultNow(),
   },
   (table) => [
+    // Only a animals row of the same farm
+    foreignKey({
+      columns: [table.animalId, table.farmId],
+      foreignColumns: [animals.id, animals.farmId],
+      name: "animal_journal_entries_animal_id_farm_fk",
+    }),
     index("animal_journal_entries_animal_id_idx").on(table.animalId),
     pgPolicy("only farm members", {
       as: "permissive",
