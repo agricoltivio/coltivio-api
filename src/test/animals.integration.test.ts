@@ -2300,6 +2300,27 @@ describe("Unlinking relatives after a sex or type change", () => {
     expect(stored).toEqual({ type: "cow", motherId: null });
   });
 
+  it("a type change with the stored mother resent unlinks her instead of failing", async () => {
+    const { jwt } = await createUserWithFarm();
+    const cowMother = await createAnimal(jwt, { name: "Kuh", sex: "female" });
+    const calf = await createAnimal(jwt, { name: "Kalb", motherId: cowMother.id });
+
+    // The web edit form sends the parents on every save, also after a type change
+    const res = await request("PATCH", `/v1/animals/byId/${calf.id}`, { type: "goat", motherId: cowMother.id }, jwt);
+    expect(res.status).toBe(200);
+    expect((await parentIds(calf.id)).motherId).toBeNull();
+
+    const otherCalf = await createAnimal(jwt, { name: "Kalb 2", motherId: cowMother.id });
+    const batchRes = await request(
+      "PATCH",
+      "/v1/animals/batch",
+      { animalIds: [otherCalf.id], data: { type: "goat", motherId: cowMother.id } },
+      jwt
+    );
+    expect(batchRes.status).toBe(200);
+    expect((await parentIds(otherCalf.id)).motherId).toBeNull();
+  });
+
   it("a batch type change keeps links between animals changed together", async () => {
     const { jwt } = await createUserWithFarm();
     const mother = await createAnimal(jwt, { name: "Mutter", sex: "female" });
