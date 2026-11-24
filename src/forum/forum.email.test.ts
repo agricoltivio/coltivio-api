@@ -14,6 +14,11 @@ describe("toExcerpt", () => {
     ).toBe("Frage Wann mähen? Siehe Wiki eins zwei x");
   });
 
+  test("keeps words whole around emphasis and links, a <br> separates words", () => {
+    expect(toExcerpt("**Bio**dünger und [Heu](https://x)ballen")).toBe("Biodünger und Heuballen");
+    expect(toExcerpt("Kuh<br>Kalb")).toBe("Kuh Kalb");
+  });
+
   test("shortens long text with an ellipsis", () => {
     const excerpt = toExcerpt("Wort ".repeat(200));
     expect(excerpt.length).toBeLessThanOrEqual(301);

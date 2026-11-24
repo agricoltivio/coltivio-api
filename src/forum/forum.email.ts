@@ -31,7 +31,12 @@ function markdownToPlainText(markdown: string): string {
   const parts: string[] = [];
   const collect = (tokens: Token[]) => {
     for (const token of tokens) {
-      if (token.type === "image" || token.type === "html_inline" || token.type === "html_block") continue;
+      if (token.type === "image" || token.type === "html_block") continue;
+      // Raw HTML is dropped, a line break in it (<br>) still separates the words around it
+      if (token.type === "html_inline") {
+        if (/^<br\s*\/?>$/i.test(token.content)) parts.push(" ");
+        continue;
+      }
       if (
         token.type === "text" ||
         token.type === "code_inline" ||
@@ -39,7 +44,9 @@ function markdownToPlainText(markdown: string): string {
         token.type === "fence"
       ) {
         parts.push(token.content);
-      } else if (token.type === "softbreak" || token.type === "hardbreak" || token.nesting === -1) {
+      } else if (token.type === "softbreak" || token.type === "hardbreak" || (token.block && token.nesting === -1)) {
+        // Only block endings (paragraph, list item, heading, table cell) separate text; inline ones (strong, em,
+        // link) don't, so "**Bio**dünger" stays one word
         parts.push(" ");
       }
       if (token.children) collect(token.children);
