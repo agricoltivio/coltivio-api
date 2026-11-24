@@ -1,4 +1,6 @@
 import i18next from "i18next";
+import MarkdownIt from "markdown-it";
+import type { Token } from "markdown-it";
 import { txEmailApi } from "../brevo/brevo";
 import { BRAND, baseLayout, ctaButton, escapeHtml } from "../email/layout";
 
@@ -20,10 +22,35 @@ export type ForumEmailParams = {
 };
 
 // Posts are markdown; the mail only needs a plain-text teaser
+// Raw HTML on, so its tokens can be dropped instead of showing up as text
+const markdownParser = new MarkdownIt({ html: true });
+
+// The text of a Markdown body without its syntax: entities decoded (the editor writes e.g. "&#x20;" for a space at a
+// line end), no emphasis, link or heading markers, no images and no raw HTML. Line and block breaks become spaces.
+function markdownToPlainText(markdown: string): string {
+  const parts: string[] = [];
+  const collect = (tokens: Token[]) => {
+    for (const token of tokens) {
+      if (token.type === "image" || token.type === "html_inline" || token.type === "html_block") continue;
+      if (
+        token.type === "text" ||
+        token.type === "code_inline" ||
+        token.type === "code_block" ||
+        token.type === "fence"
+      ) {
+        parts.push(token.content);
+      } else if (token.type === "softbreak" || token.type === "hardbreak" || token.nesting === -1) {
+        parts.push(" ");
+      }
+      if (token.children) collect(token.children);
+    }
+  };
+  collect(markdownParser.parse(markdown, {}));
+  return parts.join("");
+}
+
 export function toExcerpt(body: string): string {
-  // Images would show up as their Markdown / HTML source
-  const withoutImages = body.replace(/!\[[^\]]*\]\([^)]*\)/g, "").replace(/<img\b[^>]*>/gi, "");
-  const flat = withoutImages.replace(/\s+/g, " ").trim();
+  const flat = markdownToPlainText(body).replace(/\s+/g, " ").trim();
   return flat.length > EXCERPT_MAX_LENGTH ? `${flat.slice(0, EXCERPT_MAX_LENGTH).trimEnd()}…` : flat;
 }
 
