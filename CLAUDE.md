@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Always use `yarn` for package installation, never `npm install`.
 - After adding or modifying code: run `yarn format`, `yarn lint`, and `npx tsc --noEmit`.
 - Always add integration tests for new endpoints/features and ensure they pass before finishing.
-- Generating migrations is allowed: after schema changes run `yarn db:generate --name <descriptive_snake_case_name>` (e.g. `forum_images`, `same_farm_references`) and check the generated SQL. Never apply them: no `yarn db:migrate`, `yarn db:push` or `yarn db:reset` — the user applies migrations manually. The integration tests apply migrations in their own Docker database, that's fine.
+- Generating migrations is allowed: after schema changes run `yarn db:generate --name <descriptive_snake_case_name>` (e.g. `forum_images`, `same_farm_references`) and check the generated SQL. If generate stops at an interactive question (e.g. whether a column or table was renamed or is new), don't answer it: stop and ask the user. Never apply them: no `yarn db:migrate`, `yarn db:push` or `yarn db:reset` — the user applies migrations manually. The integration tests apply migrations in their own Docker database, that's fine.
 - Always keep REST API backwards compatibility. New fields must be optional or have defaults. If a change could break existing clients, double-check and ask before proceeding.
 
 ## Commands
