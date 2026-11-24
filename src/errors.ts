@@ -43,6 +43,8 @@ export const apiErrorCodeSchema = z.enum([
   "invalid_image_reference",
   // too many uploaded forum images that aren't in a saved post yet
   "too_many_pending_images",
+  // a referenced record (plot, animal, contact, ...) doesn't exist or belongs to another farm
+  "invalid_reference",
 ]);
 export type ApiErrorCode = z.infer<typeof apiErrorCodeSchema>;
 

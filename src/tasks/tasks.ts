@@ -1,8 +1,17 @@
 import { and, arrayContains, eq, inArray } from "drizzle-orm";
 import { TFunction } from "i18next";
 import { addUtcMonths } from "../date-utils";
-import { RlsDb } from "../db/db";
-import { farmIdColumnValue, taskChecklistItems, taskLinks, taskRecurrences, tasks } from "../db/schema";
+import { RlsDb, Transaction } from "../db/db";
+import {
+  currentFarmId,
+  farmIdColumnValue,
+  farmMembers,
+  taskChecklistItems,
+  taskLinks,
+  taskRecurrences,
+  tasks,
+} from "../db/schema";
+import { CodedError } from "../errors";
 
 export type Task = typeof tasks.$inferSelect;
 export type TaskRecurrence = typeof taskRecurrences.$inferSelect;
@@ -87,6 +96,51 @@ export type TaskListFilters = {
   assigneeId?: string;
   label?: string;
 };
+
+// Task links point to different tables by type, so there's no foreign key that keeps them within the farm (unlike
+// all other references, see the same-farm composite foreign keys in the schema). Each linked record has to be
+// visible to the current farm under RLS. Wiki entries also include the published public entries of other farms,
+// which can be linked on purpose.
+async function assertTaskLinksVisible(tx: Transaction, links: TaskLinkInput[]) {
+  const idsByType = new Map<TaskLinkInput["linkType"], Set<string>>();
+  for (const { linkType, linkedId } of links) {
+    idsByType.set(linkType, (idsByType.get(linkType) ?? new Set<string>()).add(linkedId));
+  }
+  for (const [linkType, idSet] of idsByType) {
+    const ids = [...idSet];
+    const where = { id: { in: ids } };
+    const visible =
+      linkType === "animal"
+        ? await tx.query.animals.findMany({ where, columns: { id: true } })
+        : linkType === "plot"
+          ? await tx.query.plots.findMany({ where, columns: { id: true } })
+          : linkType === "contact"
+            ? await tx.query.contacts.findMany({ where, columns: { id: true } })
+            : linkType === "order"
+              ? await tx.query.orders.findMany({ where, columns: { id: true } })
+              : linkType === "wiki_entry"
+                ? await tx.query.wikiEntries.findMany({ where, columns: { id: true } })
+                : linkType === "treatment"
+                  ? await tx.query.treatments.findMany({ where, columns: { id: true } })
+                  : linkType === "herd"
+                    ? await tx.query.herds.findMany({ where, columns: { id: true } })
+                    : await tx.query.parasiteChecks.findMany({ where, columns: { id: true } });
+    if (visible.length !== ids.length) {
+      throw new CodedError("invalid_reference", `A linked ${linkType} doesn't exist or belongs to another farm`);
+    }
+  }
+}
+
+// A task can only be assigned to a member of the current farm
+async function assertAssigneeIsFarmMember(tx: Transaction, assigneeId: string) {
+  const [membership] = await tx
+    .select({ userId: farmMembers.userId })
+    .from(farmMembers)
+    .where(and(eq(farmMembers.userId, assigneeId), eq(farmMembers.farmId, currentFarmId)));
+  if (!membership) {
+    throw new CodedError("invalid_reference", "The assignee is not a member of this farm");
+  }
+}
 
 // Resolve a display name for each link by querying the target table
 async function resolveLinks(
@@ -319,6 +373,8 @@ export function tasksApi(rlsDb: RlsDb, t: TFunction, locale: string) {
 
     async createTask(input: TaskCreateInput, createdBy: string): Promise<TaskWithRelations> {
       return rlsDb.rls(async (tx) => {
+        await assertTaskLinksVisible(tx, input.links ?? []);
+        if (input.assigneeId) await assertAssigneeIsFarmMember(tx, input.assigneeId);
         const [task] = await tx
           .insert(tasks)
           .values({
@@ -382,6 +438,8 @@ export function tasksApi(rlsDb: RlsDb, t: TFunction, locale: string) {
 
     async updateTask(id: string, input: TaskUpdateInput): Promise<TaskWithRelations> {
       return rlsDb.rls(async (tx) => {
+        if (input.links !== undefined) await assertTaskLinksVisible(tx, input.links);
+        if (input.assigneeId) await assertAssigneeIsFarmMember(tx, input.assigneeId);
         const updateFields: Partial<typeof tasks.$inferInsert> = {};
         if (input.name !== undefined) updateFields.name = input.name;
         if (input.description !== undefined) updateFields.description = input.description;
