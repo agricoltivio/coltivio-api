@@ -301,6 +301,15 @@ describe("Plot geometry validation", () => {
     [8.0, 47.0],
   ];
 
+  async function plotArea(plotId: string) {
+    const db = getAdminDb();
+    const [row] = await db
+      .select({ area: sql<number>`ST_Area(${schema.plots.geometry})` })
+      .from(schema.plots)
+      .where(eq(schema.plots.id, plotId));
+    return row.area;
+  }
+
   async function isStoredGeometryValid(plotId: string) {
     const db = getAdminDb();
     const [row] = await db
@@ -329,6 +338,88 @@ describe("Plot geometry validation", () => {
     );
     expect(res.status).toBe(200);
     expect(await isStoredGeometryValid(plot.id)).toBe(true);
+  });
+
+  // agricoltivio/coltivio-rn-app#73: the parts of the edited MultiPolygon overlap each other and the plot overlaps a
+  // neighbour. Cutting it out of the neighbour failed with a GEOS TopologyException before the input was repaired.
+  it("saves a plot whose parts overlap each other while it overlaps a neighbour", async () => {
+    const { jwt } = await createUserWithFarm();
+    const neighbour = await createPlot(jwt, {
+      name: "Neighbour",
+      geometry: {
+        type: "MultiPolygon",
+        coordinates: [
+          [
+            [
+              [8.08, 47.0],
+              [8.2, 47.0],
+              [8.2, 47.1],
+              [8.08, 47.1],
+              [8.08, 47.0],
+            ],
+          ],
+        ],
+      },
+    });
+    // Away from the neighbour at first, so the edit below is what makes them overlap and triggers the cut
+    const plot = await createPlot(jwt, {
+      name: "Edited",
+      geometry: {
+        type: "MultiPolygon",
+        coordinates: [
+          [
+            [
+              [8.3, 47.0],
+              [8.4, 47.0],
+              [8.4, 47.1],
+              [8.3, 47.1],
+              [8.3, 47.0],
+            ],
+          ],
+        ],
+      },
+    });
+    const db = getAdminDb();
+    const neighbourAreaBefore = await plotArea(neighbour.id);
+    const overlappingParts = {
+      type: "MultiPolygon",
+      coordinates: [
+        [
+          [
+            [8.0, 47.0],
+            [8.06, 47.0],
+            [8.06, 47.06],
+            [8.0, 47.06],
+            [8.0, 47.0],
+          ],
+        ],
+        [
+          [
+            [8.04, 47.02],
+            [8.1, 47.02],
+            [8.1, 47.08],
+            [8.04, 47.08],
+            [8.04, 47.02],
+          ],
+        ],
+      ],
+    };
+
+    const res = await request("PATCH", `/v1/plots/byId/${plot.id}`, { geometry: overlappingParts }, jwt);
+    expect(res.status).toBe(200);
+    expect(await isStoredGeometryValid(plot.id)).toBe(true);
+    expect(await isStoredGeometryValid(neighbour.id)).toBe(true);
+    // The neighbour was cut: no overlap left and smaller than before
+    const [overlap] = await db
+      .select({
+        area: sql<number>`ST_Area(ST_Intersection(
+          (select geometry from ${schema.plots} where id = ${plot.id}),
+          (select geometry from ${schema.plots} where id = ${neighbour.id})))`,
+      })
+      .from(schema.plots)
+      .limit(1);
+    expect(overlap.area).toBeLessThan(1e-12);
+    expect(await plotArea(neighbour.id)).toBeLessThan(neighbourAreaBefore);
   });
 
   it("cuts a new plot out of an overlapping plot that is stored invalid", async () => {

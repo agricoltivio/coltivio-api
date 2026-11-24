@@ -364,6 +364,96 @@ async function loadHerdMembershipLimits(tx: Transaction, animalIds: string[]) {
   return { activeMembershipByAnimalId, earliestHerdChangeDateByAnimalId };
 }
 
+// The animals whose sex or type the update actually changes (read before the update). The edit form always sends
+// both, so "part of the update" alone would also clean up older links on unrelated saves.
+async function idsWithChangedSexOrType(
+  tx: Transaction,
+  animalIds: string[],
+  change: { sex?: (typeof tables.animals.$inferSelect)["sex"]; type?: (typeof tables.animals.$inferSelect)["type"] }
+): Promise<string[]> {
+  if (animalIds.length === 0 || (change.sex === undefined && change.type === undefined)) return [];
+  const currentAnimals = await tx
+    .select({ id: tables.animals.id, sex: tables.animals.sex, type: tables.animals.type })
+    .from(tables.animals)
+    .where(inArray(tables.animals.id, animalIds));
+  return currentAnimals
+    .filter(
+      (current) =>
+        (change.sex !== undefined && current.sex !== change.sex) ||
+        (change.type !== undefined && current.type !== change.type)
+    )
+    .map((current) => current.id);
+}
+
+// After a sex or type change: removes the parent links of these animals that no longer fit, in both directions
+// (their own mother / father and their offspring). A mother has to be female, a father male, and both of the same
+// type as the offspring. Run only for animals whose sex or type changed (idsWithChangedSexOrType), so older
+// inconsistent links stay untouched otherwise.
+async function unlinkMismatchedRelatives(tx: Transaction, animalIds: string[]) {
+  if (animalIds.length === 0) return;
+  const ids = sql.join(
+    animalIds.map((animalId) => sql`${animalId}::uuid`),
+    sql`, `
+  );
+  await tx.execute(sql`
+    UPDATE animals AS child SET mother_id = NULL
+    FROM animals AS parent
+    WHERE child.mother_id = parent.id
+      AND (child.id IN (${ids}) OR parent.id IN (${ids}))
+      AND (parent.sex <> 'female' OR parent.type <> child.type)
+  `);
+  await tx.execute(sql`
+    UPDATE animals AS child SET father_id = NULL
+    FROM animals AS parent
+    WHERE child.father_id = parent.id
+      AND (child.id IN (${ids}) OR parent.id IN (${ids}))
+      AND (parent.sex <> 'male' OR parent.type <> child.type)
+  `);
+}
+
+type StoredParents = Map<string, { motherId: string | null; fatherId: string | null }>;
+
+async function loadStoredParents(tx: Transaction, animalIds: string[]): Promise<StoredParents> {
+  if (animalIds.length === 0) return new Map();
+  const rows = await tx
+    .select({ id: tables.animals.id, motherId: tables.animals.motherId, fatherId: tables.animals.fatherId })
+    .from(tables.animals)
+    .where(inArray(tables.animals.id, animalIds));
+  return new Map(rows.map((row) => [row.id, { motherId: row.motherId, fatherId: row.fatherId }]));
+}
+
+// A mother or father the request newly picks but that doesn't fit the new sex or type (unlinked again right away)
+// is an error, not a silent no-op: the client would show the parent as saved. A parent the request only resends
+// (stored before the update, e.g. the edit form sends both parents on every save) is unlinked silently.
+async function assertRequestedParentsKept(
+  tx: Transaction,
+  requested: { id: string; motherId?: string | null; fatherId?: string | null }[],
+  parentsBeforeUpdate: StoredParents
+) {
+  const newlyPicked = requested.filter((animal) => {
+    const before = parentsBeforeUpdate.get(animal.id);
+    return (
+      (animal.motherId && animal.motherId !== before?.motherId) ||
+      (animal.fatherId && animal.fatherId !== before?.fatherId)
+    );
+  });
+  if (newlyPicked.length === 0) return;
+  const parentsAfterUpdate = await loadStoredParents(
+    tx,
+    newlyPicked.map((animal) => animal.id)
+  );
+  for (const animal of newlyPicked) {
+    const before = parentsBeforeUpdate.get(animal.id);
+    const after = parentsAfterUpdate.get(animal.id);
+    if (!after) continue;
+    const motherDropped = animal.motherId && animal.motherId !== before?.motherId && after.motherId !== animal.motherId;
+    const fatherDropped = animal.fatherId && animal.fatherId !== before?.fatherId && after.fatherId !== animal.fatherId;
+    if (motherDropped || fatherDropped) {
+      throw new CodedError("invalid_parent", "The mother or father doesn't fit the animal's sex or type");
+    }
+  }
+}
+
 // Moves animals into targetHerdId (or out of any herd when null) as of effectiveDate.
 // Membership ranges are inclusive on both ends, so the previous membership ends the day before effectiveDate.
 // Animals whose active membership already is in the target herd are left untouched.
@@ -729,7 +819,15 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
       data: Array<AnimalUpdateInput & { id: string; herdEffectiveDate?: Date | null }>
     ): Promise<Animal[]> {
       await rlsDb.rls(async (tx) => {
+        // Unlinked once after all updates, like the batch update: per item, a mother changed before her calf would
+        // unlink the calf that the same request changes to her type a moment later
+        const changedIds: string[] = [];
+        const parentsBeforeUpdate = await loadStoredParents(
+          tx,
+          data.map(({ id }) => id)
+        );
         for (const { id, herdId, herdEffectiveDate, ...animal } of data) {
+          changedIds.push(...(await idsWithChangedSexOrType(tx, [id], animal)));
           if (Object.keys(animal).length > 0) {
             await tx.update(tables.animals).set(animal).where(eq(tables.animals.id, id));
           }
@@ -744,6 +842,8 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
             );
           }
         }
+        await unlinkMismatchedRelatives(tx, changedIds);
+        await assertRequestedParentsKept(tx, data, parentsBeforeUpdate);
       });
       const result = await rlsDb.rls(async (tx) => {
         return tx.query.animals.findMany({
@@ -759,6 +859,8 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
     async updateAnimal(id: string, input: AnimalUpdateInput & { herdEffectiveDate?: Date | null }): Promise<Animal> {
       const { herdId, herdEffectiveDate, ...data } = input;
       const result = await rlsDb.rls(async (tx) => {
+        const changedIds = await idsWithChangedSexOrType(tx, [id], data);
+        const parentsBeforeUpdate = await loadStoredParents(tx, [id]);
         const [result] =
           Object.keys(data).length > 0
             ? await tx
@@ -767,6 +869,16 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
                 .where(eq(tables.animals.id, id))
                 .returning({ id: tables.animals.id })
             : await tx.select({ id: tables.animals.id }).from(tables.animals).where(eq(tables.animals.id, id));
+
+        // Parents and offspring that no longer fit the new sex or type are unlinked
+        if (result) {
+          await unlinkMismatchedRelatives(tx, changedIds);
+          await assertRequestedParentsKept(
+            tx,
+            [{ id, motherId: data.motherId, fatherId: data.fatherId }],
+            parentsBeforeUpdate
+          );
+        }
 
         // Herd changes go through memberships so the outdoor journal history stays correct
         if (result && herdId !== undefined) {
@@ -794,7 +906,15 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
 
     async batchUpdateAnimals(animalIds: string[], data: BatchUpdateAnimalInput): Promise<Animal[]> {
       return rlsDb.rls(async (tx) => {
+        const changedIds = await idsWithChangedSexOrType(tx, animalIds, { type: data.type });
+        const parentsBeforeUpdate = await loadStoredParents(tx, animalIds);
         await tx.update(tables.animals).set(data).where(inArray(tables.animals.id, animalIds));
+        await unlinkMismatchedRelatives(tx, changedIds);
+        await assertRequestedParentsKept(
+          tx,
+          animalIds.map((id) => ({ id, motherId: data.motherId, fatherId: data.fatherId })),
+          parentsBeforeUpdate
+        );
         return tx.query.animals.findMany({
           where: { id: { in: animalIds } },
           with: {
