@@ -389,6 +389,35 @@ async function idsWithChangedSexOrType(
 // (their own mother / father and their offspring). A mother has to be female, a father male, and both of the same
 // type as the offspring. Run only for animals whose sex or type changed (idsWithChangedSexOrType), so older
 // inconsistent links stay untouched otherwise.
+// A mother or father the request sets explicitly but that doesn't fit the new sex or type (unlinked again right away)
+// is an error, not a silent no-op: the client would show the parent as saved.
+async function assertRequestedParentsKept(
+  tx: Transaction,
+  requested: { id: string; motherId?: string | null; fatherId?: string | null }[]
+) {
+  const withParents = requested.filter((animal) => animal.motherId || animal.fatherId);
+  if (withParents.length === 0) return;
+  const stored = await tx
+    .select({ id: tables.animals.id, motherId: tables.animals.motherId, fatherId: tables.animals.fatherId })
+    .from(tables.animals)
+    .where(
+      inArray(
+        tables.animals.id,
+        withParents.map((animal) => animal.id)
+      )
+    );
+  for (const animal of withParents) {
+    const current = stored.find((row) => row.id === animal.id);
+    if (!current) continue;
+    if (
+      (animal.motherId && current.motherId !== animal.motherId) ||
+      (animal.fatherId && current.fatherId !== animal.fatherId)
+    ) {
+      throw new CodedError("invalid_parent", "The mother or father doesn't fit the animal's sex or type");
+    }
+  }
+}
+
 async function unlinkMismatchedRelatives(tx: Transaction, animalIds: string[]) {
   if (animalIds.length === 0) return;
   const ids = sql.join(
@@ -776,12 +805,14 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
       data: Array<AnimalUpdateInput & { id: string; herdEffectiveDate?: Date | null }>
     ): Promise<Animal[]> {
       await rlsDb.rls(async (tx) => {
+        // Unlinked once after all updates, like the batch update: per item, a mother changed before her calf would
+        // unlink the calf that the same request changes to her type a moment later
+        const changedIds: string[] = [];
         for (const { id, herdId, herdEffectiveDate, ...animal } of data) {
-          const changedIds = await idsWithChangedSexOrType(tx, [id], animal);
+          changedIds.push(...(await idsWithChangedSexOrType(tx, [id], animal)));
           if (Object.keys(animal).length > 0) {
             await tx.update(tables.animals).set(animal).where(eq(tables.animals.id, id));
           }
-          await unlinkMismatchedRelatives(tx, changedIds);
           // Herd changes go through memberships so the outdoor journal history stays correct
           if (herdId !== undefined) {
             await changeHerdMemberships(
@@ -793,6 +824,8 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
             );
           }
         }
+        await unlinkMismatchedRelatives(tx, changedIds);
+        await assertRequestedParentsKept(tx, data);
       });
       const result = await rlsDb.rls(async (tx) => {
         return tx.query.animals.findMany({
@@ -821,6 +854,7 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
         // Parents and offspring that no longer fit the new sex or type are unlinked
         if (result) {
           await unlinkMismatchedRelatives(tx, changedIds);
+          await assertRequestedParentsKept(tx, [{ id, motherId: data.motherId, fatherId: data.fatherId }]);
         }
 
         // Herd changes go through memberships so the outdoor journal history stays correct
@@ -852,6 +886,10 @@ export function animalsApi(rlsDb: RlsDb, t: TFunction) {
         const changedIds = await idsWithChangedSexOrType(tx, animalIds, { type: data.type });
         await tx.update(tables.animals).set(data).where(inArray(tables.animals.id, animalIds));
         await unlinkMismatchedRelatives(tx, changedIds);
+        await assertRequestedParentsKept(
+          tx,
+          animalIds.map((id) => ({ id, motherId: data.motherId, fatherId: data.fatherId }))
+        );
         return tx.query.animals.findMany({
           where: { id: { in: animalIds } },
           with: {

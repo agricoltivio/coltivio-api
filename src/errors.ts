@@ -25,6 +25,8 @@ export const apiErrorCodeSchema = z.enum([
   "ear_tag_assigned",
   // the sire of a mating is the animal itself or not a male
   "invalid_sire",
+  // the mother or father set in the same request doesn't fit the animal's new sex or type
+  "invalid_parent",
   // an end date lies before its start date (e.g. a crop rotation, or its recurrence end before its end)
   "invalid_date_range",
   // the crop rotation overlaps another rotation of the same plot (recurrences included)

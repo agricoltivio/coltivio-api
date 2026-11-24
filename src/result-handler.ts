@@ -56,6 +56,7 @@ const statusByErrorCode: Record<ApiErrorCode, number> = {
   invalid_ear_tag_range: 400,
   ear_tag_assigned: 409,
   invalid_sire: 400,
+  invalid_parent: 400,
   invalid_date_range: 400,
   crop_rotation_overlap: 409,
   outdoor_schedule_overlap: 409,

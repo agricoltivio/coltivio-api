@@ -2269,6 +2269,37 @@ describe("Unlinking relatives after a sex or type change", () => {
     expect((await parentIds(calf.id)).motherId).toBe(mother.id);
   });
 
+  it("rejects a mother set in the same request that doesn't fit the new type", async () => {
+    const { jwt } = await createUserWithFarm();
+    const cowMother = await createAnimal(jwt, { name: "Kuh", sex: "female" });
+    const calf = await createAnimal(jwt, { name: "Kalb" });
+
+    const singleRes = await request(
+      "PATCH",
+      `/v1/animals/byId/${calf.id}`,
+      { type: "goat", motherId: cowMother.id },
+      jwt
+    );
+    expect(singleRes.status).toBe(400);
+    expect(((await singleRes.json()) as { code?: string }).code).toBe("invalid_parent");
+
+    const batchRes = await request(
+      "PATCH",
+      "/v1/animals/batch",
+      { animalIds: [calf.id], data: { type: "goat", motherId: cowMother.id } },
+      jwt
+    );
+    expect(batchRes.status).toBe(400);
+    expect(((await batchRes.json()) as { code?: string }).code).toBe("invalid_parent");
+
+    // Nothing was saved
+    const [stored] = await getAdminDb()
+      .select({ type: schema.animals.type, motherId: schema.animals.motherId })
+      .from(schema.animals)
+      .where(eq(schema.animals.id, calf.id));
+    expect(stored).toEqual({ type: "cow", motherId: null });
+  });
+
   it("a batch type change keeps links between animals changed together", async () => {
     const { jwt } = await createUserWithFarm();
     const mother = await createAnimal(jwt, { name: "Mutter", sex: "female" });
