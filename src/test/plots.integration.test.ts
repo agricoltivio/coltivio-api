@@ -331,6 +331,58 @@ describe("Plot geometry validation", () => {
     expect(await isStoredGeometryValid(plot.id)).toBe(true);
   });
 
+  // agricoltivio/coltivio-rn-app#73: the parts of the edited MultiPolygon overlap each other and the plot overlaps a
+  // neighbour. Cutting it out of the neighbour failed with a GEOS TopologyException before the input was repaired.
+  it("saves a plot whose parts overlap each other while it overlaps a neighbour", async () => {
+    const { jwt } = await createUserWithFarm();
+    const neighbour = await createPlot(jwt, {
+      name: "Neighbour",
+      geometry: {
+        type: "MultiPolygon",
+        coordinates: [
+          [
+            [
+              [8.08, 47.0],
+              [8.2, 47.0],
+              [8.2, 47.1],
+              [8.08, 47.1],
+              [8.08, 47.0],
+            ],
+          ],
+        ],
+      },
+    });
+    const plot = await createPlot(jwt, { name: "Edited" });
+    const overlappingParts = {
+      type: "MultiPolygon",
+      coordinates: [
+        [
+          [
+            [8.0, 47.0],
+            [8.06, 47.0],
+            [8.06, 47.06],
+            [8.0, 47.06],
+            [8.0, 47.0],
+          ],
+        ],
+        [
+          [
+            [8.04, 47.02],
+            [8.1, 47.02],
+            [8.1, 47.08],
+            [8.04, 47.08],
+            [8.04, 47.02],
+          ],
+        ],
+      ],
+    };
+
+    const res = await request("PATCH", `/v1/plots/byId/${plot.id}`, { geometry: overlappingParts }, jwt);
+    expect(res.status).toBe(200);
+    expect(await isStoredGeometryValid(plot.id)).toBe(true);
+    expect(await isStoredGeometryValid(neighbour.id)).toBe(true);
+  });
+
   it("cuts a new plot out of an overlapping plot that is stored invalid", async () => {
     const { jwt } = await createUserWithFarm();
     const invalidPlot = await createPlot(jwt, { name: "Invalid" });
