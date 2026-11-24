@@ -301,6 +301,15 @@ describe("Plot geometry validation", () => {
     [8.0, 47.0],
   ];
 
+  async function plotArea(plotId: string) {
+    const db = getAdminDb();
+    const [row] = await db
+      .select({ area: sql<number>`ST_Area(${schema.plots.geometry})` })
+      .from(schema.plots)
+      .where(eq(schema.plots.id, plotId));
+    return row.area;
+  }
+
   async function isStoredGeometryValid(plotId: string) {
     const db = getAdminDb();
     const [row] = await db
@@ -352,7 +361,26 @@ describe("Plot geometry validation", () => {
         ],
       },
     });
-    const plot = await createPlot(jwt, { name: "Edited" });
+    // Away from the neighbour at first, so the edit below is what makes them overlap and triggers the cut
+    const plot = await createPlot(jwt, {
+      name: "Edited",
+      geometry: {
+        type: "MultiPolygon",
+        coordinates: [
+          [
+            [
+              [8.3, 47.0],
+              [8.4, 47.0],
+              [8.4, 47.1],
+              [8.3, 47.1],
+              [8.3, 47.0],
+            ],
+          ],
+        ],
+      },
+    });
+    const db = getAdminDb();
+    const neighbourAreaBefore = await plotArea(neighbour.id);
     const overlappingParts = {
       type: "MultiPolygon",
       coordinates: [
@@ -381,6 +409,17 @@ describe("Plot geometry validation", () => {
     expect(res.status).toBe(200);
     expect(await isStoredGeometryValid(plot.id)).toBe(true);
     expect(await isStoredGeometryValid(neighbour.id)).toBe(true);
+    // The neighbour was cut: no overlap left and smaller than before
+    const [overlap] = await db
+      .select({
+        area: sql<number>`ST_Area(ST_Intersection(
+          (select geometry from ${schema.plots} where id = ${plot.id}),
+          (select geometry from ${schema.plots} where id = ${neighbour.id})))`,
+      })
+      .from(schema.plots)
+      .limit(1);
+    expect(overlap.area).toBeLessThan(1e-12);
+    expect(await plotArea(neighbour.id)).toBeLessThan(neighbourAreaBefore);
   });
 
   it("cuts a new plot out of an overlapping plot that is stored invalid", async () => {
